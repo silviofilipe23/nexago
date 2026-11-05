@@ -197,7 +197,8 @@ class StoreCustomNameOptions {
   final List<String> colors;
 }
 
-/// Área de impressão da imagem ("Peito esquerdo · 9 × 9 cm").
+/// Área de impressão ("Peito esquerdo · 9 × 9 cm"): imagem, texto ou os
+/// dois (um só vai para o carrinho).
 class StoreCustomArea {
   const StoreCustomArea({
     required this.id,
@@ -205,6 +206,9 @@ class StoreCustomArea {
     required this.widthCm,
     required this.heightCm,
     this.position,
+    this.allowImage = true,
+    this.allowText = false,
+    this.textMaxChars = 20,
   });
 
   final String id;
@@ -214,6 +218,15 @@ class StoreCustomArea {
 
   /// Centro arrastado no backoffice; `null` = o padrão pelo [id].
   final StorePreviewPoint? position;
+
+  /// Aceita imagem (espelho antigo, sem `areas`: sempre).
+  final bool allowImage;
+
+  /// Aceita texto, na fonte e na cor do nome.
+  final bool allowText;
+
+  /// Teto do texto (1–40).
+  final int textMaxChars;
 }
 
 /// `customization.image` do espelho.
@@ -303,6 +316,7 @@ class StoreCustomization {
     this.image = StoreCustomImageOptions.disabled,
     this.back = StoreCustomBackOptions.disabled,
     this.price = const StoreCustomPrice(),
+    this.areas = const [],
   });
 
   /// "+ personalização a partir de R$ X"; 0 = nenhuma opção com preço.
@@ -321,8 +335,23 @@ class StoreCustomization {
   final StoreCustomBackOptions back;
   final StoreCustomPrice price;
 
-  /// Alguma opção que o atleta consegue usar nesta tela.
-  bool get hasOptions => name.enabled || image.enabled || back.enabled;
+  /// `customization.areas`: todas as áreas usáveis, com o que cabe em cada
+  /// uma (imagem e/ou texto). [image] segue só com as de imagem (o app
+  /// antigo).
+  final List<StoreCustomArea> areas;
+
+  /// As áreas do passo "Imagem": [areas]; vazia (espelho antigo ou config
+  /// montada sem ela) = as de [image], só imagem. Vazia = passo desligado.
+  List<StoreCustomArea> get printAreas =>
+      areas.isNotEmpty ? areas : (image.enabled ? image.areas : const []);
+
+  /// Alguma opção que o atleta consegue usar nesta tela (área só de texto
+  /// conta, mesmo com [image] desligada).
+  bool get hasOptions =>
+      name.enabled ||
+      image.enabled ||
+      printAreas.isNotEmpty ||
+      back.enabled;
 }
 
 /// Agregado das avaliações (`storeShowcase/{id}.reviewStats`, refeito pelo

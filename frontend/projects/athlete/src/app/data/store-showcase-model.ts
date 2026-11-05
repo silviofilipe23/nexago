@@ -65,6 +65,14 @@ export interface StoreCustomArea {
   position?: StorePreviewPoint | null;
 }
 
+/** Área do passo "Imagem": o que cabe nela (imagem, texto ou os dois — aí o atleta escolhe). */
+export interface StoreArea extends StoreCustomArea {
+  image: boolean;
+  text: boolean;
+  /** Teto do texto na área. */
+  textMaxChars: number;
+}
+
 /**
  * Config pública da personalização (tela 11), contrato em `docs/business-rules/loja-personalizar.md`.
  * Doc anterior a nome/imagem no espelho: as duas opções chegam desligadas.
@@ -92,9 +100,14 @@ export interface StoreCustomization {
     maxSizeMb: number;
     minWidthPx: number;
     minHeightPx: number;
-    /** Só as ligadas; a 1ª é o padrão. */
+    /** Só as ligadas que aceitam imagem; a 1ª é o padrão. */
     areas: StoreCustomArea[];
   };
+  /**
+   * Todas as áreas do passo, com imagem e/ou texto. Ausente (espelho antigo) = `image.areas` só com
+   * imagem — use `stepAreas()`.
+   */
+  areas?: StoreArea[];
   /** Costas, abaixo do nome: número OU imagem (a imagem segue as regras do bloco `image`). */
   back: {
     enabled: boolean;
@@ -309,6 +322,20 @@ function customizationFromRaw(custom: Raw): StoreCustomization {
         }))
         .filter((a) => a.id !== '' && a.name !== '' && a.widthCm > 0 && a.heightCm > 0)
     : [];
+  const stepAreas: StoreArea[] | undefined = Array.isArray(custom['areas'])
+    ? (custom['areas'] as Raw[])
+        .map((a) => ({
+          id: str(a?.['id']),
+          name: str(a?.['name']),
+          widthCm: num(a?.['widthCm']) ?? 0,
+          heightCm: num(a?.['heightCm']) ?? 0,
+          position: point(a?.['position']),
+          image: a?.['image'] === true && formats.length > 0,
+          text: a?.['text'] === true,
+          textMaxChars: Math.min(40, Math.max(1, count(a?.['textMaxChars']) || 20)),
+        }))
+        .filter((a) => a.id !== '' && a.name !== '' && a.widthCm > 0 && a.heightCm > 0 && (a.image || a.text))
+    : undefined;
   const placement = PLACEMENTS.includes(name['placement'] as StoreNamePlacement)
     ? (name['placement'] as StoreNamePlacement)
     : 'costas_superior';
@@ -333,6 +360,7 @@ function customizationFromRaw(custom: Raw): StoreCustomization {
       minHeightPx: count(image['minHeightPx']),
       areas,
     },
+    ...(stepAreas ? { areas: stepAreas } : {}),
     back: {
       // Espelho antigo (sem `back`) = costas desligadas.
       enabled: back['enabled'] === true && (back['allowNumber'] === true || (back['allowImage'] === true && formats.length > 0)),

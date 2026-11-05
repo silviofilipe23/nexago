@@ -6,6 +6,7 @@
  */
 import { formatCentsBRL } from './cashback-model';
 import type {
+  StoreArea,
   StoreCustomArea,
   StoreCustomization,
   StoreNamePlacement,
@@ -265,6 +266,37 @@ export function imageStepTitle(area: StoreCustomArea | null): string {
   return area?.id === 'manga' ? 'Imagem na manga' : 'Imagem na frente';
 }
 
+/**
+ * Áreas do passo "Imagem": as do espelho novo (imagem e/ou texto) ou, no espelho antigo, as de
+ * `image.areas` como só imagem. Vazio = passo desligado.
+ */
+export function stepAreas(c: StoreCustomization): StoreArea[] {
+  if (c.areas) return c.areas;
+  return c.image.enabled ? c.image.areas.map((a) => ({ ...a, image: true, text: false, textMaxChars: 20 })) : [];
+}
+
+/** Título do passo pela área: só texto → "Texto na frente"; os dois → "Imagem ou texto". */
+export function areaStepTitle(area: StoreArea | null): string {
+  if (area?.text && !area.image) return 'Texto na frente';
+  if (area?.text && area.image) return 'Imagem ou texto';
+  return imageStepTitle(area);
+}
+
+/** "imagem" · "texto" · "imagem ou texto" — o que o passo oferece no produto. */
+export function areasKindLabel(areas: readonly StoreArea[]): string {
+  const image = areas.some((a) => a.image);
+  const text = areas.some((a) => a.text);
+  return image && text ? 'imagem ou texto' : text ? 'texto' : 'imagem';
+}
+
+/**
+ * Fonte do texto na área, em % da largura da peça (`cqw`): a do nome que cabe na largura da caixa,
+ * sem passar de 70% da altura dela (a peça é 6 × 7).
+ */
+export function areaTextFont(length: number, box: PreviewBox): number {
+  return Math.min(nameFontFraction(length, box.w) * 100, box.h * (7 / 6) * 100 * 0.7);
+}
+
 /** "9 × 9 cm". */
 export function areaSizeLabel(area: StoreCustomArea): string {
   const cm = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
@@ -467,5 +499,5 @@ export function productionNote(c: Pick<StoreCustomization, 'leadDays' | 'defectO
 
 /** Tem pelo menos uma opção que o cliente mostra. */
 export function hasCustomOptions(c: StoreCustomization | null): c is StoreCustomization {
-  return c !== null && (c.name.enabled || c.image.enabled || c.back.enabled);
+  return c !== null && (c.name.enabled || stepAreas(c).length > 0 || c.back.enabled);
 }

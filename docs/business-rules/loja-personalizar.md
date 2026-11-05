@@ -19,6 +19,8 @@ name:  { enabled, maxChars, placement: 'costas_superior'|'costas_inferior'|'fren
          colors: ['#rrggbb' ...] },
 image: { enabled, formats: ['png'|'jpg'|'svg' ...], maxSizeMb, minWidthPx, minHeightPx,
          areas: [{ id, name, widthCm, heightCm, position: {x, y} | null }] (só as ligadas; a 1ª é o padrão) },
+areas: [{ id, name, widthCm, heightCm, position: {x, y} | null,
+          image: bool, text: bool, textMaxChars (1–40) }]   // todas as áreas usáveis; [] = passo desligado
 back:  { enabled, allowNumber, allowImage, numberMaxDigits (1–3), widthCm, heightCm, position: {x, y} | null },
 price: { nameOnlyCents, imageOnlyCents, bothCents, backCents }
 ```
@@ -26,6 +28,13 @@ price: { nameOnlyCents, imageOnlyCents, bothCents, backCents }
 do nome, PR #720 no backoffice): o atleta escolhe número OU imagem entre os liberados; a imagem
 das costas segue formatos, peso e resolução mínima do bloco `image` (mesmo com a imagem da frente
 desligada). `back.enabled` só vem ligado se sobra uma opção válida.
+**Imagem ou texto na área** (`areas`): cada área da config tem `allowImage` (ausente = true),
+`allowText` (ausente = false) e `textMaxChars` (ausente = 20). `areas` lista as áreas ligadas com o que
+cabe em cada uma (`image` exige formato no bloco `image`; `text` exige fonte e cor ligadas no nome).
+`image.areas` continua **só com as de imagem**: o cliente antigo, que não conhece texto, nunca oferece
+imagem numa área só de texto (e um produto só com texto some do cliente antigo). Cliente novo usa
+`areas`; espelho antigo sem `areas` = `image.areas` como só imagem.
+
 `photos[].view` (`'frente'|'costas'|null`) passou a ir no espelho: a prévia usa a foto do lado e da cor.
 
 **`position`** (nome, cada área, costas): centro arrastado na prévia da tela 11, em fração da peça de
@@ -39,11 +48,13 @@ dono criar (até 50 MB, `image/png|jpeg|svg+xml`) e ler; o limite do produto é 
 Upload pede login.
 
 ### Callables (região do cliente)
-- `checkStoreCustomName({productId, text})` → `{ok: true}` ou `{ok: false, problem}` com
+- `checkStoreCustomName({productId, text, areaId?})` → `{ok: true}` ou `{ok: false, problem}` com
   `problem ∈ empty|chars|length|blocked|disabled`. Chamada no blur do campo. A lista de bloqueio
-  não sai do servidor.
+  não sai do servidor. Com `areaId`, confere o texto daquela área (teto `textMaxChars`; `disabled` se
+  a área não aceita texto).
 - `addStoreCustomItemToCart({productId, skuId, qty, name?: {text, fontId, color},
   image?: {path, areaId, transform: {x, y, scale}},
+  areaText?: {areaId, text, fontId, color},    // no lugar de image (uma área por item)
   back?: {type: 'numero', number} | {type: 'imagem', path, transform?}})` → `{lineId,
   extraPriceCents, unitPriceCents, quality}` (`quality` = a pior entre frente e costas). Revalida tudo (produto à venda, personalização ativa, SKU com saldo, nome, lista de
   bloqueio, fonte e cor da config, arquivo do próprio atleta, formato, peso, resolução lida do
@@ -57,6 +68,7 @@ Upload pede login.
     name?:  { text, fontId, color, placement },
     image?: { path, format, sizeBytes, widthPx|null, heightPx|null, areaId, areaName,
               transform: { x, y, scale }, quality: 'good'|'warn' },
+    areaText?: { text, fontId, color, areaId, areaName },
     back?:  { type: 'numero', number }
           | { type: 'imagem', path, format, sizeBytes, widthPx|null, heightPx|null,
               transform: { x, y, scale }, quality: 'good'|'warn' } } }
@@ -96,6 +108,22 @@ Upload pede login.
   700), Mono (mono 700) — os mesmos do backoffice. Padrão: a 1ª ligada.
 - Cor do nome: swatches da config; padrão = a de **maior contraste** (WCAG) com o `hex` da cor do
   SKU; SKU sem cor conhecida → a 1ª. Trocar a cor do SKU não muda a cor que o atleta já escolheu.
+
+### Texto na área
+- O passo da área (web "Imagem", app aba "Imagem") lista **todas** as `areas`. Área com `image` e
+  `text`: seletor **Imagem · Texto** (padrão Imagem; trocar não apaga o que foi feito no outro, mas só
+  o escolhido vai pro carrinho). Só texto: só o campo; só imagem: como antes. Título do passo: área
+  só de texto → "Texto na frente"; com os dois → "Imagem ou texto"; só imagem → como antes.
+- Campo igual ao do nome: maiúsculas, só letras/números/espaço/ponto/hífen, até `textMaxChars`;
+  hint "{n} de {max} caracteres"; blur → `checkStoreCustomName` com `areaId` ("Esse texto não pode
+  ser usado"). Vazio = como não ter escolhido a área.
+- **Fonte e cor = as do nome** (as escolhidas no passo Nome; sem nome, a 1ª fonte e a cor de maior
+  contraste com a peça — a mesma regra do número das costas). Sem seletor próprio.
+- Preço: **o da imagem** (`imageOnlyCents`; com nome, `bothCents`). Nome + texto = "os dois".
+- Prévia: o texto em 1 linha, centrado na caixa da área, fonte reduzida até caber na largura e no
+  máximo 70% da altura da caixa.
+- Pedido: `storeCustomItems.areaText = {text, font, color}` e `imageArea` = id da área; rótulo da
+  linha sem nome: `“TEXTO”`.
 
 ### Imagem
 - Validação no cliente antes de subir: formato em `formats`, peso ≤ `maxSizeMb`, resolução ≥

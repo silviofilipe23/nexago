@@ -148,6 +148,25 @@ describe("configuração de personalização", () => {
     })), ["image"]);
   });
 
+  it("área com texto: precisa de imagem ou texto; texto pede fonte e cor; formato só com imagem", () => {
+    const text = {id: "nuca", name: "Nuca", widthCm: 8, heightCm: 4, enabled: true, allowImage: false, allowText: true, textMaxChars: 12};
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.image.areas = [text];
+      c.image.formats = [];
+    })), []);
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.image.areas = [{...text, allowText: false}];
+    })), ["image"]);
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.image.areas = [{...text, textMaxChars: 41}];
+    })), ["image"]);
+    assert.deepEqual(customizationErrors(config((c) => {
+      c.name.enabled = false;
+      c.name.fonts = c.name.fonts.map((f) => ({...f, enabled: false}));
+      c.image.areas = [text];
+    })), ["image"]);
+  });
+
   it("grava a posição com 4 casas; sem ela, null", async () => {
     const {fake, db} = makeDb();
     await saveCustomizationCore(db, {productId: "p1", config: config((c) => {

@@ -19,6 +19,7 @@ import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {MAX_QTY_PER_ITEM} from "./store-catalog";
 import {
+  areaContent,
   cleanPosition,
   withCustomizationDefaults,
   type CustomizationConfig,
@@ -72,6 +73,13 @@ export interface PublicCustomization {
     areas: {id: string; name: string; widthCm: number; heightCm: number; position: PreviewPoint | null}[];
   };
   /**
+   * Todas as áreas que o atleta pode usar, com o que cabe em cada uma: imagem (regras do bloco
+   * `image`), texto (regras, fontes e cores do nome) ou os dois — aí ele escolhe. `image.areas`
+   * continua só com as de imagem, para o cliente antigo (que não conhece texto) não oferecer imagem
+   * numa área só de texto. Vazia = passo desligado.
+   */
+  areas: PublicArea[];
+  /**
    * Costas, abaixo do nome: o atleta escolhe número OU imagem entre os liberados. A imagem segue
    * formatos, peso e resolução mínima do bloco `image`.
    */
@@ -89,6 +97,17 @@ export interface PublicCustomization {
   price: {nameOnlyCents: number; imageOnlyCents: number; bothCents: number; backCents: number};
 }
 
+export interface PublicArea {
+  id: string;
+  name: string;
+  widthCm: number;
+  heightCm: number;
+  position: PreviewPoint | null;
+  image: boolean;
+  text: boolean;
+  textMaxChars: number;
+}
+
 function toMillis(v: unknown): number {
   if (v instanceof Date) return v.getTime();
   const ts = v as {toMillis?: () => number} | null | undefined;
@@ -99,14 +118,26 @@ function toMillis(v: unknown): number {
 export function publicCustomization(raw: Data | null): PublicCustomization | null {
   if (raw?.["active"] !== true) return null;
   const c = withCustomizationDefaults(raw);
-  const nameOn = c.name.enabled && c.name.fonts.some((f) => f.enabled) && c.name.colors.length > 0;
-  const areas = c.image.areas.filter((a) => a.enabled);
-  const imageOn = c.image.enabled && areas.length > 0 && c.image.formats.length > 0;
+  const typography = c.name.fonts.some((f) => f.enabled) && c.name.colors.length > 0;
+  const nameOn = c.name.enabled && typography;
+  const formatsOn = c.image.formats.length > 0;
+  const allAreas: PublicArea[] = !c.image.enabled ? [] : c.image.areas
+    .filter((a) => a.enabled)
+    .map((a) => {
+      const content = areaContent(a);
+      return {
+        id: a.id, name: a.name.trim(), widthCm: a.widthCm, heightCm: a.heightCm, position: cleanPosition(a.position),
+        image: content.allowImage && formatsOn, text: content.allowText && typography, textMaxChars: content.textMaxChars,
+      };
+    })
+    .filter((a) => a.image || a.text);
+  const areas = allAreas.filter((a) => a.image);
+  const imageOn = areas.length > 0;
   const backImage = c.back.allowImage && c.image.formats.length > 0;
   const backOn = c.back.enabled && (c.back.allowNumber || backImage);
   const options = [
     nameOn ? c.price.nameOnlyCents : null,
-    imageOn ? c.price.imageOnlyCents : null,
+    allAreas.length > 0 ? c.price.imageOnlyCents : null,
     backOn ? c.price.backCents : null,
   ].filter((n): n is number => n !== null && n > 0);
   return {
@@ -128,10 +159,9 @@ export function publicCustomization(raw: Data | null): PublicCustomization | nul
       maxSizeMb: c.image.maxSizeMb,
       minWidthPx: c.image.minWidthPx,
       minHeightPx: c.image.minHeightPx,
-      areas: areas.map(({id, name, widthCm, heightCm, position}) => ({
-        id, name: name.trim(), widthCm, heightCm, position: cleanPosition(position),
-      })),
+      areas: areas.map(({id, name, widthCm, heightCm, position}) => ({id, name, widthCm, heightCm, position})),
     },
+    areas: allAreas,
     back: {
       enabled: backOn,
       allowNumber: backOn && c.back.allowNumber,
@@ -295,6 +325,8 @@ export interface AddCustomItemInput {
   qty: number;
   name?: {text: string; fontId: string; color: string} | null;
   image?: {path: string; areaId: string; transform?: {x: number; y: number; scale: number}} | null;
+  /** Texto numa área que aceita texto (no lugar da imagem: uma área por item), na fonte/cor do nome. */
+  areaText?: {areaId: string; text: string; fontId: string; color: string} | null;
   /** Costas, abaixo do nome: número OU imagem. */
   back?:
     | {type: "numero"; number: string}
@@ -348,10 +380,12 @@ export async function addCustomItemToCartCore(
   }
   const wantsName = input.name != null;
   const wantsImage = input.image != null;
+  const wantsAreaText = input.areaText != null;
   const wantsBack = input.back != null;
-  if (!wantsName && !wantsImage && !wantsBack) {
+  if (!wantsName && !wantsImage && !wantsAreaText && !wantsBack) {
     throw invalid(["name", "image", "back"], "Escolha um nome, uma imagem ou as costas.");
   }
+  if (wantsImage && wantsAreaText) throw invalid(["image", "areaText"], "Escolha imagem ou texto para a área.");
 
   const productRef = db.collection(PRODUCTS).doc(productId);
   const [productSnap, skuSnap, customSnap, blockSnap] = await Promise.all([
@@ -378,10 +412,10 @@ export async function addCustomItemToCartCore(
 
   const customization: Data = {configVersion: pub.version};
 
+  const terms = Array.isArray(blockSnap.data()?.["terms"]) ? (blockSnap.data()!["terms"] as string[]) : [];
   if (wantsName) {
     if (!pub.name.enabled) throw invalid(["name"], "Esse produto não aceita nome.");
     const text = normalizeCustomName(input.name!.text);
-    const terms = Array.isArray(blockSnap.data()?.["terms"]) ? (blockSnap.data()!["terms"] as string[]) : [];
     const problem = nameProblem(text, {maxChars: pub.name.maxChars, blockOffensive: config.name.blockOffensive}, terms);
     if (problem === "blocked") throw invalid(["name"], "Esse nome não pode ser usado.");
     if (problem) throw invalid(["name"]);
@@ -430,6 +464,19 @@ export async function addCustomItemToCartCore(
     };
   }
 
+  if (wantsAreaText) {
+    const area = pub.areas.find((a) => a.id === input.areaText!.areaId && a.text);
+    if (!area) throw invalid(["areaText"], "Essa área não aceita texto.");
+    const text = normalizeCustomName(input.areaText!.text);
+    const problem = nameProblem(text, {maxChars: area.textMaxChars, blockOffensive: config.name.blockOffensive}, terms);
+    if (problem === "blocked") throw invalid(["areaText"], "Esse texto não pode ser usado.");
+    if (problem) throw invalid(["areaText"]);
+    const fontId = input.areaText!.fontId as FontId;
+    const color = typeof input.areaText!.color === "string" ? input.areaText!.color.toLowerCase() : "";
+    if (!pub.name.fonts.includes(fontId) || !pub.name.colors.includes(color)) throw invalid(["areaText"]);
+    customization["areaText"] = {text, fontId, color, areaId: area.id, areaName: area.name};
+  }
+
   if (wantsBack) {
     if (!pub.back.enabled) throw invalid(["back"], "Esse produto não personaliza as costas.");
     const back = input.back!;
@@ -462,7 +509,8 @@ export async function addCustomItemToCartCore(
     }
   }
 
-  const extraPriceCents = customExtraCents(pub.price, wantsName, wantsImage, wantsBack);
+  // Texto na área custa o mesmo que a imagem: é o conteúdo da área.
+  const extraPriceCents = customExtraCents(pub.price, wantsName, wantsImage || wantsAreaText, wantsBack);
   customization["extraPriceCents"] = extraPriceCents;
   customization["addedAt"] = now;
   const ownPrice = sku["priceCents"];
@@ -486,9 +534,12 @@ export async function addCustomItemToCartCore(
 
 const CLIENT_CALLABLE = {region: CLIENT_FACING_REGIONS, invoker: "public" as const};
 
-/** Validação do nome no blur (o cliente não lê a lista de bloqueio). */
+/**
+ * Validação do nome no blur (o cliente não lê a lista de bloqueio). Com `areaId`, confere o texto
+ * daquela área (teto da área, mesma lista de bloqueio) em vez do nome.
+ */
 export const checkStoreCustomName = onCall(CLIENT_CALLABLE, async (request) => {
-  const data = (request.data ?? {}) as {productId?: unknown; text?: unknown};
+  const data = (request.data ?? {}) as {productId?: unknown; text?: unknown; areaId?: unknown};
   const productId = typeof data.productId === "string" ? data.productId : "";
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(productId)) throw invalid(["productId"]);
   const db = getFirestore();
@@ -497,14 +548,12 @@ export const checkStoreCustomName = onCall(CLIENT_CALLABLE, async (request) => {
     db.doc(BLOCKLIST_DOC).get(),
   ]);
   const pub = publicCustomization(customSnap.exists ? customSnap.data()! : null);
-  if (!pub?.name.enabled) return {ok: false, problem: "disabled"};
+  const area = typeof data.areaId === "string" ? pub?.areas.find((a) => a.id === data.areaId && a.text) : undefined;
+  const maxChars = typeof data.areaId === "string" ? area?.textMaxChars : pub?.name.enabled ? pub.name.maxChars : undefined;
+  if (maxChars === undefined) return {ok: false, problem: "disabled"};
   const config = withCustomizationDefaults(customSnap.data());
   const terms = Array.isArray(blockSnap.data()?.["terms"]) ? (blockSnap.data()!["terms"] as string[]) : [];
-  const problem = nameProblem(
-    normalizeCustomName(data.text),
-    {maxChars: pub.name.maxChars, blockOffensive: config.name.blockOffensive},
-    terms,
-  );
+  const problem = nameProblem(normalizeCustomName(data.text), {maxChars, blockOffensive: config.name.blockOffensive}, terms);
   return problem === null ? {ok: true} : {ok: false, problem};
 });
 

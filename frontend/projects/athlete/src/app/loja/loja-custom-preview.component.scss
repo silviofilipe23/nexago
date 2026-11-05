@@ -124,6 +124,16 @@
   place-items: center;
 }
 
+// Texto na área: centrado na caixa, 1 linha (a fonte já vem do tamanho que cabe).
+.cp-area-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
 .cp-name {
   white-space: nowrap;
   line-height: 1;

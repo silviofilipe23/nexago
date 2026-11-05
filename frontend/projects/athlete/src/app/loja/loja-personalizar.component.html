@@ -66,7 +66,7 @@
                 [garmentHex]="garmentHex()"
                 [name]="previewName()"
                 [area]="previewArea()"
-                [image]="previewImage()"
+                [image]="previewImage()" [areaText]="previewAreaText()"
                 [back]="previewBack()"
                 [interactive]="side() === 'frente' && !!previewImage()"
                 (transformChanged)="transform.set($event)"
@@ -79,10 +79,10 @@
             </div>
             <div class="lz-thumbs">
               <button type="button" class="lz-thumb" [class.lz-thumb--on]="side() === 'frente'" aria-label="Ver a frente" (click)="side.set('frente')">
-                <app-loja-custom-preview [side]="'frente'" [photoUrl]="photoFor('frente')" [garmentHex]="garmentHex()" [name]="previewName()" [area]="previewArea()" [image]="previewImage()" [compact]="true" />
+                <app-loja-custom-preview [side]="'frente'" [photoUrl]="photoFor('frente')" [garmentHex]="garmentHex()" [name]="previewName()" [area]="previewArea()" [image]="previewImage()" [areaText]="previewAreaText()" [compact]="true" />
               </button>
               <button type="button" class="lz-thumb" [class.lz-thumb--on]="side() === 'costas'" aria-label="Ver as costas" (click)="side.set('costas')">
-                <app-loja-custom-preview [side]="'costas'" [photoUrl]="photoFor('costas')" [garmentHex]="garmentHex()" [name]="previewName()" [area]="previewArea()" [image]="previewImage()" [back]="previewBack()" [compact]="true" />
+                <app-loja-custom-preview [side]="'costas'" [photoUrl]="photoFor('costas')" [garmentHex]="garmentHex()" [name]="previewName()" [area]="previewArea()" [image]="previewImage()" [areaText]="previewAreaText()" [back]="previewBack()" [compact]="true" />
               </button>
             </div>
             @if (photoNote(); as note) {
@@ -251,7 +251,7 @@
             }
 
             <!-- 3 · Imagem -->
-            @if (c.image.enabled) {
+            @if (areas().length > 0) {
               <hr class="lp-divider" />
               <section class="lz-step" aria-labelledby="lz-step-3">
                 <div class="lz-step-head">
@@ -263,6 +263,42 @@
                   }
                 </div>
                 @if (imageOn()) {
+                  @if (area()?.image && area()?.text) {
+                    <div class="lp-sizes lz-back-kinds" role="radiogroup" aria-label="Imagem ou texto na área">
+                      <button type="button" role="radio" class="lp-size" [class.lp-size--on]="areaKind() === 'imagem'" [attr.aria-checked]="areaKind() === 'imagem'" (click)="chooseAreaKind('imagem')">Imagem</button>
+                      <button type="button" role="radio" class="lp-size" [class.lp-size--on]="areaKind() === 'texto'" [attr.aria-checked]="areaKind() === 'texto'" (click)="chooseAreaKind('texto')">Texto</button>
+                    </div>
+                  }
+                  @if (areaKind() === 'texto' && area(); as a) {
+                    <div class="lz-field" [class.lz-field--shake]="areaTextShake()">
+                      <label class="lp-eyebrow" for="lz-area-text">Texto</label>
+                      <input
+                        #areaTextInput
+                        id="lz-area-text"
+                        class="lz-input"
+                        [class.lz-input--bad]="areaTextProblem() === 'blocked'"
+                        type="text"
+                        autocomplete="off"
+                        autocapitalize="characters"
+                        spellcheck="false"
+                        placeholder="SEU TEXTO"
+                        [value]="areaText()"
+                        [attr.maxlength]="a.textMaxChars"
+                        [attr.aria-invalid]="areaTextProblem() === 'blocked'"
+                        aria-describedby="lz-area-text-hint"
+                        (input)="onAreaTextInput(areaTextInput)"
+                        (blur)="onAreaTextBlur(areaTextInput)"
+                      />
+                      <span
+                        id="lz-area-text-hint"
+                        class="lz-hint"
+                        [class.lz-hint--warn]="areaTextHintWarn()"
+                        [class.lz-hint--bad]="areaTextRejected() || areaTextProblem() === 'blocked'"
+                        aria-live="polite"
+                      >{{ areaTextHint() }}</span>
+                    </div>
+                    <p class="lz-rules">Sai na fonte e na cor do nome.</p>
+                  } @else {
                   <input #fileInput type="file" class="lp-visually-hidden" [accept]="accept()" (change)="onFilePicked(fileInput)" tabindex="-1" aria-hidden="true" />
                   @if (imageError(); as err) {
                     <div class="lz-file lz-file--bad" role="alert">
@@ -324,11 +360,12 @@
                       <span><strong>Enviar imagem</strong> · arraste o arquivo ou clique</span>
                     </button>
                   }
+                  }
 
-                  @if (c.image.areas.length > 0) {
+                  @if (areas().length > 0) {
                     <span class="lp-eyebrow" id="lz-area-label">Posição</span>
                     <div class="lz-areas" role="radiogroup" aria-labelledby="lz-area-label">
-                      @for (a of c.image.areas; track a.id) {
+                      @for (a of areas(); track a.id) {
                         <button type="button" role="radio" class="lz-area" [class.lz-area--on]="area()?.id === a.id" [attr.aria-checked]="area()?.id === a.id" [attr.aria-label]="a.name + ', ' + areaSize(a)" (click)="chooseArea(a)">
                           <strong>{{ a.name }}</strong>
                           <small>{{ areaSize(a) }}</small>
@@ -336,11 +373,13 @@
                       }
                     </div>
                   }
-                  <p class="lz-rules">{{ imageRules() }}</p>
+                  @if (areaKind() === 'imagem') {
+                    <p class="lz-rules">{{ imageRules() }}</p>
+                  }
                 } @else {
                   <button type="button" class="lz-collapsed" (click)="setImageOn(true)">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-                    Adicionar imagem
+                    {{ addAreaLabel() }}
                   </button>
                 }
               </section>

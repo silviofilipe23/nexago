@@ -50,6 +50,20 @@ export interface PrintArea {
   enabled: boolean;
   /** Ausente em doc antigo = `null`. */
   position?: PreviewPoint | null;
+  /** O que o atleta pode pôr na área: imagem, texto ou os dois (ele escolhe). Ausente = só imagem. */
+  allowImage?: boolean;
+  allowText?: boolean;
+  /** Teto do texto na área (1–40). Ausente = 20. */
+  textMaxChars?: number;
+}
+
+/** Área com as opções de conteúdo resolvidas (doc antigo = só imagem, 20 caracteres). */
+export function areaContent(a: PrintArea): {allowImage: boolean; allowText: boolean; textMaxChars: number} {
+  return {
+    allowImage: a.allowImage !== false,
+    allowText: a.allowText === true,
+    textMaxChars: typeof a.textMaxChars === "number" ? a.textMaxChars : DEFAULT_TEXT_MAX_CHARS,
+  };
 }
 
 export interface CustomizationConfig {
@@ -93,6 +107,8 @@ export interface CustomizationConfig {
   defectOnlyReturns: boolean;
 }
 
+export const DEFAULT_TEXT_MAX_CHARS = 20;
+
 const PLACEMENTS: NamePlacement[] = ["costas_superior", "costas_inferior", "frente", "manga", "barra"];
 const FONTS: FontId[] = ["bloco", "classica", "mono"];
 const FORMATS: ImageFormat[] = ["png", "jpg", "svg"];
@@ -118,9 +134,9 @@ export const DEFAULT_CUSTOMIZATION: CustomizationConfig = {
     minWidthPx: 1000,
     minHeightPx: 1000,
     areas: [
-      {id: "peito_esquerdo", name: "Peito esquerdo", widthCm: 9, heightCm: 9, enabled: true},
-      {id: "centro_frente", name: "Centro da frente", widthCm: 25, heightCm: 30, enabled: true},
-      {id: "manga", name: "Manga", widthCm: 7, heightCm: 7, enabled: false},
+      {id: "peito_esquerdo", name: "Peito esquerdo", widthCm: 9, heightCm: 9, enabled: true, allowImage: true, allowText: false, textMaxChars: 20},
+      {id: "centro_frente", name: "Centro da frente", widthCm: 25, heightCm: 30, enabled: true, allowImage: true, allowText: false, textMaxChars: 20},
+      {id: "manga", name: "Manga", widthCm: 7, heightCm: 7, enabled: false, allowImage: true, allowText: false, textMaxChars: 20},
     ],
     removeBackground: true,
   },
@@ -192,12 +208,26 @@ export function customizationErrors(c: CustomizationConfig): string[] {
     areas.some((a) =>
       typeof a?.id !== "string" || !ID_RE.test(a.id) || a.id.length > 40 || typeof a.name !== "string" || a.name.trim() === "" ||
       a.name.length > 40 || !int(a.widthCm, 1, 100) || !int(a.heightCm, 1, 100) || !bool(a.enabled) ||
-      !positionOk(a.position),
+      !positionOk(a.position) ||
+      (a.allowImage !== undefined && !bool(a.allowImage)) || (a.allowText !== undefined && !bool(a.allowText)) ||
+      (a.textMaxChars !== undefined && !int(a.textMaxChars, 1, 40)) ||
+      // Área sem imagem nem texto: o atleta não teria o que pôr nela.
+      (!areaContent(a).allowImage && !areaContent(a).allowText),
     )
   ) {
     fields.push("image");
-  } else if (i.enabled && (formats.length === 0 || !areas.some((a) => a.enabled))) {
-    fields.push("image");
+  } else if (i.enabled) {
+    const on = areas.filter((a) => a.enabled);
+    const fontsOn = Array.isArray(n?.fonts) && n.fonts.some((f) => f?.enabled === true);
+    const colorsOn = Array.isArray(n?.colors) && n.colors.length > 0;
+    if (
+      on.length === 0 ||
+      // Formato só faz falta com área de imagem; texto usa as fontes e cores do card Nome.
+      (on.some((a) => areaContent(a).allowImage) && formats.length === 0) ||
+      (on.some((a) => areaContent(a).allowText) && (!fontsOn || !colorsOn))
+    ) {
+      fields.push("image");
+    }
   }
 
   const b = c?.back;
@@ -281,7 +311,9 @@ export async function saveCustomizationCore(
     },
     image: {
       ...c.image,
-      areas: c.image.areas.map((a) => ({...a, name: a.name.trim(), position: cleanPosition(a.position)})),
+      areas: c.image.areas.map((a) => ({
+        ...a, name: a.name.trim(), position: cleanPosition(a.position), ...areaContent(a),
+      })),
     },
     back: {
       enabled: c.back.enabled,
@@ -464,6 +496,7 @@ export async function createCustomBatchCore(
       namePlacement: (it["namePlacement"] as string) ?? null,
       imageArea: (it["imageArea"] as string) ?? null,
       imageUrl: (it["image"]?.["url"] as string) ?? null,
+      areaText: (it["areaText"]?.["text"] as string) ?? null,
       back: back?.type === "numero" ? `nº ${back.number ?? ""}` : back?.type === "imagem" ? (back.image?.url ?? "imagem") : null,
       numbers: units.map((u) => u.number ?? ""),
       files: Array.isArray(it["finalFiles"]) ? it["finalFiles"] : [],

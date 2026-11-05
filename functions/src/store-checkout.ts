@@ -524,6 +524,7 @@ export async function confirmStoreOrderPaymentCore(
       const c = (line["customization"] ?? {}) as Data;
       const name = c["name"] as Data | undefined;
       const image = c["image"] as Data | undefined;
+      const areaText = c["areaText"] as Data | undefined;
       const id = `${orderId}-${i + 1}`;
       customItemIds.push(id);
       tx.set(db.collection(CUSTOM_ITEMS).doc(id), {
@@ -540,7 +541,11 @@ export async function confirmStoreOrderPaymentCore(
           format: str(image["format"], 4), sizeBytes: image["sizeBytes"] ?? null, backgroundRemoved: false,
           transform: image["transform"] ?? null, quality: image["quality"] ?? null,
         } : null,
-        imageArea: image ? str(image["areaId"], 40) : null,
+        // Texto na área (no lugar da imagem), na fonte e cor escolhidas.
+        areaText: areaText ? {
+          text: str(areaText["text"], 40), font: str(areaText["fontId"], 20), color: str(areaText["color"], 7),
+        } : null,
+        imageArea: image ? str(image["areaId"], 40) : areaText ? str(areaText["areaId"], 40) : null,
         // Costas abaixo do nome, no formato que a fila (tela 10) lê.
         back: backItemOf(c["back"] as Data | undefined),
         finalFiles: [], history: [], version: 1,

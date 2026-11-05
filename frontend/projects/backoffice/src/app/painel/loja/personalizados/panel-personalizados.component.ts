@@ -137,6 +137,8 @@ function errorText(error: unknown): string {
                   <span>
                     @if (it.image) {
                       <span class="thumb">@if (it.image.url) { <img [src]="it.image.url" alt="" loading="lazy" /> }</span>
+                    } @else if (it.areaText) {
+                      <span class="dim">“{{ it.areaText.text }}”</span>
                     } @else { <span class="dim">—</span> }
                   </span>
                   <span><bo-pill [tone]="statusInfo[it.status].tone">{{ statusInfo[it.status].label }}</bo-pill></span>

@@ -343,6 +343,161 @@ void main() {
       expect(c.back.position, isNull);
     });
 
+    test('areas: imagem e/ou texto por área; teto do texto 1–40', () {
+      final c = storeCustomizationFromMap({
+        'name': {
+          'enabled': false,
+          'fonts': ['bloco'],
+          'colors': ['#ffffff'],
+        },
+        'image': {
+          'enabled': true,
+          'formats': ['png'],
+          // Só as de imagem (o app antigo).
+          'areas': [
+            {
+              'id': 'peito_esquerdo',
+              'name': 'Peito',
+              'widthCm': 9,
+              'heightCm': 9,
+            },
+          ],
+        },
+        'areas': [
+          {
+            'id': 'peito_esquerdo',
+            'name': 'Peito',
+            'widthCm': 9,
+            'heightCm': 9,
+            'position': {'x': 0.3, 'y': 0.3},
+            'image': true,
+            'text': true,
+            'textMaxChars': 12,
+          },
+          {
+            'id': 'frase',
+            'name': 'Frase',
+            'widthCm': 25,
+            'heightCm': 8,
+            'image': false,
+            'text': true,
+            'textMaxChars': 99,
+          },
+          {
+            'id': 'nada',
+            'name': 'Nada',
+            'widthCm': 9,
+            'heightCm': 9,
+            'image': false,
+            'text': false,
+          },
+          {'id': 'sem_medida', 'widthCm': 0, 'heightCm': 9, 'text': true},
+        ],
+      });
+      expect(c.areas.map((a) => a.id), ['peito_esquerdo', 'frase']);
+      final peito = c.areas.first;
+      expect(peito.allowImage, isTrue);
+      expect(peito.allowText, isTrue);
+      expect(peito.textMaxChars, 12);
+      expect(peito.position, (x: 0.3, y: 0.3));
+      final frase = c.areas.last;
+      expect(frase.allowImage, isFalse);
+      expect(frase.allowText, isTrue);
+      expect(frase.textMaxChars, 40);
+      // Texto usa fonte e cor do nome, mesmo com o nome desligado.
+      expect(c.name.enabled, isFalse);
+      expect(c.printAreas, c.areas);
+      expect(c.image.areas.single.id, 'peito_esquerdo');
+    });
+
+    test('areas: só texto liga o passo; sem fonte/cor o texto some', () {
+      final textOnly = storeCustomizationFromMap({
+        'name': {
+          'enabled': false,
+          'fonts': ['bloco'],
+          'colors': ['#111111'],
+        },
+        'image': {'enabled': false, 'formats': [], 'areas': []},
+        'areas': [
+          {
+            'id': 'frase',
+            'name': 'Frase',
+            'widthCm': 25,
+            'heightCm': 8,
+            'image': false,
+            'text': true,
+          },
+        ],
+      });
+      expect(textOnly.image.enabled, isFalse);
+      expect(textOnly.printAreas.single.allowText, isTrue);
+      // Sem `textMaxChars` = 20.
+      expect(textOnly.printAreas.single.textMaxChars, 20);
+      expect(textOnly.hasOptions, isTrue);
+
+      final noTypography = storeCustomizationFromMap({
+        'name': {
+          'enabled': false,
+          'fonts': ['inventada'],
+          'colors': ['#111111'],
+        },
+        'areas': [
+          {
+            'id': 'frase',
+            'name': 'Frase',
+            'widthCm': 25,
+            'heightCm': 8,
+            'image': true,
+            'text': true,
+          },
+        ],
+      });
+      // Nem fonte que o app desenha nem formato de imagem: a área some.
+      expect(noTypography.areas, isEmpty);
+      expect(noTypography.hasOptions, isFalse);
+    });
+
+    test('espelho antigo sem areas: as de image.areas, só imagem', () {
+      final c = storeCustomizationFromMap({
+        'image': {
+          'enabled': true,
+          'formats': ['png'],
+          'areas': [
+            {
+              'id': 'peito_esquerdo',
+              'name': 'Peito',
+              'widthCm': 9,
+              'heightCm': 9,
+            },
+          ],
+        },
+      });
+      final area = c.areas.single;
+      expect(area.id, 'peito_esquerdo');
+      expect(area.allowImage, isTrue);
+      expect(area.allowText, isFalse);
+      expect(area.textMaxChars, 20);
+      expect(c.printAreas, c.areas);
+
+      // Imagem desligada no espelho antigo: passo desligado.
+      final off = storeCustomizationFromMap({
+        'image': {
+          'enabled': false,
+          'formats': ['png'],
+          'areas': [
+            {
+              'id': 'peito_esquerdo',
+              'name': 'Peito',
+              'widthCm': 9,
+              'heightCm': 9,
+            },
+          ],
+        },
+      });
+      expect(off.areas, isEmpty);
+      expect(off.printAreas, isEmpty);
+    });
+
     test('costas: sem opção válida somem; números fora do intervalo', () {
       // Só imagem liberada, mas sem formato no bloco Imagem.
       final noFormat = storeCustomizationFromMap({
@@ -587,6 +742,32 @@ void main() {
         'skuId': 'unico',
         'qty': 2,
       });
+    });
+
+    test('linha com texto na área (areaText) volta inteira', () {
+      final textLine = {
+        'lineId': 'l-2',
+        'productId': 'camiseta',
+        'skuId': 'preto_m',
+        'qty': 1,
+        'customization': {
+          'configVersion': 1760000000000,
+          'extraPriceCents': 1990,
+          'areaText': {
+            'text': 'VAI TIME',
+            'fontId': 'bloco',
+            'color': '#ffffff',
+            'areaId': 'centro_frente',
+            'areaName': 'Centro da frente',
+          },
+        },
+      };
+      final items = storeCartItemsFromMap({
+        'items': [textLine],
+      });
+
+      expect(items.single.isCustom, isTrue);
+      expect(items.single.toMap(), textLine);
     });
   });
 }

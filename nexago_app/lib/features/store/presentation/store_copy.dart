@@ -251,6 +251,16 @@ abstract final class StoreCopy {
   static String customizeMockup({required bool back}) =>
       'MOCKUP · ${back ? 'COSTAS' : 'FRENTE'}';
 
+  // Personalizar · Texto na área
+  static const customizeAreaImage = 'Imagem';
+  static const customizeAreaText = 'Texto';
+  static const customizeAreaTextHint = 'Digite o texto';
+  static const customizeAreaTextBlocked = 'Esse texto não pode ser usado';
+  static const customizeAreaTextTooLong = 'Texto maior que o permitido';
+  static const customizeAreaTextDisabled =
+      'Essa área não aceita texto no momento';
+  static const customizeYourText = 'SEU TEXTO';
+
   // Personalizar · Costas (abaixo do nome)
   static const customizeTabBack = 'Costas';
   static const customizeBackNumber = 'Número';

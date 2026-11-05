@@ -1,5 +1,5 @@
 import type { PillTone } from '../../../ui/pill.component';
-import type { CustomizationConfig } from '../../produtos/personalizacao/data/customization';
+import { areaContent, type CustomizationConfig } from '../../produtos/personalizacao/data/customization';
 
 export type CustomStatus = 'aprovar' | 'nova_imagem' | 'producao' | 'pronto' | 'reprovado';
 export type NewImageReason = 'baixa_resolucao' | 'marca_terceiros' | 'conteudo_improprio' | 'outro';
@@ -31,6 +31,8 @@ export interface CustomItem {
   nameColor: string | null;
   namePlacement: string | null;
   image: CustomImage | null;
+  /** Texto na área, no lugar da imagem (a área fica em `imageArea`). */
+  areaText: { text: string; font: string; color: string } | null;
   imageArea: string | null;
   units: string[];
   /** Número das costas de cada unidade do kit (mesma ordem de `units`; vazio sem número). */
@@ -118,6 +120,9 @@ export function customItemFromDoc(id: string, d: Raw): CustomItem {
     nameColor: str(d['nameColor']) || null,
     namePlacement: str(d['namePlacement']) || null,
     image: imageFromDoc(d['image']),
+    areaText: str(d['areaText']?.['text'])
+      ? { text: str(d['areaText']['text']), font: str(d['areaText']['font']) || 'bloco', color: str(d['areaText']['color']) || '#ffffff' }
+      : null,
     imageArea: str(d['imageArea']) || null,
     units: Array.isArray(d['units']) ? (d['units'] as Raw[]).map((u) => str(u?.['name'])) : [],
     unitNumbers: Array.isArray(d['units']) ? (d['units'] as Raw[]).map((u) => str(u?.['number'])) : [],
@@ -170,7 +175,7 @@ export function tabCounts(items: CustomItem[]): Record<CustomStatus, number> {
 }
 
 export interface CheckRow {
-  id: 'resolucao' | 'formato' | 'nome' | 'costas' | 'numero' | 'conteudo';
+  id: 'resolucao' | 'formato' | 'nome' | 'texto' | 'costas' | 'numero' | 'conteudo';
   label: string;
   level: CheckLevel;
   detail: string;
@@ -239,6 +244,23 @@ export function checklist(item: CustomItem, config: CustomizationConfig, blockli
     const area = config.image.areas.find((a) => a.id === item.imageArea) ?? null;
     rows.push({ id: 'resolucao', label: 'Resolução', ...resolutionCheck(img, config, area) });
     rows.push({ id: 'formato', label: 'Formato', ...formatCheck(img, config) });
+  }
+
+  if (item.areaText) {
+    // Mesmas regras do nome, com o teto da área.
+    const area = config.image.areas.find((a) => a.id === item.imageArea) ?? null;
+    const max = area ? areaContent(area).textMaxChars : null;
+    const terms = config.name.blockOffensive ? blocklist.map(normalize) : [];
+    const blocked = terms.some((t) => t !== '' && normalize(item.areaText!.text).includes(t));
+    const tooLong = max !== null && item.areaText.text.length > max;
+    rows.push({
+      id: 'texto',
+      label: 'Texto na área',
+      level: tooLong || blocked ? 'erro' : 'ok',
+      detail: `${item.areaText.text.length} caracteres${tooLong ? ` · acima do máximo de ${max}` : ''} · ${
+        blocked ? 'tem palavra bloqueada' : 'sem palavras bloqueadas'
+      }`,
+    });
   }
 
   const names = item.units.length > 0 ? item.units : item.name ? [item.name] : [];
@@ -334,7 +356,7 @@ export function customKpis(items: CustomItem[], now: Date): CustomKpis {
 export function batchCsv(
   rows: { item: CustomItem; areaLabel: string }[],
 ): string {
-  const header = ['pedido', 'produto', 'variacao', 'nome', 'costas', 'fonte', 'cor', 'local do nome', 'area da imagem', 'imagem', 'arquivos'];
+  const header = ['pedido', 'produto', 'variacao', 'nome', 'costas', 'fonte', 'cor', 'local do nome', 'area da imagem', 'imagem', 'texto na area', 'arquivos'];
   const esc = (v: string) => (/[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
   const lines = [header.join(';')];
   for (const { item, areaLabel } of rows) {
@@ -358,6 +380,7 @@ export function batchCsv(
         item.namePlacement ? (PLACEMENT_SHORT[item.namePlacement] ?? item.namePlacement) : '',
         areaLabel,
         item.image?.url ?? '',
+        item.areaText ? `${item.areaText.text} (${item.areaText.font}, ${item.areaText.color})` : '',
         item.finalFiles.map((f) => f.url ?? f.name).join(' '),
       ].map(esc).join(';'));
     });

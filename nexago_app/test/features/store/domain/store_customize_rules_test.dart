@@ -817,4 +817,146 @@ void main() {
       );
     });
   });
+
+  group('texto na área', () {
+    const textOnly = StoreCustomArea(
+      id: 'centro_frente',
+      name: 'Centro',
+      widthCm: 25,
+      heightCm: 10,
+      allowImage: false,
+      allowText: true,
+      textMaxChars: 15,
+    );
+    const both = StoreCustomArea(
+      id: 'peito_esquerdo',
+      name: 'Peito',
+      widthCm: 9,
+      heightCm: 9,
+      allowText: true,
+    );
+
+    test('área padrão (espelho antigo): só imagem, teto 20', () {
+      expect(_peito.allowImage, isTrue);
+      expect(_peito.allowText, isFalse);
+      expect(_peito.textMaxChars, 20);
+    });
+
+    test('conteúdo: o escolhido se aceito; padrão Imagem; só texto = Texto',
+        () {
+      expect(storeAreaContentOf(both, null), StoreAreaContent.image);
+      expect(
+        storeAreaContentOf(both, StoreAreaContent.text),
+        StoreAreaContent.text,
+      );
+      expect(storeAreaContentOf(textOnly, null), StoreAreaContent.text);
+      expect(
+        storeAreaContentOf(textOnly, StoreAreaContent.image),
+        StoreAreaContent.text,
+      );
+      expect(
+        storeAreaContentOf(_peito, StoreAreaContent.text),
+        StoreAreaContent.image,
+      );
+    });
+
+    test('título: só texto, os dois, só imagem', () {
+      expect(storeAreaStepTitle(textOnly), 'Texto na frente');
+      expect(storeAreaStepTitle(both), 'Imagem ou texto');
+      expect(storeAreaStepTitle(_peito), 'Imagem na frente');
+      expect(storeAreaStepTitle(null), 'Imagem na frente');
+    });
+
+    test('preenchida: imagem enviada ou texto não vazio no escolhido', () {
+      expect(
+        storeAreaFilled(StoreAreaContent.image, imageReady: true, text: ''),
+        isTrue,
+      );
+      // Texto guardado não conta com Imagem escolhida (e vice-versa).
+      expect(
+        storeAreaFilled(
+          StoreAreaContent.image,
+          imageReady: false,
+          text: 'DUPLA',
+        ),
+        isFalse,
+      );
+      expect(
+        storeAreaFilled(StoreAreaContent.text, imageReady: true, text: '  '),
+        isFalse,
+      );
+      expect(
+        storeAreaFilled(StoreAreaContent.text, imageReady: false, text: 'a'),
+        isTrue,
+      );
+    });
+
+    test('preço: texto na área conta como imagem (com nome, bothCents)', () {
+      const price = StoreCustomPrice(
+        nameOnlyCents: 1490,
+        imageOnlyCents: 1990,
+        bothCents: 2490,
+        backCents: 990,
+      );
+      final textFilled = storeAreaFilled(
+        StoreAreaContent.text,
+        imageReady: false,
+        text: 'VAI TIME',
+      );
+      expect(
+        storeCustomExtraCents(price, hasName: false, hasImage: textFilled),
+        1990,
+      );
+      expect(
+        storeCustomExtraCents(price, hasName: true, hasImage: textFilled),
+        2490,
+      );
+      expect(
+        storeCustomExtraCents(
+          price,
+          hasName: false,
+          hasImage: textFilled,
+          hasBack: true,
+        ),
+        1990 + 990,
+      );
+    });
+
+    test('áreas do passo: `areas`; sem ela, as de image (se ligada)', () {
+      const fresh = StoreCustomization(areas: [textOnly]);
+      expect(fresh.printAreas, [textOnly]);
+      // Só texto: a imagem desligada não some com o passo.
+      expect(fresh.hasOptions, isTrue);
+      const old = StoreCustomization(image: _imageOptions);
+      expect(old.printAreas, [_peito, _centro]);
+      expect(const StoreCustomization().printAreas, isEmpty);
+      expect(const StoreCustomization().hasOptions, isFalse);
+    });
+
+    test('callable recebe areaText no lugar da imagem', () {
+      expect(
+        const StoreCustomCartRequest(
+          productId: 'cam',
+          skuId: 'preto_m',
+          areaText: StoreCustomAreaTextChoice(
+            areaId: 'centro_frente',
+            text: 'VAI TIME',
+            fontId: 'bloco',
+            color: '#ffffff',
+          ),
+        ).toMap(),
+        {
+          'productId': 'cam',
+          'skuId': 'preto_m',
+          'qty': 1,
+          'areaText': {
+            'areaId': 'centro_frente',
+            'text': 'VAI TIME',
+            'fontId': 'bloco',
+            'color': '#ffffff',
+          },
+        },
+      );
+    });
+  });
 }

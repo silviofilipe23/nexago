@@ -15,6 +15,8 @@ export interface AddCustomItemInput {
   qty: number;
   name?: { text: string; fontId: string; color: string };
   image?: { path: string; areaId: string; transform: ImageTransform };
+  /** Texto na área, no lugar da imagem (fonte e cor do nome). */
+  areaText?: { areaId: string; text: string; fontId: string; color: string };
   /** Costas, abaixo do nome: número OU imagem (centralizada, sem ajuste fino). */
   back?: { type: 'numero'; number: string } | { type: 'imagem'; path: string; transform: ImageTransform };
 }
@@ -37,7 +39,8 @@ export interface CustomUpload {
  * personalizada do carrinho. Interface para a tela ser testada sem Firebase.
  */
 export interface StoreCustomizeApi {
-  checkName(productId: string, text: string): Promise<NameProblem | null>;
+  /** Com `areaId`, confere o texto daquela área (teto dela, mesma lista de bloqueio). */
+  checkName(productId: string, text: string, areaId?: string): Promise<NameProblem | null>;
   uploadImage(uid: string, file: Blob, format: string, contentType: string, onProgress: (pct: number) => void): CustomUpload;
   addToCart(input: AddCustomItemInput): Promise<AddCustomItemResult>;
 }
@@ -48,14 +51,14 @@ export function customUploadPath(uid: string, format: string, id: string = crypt
 }
 
 export function firebaseStoreCustomizeApi(functions: Functions, storage: FirebaseStorage): StoreCustomizeApi {
-  const check = httpsCallable<{ productId: string; text: string }, { ok: boolean; problem?: NameProblem }>(
+  const check = httpsCallable<{ productId: string; text: string; areaId?: string }, { ok: boolean; problem?: NameProblem }>(
     functions,
     'checkStoreCustomName',
   );
   const add = httpsCallable<AddCustomItemInput, AddCustomItemResult>(functions, 'addStoreCustomItemToCart');
   return {
-    checkName: async (productId, text) => {
-      const { data } = await check({ productId, text });
+    checkName: async (productId, text, areaId) => {
+      const { data } = await check(areaId ? { productId, text, areaId } : { productId, text });
       return data.ok ? null : (data.problem ?? 'blocked');
     },
     uploadImage: (uid, file, format, contentType, onProgress) => {

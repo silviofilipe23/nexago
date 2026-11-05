@@ -86,6 +86,33 @@ describe("publicCustomization", () => {
     assert.equal(publicCustomization({active: true, name: {position: {x: 4, y: 0}}})!.name.position, null);
   });
 
+  it("áreas com texto: lista nova com o que cabe; `image.areas` só com as de imagem (app antigo)", () => {
+    const out = publicCustomization({active: true, image: {
+        areas: [
+          {id: "peito_esquerdo", name: "Peito esquerdo", widthCm: 9, heightCm: 9, enabled: true},
+          {id: "nuca_ab12", name: "Nuca", widthCm: 8, heightCm: 4, enabled: true, allowImage: false, allowText: true, textMaxChars: 10},
+          {id: "barra_cd34", name: "Barra", widthCm: 30, heightCm: 6, enabled: true, allowImage: true, allowText: true},
+        ],
+      }})!;
+    assert.deepEqual(out.areas.map((a) => [a.id, a.image, a.text, a.textMaxChars]), [
+      ["peito_esquerdo", true, false, 20],
+      ["nuca_ab12", false, true, 10],
+      ["barra_cd34", true, true, 20],
+    ]);
+    assert.deepEqual(out.image.areas.map((a) => a.id), ["peito_esquerdo", "barra_cd34"]);
+    // Só texto, sem formato: o passo existe pela lista nova; o cliente antigo não vê imagem.
+    const onlyText = publicCustomization({
+      active: true,
+      name: {enabled: false},
+      image: {formats: [], areas: [{id: "nuca", name: "Nuca", widthCm: 8, heightCm: 4, enabled: true, allowImage: false, allowText: true}]},
+    })!;
+    assert.equal(onlyText.image.enabled, false);
+    assert.deepEqual(onlyText.areas.map((a) => a.id), ["nuca"]);
+    assert.equal(onlyText.fromCents, 1990, "texto na área custa o preço da imagem");
+    // Imagem desligada no produto = passo inteiro desligado.
+    assert.deepEqual(publicCustomization({active: true, image: {enabled: false}})!.areas, []);
+  });
+
   it("opção ligada sem fonte/área conta como desligada", () => {
     const out = publicCustomization({
       active: true,
@@ -217,6 +244,37 @@ describe("addCustomItemToCartCore", () => {
     assert.equal(line["customization"]["image"]["areaName"], "Peito esquerdo");
     assert.deepEqual(line["customization"]["image"]["transform"], {x: 0.4, y: 1, scale: 0.8});
     assert.equal(line["customization"]["configVersion"], Date.parse("2026-10-16T12:00:00Z"));
+  });
+
+  it("texto na área: linha com o texto, a fonte/cor e o preço da imagem; regras do nome valem", async () => {
+    const {fake, db} = makeDb({customization: {image: {
+        areas: [
+          {id: "peito_esquerdo", name: "Peito esquerdo", widthCm: 9, heightCm: 9, enabled: true},
+          {id: "nuca_ab12", name: "Nuca", widthCm: 8, heightCm: 4, enabled: true, allowImage: false, allowText: true, textMaxChars: 10},
+          {id: "barra_cd34", name: "Barra", widthCm: 30, heightCm: 6, enabled: true, allowImage: true, allowText: true},
+        ],
+      }}});
+    const add = (input: Record<string, unknown>, id = "line-t") =>
+      addCustomItemToCartCore(db, "ana", {productId: "cam", skuId: "preto_m", qty: 1, ...input}, upload(), NOW, () => id);
+    const out = await add({areaText: {areaId: "nuca_ab12", text: " beach  club ", fontId: "mono", color: "#FF6A1A"}});
+    assert.deepEqual(out, {lineId: "line-t", extraPriceCents: 1990, unitPriceCents: 14980, quality: null});
+    const line = (fake.store.get("storeCarts/ana")!["items"] as Array<Record<string, any>>)[0]!;
+    assert.deepEqual(line["customization"]["areaText"], {
+      text: "BEACH CLUB", fontId: "mono", color: "#ff6a1a", areaId: "nuca_ab12", areaName: "Nuca",
+    });
+    // Nome + texto = preço dos dois, como nome + imagem.
+    const both = await add({name: {text: "ANA", fontId: "bloco", color: "#ffffff"}, areaText: {areaId: "barra_cd34", text: "OI", fontId: "bloco", color: "#ffffff"}});
+    assert.equal(both.extraPriceCents, 2490);
+    await assert.rejects(add({areaText: {areaId: "peito_esquerdo", text: "OI", fontId: "bloco", color: "#ffffff"}}), /não aceita texto/);
+    await assert.rejects(add({areaText: {areaId: "nuca_ab12", text: "PALAVRAO", fontId: "bloco", color: "#ffffff"}}), /não pode ser usado/);
+    await assert.rejects(add({areaText: {areaId: "nuca_ab12", text: "MUITO LONGO AQUI", fontId: "bloco", color: "#ffffff"}}), /inválida/);
+    await assert.rejects(add({areaText: {areaId: "nuca_ab12", text: "OI", fontId: "bloco", color: "#123456"}}), /inválida/);
+    await assert.rejects(
+      add({image: {path: PATH, areaId: "barra_cd34"}, areaText: {areaId: "barra_cd34", text: "OI", fontId: "bloco", color: "#ffffff"}}),
+      /imagem ou texto/,
+    );
+    // Área só de texto não recebe imagem.
+    await assert.rejects(add({image: {path: PATH, areaId: "nuca_ab12"}}), /inválida/);
   });
 
   it("nome bloqueado, fonte desligada e sem nada recusam", async () => {

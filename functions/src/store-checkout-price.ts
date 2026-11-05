@@ -209,11 +209,18 @@ export function pixPercent(discounts: AutoDiscount[]): number | null {
 }
 
 /** "ANA · 10", "Imagem", "Nº 10", "Imagem nas costas": o que a linha leva, curto. */
-function customLabel(name: Data | undefined, image: Data | undefined, back: Data | undefined): string {
+function customLabel(
+  name: Data | undefined,
+  image: Data | undefined,
+  back: Data | undefined,
+  areaText?: Data | undefined,
+): string {
   const number = back?.["type"] === "numero" ? str(back["number"]) : "";
   const text = str(name?.["text"]);
   if (text) return number ? `${text} · ${number}` : text;
   if (image) return "Imagem";
+  const written = str(areaText?.["text"]);
+  if (written) return `“${written}”`;
   if (number) return `Nº ${number}`;
   return back ? "Imagem nas costas" : "Personalizada";
 }
@@ -272,6 +279,17 @@ function customizationValid(
     if (!path.startsWith(`${CUSTOM_UPLOAD_PREFIX}/${uid}/`) || path.includes("..")) return false;
     if (!config.image.areas.some((a) => a.id === image["areaId"])) return false;
   }
+  const areaText = custom["areaText"] as Data | undefined;
+  if (areaText) {
+    if (image) return false;
+    const area = config.areas.find((a) => a.id === areaText["areaId"] && a.text);
+    if (!area) return false;
+    const block = withCustomizationDefaults(raw ?? undefined).name.blockOffensive;
+    const text = normalizeCustomName(areaText["text"]);
+    if (nameProblem(text, {maxChars: area.textMaxChars, blockOffensive: block}, blockedTerms) !== null) return false;
+    if (!config.name.fonts.includes(str(areaText["fontId"]) as never)) return false;
+    if (!config.name.colors.includes(str(areaText["color"]).toLowerCase())) return false;
+  }
   const back = custom["back"] as Data | undefined;
   if (back) {
     if (!config.back.enabled) return false;
@@ -302,6 +320,7 @@ function priceLine(
   const custom = line.customization ?? null;
   const name = custom?.["name"] as Data | undefined;
   const image = custom?.["image"] as Data | undefined;
+  const areaText = custom?.["areaText"] as Data | undefined;
   const back = custom?.["back"] as Data | undefined;
   const personalized = custom !== null;
 
@@ -320,11 +339,13 @@ function priceLine(
     const config = publicCustomization(entry?.customization ?? null);
     const hasName = !!name && config?.name.enabled === true;
     const hasImage = !!image && config?.image.enabled === true;
-    if (!config || (!!name && !hasName) || (!!image && !hasImage) ||
+    const hasAreaText = !!areaText && (config?.areas.length ?? 0) > 0;
+    if (!config || (!!name && !hasName) || (!!image && !hasImage) || (!!areaText && !hasAreaText) ||
       !customizationValid(custom!, config, entry?.customization ?? null, owner.uid, owner.blockedTerms)) {
       problem = "personalizacao_off";
     } else {
-      extraCents = customExtraCents(config.price, hasName, hasImage, !!back);
+      // Texto na área custa o mesmo que a imagem.
+      extraCents = customExtraCents(config.price, hasName, hasImage || hasAreaText, !!back);
     }
   }
 
@@ -346,7 +367,7 @@ function priceLine(
     unitCents,
     totalCents: unitCents * qty,
     personalized,
-    customizationLabel: personalized ? customLabel(name, image, back) : null,
+    customizationLabel: personalized ? customLabel(name, image, back, areaText) : null,
     problem,
   };
 }

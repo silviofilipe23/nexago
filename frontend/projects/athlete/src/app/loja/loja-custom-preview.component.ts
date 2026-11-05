@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import {
   areaPreviewBox,
+  areaTextFont,
   clampTransform,
   contrastRatio,
   imageHeightFraction,
@@ -26,6 +27,13 @@ export interface PreviewImage {
   /** Largura ÷ altura. */
   aspect: number;
   transform: ImageTransform;
+}
+
+/** Texto na área (no lugar da imagem), na fonte e cor do nome. `text` vazio = "SEU TEXTO" apagado. */
+export interface PreviewAreaText {
+  text: string;
+  fontId: string;
+  color: string;
 }
 
 /** Costas abaixo do nome: número (na fonte e cor do nome) ou imagem, na caixa `box`. */
@@ -82,6 +90,14 @@ interface Drag {
             @if (interactive()) {
               <span class="cp-handle" [style]="handleStyle()" aria-hidden="true" (pointerdown)="startDrag($event, 'scale')"></span>
             }
+          } @else if (areaText(); as t) {
+            <span
+              class="cp-name cp-area-text"
+              [attr.data-font]="t.fontId"
+              [class.cp-name--empty]="!t.text"
+              [style.color]="t.color"
+              [style.font-size.cqw]="areaTextFont()"
+            >{{ t.text || 'SEU TEXTO' }}</span>
           } @else {
             <span class="cp-art-placeholder" aria-hidden="true">{{ compact() ? '' : 'SUA IMAGEM' }}</span>
           }
@@ -136,6 +152,8 @@ export class LojaCustomPreviewComponent {
   /** Área da imagem: sem `image`, mostra o lugar listrado "SUA IMAGEM". */
   readonly area = input<StoreCustomArea | null>(null);
   readonly image = input<PreviewImage | null>(null);
+  /** Texto na área, no lugar da imagem. */
+  readonly areaText = input<PreviewAreaText | null>(null);
   /** Costas abaixo do nome (só aparecem do lado das costas). */
   readonly back = input<PreviewBack | null>(null);
   readonly interactive = input(false);
@@ -171,6 +189,11 @@ export class LojaCustomPreviewComponent {
     const byHeight = b.box.h * (7 / 6) * 100 * 0.7;
     const byWidth = (b.box.w * 100 * 0.9) / (length * 0.62);
     return Math.min(byHeight, byWidth);
+  });
+  protected readonly areaTextFont = computed(() => {
+    const box = this.areaBox();
+    const t = this.areaText();
+    return box && t ? areaTextFont([...(t.text || 'SEU TEXTO')].length, box) : 0;
   });
   protected readonly nameFont = computed(() => {
     const n = this.nameShown();

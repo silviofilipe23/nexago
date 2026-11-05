@@ -390,31 +390,6 @@ class StoreCustomizeNamePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final problemText = _problemText();
-    final count =
-        storeCustomNameLength(normalizeStoreCustomName(controller.text));
-    final String hint;
-    final Color hintColor;
-    if (problemText != null) {
-      hint = problemText;
-      hintColor = kStoreErrorColor;
-    } else if (invalidChar) {
-      hint = StoreCopy.customizeNameInvalidChar;
-      hintColor = kStoreErrorColor;
-    } else {
-      hint = StoreCopy.customizeNameCounter(count, options.maxChars);
-      hintColor = storeCustomNameNearLimit(count, options.maxChars)
-          ? AppColors.brand
-          : StoreStyle.secondary(colors);
-    }
-    final borderColor =
-        problemText != null ? kStoreErrorColor : AppColors.brand;
-    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: color, width: width),
-        );
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -424,56 +399,18 @@ class StoreCustomizeNamePanel extends StatelessWidget {
               aloneCents > 0 ? StoreCopy.customizeAlone(aloneCents) : null,
         ),
         const SizedBox(height: 12),
-        StoreShake(
-          tick: shakeTick,
-          child: TextField(
-            key: const ValueKey('store-customize-name-field'),
-            controller: controller,
-            focusNode: focusNode,
-            inputFormatters: [formatter],
-            onChanged: onChanged,
-            onSubmitted: (_) => focusNode.unfocus(),
-            textCapitalization: TextCapitalization.characters,
-            autocorrect: false,
-            enableSuggestions: false,
-            textInputAction: TextInputAction.done,
-            style: AppTypography.soraRegular(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.4,
-              color: colors.onSurface,
-            ),
-            cursorColor: AppColors.brand,
-            decoration: InputDecoration(
-              hintText: StoreCopy.customizeNameHint,
-              hintStyle: AppTypography.soraRegular(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: StoreStyle.tertiary(colors),
-              ),
-              filled: true,
-              fillColor: StoreStyle.surface(colors),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              enabledBorder: border(
-                problemText != null
-                    ? kStoreErrorColor
-                    : colors.onSurface.withValues(alpha: 0.12),
-                problemText != null ? 1.6 : 1,
-              ),
-              focusedBorder: border(borderColor, 1.6),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          hint,
-          key: const ValueKey('store-customize-name-hint'),
-          style: AppTypography.soraRegular(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: hintColor,
-          ),
+        _CustomTextInput(
+          fieldKey: const ValueKey('store-customize-name-field'),
+          hintKey: const ValueKey('store-customize-name-hint'),
+          controller: controller,
+          focusNode: focusNode,
+          formatter: formatter,
+          shakeTick: shakeTick,
+          invalidChar: invalidChar,
+          problemText: _problemText(),
+          maxChars: options.maxChars,
+          hintText: StoreCopy.customizeNameHint,
+          onChanged: onChanged,
         ),
         const SizedBox(height: 24),
         const StoreCustomizeEyebrow(StoreCopy.customizeFont),
@@ -512,6 +449,122 @@ class StoreCustomizeNamePanel extends StatelessWidget {
           const SizedBox(height: 12),
           StoreCustomizeSkip(onTap: onSkip!),
         ],
+      ],
+    );
+  }
+}
+
+/// Campo do nome e do texto na área: maiúsculas (o [formatter]), treme com
+/// caractere inválido, hint "{n} de {max} · letras, números e espaço" (laranja
+/// perto do teto) ou o problema em vermelho, com borda vermelha.
+class _CustomTextInput extends StatelessWidget {
+  const _CustomTextInput({
+    required this.fieldKey,
+    required this.hintKey,
+    required this.controller,
+    required this.focusNode,
+    required this.formatter,
+    required this.shakeTick,
+    required this.invalidChar,
+    required this.problemText,
+    required this.maxChars,
+    required this.hintText,
+    required this.onChanged,
+  });
+
+  final Key fieldKey;
+  final Key hintKey;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final TextInputFormatter formatter;
+  final int shakeTick;
+  final bool invalidChar;
+  final String? problemText;
+  final int maxChars;
+  final String hintText;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final problemText = this.problemText;
+    final count =
+        storeCustomNameLength(normalizeStoreCustomName(controller.text));
+    final String hint;
+    final Color hintColor;
+    if (problemText != null) {
+      hint = problemText;
+      hintColor = kStoreErrorColor;
+    } else if (invalidChar) {
+      hint = StoreCopy.customizeNameInvalidChar;
+      hintColor = kStoreErrorColor;
+    } else {
+      hint = StoreCopy.customizeNameCounter(count, maxChars);
+      hintColor = storeCustomNameNearLimit(count, maxChars)
+          ? AppColors.brand
+          : StoreStyle.secondary(colors);
+    }
+    final borderColor =
+        problemText != null ? kStoreErrorColor : AppColors.brand;
+    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: color, width: width),
+        );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        StoreShake(
+          tick: shakeTick,
+          child: TextField(
+            key: fieldKey,
+            controller: controller,
+            focusNode: focusNode,
+            inputFormatters: [formatter],
+            onChanged: onChanged,
+            onSubmitted: (_) => focusNode.unfocus(),
+            textCapitalization: TextCapitalization.characters,
+            autocorrect: false,
+            enableSuggestions: false,
+            textInputAction: TextInputAction.done,
+            style: AppTypography.soraRegular(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.4,
+              color: colors.onSurface,
+            ),
+            cursorColor: AppColors.brand,
+            decoration: InputDecoration(
+              hintText: hintText,
+              hintStyle: AppTypography.soraRegular(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: StoreStyle.tertiary(colors),
+              ),
+              filled: true,
+              fillColor: StoreStyle.surface(colors),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              enabledBorder: border(
+                problemText != null
+                    ? kStoreErrorColor
+                    : colors.onSurface.withValues(alpha: 0.12),
+                problemText != null ? 1.6 : 1,
+              ),
+              focusedBorder: border(borderColor, 1.6),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          hint,
+          key: hintKey,
+          style: AppTypography.soraRegular(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: hintColor,
+          ),
+        ),
       ],
     );
   }
@@ -690,7 +743,9 @@ class StoreImageDraft {
       );
 }
 
-/// Aba Imagem: card do arquivo, posição, aviso de revisão.
+/// Aba Imagem: as áreas de impressão. Na área, o card do arquivo ou o campo
+/// do texto (seletor Imagem · Texto quando a área aceita os dois), posição e
+/// aviso de revisão (só da imagem).
 class StoreCustomizeImagePanel extends StatelessWidget {
   const StoreCustomizeImagePanel({
     super.key,
@@ -702,6 +757,10 @@ class StoreCustomizeImagePanel extends StatelessWidget {
     required this.onRetry,
     required this.onArea,
     this.onSkip,
+    this.areas,
+    this.content = StoreAreaContent.image,
+    this.onContent,
+    this.text,
   });
 
   final StoreCustomImageOptions options;
@@ -713,20 +772,72 @@ class StoreCustomizeImagePanel extends StatelessWidget {
   final ValueChanged<StoreCustomArea> onArea;
   final VoidCallback? onSkip;
 
+  /// Todas as áreas (`customization.areas`); `null` = as de [options].
+  final List<StoreCustomArea>? areas;
+
+  /// O que vai na [area] (já resolvido por [storeAreaContentOf]).
+  final StoreAreaContent content;
+  final ValueChanged<StoreAreaContent>? onContent;
+
+  /// O campo do texto (obrigatório quando a [area] aceita texto).
+  final StoreAreaTextInput? text;
+
   @override
   Widget build(BuildContext context) {
     final draft = this.draft;
+    final text = this.text;
+    final both = area.allowImage && area.allowText;
+    final showText = content == StoreAreaContent.text && text != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         StoreCustomizeEyebrow(
-          storeImageStepTitle(area),
+          storeAreaStepTitle(area),
           trailing: aloneCents > 0
               ? StoreCopy.customizeAlone(aloneCents, feminine: true)
               : null,
         ),
         const SizedBox(height: 12),
-        if (draft == null)
+        if (both && onContent != null) ...[
+          _Segmented<StoreAreaContent>(
+            value: content,
+            onChanged: onContent!,
+            items: const [
+              (
+                StoreAreaContent.image,
+                StoreCopy.customizeAreaImage,
+                ValueKey('store-customize-area-content-image'),
+              ),
+              (
+                StoreAreaContent.text,
+                StoreCopy.customizeAreaText,
+                ValueKey('store-customize-area-content-text'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (showText)
+          _CustomTextInput(
+            fieldKey: const ValueKey('store-customize-area-text-field'),
+            hintKey: const ValueKey('store-customize-area-text-hint'),
+            controller: text.controller,
+            focusNode: text.focusNode,
+            formatter: text.formatter,
+            shakeTick: text.shakeTick,
+            invalidChar: text.invalidChar,
+            problemText: switch (text.problem) {
+              StoreNameProblem.blocked => StoreCopy.customizeAreaTextBlocked,
+              StoreNameProblem.chars => StoreCopy.customizeNameInvalidChar,
+              StoreNameProblem.length => StoreCopy.customizeAreaTextTooLong,
+              StoreNameProblem.disabled => StoreCopy.customizeAreaTextDisabled,
+              StoreNameProblem.empty || null => null,
+            },
+            maxChars: area.textMaxChars,
+            hintText: StoreCopy.customizeAreaTextHint,
+            onChanged: text.onChanged,
+          )
+        else if (draft == null)
           _UploadCard(options: options, onTap: onPick)
         else
           _FileCard(
@@ -738,9 +849,15 @@ class StoreCustomizeImagePanel extends StatelessWidget {
         const SizedBox(height: 24),
         const StoreCustomizeEyebrow(StoreCopy.customizePosition),
         const SizedBox(height: 12),
-        _AreaCards(areas: options.areas, selected: area, onTap: onArea),
-        const SizedBox(height: 18),
-        const _ReviewNotice(),
+        _AreaCards(
+          areas: areas ?? options.areas,
+          selected: area,
+          onTap: onArea,
+        ),
+        if (!showText) ...[
+          const SizedBox(height: 18),
+          const _ReviewNotice(),
+        ],
         if (onSkip != null) ...[
           const SizedBox(height: 12),
           StoreCustomizeSkip(onTap: onSkip!),
@@ -748,6 +865,31 @@ class StoreCustomizeImagePanel extends StatelessWidget {
       ],
     );
   }
+}
+
+/// O campo do texto na área (o estado fica na tela, como o do nome).
+class StoreAreaTextInput {
+  const StoreAreaTextInput({
+    required this.controller,
+    required this.focusNode,
+    required this.formatter,
+    required this.onChanged,
+    this.shakeTick = 0,
+    this.invalidChar = false,
+    this.problem,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final TextInputFormatter formatter;
+  final ValueChanged<String> onChanged;
+  final int shakeTick;
+
+  /// O último toque trouxe caractere inválido.
+  final bool invalidChar;
+
+  /// O que `checkStoreCustomName` (com `areaId`) reprovou.
+  final StoreNameProblem? problem;
 }
 
 class _UploadCard extends StatelessWidget {
@@ -1176,6 +1318,35 @@ class _BackTypeSelector extends StatelessWidget {
   final ValueChanged<StoreBackType> onType;
 
   @override
+  Widget build(BuildContext context) => _Segmented<StoreBackType>(
+        value: type,
+        onChanged: onType,
+        items: [
+          for (final (value, label) in const [
+            (StoreBackType.number, StoreCopy.customizeBackNumber),
+            (StoreBackType.image, StoreCopy.customizeBackImage),
+          ])
+            (value, label, ValueKey('store-customize-back-type-${value.id}')),
+        ],
+      );
+}
+
+/// Seletor em pílulas (o ativo claro): Número · Imagem das costas, Imagem ·
+/// Texto da área.
+class _Segmented<T> extends StatelessWidget {
+  const _Segmented({
+    required this.value,
+    required this.onChanged,
+    required this.items,
+  });
+
+  final T value;
+  final ValueChanged<T> onChanged;
+
+  /// Valor, rótulo e a key do botão.
+  final List<(T, String, Key)> items;
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     return Container(
@@ -1187,23 +1358,20 @@ class _BackTypeSelector extends StatelessWidget {
       ),
       child: Row(
         children: [
-          for (final (value, label) in const [
-            (StoreBackType.number, StoreCopy.customizeBackNumber),
-            (StoreBackType.image, StoreCopy.customizeBackImage),
-          ])
+          for (final (item, label, key) in items)
             Expanded(
               child: Semantics(
                 button: true,
-                selected: value == type,
+                selected: item == value,
                 label: label,
                 child: GestureDetector(
-                  key: ValueKey('store-customize-back-type-${value.id}'),
+                  key: key,
                   behavior: HitTestBehavior.opaque,
-                  onTap: () => onType(value),
+                  onTap: () => onChanged(item),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 160),
                     decoration: BoxDecoration(
-                      color: value == type
+                      color: item == value
                           ? AppColors.onSurface
                           : Colors.transparent,
                       borderRadius: AppRadii.pillAll,
@@ -1214,7 +1382,7 @@ class _BackTypeSelector extends StatelessWidget {
                         style: AppTypography.soraRegular(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: value == type
+                          color: item == value
                               ? StoreStyle.onBrand
                               : colors.onSurface,
                         ),

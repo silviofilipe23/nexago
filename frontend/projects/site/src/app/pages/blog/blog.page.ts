@@ -5,10 +5,13 @@ import { RevealDirective } from '../../shared/reveal.directive';
 import { SpotlightCard } from '../../shared/ui/spotlight-card';
 import { Chip, FilterGroup } from '../../shared/hub/filter-controls';
 import { BlogCover } from './blog-cover';
+import { BlogCategoryChip } from './blog-category-chip';
+import { BlogAuthorAvatar } from './blog-author-avatar';
 import { getAllPosts } from '../../../lib/blog/posts';
-import { isoDay, mergeBlogFeed, type BlogFeedItem } from '../../../lib/blog/feed';
-import { BLOG_CATEGORIES, getSiteBlogPosts, type BlogCategory } from '../../../lib/firestore/blog';
-import { BLOG_CATEGORY_META, BLOG_NEUTRAL_CHIP } from '../../../lib/blog/categories';
+import { filterCategories, isoDay, mergeBlogFeed, type BlogFeedItem } from '../../../lib/blog/feed';
+import { getSiteBlogPosts } from '../../../lib/firestore/blog';
+import { getBlogCategories } from '../../../lib/firestore/blog-categories';
+import type { BlogCategoryView } from '../../../lib/blog/categories';
 import { formatDate } from '../../../lib/format';
 
 const BASE = 'https://nexago.com.br';
@@ -23,7 +26,7 @@ const BASE = 'https://nexago.com.br';
 @Component({
   selector: 'app-blog-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RevealDirective, SpotlightCard, Chip, FilterGroup, BlogCover],
+  imports: [RouterLink, RevealDirective, SpotlightCard, Chip, FilterGroup, BlogCover, BlogCategoryChip, BlogAuthorAvatar],
   template: `
     <main class="mx-auto max-w-6xl px-5 pb-24 pt-28 sm:px-6 sm:pt-32">
       <div nxReveal class="max-w-2xl">
@@ -79,8 +82,8 @@ const BASE = 'https://nexago.com.br';
           <div class="mt-12">
             <app-filter-group label="Tema">
               <app-chip [active]="category() === null" (pressed)="category.set(null)">Todos</app-chip>
-              @for (c of categories(); track c) {
-                <app-chip [active]="category() === c" (pressed)="category.set(c)">{{ categoryMeta[c].label }}</app-chip>
+              @for (c of categories(); track c.id) {
+                <app-chip [active]="category() === c.id" (pressed)="category.set(c.id)">{{ c.label }}</app-chip>
               }
             </app-filter-group>
           </div>
@@ -103,10 +106,7 @@ const BASE = 'https://nexago.com.br';
                     />
                     <div class="flex flex-1 flex-col p-6">
                       @if (p.label) {
-                        <span
-                          class="self-start rounded-pill border px-2.5 py-1 font-mono text-[11px] font-600 uppercase tracking-wider"
-                          [class]="chipClass(p.category)"
-                        >{{ p.label }}</span>
+                        <app-blog-category-chip class="self-start" [label]="p.label" [category]="p.category" />
                       }
                       <h2 class="mt-3 font-display text-lg font-700 leading-snug tracking-tight text-fg transition-colors group-hover/spot:text-brand">
                         {{ p.title }}
@@ -118,9 +118,12 @@ const BASE = 'https://nexago.com.br';
                       }
                       <div class="mt-5 border-t border-line pt-4 text-xs text-text-dim">
                         @if (p.authorName) {
-                          <p class="truncate font-600 text-text-mute">{{ p.authorName }}</p>
+                          <p class="flex items-center gap-2 font-600 text-text-mute">
+                            <app-blog-author-avatar [name]="p.authorName" [photoUrl]="p.authorPhotoUrl" [size]="20" />
+                            <span class="truncate">{{ p.authorName }}</span>
+                          </p>
                         }
-                        <p class="mt-0.5">
+                        <p class="mt-1">
                           @if (p.date) {
                             <time [attr.datetime]="isoDay(p.date)">{{ formatDate(p.date) }}</time>
                           }
@@ -148,23 +151,27 @@ export class BlogPage {
   protected readonly loading = signal(true);
   /** A leitura do Firestore falhou — a lista (se houver) é só dos estáticos. */
   protected readonly failed = signal(false);
-  protected readonly category = signal<BlogCategory | null>(null);
+  /** Lista efetiva de categorias (padrões ⊕ `blogCategories`). */
+  private readonly categoryList = signal<BlogCategoryView[]>([]);
+  /** Id da categoria escolhida no filtro. */
+  protected readonly category = signal<string | null>(null);
 
   protected readonly skeletonSlots = [0, 1, 2];
-  protected readonly categoryMeta = BLOG_CATEGORY_META;
   protected readonly formatDate = formatDate;
   protected readonly isoDay = isoDay;
 
-  /** Categorias presentes, na ordem oficial. Vazio quando não há o que filtrar. */
+  /**
+   * Chips do filtro: categorias ATIVAS com post, na ordem da lista efetiva. Vazio quando a lista
+   * inteira cai numa categoria só (não há o que filtrar).
+   */
   protected readonly categories = computed(() => {
-    const present = new Set(this.items().map((p) => p.category));
-    if (present.size < 2) return [];
-    return BLOG_CATEGORIES.filter((c) => present.has(c));
+    const distinct = new Set(this.items().map((p) => p.category?.id ?? null));
+    return distinct.size < 2 ? [] : filterCategories(this.items(), this.categoryList());
   });
 
   protected readonly visible = computed(() => {
     const c = this.category();
-    return c ? this.items().filter((p) => p.category === c) : this.items();
+    return c ? this.items().filter((p) => p.category?.id === c) : this.items();
   });
 
   private readonly destroyRef = inject(DestroyRef);
@@ -181,24 +188,23 @@ export class BlogPage {
     const request = ++this.request;
     this.loading.set(true);
 
-    getSiteBlogPosts()
+    const posts = getSiteBlogPosts()
       .then((remote) => ({ remote, failed: false }))
       .catch((err: unknown) => {
         console.error('[blog] getSiteBlogPosts failed:', err);
         return { remote: [], failed: true };
-      })
-      .then(({ remote, failed }) => {
-        if (request !== this.request) return; // um "Tentar de novo" mais novo já está em curso
-        const items = mergeBlogFeed(remote, getAllPosts());
-        this.items.set(items);
-        this.failed.set(failed);
-        this.loading.set(false);
-        this.renderJsonLd(items);
       });
-  }
 
-  protected chipClass(category: BlogCategory | null): string {
-    return category ? BLOG_CATEGORY_META[category].chip : BLOG_NEUTRAL_CHIP;
+    // Categorias em paralelo; nunca falham (sem leitura = só as 6 de origem).
+    Promise.all([posts, getBlogCategories()]).then(([{ remote, failed }, categories]) => {
+      if (request !== this.request) return; // um "Tentar de novo" mais novo já está em curso
+      const items = mergeBlogFeed(remote, getAllPosts(), categories);
+      this.categoryList.set(categories);
+      this.items.set(items);
+      this.failed.set(failed);
+      this.loading.set(false);
+      this.renderJsonLd(items);
+    });
   }
 
   private renderJsonLd(items: BlogFeedItem[]): void {

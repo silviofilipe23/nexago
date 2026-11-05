@@ -7,6 +7,11 @@ import type { BlogWindowMetrics } from './data/blog-metrics';
 import { BlogMetricsRepository } from './data/blog-metrics.repository';
 import { BlogCommentsRepository } from './data/blog-comments.repository';
 import { BlogPostsRepository } from './data/blog-posts.repository';
+import { BlogTaxonomyRepository } from './data/blog-taxonomy.repository';
+import type { BlogAuthorDef, BlogCategoryDef } from './data/blog-taxonomy';
+
+const CATEGORY_DOCS: BlogCategoryDef[] = [];
+const AUTHORS: BlogAuthorDef[] = [];
 import { BlogSuggestionsRepository, type SuggestionSources } from './data/blog-suggestions.repository';
 import { PanelBlogComponent } from './panel-blog.component';
 
@@ -75,6 +80,10 @@ describe('PanelBlogComponent', () => {
         { provide: AuthService, useValue: { displayName: signal('Ana Souza'), user: signal(null) } },
         { provide: BlogPostsRepository, useValue: { list } },
         { provide: BlogMetricsRepository, useValue: { window } },
+        {
+          provide: BlogTaxonomyRepository,
+          useValue: { categoryDocs: () => Promise.resolve(CATEGORY_DOCS), authors: () => Promise.resolve(AUTHORS) },
+        },
         { provide: BlogSuggestionsRepository, useValue: { load: () => Promise.resolve(sources) } },
         { provide: BlogCommentsRepository, useValue: { pendingCount: () => Promise.resolve(4) } },
       ],

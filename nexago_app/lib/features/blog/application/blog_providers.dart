@@ -246,7 +246,7 @@ class BlogNotifyPrefsController {
   ({String uid, BlogNotifyPrefs prefs, DateTime at})? _written;
 
   Future<BlogNotifyPrefs?> setCategory(
-    BlogCategory category, {
+    String categoryKey, {
     required bool on,
   }) async {
     var uid = _ref.read(_blogUidProvider);
@@ -262,7 +262,7 @@ class BlogNotifyPrefsController {
         local.uid != uid ||
         (remoteAt != null && remoteAt.isAfter(local.at));
     final current = useRemote ? remote : local.prefs;
-    final next = current.withCategory(category, on: on);
+    final next = current.withCategory(categoryKey, on: on);
     _written = (uid: uid, prefs: next, at: DateTime.now());
     unawaited(
       _ref
@@ -363,3 +363,14 @@ class BlogCommentsController {
   Future<void> delete(String postId, String commentId) =>
       _ref.read(blogRepositoryProvider).deleteComment(postId, commentId);
 }
+
+final _blogCategoriesStreamProvider = StreamProvider<BlogTaxonomy>((ref) {
+  return ref.watch(blogRepositoryProvider).watchCategories();
+});
+
+/// Lista efetiva de categorias (padrões ⊕ `blogCategories`). Carregando ou
+/// com falha de leitura: só as 6 de origem, nunca vazio.
+final blogTaxonomyProvider = Provider<BlogTaxonomy>((ref) {
+  return ref.watch(_blogCategoriesStreamProvider).valueOrNull ??
+      BlogTaxonomy.defaults;
+});

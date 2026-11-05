@@ -19,7 +19,8 @@ import {getAuth} from "firebase-admin/auth";
 import {callerCanAccessBackoffice} from "./auth-roles";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {deliverNotificationToUser} from "./notification-delivery";
-import {BLOG_CATEGORIES, BLOG_POSTS, type BlogCategory, type BlogPushSettings} from "./blog";
+import {BLOG_POSTS, type BlogCategory, type BlogPushSettings} from "./blog";
+import {isCategoryId} from "./blog-taxonomy";
 import {resolveSport} from "./sports/catalog";
 
 const BACKOFFICE_CALLABLE = {region: CLIENT_FACING_REGIONS, invoker: "public" as const};
@@ -194,7 +195,7 @@ export async function sendBlogPushCore(db: Firestore, postId: string, now: Date)
 
   const push = post["push"] as BlogPushSettings;
   const category = post["category"] as BlogCategory;
-  const recipients = BLOG_CATEGORIES.includes(category) ?
+  const recipients = isCategoryId(category) ?
     await blogPushRecipients(db, push, category, await blogPushMinBuild(db)) :
     [];
   const {title, body} = blogPushMessage(post);
@@ -239,7 +240,7 @@ export const estimateBlogPushReach = onCall(BACKOFFICE_CALLABLE, async (request)
   const city = typeof input.city === "string" && input.city.trim() ? input.city.trim() : null;
   const sport = input.sport === "all" || input.sport === undefined ? "all" : resolveSport(input.sport)?.code;
   if (!sport) throw new HttpsError("invalid-argument", "Esporte desconhecido.");
-  if (!BLOG_CATEGORIES.includes(input.category as BlogCategory)) {
+  if (!isCategoryId(input.category)) {
     throw new HttpsError("invalid-argument", "Escolha uma categoria.");
   }
   return estimateBlogPushReachCore(getFirestore(), {city, sport}, input.category as BlogCategory);

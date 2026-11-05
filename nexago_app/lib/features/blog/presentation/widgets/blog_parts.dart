@@ -11,6 +11,7 @@ import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../application/blog_providers.dart';
+import '../../domain/blog_logic.dart';
 import '../../domain/blog_post.dart';
 
 /// Peças comuns do feed, da leitura, dos Salvos e da seção da Início.
@@ -21,71 +22,85 @@ const blogOnBrand = Color(0xFF0A0A0A);
 /// Fundo das capas e do card de destaque: sempre escuro, nos dois temas.
 const blogCoverInk = Color(0xFF050505);
 
-/// Cor da categoria para texto e ícone sobre as superfícies do tema. No
-/// escuro é a do protótipo; no claro, o mesmo matiz escurecido (≥ 4,8:1 no
-/// canvas, no card e na superfície elevada), como os tons de estado.
+/// A categoria do id na lista efetiva (`null` = desconhecida, "Blog").
+BlogCategory? watchBlogCategory(WidgetRef ref, String categoryKey) =>
+    ref.watch(blogTaxonomyProvider).of(categoryKey);
+
+/// Cor da categoria para texto e ícone sobre as superfícies do tema: `color`
+/// no escuro, `colorLight` no claro (≥ 4,5:1, escolhida no backoffice).
+/// Desconhecida: o neutro do tema.
 Color blogCategoryTone(BlogCategory? category, AppThemeColors colors) {
   if (category == null) return colors.onSurfaceMuted;
-  return colors.isDark
-      ? blogCategoryRawTone(category)
-      : switch (category) {
-          BlogCategory.torneios => AppColors.brandTextLight,
-          BlogCategory.treino => AppColors.winLight,
-          BlogCategory.regras => const Color(0xFF6B3FB8),
-          BlogCategory.arenas => const Color(0xFF7A5A0F),
-          BlogCategory.guia => const Color(0xFF2F55B8),
-          BlogCategory.loja => const Color(0xFF9A3D0C),
-        };
+  return Color(colors.isDark ? category.color : category.colorLight);
 }
 
-/// Cor crua da categoria: sobre fundo sempre escuro (capa, destaque).
-Color blogCategoryRawTone(BlogCategory? category) => switch (category) {
-  BlogCategory.torneios => AppColors.brand,
-  BlogCategory.treino => AppColors.win,
-  BlogCategory.regras => const Color(0xFFC9A7FF),
-  BlogCategory.arenas => const Color(0xFFE3B85C),
-  BlogCategory.guia => const Color(0xFF9AB4FF),
-  BlogCategory.loja => const Color(0xFFFF8A4A),
-  null => AppColors.onSurfaceMuted,
+/// Cor crua da categoria (`color`): sobre fundo sempre escuro (capa,
+/// destaque), nos dois temas.
+Color blogCategoryRawTone(BlogCategory? category) =>
+    category == null ? AppColors.onSurfaceMuted : Color(category.color);
+
+/// Gradientes das 6 de origem, desenhados no protótipo — valem enquanto a
+/// categoria tem a cor de origem.
+const _originGradients = <String, (int, int, double)>{
+  'torneios': (0xFF2A1206, 0xFFFF6A1A, 1 / 1.4),
+  'treino': (0xFF0F1A14, 0xFF1F5A3C, 1 / 1.2),
+  'regras': (0xFF10131A, 0xFF2A3A66, 1 / 1.2),
+  'arenas': (0xFF1B1610, 0xFF8A6A3A, 1 / 1.2),
+  'loja': (0xFF1A0D05, 0xFFC4521A, 1 / 1.2),
+  'guia': (0xFF121418, 0xFF3A3F4A, 1 / 1.2),
 };
 
-/// Gradiente da capa sem foto (135°), por categoria.
-List<Color> _coverGradient(BlogCategory? category) {
+/// Gradiente da capa sem foto (135°). As 6 de origem com a cor de origem
+/// usam o do protótipo; categoria nova (ou cor trocada) deriva de `color` com
+/// a receita do de Torneios: do quase-preto tingido (15%) até 71% do caminho
+/// para a cor. Desconhecida: o cinza do Guia.
+List<Color> blogCoverGradient(BlogCategory? category) {
   // O protótipo estica o gradiente além da caixa (120–140%): a ponta
   // visível é a mistura, não a cor final.
   List<Color> g(int from, int to, double reach) => [
     Color(from),
     Color.lerp(Color(from), Color(to), reach)!,
   ];
-  return switch (category) {
-    BlogCategory.torneios => g(0xFF2A1206, 0xFFFF6A1A, 1 / 1.4),
-    BlogCategory.treino => g(0xFF0F1A14, 0xFF1F5A3C, 1 / 1.2),
-    BlogCategory.regras => g(0xFF10131A, 0xFF2A3A66, 1 / 1.2),
-    BlogCategory.arenas => g(0xFF1B1610, 0xFF8A6A3A, 1 / 1.2),
-    BlogCategory.loja => g(0xFF1A0D05, 0xFFC4521A, 1 / 1.2),
-    BlogCategory.guia || null => g(0xFF121418, 0xFF3A3F4A, 1 / 1.2),
-  };
+  if (category == null) {
+    final (from, to, reach) = _originGradients['guia']!;
+    return g(from, to, reach);
+  }
+  final origin = _originGradients[category.key];
+  final originColor = BlogCategory.defaults
+      .where((c) => c.key == category.key)
+      .firstOrNull
+      ?.color;
+  if (origin != null && originColor == category.color) {
+    final (from, to, reach) = origin;
+    return g(from, to, reach);
+  }
+  final color = Color(category.color);
+  final from = Color.lerp(blogCoverInk, color, 0.15)!;
+  return [from, Color.lerp(from, color, 1 / 1.4)!];
 }
 
-/// Rótulo da categoria em mono, caixa alta ("GUIA DO APP").
-class BlogCategoryLabel extends StatelessWidget {
-  const BlogCategoryLabel(this.category, {super.key, this.fontSize = 10});
+/// Rótulo da categoria em mono, caixa alta ("GUIA DO APP"), na cor dela.
+class BlogCategoryLabel extends ConsumerWidget {
+  const BlogCategoryLabel(this.categoryKey, {super.key, this.fontSize = 10});
 
-  final BlogCategory? category;
+  final String categoryKey;
   final double fontSize;
 
   @override
-  Widget build(BuildContext context) => Text(
-    (category?.label ?? 'Blog').toUpperCase(),
-    maxLines: 1,
-    overflow: TextOverflow.ellipsis,
-    style: AppTypography.mono(
-      fontSize: fontSize,
-      fontWeight: FontWeight.w700,
-      letterSpacing: fontSize * 0.14,
-      color: blogCategoryTone(category, context.themeColors),
-    ),
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final category = watchBlogCategory(ref, categoryKey);
+    return Text(
+      (category?.label ?? 'Blog').toUpperCase(),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: AppTypography.mono(
+        fontSize: fontSize,
+        fontWeight: FontWeight.w700,
+        letterSpacing: fontSize * 0.14,
+        color: blogCategoryTone(category, context.themeColors),
+      ),
+    );
+  }
 }
 
 /// Selo em pílula ("DESTAQUE", "TORNEIOS"). [tone] pinta texto e contorno;
@@ -167,7 +182,7 @@ class BlogProgressBar extends StatelessWidget {
 
 /// Capa do post: a foto, ou (sem foto e enquanto carrega) o gradiente da
 /// categoria com listras, os círculos e o nome da categoria em marca-d'água.
-class BlogCover extends StatelessWidget {
+class BlogCover extends ConsumerWidget {
   const BlogCover({
     super.key,
     required this.post,
@@ -186,9 +201,9 @@ class BlogCover extends StatelessWidget {
   final bool watermark;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final placeholder = _CoverPlaceholder(
-      category: post.category,
+      category: watchBlogCategory(ref, post.categoryKey),
       watermark: watermark,
     );
     final url = post.coverUrl;
@@ -229,7 +244,7 @@ class _CoverPlaceholder extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: _coverGradient(category),
+            colors: blogCoverGradient(category),
           ),
         ),
         child: Stack(
@@ -272,8 +287,9 @@ class _CoverPlaceholder extends StatelessWidget {
                 bottom: 0.10 * h,
                 child: Text(
                   switch (category) {
-                    BlogCategory.guia => 'GUIA',
                     null => 'BLOG',
+                    // "GUIA DO APP" não cabe na miniatura.
+                    final c when c.key == 'guia' => 'GUIA',
                     final c => c.label.toUpperCase(),
                   },
                   maxLines: 1,
@@ -417,7 +433,7 @@ class BlogPostRow extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    BlogCategoryLabel(post.category),
+                    BlogCategoryLabel(post.categoryKey),
                     const SizedBox(height: 5),
                     Text(
                       post.title,
@@ -504,6 +520,59 @@ class BlogMessage extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Foto do autor (retrato do cadastro, `author.photoUrl`) em círculo; sem
+/// foto, enquanto carrega ou se falhar, as iniciais.
+class BlogAuthorAvatar extends StatelessWidget {
+  const BlogAuthorAvatar({
+    super.key,
+    required this.name,
+    this.photoUrl,
+    this.size = 36,
+  });
+
+  final String name;
+  final String? photoUrl;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final initials = Center(
+      child: Text(
+        blogAuthorInitials(name),
+        style: AppTypography.soraRegular(
+          fontSize: size * 0.39,
+          fontWeight: FontWeight.w700,
+          color: colors.brandText,
+        ),
+      ),
+    );
+    final url = photoUrl;
+    return Container(
+      key: const Key('blog-author-avatar'),
+      width: size,
+      height: size,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.brand.withValues(alpha: 0.16),
+        border: Border.all(color: colors.onSurface.withValues(alpha: 0.12)),
+      ),
+      child: url == null
+          ? initials
+          : CachedNetworkImage(
+              key: const Key('blog-author-photo'),
+              imageUrl: url,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              placeholder: (_, _) => initials,
+              errorWidget: (_, _, _) => initials,
+            ),
     );
   }
 }

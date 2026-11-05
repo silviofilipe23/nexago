@@ -169,4 +169,10 @@ class FakeBlogRepository implements BlogRepository {
     comments[postId]?.removeWhere((c) => c.id == commentId);
     _emitComments(postId);
   }
+
+  /// Lista efetiva de categorias servida ao app.
+  BlogTaxonomy taxonomy = BlogTaxonomy.defaults;
+
+  @override
+  Stream<BlogTaxonomy> watchCategories() => Stream.value(taxonomy);
 }

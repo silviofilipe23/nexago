@@ -18,7 +18,7 @@ final _posts = [
   BlogPost(
     id: 'toalha',
     title: 'Chegou a Toalha nexaGO com o seu nome',
-    category: BlogCategory.loja,
+    categoryKey: 'loja',
     publishAt: DateTime(2026, 11, 4),
     readMinutes: 2,
     authorName: 'Equipe nexaGO',
@@ -26,7 +26,7 @@ final _posts = [
   BlogPost(
     id: 'liga',
     title: 'Liga nexaGO: tudo sobre a 2ª etapa',
-    category: BlogCategory.torneios,
+    categoryKey: 'torneios',
     featured: true,
     publishAt: DateTime(2026, 10, 28),
     readMinutes: 4,
@@ -35,7 +35,7 @@ final _posts = [
   BlogPost(
     id: 'saque',
     title: '5 exercícios para melhorar o saque',
-    category: BlogCategory.treino,
+    categoryKey: 'treino',
     tags: const ['fundamentos'],
     publishAt: DateTime(2026, 10, 10),
     readMinutes: 5,

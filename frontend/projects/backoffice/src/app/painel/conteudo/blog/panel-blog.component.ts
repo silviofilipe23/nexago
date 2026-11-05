@@ -18,7 +18,6 @@ import {
   type BlogCriteria,
 } from './data/blog-list';
 import {
-  BLOG_CATEGORIES,
   BLOG_SITE_URL,
   ctaDestinationLabel,
   formatCount,
@@ -31,6 +30,7 @@ import { metricCards, type BlogWindowMetrics } from './data/blog-metrics';
 import { BlogMetricsRepository } from './data/blog-metrics.repository';
 import { BlogBadgesService } from '../../data/blog-badges.service';
 import { BlogPostsRepository } from './data/blog-posts.repository';
+import { BlogTaxonomyService } from './data/blog-taxonomy.service';
 import { buildSuggestions, prefillParams, type Suggestion } from './data/blog-suggestions';
 import { BlogSuggestionsRepository, type SuggestionSources } from './data/blog-suggestions.repository';
 import { BlogMetricCardComponent } from './ui/blog-metric-card.component';
@@ -121,8 +121,8 @@ type LoadState = 'loading' | 'ok' | 'error';
               </div>
               <select class="bo-select narrow" aria-label="Categoria" (change)="patch({ category: value($event) || null })">
                 <option value="" [selected]="criteria().category === null">Todas as categorias</option>
-                @for (c of categories; track c.id) {
-                  <option [value]="c.id" [selected]="criteria().category === c.id">{{ c.label }}</option>
+                @for (c of categories(); track c.id) {
+                  <option [value]="c.id" [selected]="criteria().category === c.id">{{ c.label }}{{ c.active ? '' : ' (inativa)' }}</option>
                 }
               </select>
               <select class="bo-select narrow" aria-label="Ordenar" (change)="setSort(value($event))">
@@ -335,7 +335,9 @@ export class PanelBlogComponent {
 
   protected readonly tabs = BLOG_TABS;
   protected readonly sorts = BLOG_SORTS;
-  protected readonly categories = BLOG_CATEGORIES;
+  private readonly taxonomy = inject(BlogTaxonomyService);
+  /** Lista efetiva (padrões ⊕ docs), inativas incluídas: post antigo continua filtrável. */
+  protected readonly categories = this.taxonomy.categories;
   protected readonly siteUrl = BLOG_SITE_URL;
 
   protected readonly state = signal<LoadState>('loading');
@@ -366,6 +368,7 @@ export class PanelBlogComponent {
   constructor() {
     // Em paralelo e independentes: a tabela não espera as métricas, e falha nelas não derruba a página.
     void this.load();
+    void this.taxonomy.load();
     void this.loadMetrics();
     void this.loadSuggestions();
     // Selo "Comentários" do menu fresco ao entrar na lista.

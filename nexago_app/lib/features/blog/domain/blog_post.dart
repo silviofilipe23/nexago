@@ -10,24 +10,9 @@ library;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../home_banners/domain/home_banner.dart';
+import 'blog_category.dart';
 
-/// Categorias do blog. Chaves iguais às do backend (`BLOG_CATEGORIES`).
-enum BlogCategory {
-  torneios('torneios', 'Torneios'),
-  treino('treino', 'Treino'),
-  regras('regras', 'Regras'),
-  arenas('arenas', 'Arenas'),
-  guia('guia', 'Guia do app'),
-  loja('loja', 'Loja');
-
-  const BlogCategory(this.key, this.label);
-
-  final String key;
-  final String label;
-
-  static BlogCategory? fromKey(Object? key) =>
-      BlogCategory.values.where((c) => c.key == key).firstOrNull;
-}
+export 'blog_category.dart';
 
 /// Um bloco do corpo do post. Texto puro (sem HTML nem Markdown).
 sealed class BlogBlock {
@@ -280,11 +265,13 @@ class BlogPost {
     this.subtitle = '',
     this.slug = '',
     this.coverUrl,
-    this.category,
+    this.categoryKey = '',
     this.sport = 'all',
     this.tags = const [],
     this.authorName = '',
     this.authorRole = '',
+    this.authorId,
+    this.authorPhotoUrl,
     this.body = const [],
     this.cta,
     this.featured = false,
@@ -303,14 +290,21 @@ class BlogPost {
   final String slug;
   final String? coverUrl;
 
-  /// `null` = categoria que este build não conhece (mostra como "Blog").
-  final BlogCategory? category;
+  /// Id da categoria (`torneios`, `saude-corpo`). Rótulo e cor vêm da lista
+  /// efetiva ([BlogTaxonomy]); id que ela não conhece aparece como "Blog".
+  final String categoryKey;
 
   /// `all` ou o `code` do catálogo de esportes.
   final String sport;
   final List<String> tags;
   final String authorName;
   final String authorRole;
+
+  /// Autor cadastrado (`blogAuthors/{id}`); `null` = texto livre ou post antigo.
+  final String? authorId;
+
+  /// Foto do retrato do autor (https); `null` = mostra as iniciais.
+  final String? authorPhotoUrl;
   final List<BlogBlock> body;
   final BlogCta? cta;
   final bool featured;
@@ -323,8 +317,6 @@ class BlogPost {
 
   /// Comentários aprovados (gatilho `onBlogCommentWritten`); sem o campo, 0.
   final int commentCount;
-
-  String get categoryLabel => category?.label ?? 'Blog';
 
   /// `null` sem título: o post fica de fora em vez de aparecer quebrado.
   static BlogPost? fromMap(String id, Map<String, dynamic>? map) {
@@ -369,11 +361,15 @@ class BlogPost {
       subtitle: text('subtitle'),
       slug: text('slug'),
       coverUrl: cover.startsWith('https://') ? cover : null,
-      category: BlogCategory.fromKey(map['category']),
+      categoryKey: text('category'),
       sport: sport.isEmpty ? 'all' : sport,
       tags: tags,
       authorName: authorField('name'),
       authorRole: authorField('role'),
+      authorId: authorField('id').isEmpty ? null : authorField('id'),
+      authorPhotoUrl: authorField('photoUrl').startsWith('https://')
+          ? authorField('photoUrl')
+          : null,
       body: body,
       cta: BlogCta.fromMap(map['cta']),
       featured: map['featured'] == true,

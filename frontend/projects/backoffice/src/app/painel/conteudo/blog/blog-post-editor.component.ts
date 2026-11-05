@@ -23,6 +23,7 @@ import {
   payloadIssues,
   saveLabel,
   withSlug,
+  withAuthor,
   withTag,
   withTitle,
   type BlockDraft,
@@ -32,7 +33,6 @@ import { BLOG_COVER_SPEC } from './data/blog-image';
 import {
   BLOG_AUTHOR_FIELD_MAX,
   BLOG_BLOCKS_MAX,
-  BLOG_CATEGORIES,
   BLOG_CTA_DESTINATIONS,
   BLOG_CTA_LABEL_MAX,
   BLOG_EMBEDS_MAX,
@@ -55,6 +55,9 @@ import {
   type BlogStatus,
 } from './data/blog-post';
 import { BlogPostsRepository } from './data/blog-posts.repository';
+import { authorChoices, categoryChoices, type BlogAuthorDef } from './data/blog-taxonomy';
+import { BlogTaxonomyService } from './data/blog-taxonomy.service';
+import { BlogAuthorPickerComponent } from './ui/blog-author-picker.component';
 import { prefillFromParams } from './data/blog-suggestions';
 import { BlogStatusPillComponent } from './ui/blog-badges.component';
 import { BLOCK_LABELS, BlogBlockEditorComponent } from './ui/blog-block-editor.component';
@@ -117,6 +120,7 @@ function isConflict(error: unknown): boolean {
     BlogPushSettingsComponent,
     BlogPostResultComponent,
     BlogRankingPickerComponent,
+    BlogAuthorPickerComponent,
   ],
   template: `
     <bo-panel-shell>
@@ -350,7 +354,7 @@ function isConflict(error: unknown): boolean {
                   <div class="two">
                     <bo-field label="Categoria">
                       <select class="bo-select" [disabled]="saving()" (change)="patch({ category: categoryOf($event) })">
-                        @for (c of categories; track c.id) {
+                        @for (c of categoryOptions(); track c.id) {
                           <option [value]="c.id" [selected]="d.category === c.id">{{ c.label }}</option>
                         }
                       </select>
@@ -388,14 +392,16 @@ function isConflict(error: unknown): boolean {
                       }
                     </div>
                   </bo-field>
-                  <div class="two">
-                    <bo-field label="Autor">
-                      <input class="bo-input" placeholder="Nome" [attr.maxlength]="limits.author" [value]="d.authorName" [disabled]="saving()" (input)="patch({ authorName: text($event) })" />
-                    </bo-field>
-                    <bo-field label="Função">
-                      <input class="bo-input" placeholder="Equipe nexaGO" [attr.maxlength]="limits.author" [value]="d.authorRole" [disabled]="saving()" (input)="patch({ authorRole: text($event) })" />
-                    </bo-field>
-                  </div>
+                  <bo-blog-author-picker
+                    [choices]="authorOptions()"
+                    [authorId]="d.authorId"
+                    [name]="d.authorName"
+                    [role]="d.authorRole"
+                    [max]="limits.author"
+                    [disabled]="saving()"
+                    (picked)="pickAuthor($event)"
+                    (textChanged)="patch($event)"
+                  />
                   <div class="read-time">
                     <span>Tempo de leitura</span>
                     <strong>{{ readTime() }} min · calculado</strong>
@@ -582,7 +588,10 @@ export class BlogPostEditorComponent {
 
   protected readonly coverSpec = BLOG_COVER_SPEC;
   protected readonly siteHost = BLOG_SITE_HOST;
-  protected readonly categories = BLOG_CATEGORIES;
+  private readonly taxonomy = inject(BlogTaxonomyService);
+  /** Só ativas; a do post, se inativa ou sumida, entra marcada. */
+  protected readonly categoryOptions = computed(() => categoryChoices(this.taxonomy.categories(), this.draft().category));
+  protected readonly authorOptions = computed(() => authorChoices(this.taxonomy.authors(), this.draft().authorId));
   protected readonly destinations = BLOG_CTA_DESTINATIONS;
   protected readonly sports = SPORT_CATALOG;
   protected readonly publishOptions = PUBLISH_OPTIONS;
@@ -677,6 +686,7 @@ export class BlogPostEditorComponent {
       }
     });
     void this.load();
+    void this.taxonomy.load();
   }
 
   async load(): Promise<void> {
@@ -748,6 +758,10 @@ export class BlogPostEditorComponent {
 
   protected setStatus(status: BlogStatus): void {
     this.draft.update((d) => ({ ...d, status }));
+  }
+
+  protected pickAuthor(author: BlogAuthorDef | null): void {
+    this.draft.update((d) => withAuthor(d, author));
   }
 
   protected categoryOf(event: Event): BlogCategory {

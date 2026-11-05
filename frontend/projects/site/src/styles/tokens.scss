@@ -38,13 +38,6 @@
   --color-pending: #f4c543;
   --color-win: #2bd17e;
 
-  /* Categorias do blog (mesmas cores do app/backoffice). Sempre com rótulo, nunca só cor. */
-  --color-cat-torneios: #ff6a1a;
-  --color-cat-treino: #2bd17e;
-  --color-cat-regras: #c9a7ff;
-  --color-cat-arenas: #e3b85c;
-  --color-cat-guia: #9ab4ff;
-  --color-cat-loja: #ff8a4a;
 
   /* Tipografia */
   --font-display: 'Sora', system-ui, sans-serif;
@@ -78,6 +71,18 @@
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+// Categorias do blog (as 6 de origem; mesmas cores do app/backoffice). Fora do `@theme` de
+// propósito: não viram utilitário (o chip usa `var(--cat)` montado em `BlogCategoryChip`) e o
+// Tailwind só emite variável de tema que alguma classe usa — aqui elas sempre saem no CSS.
+:root {
+  --color-cat-torneios: #ff6a1a;
+  --color-cat-treino: #2bd17e;
+  --color-cat-regras: #c9a7ff;
+  --color-cat-arenas: #e3b85c;
+  --color-cat-guia: #9ab4ff;
+  --color-cat-loja: #ff8a4a;
+}
+
 // Tema claro — override em runtime via [data-theme='light'] no <html>. Default (sem
 // data-theme, ou data-theme='dark') é dark, pois a marca é dark-first.
 :root[data-theme='light'] {
@@ -107,13 +112,14 @@
   --color-pending: #b45309;
   --color-win: #15803d;
 
-  /* Categorias no claro: tons escurecidos pra manter ≥4.5:1 como texto sobre o tint do chip. */
-  --color-cat-torneios: #c2410c;
-  --color-cat-treino: #15803d;
-  --color-cat-regras: #6d28d9;
-  --color-cat-arenas: #854d0e;
-  --color-cat-guia: #1d4ed8;
-  --color-cat-loja: #9a3412;
+  /* Categorias no claro: `colorLight` de BLOG_DEFAULT_CATEGORIES (functions/src/blog-taxonomy.ts),
+     o mesmo par que app e backoffice usam — tom de texto com ≥4,5:1 sobre o fundo claro. */
+  --color-cat-torneios: #ae3a0a;
+  --color-cat-treino: #187345;
+  --color-cat-regras: #6b3fb8;
+  --color-cat-arenas: #7a5a0f;
+  --color-cat-guia: #2f55b8;
+  --color-cat-loja: #9a3d0c;
 
   --shadow-elev-1: 0 1px 2px rgba(24, 24, 27, 0.08);
   --shadow-elev-2: 0 8px 24px rgba(24, 24, 27, 0.1);

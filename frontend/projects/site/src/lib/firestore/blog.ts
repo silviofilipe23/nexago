@@ -18,8 +18,12 @@ import { videoProvider, youtubeVideoId, type VideoProvider } from '../blog/video
  * Texto é texto puro: o mapeamento só normaliza, e a renderização usa binding normal (escapado).
  */
 
-export const BLOG_CATEGORIES = ['torneios', 'treino', 'regras', 'arenas', 'guia', 'loja'] as const;
-export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
+/**
+ * Id de categoria (`blogCategories/{id}` ou uma das 6 de origem). Qualquer id no formato do
+ * servidor é aceito; quem resolve rótulo/cor é `lib/blog/categories.ts` (id sem categoria = sem chip).
+ */
+export type BlogCategory = string;
+const CATEGORY_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const BLOG_RANKING_MODES = ['athletes', 'teams'] as const;
 export const BLOG_RANKING_GENDERS = ['all', 'masculino', 'feminino', 'misto'] as const;
@@ -49,6 +53,14 @@ export interface BlogCta {
   url: string | null;
 }
 
+/** Retrato do autor gravado no post (com `photoUrl` só nos posts salvos com autor cadastrado). */
+export interface BlogAuthor {
+  name: string;
+  role: string;
+  /** https, ou null. */
+  photoUrl: string | null;
+}
+
 export interface SiteBlogPost {
   id: string;
   slug: string;
@@ -57,10 +69,10 @@ export interface SiteBlogPost {
   /** `seoDescription`, ou o subtítulo quando vazio. */
   description: string;
   coverUrl: string | null;
-  /** null quando a categoria gravada não é uma das conhecidas. */
+  /** Id da categoria; null quando ausente ou fora do formato. Pode não existir mais (sem chip). */
   category: BlogCategory | null;
   tags: string[];
-  author: { name: string; role: string } | null;
+  author: BlogAuthor | null;
   body: BlogBlock[];
   cta: BlogCta | null;
   publishAt: Date | null;
@@ -171,7 +183,16 @@ function includes<T extends string>(list: readonly T[], value: unknown): value i
 }
 
 function isCategory(value: unknown): value is BlogCategory {
-  return typeof value === 'string' && (BLOG_CATEGORIES as readonly string[]).includes(value);
+  return typeof value === 'string' && value.length <= 32 && CATEGORY_ID.test(value);
+}
+
+/** `author` do post: `{name, role}` (antigos) ou `{id, name, role, photoUrl}`. Sem nome = sem autor. */
+export function mapBlogAuthor(raw: unknown): BlogAuthor | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const a = raw as Record<string, unknown>;
+  const name = text(a['name']);
+  if (!name) return null;
+  return { name, role: text(a['role']), photoUrl: httpsUrl(a['photoUrl']) };
 }
 
 /**
@@ -185,7 +206,6 @@ export function mapBlogPost(id: string, d: DocumentData): SiteBlogPost | null {
   if (d['status'] !== 'published' || d['channels']?.['site'] !== true) return null;
 
   const subtitle = text(d['subtitle']);
-  const authorName = text(d['author']?.['name']);
   const minutes = Number(d['readMinutes']);
 
   return {
@@ -197,7 +217,7 @@ export function mapBlogPost(id: string, d: DocumentData): SiteBlogPost | null {
     coverUrl: httpsUrl(d['coverUrl']),
     category: isCategory(d['category']) ? d['category'] : null,
     tags: Array.isArray(d['tags']) ? d['tags'].map(text).filter(Boolean) : [],
-    author: authorName ? { name: authorName, role: text(d['author']?.['role']) } : null,
+    author: mapBlogAuthor(d['author']),
     body: Array.isArray(d['body'])
       ? d['body'].map(mapBlogBlock).filter((b: BlogBlock | null): b is BlogBlock => b !== null)
       : [],

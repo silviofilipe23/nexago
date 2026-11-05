@@ -177,7 +177,9 @@ describe('blog · pautas sugeridas', () => {
     expect(params).toEqual({ categoria: 'torneios', esporte: 'beachVolleyball', titulo: 'Quem subiu', ranking: 'beachVolleyball' });
     expect(prefillFromParams((k) => params[k] ?? null)).toEqual(prefill);
     expect(prefillFromParams(() => null)).toBeNull();
-    const odd: Record<string, string> = { categoria: 'x', esporte: 'xadrez', titulo: '  Oi  ', torneio: 'id com espaço' };
+    const odd: Record<string, string> = { categoria: 'Não É Id', esporte: 'xadrez', titulo: '  Oi  ', torneio: 'id com espaço' };
     expect(prefillFromParams((k) => odd[k] ?? null)).toEqual({ category: 'torneios', sport: 'all', title: 'Oi', block: null });
+    // Categoria criada no backoffice vale (o editor marca se não existir mais).
+    expect(prefillFromParams((k) => ({ categoria: 'saude-corpo', titulo: 'Oi' })[k] ?? null)!.category).toBe('saude-corpo');
   });
 });

@@ -254,3 +254,32 @@ Só no app (o site não mostra nome de atleta). Moderação ANTES de aparecer. C
 - `blogPosts/{id}.commentCount` = aprovados (gatilho `onBlogCommentWritten`). Doc sem o campo = 0.
 - Índices: `blogComments` (status, createdAt desc), (uid, createdAt desc), (uid, status) e collection group
   (status, createdAt desc).
+
+---
+
+# Categorias e Autores (branch `claude/blog-categorias-autores`)
+
+Código: `functions/src/blog-taxonomy.ts`. Leitura pública das duas coleções; escrita só pelas callables.
+
+## `blogCategories/{id}` → `{label, color, colorLight, order, active, updatedAt, updatedBy}`
+
+- As 6 de origem (`BLOG_DEFAULT_CATEGORIES`: torneios, treino, regras, arenas, guia, loja, com rótulo e cores
+  da fase 1) valem SEM doc. Um doc com o mesmo id sobrescreve rótulo/cor/ordem/ativa. Categoria nova = doc com
+  id tirado do rótulo (`saude-corpo`; colisão vira `-2`). Até 30 docs.
+- Lista efetiva (todos os clientes): padrões ⊕ docs (doc vence no mesmo id), ordenada por `order` e depois
+  rótulo. `active: false` some do editor, dos chips do feed e dos avisos; post antigo continua mostrando a
+  categoria com o rótulo/cor dela. Id desconhecido (doc apagado, build antigo) = "Blog" com a cor neutra.
+- `color` = tom no escuro (capa/chip sobre fundo escuro); `colorLight` = tom de TEXTO no tema claro
+  (≥ 4,5:1 sobre o fundo claro). O backoffice oferece pares prontos (as 6 + alguns novos) e mostra a prévia nos
+  dois temas.
+- `saveBlogCategory({id|null, label (≤24), color, colorLight (#RRGGBB), order (0..999), active})` → `{id}`.
+- O save do post confere que a categoria existe (de origem ou com doc). Rules de `blogReads.category` e
+  `blogNotifyPrefs.muted` agora aceitam qualquer id no formato `^[a-z0-9]+(-[a-z0-9]+)*$` (≤ 32; até 30 silenciadas).
+
+## `blogAuthors/{id}` → `{name (≤40), role (≤40), photoUrl (https|null), bio (≤160), active, createdAt, updatedAt, updatedBy}`
+
+- `saveBlogAuthor({id|null, name, role, photoUrl, bio, active})` → `{id}`. Foto sobe em storage `blog/`.
+- Post: `author` no input passa a ser `{id?: string|null, name, role}`. Com `id`, o save grava o RETRATO do
+  cadastro: `author: {id, name, role, photoUrl}` (o que o editor mandou em nome/função é ignorado); sem `id`,
+  texto livre: `{id: null, name, role, photoUrl: null}`. Posts antigos têm só `{name, role}`.
+- Leitores mostram a foto do autor quando `author.photoUrl` existir; senão, as iniciais como hoje.

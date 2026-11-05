@@ -29,7 +29,6 @@ import {
   type BlockDraft,
   type BlogDraft,
 } from './data/blog-form';
-import { BLOG_COVER_SPEC } from './data/blog-image';
 import {
   BLOG_AUTHOR_FIELD_MAX,
   BLOG_BLOCKS_MAX,
@@ -200,7 +199,7 @@ function isConflict(error: unknown): boolean {
                   <bo-blog-image-picker
                     [url]="d.coverUrl"
                     [height]="230"
-                    [spec]="coverSpec"
+                    kind="cover"
                     [disabled]="saving()"
                     alt="Capa do post"
                     pickLabel="Enviar capa"
@@ -586,7 +585,6 @@ export class BlogPostEditorComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
 
-  protected readonly coverSpec = BLOG_COVER_SPEC;
   protected readonly siteHost = BLOG_SITE_HOST;
   private readonly taxonomy = inject(BlogTaxonomyService);
   /** Só ativas; a do post, se inativa ou sumida, entra marcada. */

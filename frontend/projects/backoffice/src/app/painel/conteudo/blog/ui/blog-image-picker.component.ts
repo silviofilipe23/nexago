@@ -2,12 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output, si
 import { callableErrorMessage } from '../../../data/callable-error';
 import { readImageSize, type ImageSize } from '../../../loja/campanhas/data/campaign-image';
 import { IconComponent } from '../../../ui/icon.component';
-import { blogImageFileError, blogImageWarning } from '../data/blog-image';
+import { BLOG_IMAGE_SPECS, blogImageFileError, blogImageWarning, type BlogImageKind } from '../data/blog-image';
 import { BlogPostsRepository } from '../data/blog-posts.repository';
 
 /**
- * Área de imagem do post (capa ou bloco de imagem): arrastar ou escolher, sobe para `blog/` e
- * devolve a URL. Confere tipo e bytes antes de subir; largura pequena só avisa.
+ * Área de imagem do blog (capa, bloco de imagem ou foto do autor): arrastar ou escolher, sobe para
+ * `blog/` e devolve a URL. Confere tipo e bytes antes de subir; mostra sempre o tamanho recomendado
+ * do `kind` e avisa (sem barrar) imagem pequena ou fora da proporção.
  */
 @Component({
   selector: 'bo-blog-image-picker',
@@ -43,12 +44,13 @@ import { BlogPostsRepository } from '../data/blog-posts.repository';
         }
       </div>
     </div>
+    @if (specText()) {
+      <span class="hint">{{ specText() }}</span>
+    }
     @if (error(); as err) {
       <span class="hint err" role="alert">{{ err }}</span>
     } @else if (warning(); as warn) {
       <span class="hint warn">{{ warn }}</span>
-    } @else if (spec()) {
-      <span class="hint">{{ spec() }}</span>
     }
   `,
   styles: `
@@ -74,6 +76,9 @@ export class BlogImagePickerComponent {
   readonly url = input<string | null>(null);
   readonly alt = input('');
   readonly height = input(180);
+  /** Onde a imagem aparece: decide a dica de tamanho e o aviso. */
+  readonly kind = input<BlogImageKind>('body');
+  /** Dica própria; vazio = a do `kind`. */
   readonly spec = input('');
   readonly pickLabel = input('Enviar imagem');
   readonly replaceLabel = input('Trocar');
@@ -88,9 +93,10 @@ export class BlogImagePickerComponent {
   private readonly size = signal<ImageSize | null>(null);
 
   protected readonly busy = computed(() => this.disabled() || this.progress() !== null);
+  protected readonly specText = computed(() => this.spec() || BLOG_IMAGE_SPECS[this.kind()]);
   protected readonly warning = computed(() => {
     const size = this.size();
-    return size && this.url() ? blogImageWarning(size) : null;
+    return size && this.url() ? blogImageWarning(size, this.kind()) : null;
   });
 
   protected onPick(event: Event): void {

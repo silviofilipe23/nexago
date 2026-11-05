@@ -1044,6 +1044,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
                       garmentHex: storeSelectedColorHex(product, selected),
                       namePlacement:
                           nameOptions.enabled ? nameOptions.placement : null,
+                      namePosition: nameOptions.position,
                       nameText: _nameText,
                       nameFont: font ?? StoreCustomFont.bloco,
                       nameColor: storeHexColor(nameColor) ?? Colors.white,
@@ -1059,6 +1060,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
                                 nameOptions.enabled
                                     ? nameOptions.placement
                                     : null,
+                                namePosition: nameOptions.position,
                               ),
                               type: backType,
                               number: backNumber,

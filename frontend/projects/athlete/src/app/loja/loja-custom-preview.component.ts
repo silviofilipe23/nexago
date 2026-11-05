@@ -10,13 +10,15 @@ import {
   type ImageTransform,
   type PreviewBox,
 } from '../data/store-customize-model';
-import type { StoreCustomArea, StoreNamePlacement, StorePhotoView } from '../data/store-showcase-model';
+import type { StoreCustomArea, StoreNamePlacement, StorePhotoView, StorePreviewPoint } from '../data/store-showcase-model';
 
 export interface PreviewName {
   text: string;
   fontId: string;
   color: string;
   placement: StoreNamePlacement;
+  /** Centro arrastado no backoffice; `null` = o padrão do `placement`. */
+  position: StorePreviewPoint | null;
 }
 
 export interface PreviewImage {
@@ -103,7 +105,7 @@ interface Drag {
         </div>
       }
       @if (nameShown(); as n) {
-        <div class="cp-name-band" [style]="boxStyle(namePreviewBox(n.placement))">
+        <div class="cp-name-band" [style]="boxStyle(namePreviewBox(n.placement, n.position))">
           <span
             class="cp-name"
             [attr.data-font]="n.fontId"
@@ -172,7 +174,7 @@ export class LojaCustomPreviewComponent {
   });
   protected readonly nameFont = computed(() => {
     const n = this.nameShown();
-    return n ? nameFontFraction([...(n.text || 'SEU NOME')].length, namePreviewBox(n.placement).w) : 0;
+    return n ? nameFontFraction([...(n.text || 'SEU NOME')].length, namePreviewBox(n.placement, n.position).w) : 0;
   });
   private readonly artBox = computed(() => {
     const img = this.image();

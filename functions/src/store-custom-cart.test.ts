@@ -67,6 +67,25 @@ describe("publicCustomization", () => {
     assert.ok(!JSON.stringify(out).includes("printShop"), "gráfica não vai para a vitrine");
   });
 
+  it("leva a posição arrastada de nome, áreas e costas; sem ela, null", () => {
+    const out = publicCustomization({
+      active: true,
+      name: {position: {x: 0.3, y: 0.18}},
+      image: {
+        areas: [
+          {id: "peito_esquerdo", name: "Peito esquerdo", widthCm: 9, heightCm: 9, enabled: true, position: {x: 0.7, y: 0.3}},
+          {id: "centro_frente", name: "Centro da frente", widthCm: 25, heightCm: 30, enabled: true},
+        ],
+      },
+      back: {enabled: true, allowNumber: true, position: {x: 0.5, y: 0.7}},
+    })!;
+    assert.deepEqual(out.name.position, {x: 0.3, y: 0.18});
+    assert.deepEqual(out.image.areas.map((a) => a.position), [{x: 0.7, y: 0.3}, null]);
+    assert.deepEqual(out.back.position, {x: 0.5, y: 0.7});
+    // Ponto fora da peça (doc mexido à mão) cai no lugar padrão em vez de sumir com o elemento.
+    assert.equal(publicCustomization({active: true, name: {position: {x: 4, y: 0}}})!.name.position, null);
+  });
+
   it("opção ligada sem fonte/área conta como desligada", () => {
     const out = publicCustomization({
       active: true,
@@ -112,7 +131,9 @@ describe("costas no espelho", () => {
       back: {enabled: true, allowNumber: true, allowImage: false, numberMaxDigits: 2, widthCm: 25, heightCm: 25},
       price: {backCents: 990},
     })!;
-    assert.deepEqual(only.back, {enabled: true, allowNumber: true, allowImage: false, numberMaxDigits: 2, widthCm: 25, heightCm: 25});
+    assert.deepEqual(only.back, {
+      enabled: true, allowNumber: true, allowImage: false, numberMaxDigits: 2, widthCm: 25, heightCm: 25, position: null,
+    });
     assert.equal(only.fromCents, 990);
     const semFormato = publicCustomization({
       active: true,

@@ -323,6 +323,7 @@ StoreCustomization storeCustomizationFromMap(Map<String, dynamic> data) {
           name: _strOrNull(a['name']) ?? _str(a['id']),
           widthCm: _num(a['widthCm'])!,
           heightCm: _num(a['heightCm'])!,
+          position: _previewPoint(a['position']),
         ),
   ];
   final maxSizeMb = _count(image['maxSizeMb']);
@@ -345,6 +346,7 @@ StoreCustomization storeCustomizationFromMap(Map<String, dynamic> data) {
       enabled: name['enabled'] == true && fonts.isNotEmpty && colors.isNotEmpty,
       maxChars: maxChars > 0 ? maxChars : 12,
       placement: StoreNamePlacement.from(name['placement']),
+      position: _previewPoint(name['position']),
       fonts: fonts,
       colors: colors,
     ),
@@ -364,6 +366,7 @@ StoreCustomization storeCustomizationFromMap(Map<String, dynamic> data) {
       numberMaxDigits: backDigits < 1 ? 2 : (backDigits > 3 ? 3 : backDigits),
       widthCm: backWidth > 0 ? backWidth : 25,
       heightCm: backHeight > 0 ? backHeight : 25,
+      position: _previewPoint(back['position']),
     ),
     price: StoreCustomPrice(
       nameOnlyCents: _count(price['nameOnlyCents']),
@@ -372,6 +375,16 @@ StoreCustomization storeCustomizationFromMap(Map<String, dynamic> data) {
       backCents: _count(price['backCents']),
     ),
   );
+}
+
+/// Posição arrastada no backoffice: ponto dentro da peça (0–1). Espelho
+/// antigo ou valor estranho = `null` (o lugar padrão).
+StorePreviewPoint? _previewPoint(Object? raw) {
+  final p = _map(raw);
+  final x = _num(p['x']);
+  final y = _num(p['y']);
+  if (x == null || y == null || x < 0 || x > 1 || y < 0 || y > 1) return null;
+  return (x: x, y: y);
 }
 
 /// Quanto cabe numa compra. Doc anterior ao `maxQty`: com saldo vale o teto,

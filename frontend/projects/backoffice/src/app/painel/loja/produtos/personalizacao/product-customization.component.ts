@@ -25,11 +25,37 @@ import {
   type ImageFormat,
   type NamePlacement,
 } from './data/customization';
+import {
+  areaBox,
+  backBox,
+  clampBox,
+  nameBox,
+  nameFontFraction,
+  nameOnBack,
+  roundPoint,
+  type LayoutBox,
+} from './data/customization-layout';
 import type { PhotoSides } from '../data/photo-sides';
 import { CustomizationRepository } from './data/customization.repository';
 
 type LoadState = 'loading' | 'ok' | 'missing' | 'error';
 type PriceKey = keyof CustomizationConfig['price'];
+/** O que se arrasta na prévia: o nome, as costas ou uma área (`area:<id>`). */
+type DragTarget = 'name' | 'back' | `area:${string}`;
+
+interface Drag {
+  target: DragTarget;
+  startX: number;
+  startY: number;
+  /** Tamanho da peça na tela, em px. */
+  width: number;
+  height: number;
+  from: LayoutBox;
+}
+
+/** Passo das setas: 1% da peça; com Shift, 5%. */
+const KEY_STEP = 0.01;
+const KEY_STEP_BIG = 0.05;
 
 /** Loja › Produtos › <produto> › Personalização (tela 11). Rota própria: salva à parte do produto. */
 @Component({
@@ -128,7 +154,7 @@ type PriceKey = keyof CustomizationConfig['price'];
                       <input class="bo-input" inputmode="numeric" [value]="config().name.maxChars" (input)="set('name.maxChars', num($event))" />
                     </bo-field>
                     <bo-field label="Local">
-                      <select class="bo-select" (change)="set('name.placement', placement($event))">
+                      <select class="bo-select" (change)="setPlacement($event)">
                         @for (p of placements; track p.id) {
                           <option [value]="p.id" [selected]="config().name.placement === p.id">{{ p.label }}</option>
                         }
@@ -359,26 +385,71 @@ type PriceKey = keyof CustomizationConfig['price'];
                     <button type="button" role="radio" [attr.aria-checked]="side() === 'frente'" [class.on]="side() === 'frente'" (click)="side.set('frente')">Frente</button>
                     <button type="button" role="radio" [attr.aria-checked]="side() === 'costas'" [class.on]="side() === 'costas'" (click)="side.set('costas')">Costas</button>
                   </div>
-                  @if (previewName(); as n) {
-                    <span
-                      class="name-sample"
-                      [class]="'name-sample font-' + n.font + ' at-' + n.spot"
-                      [style.color]="n.color"
-                    >{{ n.text }}</span>
-                  }
-                  @for (a of previewAreas(); track a.id) {
-                    <span class="area" [class]="'area at-' + a.id" [title]="a.name"></span>
-                  }
-                  @if (previewBack(); as b) {
-                    <span class="back-area" [class]="'back-area at-' + b.spot" [title]="'Costas · ' + b.kind">
-                      @if (b.number) {
-                        <span class="back-number" [class]="'back-number font-' + b.font" [style.color]="b.color">{{ b.number }}</span>
-                      } @else {
-                        <span class="back-kind">imagem</span>
-                      }
-                    </span>
-                  }
+                  <!-- Peça de referência 60 × 70 cm: as posições são frações dela, como no portal e no app. -->
+                  <div class="garment">
+                    @for (a of previewAreas(); track a.id) {
+                      <span
+                        class="drag area"
+                        [class.dragging]="dragging() === a.target"
+                        [style]="boxStyle(a.box)"
+                        tabindex="0"
+                        role="button"
+                        [attr.aria-label]="'Área ' + a.name + ': arraste ou use as setas para posicionar'"
+                        [title]="a.name"
+                        (pointerdown)="startDrag($event, a.target)"
+                        (pointermove)="onDrag($event)"
+                        (pointerup)="endDrag()"
+                        (pointercancel)="endDrag()"
+                        (keydown)="onKey($event, a.target)"
+                      ><span class="area-label">{{ a.name }}</span></span>
+                    }
+                    @if (previewBack(); as b) {
+                      <span
+                        class="drag back-area"
+                        [class.dragging]="dragging() === 'back'"
+                        [style]="boxStyle(b.box)"
+                        tabindex="0"
+                        role="button"
+                        [attr.aria-label]="'Costas: arraste ou use as setas para posicionar'"
+                        [title]="'Costas · ' + b.kind"
+                        (pointerdown)="startDrag($event, 'back')"
+                        (pointermove)="onDrag($event)"
+                        (pointerup)="endDrag()"
+                        (pointercancel)="endDrag()"
+                        (keydown)="onKey($event, 'back')"
+                      >
+                        @if (b.number) {
+                          <span class="back-number" [class]="'back-number font-' + b.font" [style.color]="b.color" [style.font-size.cqw]="b.fontCqw">{{ b.number }}</span>
+                        } @else {
+                          <span class="back-kind">imagem</span>
+                        }
+                      </span>
+                    }
+                    @if (previewName(); as n) {
+                      <span
+                        class="drag name-band"
+                        [class.dragging]="dragging() === 'name'"
+                        [style]="boxStyle(n.box)"
+                        tabindex="0"
+                        role="button"
+                        [attr.aria-label]="'Nome: arraste ou use as setas para posicionar'"
+                        (pointerdown)="startDrag($event, 'name')"
+                        (pointermove)="onDrag($event)"
+                        (pointerup)="endDrag()"
+                        (pointercancel)="endDrag()"
+                        (keydown)="onKey($event, 'name')"
+                      >
+                        <span class="name-sample" [class]="'name-sample font-' + n.font" [style.color]="n.color" [style.font-size.cqw]="n.fontCqw">{{ n.text }}</span>
+                      </span>
+                    }
+                  </div>
                   <span class="mock-label">{{ coverUrl() ? 'Foto do produto' : 'Mockup' }} · {{ side() === 'frente' ? 'Frente' : 'Costas' }}</span>
+                </div>
+                <div class="drag-hint">
+                  <span>Arraste o nome, as áreas e as costas até o lugar da peça. O atleta vê assim no app e no portal.</span>
+                  @if (hasCustomPositions()) {
+                    <button type="button" class="link" (click)="resetPositions()">Voltar ao padrão</button>
+                  }
                 </div>
                 <dl class="summary">
                   <div><dt>Preço base</dt><dd>{{ brl(basePrice()) }}</dd></div>
@@ -476,29 +547,27 @@ type PriceKey = keyof CustomizationConfig['price'];
     .mono { font-family: var(--nx-font-mono); font-size: 11px; }
     .dim { color: var(--nx-text-dim); }
     .error { margin: 10px 0 0; font-size: 12px; color: var(--nx-live); }
-    .mockup { position: relative; aspect-ratio: 1; border-radius: var(--nx-r-3, 12px); overflow: hidden; background: repeating-linear-gradient(135deg, var(--nx-surface-1) 0 10px, var(--nx-surface-2) 10px 20px); }
-    .segmented { position: absolute; top: 10px; left: 10px; display: flex; gap: 3px; padding: 3px; border-radius: var(--nx-r-pill); background: rgba(0, 0, 0, 0.45); z-index: 1; }
+    /* Mesmo quadro do portal (31:32, foto em cover) com a peça 6:7 no meio: o que se arrasta aqui cai igual lá e no app. */
+    .mockup { position: relative; aspect-ratio: 31 / 32; display: grid; place-items: center; border-radius: var(--nx-r-3, 12px); overflow: hidden; background: repeating-linear-gradient(135deg, var(--nx-surface-1) 0 10px, var(--nx-surface-2) 10px 20px); touch-action: none; }
+    .segmented { position: absolute; top: 10px; left: 10px; display: flex; gap: 3px; padding: 3px; border-radius: var(--nx-r-pill); background: rgba(0, 0, 0, 0.45); z-index: 2; }
     .segmented button { height: 28px; padding: 0 14px; border: none; border-radius: var(--nx-r-pill); background: transparent; color: var(--nx-text-mute); font-family: var(--nx-font-display); font-weight: 600; font-size: 12px; cursor: pointer; }
     .segmented button.on { background: #f4f4f5; color: #111; }
-    /* Foto inteira à vista (contain): a marcação de área precisa cair sobre a peça, não cortada. */
-    .mockup.has-photo { background: #0d0d0f; }
-    .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+    .mockup.has-photo { background: #0f1214; }
+    .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .mockup.has-photo .mock-label { color: var(--nx-text-mute); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
-    .name-sample { text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
-    .name-sample { position: absolute; left: 50%; transform: translateX(-50%); padding: 4px 12px; border: 1px dashed rgba(244, 244, 245, 0.35); border-radius: 4px; font-size: 22px; white-space: nowrap; }
-    .name-sample.at-top { top: 26%; }
-    .name-sample.at-bottom { top: 62%; }
-    .name-sample.at-chest { top: 30%; font-size: 15px; }
-    .name-sample.at-band { top: 76%; }
-    .area { position: absolute; border: 1px dashed var(--nx-orange-500); background: rgba(255, 106, 26, 0.12); }
-    .area.at-peito_esquerdo { top: 28%; right: 26%; width: 12%; height: 12%; }
-    .area.at-centro_frente { top: 42%; left: 30%; width: 40%; height: 40%; }
-    .area.at-manga { top: 30%; left: 6%; width: 10%; height: 10%; }
-    .back-area { position: absolute; left: 30%; width: 40%; height: 34%; display: grid; place-items: center; border: 1px dashed var(--nx-orange-500); background: rgba(255, 106, 26, 0.08); }
-    .back-area.at-below { top: 40%; }
-    .back-area.at-above { top: 20%; }
-    .back-number { font-size: 56px; line-height: 1; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
-    .back-kind { font-family: var(--nx-font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-orange-500); }
+    .garment { position: relative; height: 100%; aspect-ratio: 6 / 7; container-type: inline-size; outline: 1px dashed rgba(244, 244, 245, 0.12); outline-offset: -1px; z-index: 1; }
+    .drag { position: absolute; display: grid; place-items: center; cursor: grab; user-select: none; touch-action: none; border-radius: 4px; }
+    .drag:hover, .drag:focus-visible { outline: 2px solid var(--nx-orange-500); outline-offset: 1px; }
+    .drag:focus-visible { z-index: 1; }
+    .drag.dragging { z-index: 1; cursor: grabbing; outline: 2px solid var(--nx-orange-500); }
+    .name-band { border: 1px dashed rgba(244, 244, 245, 0.35); }
+    .name-sample { white-space: nowrap; line-height: 1.1; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); pointer-events: none; }
+    .area { border: 1px dashed var(--nx-orange-500); background: rgba(255, 106, 26, 0.12); overflow: hidden; }
+    .area-label { padding: 0 2px; font-family: var(--nx-font-mono); font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--nx-orange-500); text-align: center; line-height: 1.1; pointer-events: none; }
+    .back-area { border: 1px dashed var(--nx-orange-500); background: rgba(255, 106, 26, 0.08); }
+    .back-number { line-height: 1; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); pointer-events: none; }
+    .back-kind { font-family: var(--nx-font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-orange-500); pointer-events: none; }
+    .drag-hint { margin-top: 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; font-size: 11.5px; color: var(--nx-text-dim); }
     .mock-label { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-family: var(--nx-font-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-text-dim); }
     .summary { margin: 14px 0 0; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
     .summary div { display: flex; justify-content: space-between; }
@@ -546,43 +615,60 @@ export class ProductCustomizationComponent {
   protected readonly addOn = computed(() => addOnCents(this.config()));
   protected readonly addOnLines = computed(() => addOnLines(this.config()));
 
-  /** Nome na 1ª fonte e cor ativas, no lado onde ele é estampado. */
+  /** Nome na 1ª fonte e cor ativas, no lado onde ele é estampado, na posição arrastada (ou a padrão). */
   protected readonly previewName = computed(() => {
     const c = this.config();
-    if (!c.name.enabled) {
+    if (!c.name.enabled || nameOnBack(c.name.placement) !== (this.side() === 'costas')) {
       return null;
     }
-    const onBack = c.name.placement === 'costas_superior' || c.name.placement === 'costas_inferior';
-    if (onBack !== (this.side() === 'costas')) {
-      return null;
-    }
+    const box = nameBox(c.name);
+    const text = sampleName(c.name.maxChars);
     return {
-      text: sampleName(c.name.maxChars),
+      text,
+      box,
       font: c.name.fonts.find((f) => f.enabled)?.id ?? 'bloco',
       color: c.name.colors[0] ?? '#ffffff',
-      spot: c.name.placement === 'costas_inferior' ? 'bottom' : c.name.placement === 'barra' ? 'band' : onBack ? 'top' : 'chest',
+      fontCqw: nameFontFraction(text.length, box.w) * 100,
     };
   });
 
-  /** Elemento das costas abaixo do nome (acima, se o nome for embaixo). Número de exemplo quando vale número. */
+  /** Elemento das costas, colado ao nome até ser arrastado. Número de exemplo quando vale número. */
   protected readonly previewBack = computed(() => {
     const c = this.config();
     if (!c.back.enabled || this.side() !== 'costas') {
       return null;
     }
+    const box = backBox(c);
+    const number = c.back.allowNumber ? sampleNumber(c.back.numberMaxDigits) : null;
     return {
-      spot: c.name.enabled && c.name.placement === 'costas_inferior' ? 'above' : 'below',
+      box,
       kind: backKindLabel(c),
-      number: c.back.allowNumber ? sampleNumber(c.back.numberMaxDigits) : null,
+      number,
       font: c.name.fonts.find((f) => f.enabled)?.id ?? 'bloco',
       color: c.name.colors[0] ?? '#ffffff',
+      // Como no portal: 70% da altura da caixa (a peça é 6 × 7), sem passar da largura.
+      fontCqw: Math.min(box.h * (7 / 6) * 100 * 0.7, (box.w * 100 * 0.9) / (Math.max(1, number?.length ?? 2) * 0.62)),
     };
   });
 
   protected readonly previewAreas = computed(() => {
     const c = this.config();
-    return c.image.enabled && this.side() === 'frente' ? c.image.areas.filter((a) => a.enabled) : [];
+    return c.image.enabled && this.side() === 'frente'
+      ? c.image.areas
+          .filter((a) => a.enabled)
+          .map((a) => ({ id: a.id, name: a.name, box: areaBox(a), target: `area:${a.id}` as DragTarget }))
+          // Maior primeiro: a área pequena fica por cima e continua dando para pegar.
+          .sort((x, y) => y.box.w * y.box.h - x.box.w * x.box.h)
+      : [];
   });
+
+  protected readonly hasCustomPositions = computed(() => {
+    const c = this.config();
+    return c.name.position != null || c.back.position != null || c.image.areas.some((a) => a.position != null);
+  });
+
+  protected readonly dragging = signal<DragTarget | null>(null);
+  private drag: Drag | null = null;
 
   constructor() {
     void this.reload();
@@ -631,6 +717,108 @@ export class ProductCustomizationComponent {
       }
       target[keys[keys.length - 1]!] = value;
     });
+  }
+
+  protected boxStyle(b: LayoutBox): string {
+    return `left:${(b.cx - b.w / 2) * 100}%;top:${(b.cy - b.h / 2) * 100}%;width:${b.w * 100}%;height:${b.h * 100}%`;
+  }
+
+  /** Caixa atual do alvo (com a posição padrão quando não foi arrastado). */
+  private boxOf(target: DragTarget): LayoutBox | null {
+    const c = this.config();
+    if (target === 'name') {
+      return nameBox(c.name);
+    }
+    if (target === 'back') {
+      return backBox(c);
+    }
+    const area = c.image.areas.find((a) => `area:${a.id}` === target);
+    return area ? areaBox(area) : null;
+  }
+
+  /** Grava o centro do alvo, preso dentro da peça como os clientes desenham. */
+  private moveTo(target: DragTarget, box: LayoutBox): void {
+    const b = clampBox(box, target !== 'name');
+    const point = roundPoint(b.cx, b.cy);
+    this.patch((c) => {
+      if (target === 'name') {
+        c.name.position = point;
+      } else if (target === 'back') {
+        c.back.position = point;
+      } else {
+        const area = c.image.areas.find((a) => `area:${a.id}` === target);
+        if (area) {
+          area.position = point;
+        }
+      }
+    });
+  }
+
+  protected startDrag(event: PointerEvent, target: DragTarget): void {
+    const el = event.currentTarget as HTMLElement;
+    const garment = el.parentElement?.getBoundingClientRect();
+    const from = this.boxOf(target);
+    if (event.button !== 0 || !garment || !from) {
+      return;
+    }
+    event.preventDefault();
+    el.focus();
+    el.setPointerCapture(event.pointerId);
+    this.drag = { target, startX: event.clientX, startY: event.clientY, width: garment.width, height: garment.height, from };
+    this.dragging.set(target);
+  }
+
+  protected onDrag(event: PointerEvent): void {
+    const d = this.drag;
+    if (!d || d.width === 0 || d.height === 0) {
+      return;
+    }
+    this.moveTo(d.target, {
+      ...d.from,
+      cx: d.from.cx + (event.clientX - d.startX) / d.width,
+      cy: d.from.cy + (event.clientY - d.startY) / d.height,
+    });
+  }
+
+  protected endDrag(): void {
+    this.drag = null;
+    this.dragging.set(null);
+  }
+
+  protected onKey(event: KeyboardEvent, target: DragTarget): void {
+    const step = event.shiftKey ? KEY_STEP_BIG : KEY_STEP;
+    const delta: Record<string, [number, number]> = {
+      ArrowLeft: [-step, 0],
+      ArrowRight: [step, 0],
+      ArrowUp: [0, -step],
+      ArrowDown: [0, step],
+    };
+    const move = delta[event.key];
+    const box = this.boxOf(target);
+    if (!move || !box) {
+      return;
+    }
+    event.preventDefault();
+    this.moveTo(target, { ...box, cx: box.cx + move[0], cy: box.cy + move[1] });
+  }
+
+  /** Tudo de volta ao lugar padrão (o do `Local` do nome, o da área, colado ao nome). */
+  protected resetPositions(): void {
+    this.patch((c) => {
+      c.name.position = null;
+      c.back.position = null;
+      c.image.areas.forEach((a) => (a.position = null));
+    });
+  }
+
+  /** Trocar o local leva o nome para o lugar padrão do novo local (e o lado certo). */
+  protected setPlacement(event: Event): void {
+    const placement = this.placement(event);
+    this.patch((c) => {
+      c.name.placement = placement;
+      c.name.position = null;
+    });
+    this.side.set(nameOnBack(placement) ? 'costas' : 'frente');
   }
 
   protected removeColor(index: number): void {

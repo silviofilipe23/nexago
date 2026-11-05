@@ -436,10 +436,8 @@ String storeImageProblemMessage(
 
 // ── Prévia ──────────────────────────────────────────────────────────────
 
-/// Ponto da prévia em frações do quadro (0–1).
-typedef StorePreviewPoint = ({double x, double y});
-
-/// Peça de referência: 60 × 70 cm.
+/// Peça de referência: 60 × 70 cm (os pontos da prévia, [StorePreviewPoint],
+/// são frações dela).
 const double kStoreGarmentWidthCm = 60;
 const double kStoreGarmentHeightCm = 70;
 
@@ -451,14 +449,54 @@ double storeNameBandWidth(StoreNamePlacement placement) =>
 /// Altura da faixa do nome em fração da altura do quadro.
 const double kStoreNameBandHeight = 0.15;
 
-/// Centro da área. `peito_esquerdo` é o esquerdo de quem veste (direita de
-/// quem olha).
+/// Centro padrão da área. `peito_esquerdo` é o esquerdo de quem veste
+/// (direita de quem olha).
 StorePreviewPoint storeCustomAreaCenter(String areaId) => switch (areaId) {
       'peito_esquerdo' => (x: 0.68, y: 0.30),
       'centro_frente' => (x: 0.50, y: 0.45),
       'manga' => (x: 0.88, y: 0.24),
       _ => (x: 0.50, y: 0.40),
     };
+
+/// Centro dentro da peça, com a caixa de [width] × [height] inteira dentro
+/// dela. A faixa do nome passa `width: 0`: só o centro fica preso na
+/// horizontal (o texto é centrado e encolhe até caber). Mesma regra do
+/// portal e do backoffice.
+StorePreviewPoint storeClampPreviewCenter(
+  StorePreviewPoint p, {
+  required double width,
+  required double height,
+}) {
+  final halfW = math.min(0.5, width / 2);
+  final halfH = math.min(0.5, height / 2);
+  return (
+    x: p.x.clamp(halfW, 1 - halfW).toDouble(),
+    y: p.y.clamp(halfH, 1 - halfH).toDouble(),
+  );
+}
+
+/// Centro da área na prévia: o arrastado no backoffice ([StoreCustomArea.
+/// position]) ou o padrão pelo `id`, com a caixa dentro da peça.
+StorePreviewPoint storeAreaPreviewCenter(StoreCustomArea area) {
+  final box = storeCustomAreaBox(area);
+  return storeClampPreviewCenter(
+    area.position ?? storeCustomAreaCenter(area.id),
+    width: box.width,
+    height: box.height,
+  );
+}
+
+/// Centro da faixa do nome na prévia: o arrastado no backoffice ou o padrão
+/// do [placement].
+StorePreviewPoint storeNamePreviewCenter(
+  StoreNamePlacement placement,
+  StorePreviewPoint? position,
+) =>
+    storeClampPreviewCenter(
+      position ?? storeNameCenter(placement),
+      width: 0,
+      height: kStoreNameBandHeight,
+    );
 
 /// Caixa da área = `widthCm/60` × `heightCm/70` do quadro.
 ({double width, double height}) storeCustomAreaBox(StoreCustomArea area) => (
@@ -614,39 +652,55 @@ const double kStoreBackNameGap = 0.03;
 /// Centro vertical das costas sem nome nas costas.
 const double kStoreBackDefaultCenterY = 0.45;
 
-/// Caixa centrada, `widthCm/60` × `heightCm/70` do quadro; centro vertical
-/// logo abaixo da faixa do nome (`0,24 + 0,075 + 0,03 + h/2`), ou logo
-/// acima com o nome em `costas_inferior` (`0,62 − 0,075 − 0,03 − h/2`); sem
-/// nome nas costas ([namePlacement] `null`, frente ou manga), 0,45. Sempre
-/// dentro do quadro.
+/// Caixa `widthCm/60` × `heightCm/70` do quadro. Com a posição arrastada
+/// no backoffice ([StoreCustomBackOptions.position]), nela. Sem ela,
+/// centrada e logo abaixo da faixa do nome (`0,24 + 0,075 + 0,03 + h/2`, com
+/// o nome no lugar dele — [namePosition], se arrastado), ou logo acima com o
+/// nome em `costas_inferior` (`0,62 − 0,075 − 0,03 − h/2`); sem nome nas
+/// costas ([namePlacement] `null`, frente ou manga), 0,45. Sempre dentro do
+/// quadro.
 StoreBackBox storeBackBox(
   StoreCustomBackOptions back,
-  StoreNamePlacement? namePlacement,
-) {
+  StoreNamePlacement? namePlacement, {
+  StorePreviewPoint? namePosition,
+}) {
   final width = (back.widthCm / kStoreGarmentWidthCm).clamp(0.0, 1.0);
   final height = (back.heightCm / kStoreGarmentHeightCm).clamp(0.0, 1.0);
   const halfBand = kStoreNameBandHeight / 2;
-  final double y;
-  switch (namePlacement) {
-    case StoreNamePlacement.backUpper:
-      y = storeNameCenter(StoreNamePlacement.backUpper).y +
-          halfBand +
-          kStoreBackNameGap +
-          height / 2;
-    case StoreNamePlacement.backLower:
-      y = storeNameCenter(StoreNamePlacement.backLower).y -
-          halfBand -
-          kStoreBackNameGap -
-          height / 2;
-    case StoreNamePlacement.front:
-    case StoreNamePlacement.sleeve:
-    case StoreNamePlacement.band:
-    case null:
-      y = kStoreBackDefaultCenterY;
+  final StorePreviewPoint center;
+  if (back.position != null) {
+    center = back.position!;
+  } else {
+    final double y;
+    switch (namePlacement) {
+      case StoreNamePlacement.backUpper:
+        y = storeNamePreviewCenter(StoreNamePlacement.backUpper, namePosition)
+                .y +
+            halfBand +
+            kStoreBackNameGap +
+            height / 2;
+      case StoreNamePlacement.backLower:
+        y = storeNamePreviewCenter(StoreNamePlacement.backLower, namePosition)
+                .y -
+            halfBand -
+            kStoreBackNameGap -
+            height / 2;
+      case StoreNamePlacement.front:
+      case StoreNamePlacement.sleeve:
+      case StoreNamePlacement.band:
+      case null:
+        y = kStoreBackDefaultCenterY;
+    }
+    center = (x: 0.5, y: y);
   }
+  final inside = storeClampPreviewCenter(
+    center,
+    width: width.toDouble(),
+    height: height.toDouble(),
+  );
   return (
-    x: 0.5,
-    y: y.clamp(height / 2, 1 - height / 2).toDouble(),
+    x: inside.x,
+    y: inside.y,
     width: width.toDouble(),
     height: height.toDouble(),
   );

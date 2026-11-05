@@ -167,11 +167,15 @@ enum StoreNamePlacement {
 }
 
 /// `customization.name` do espelho.
+/// Ponto na prévia, em fração da peça de referência de 60 × 70 cm (0–1).
+typedef StorePreviewPoint = ({double x, double y});
+
 class StoreCustomNameOptions {
   const StoreCustomNameOptions({
     this.enabled = false,
     this.maxChars = 12,
     this.placement = StoreNamePlacement.backUpper,
+    this.position,
     this.fonts = const [],
     this.colors = const [],
   });
@@ -181,6 +185,10 @@ class StoreCustomNameOptions {
   final bool enabled;
   final int maxChars;
   final StoreNamePlacement placement;
+
+  /// Centro da faixa do nome arrastado no backoffice; `null` = o padrão do
+  /// [placement] (que segue decidindo o lado).
+  final StorePreviewPoint? position;
 
   /// Só as ligadas, na ordem do backoffice (a 1ª é o padrão).
   final List<StoreCustomFont> fonts;
@@ -196,12 +204,16 @@ class StoreCustomArea {
     required this.name,
     required this.widthCm,
     required this.heightCm,
+    this.position,
   });
 
   final String id;
   final String name;
   final double widthCm;
   final double heightCm;
+
+  /// Centro arrastado no backoffice; `null` = o padrão pelo [id].
+  final StorePreviewPoint? position;
 }
 
 /// `customization.image` do espelho.
@@ -241,6 +253,7 @@ class StoreCustomBackOptions {
     this.numberMaxDigits = 2,
     this.widthCm = 25,
     this.heightCm = 25,
+    this.position,
   });
 
   static const StoreCustomBackOptions disabled = StoreCustomBackOptions();
@@ -256,6 +269,9 @@ class StoreCustomBackOptions {
   /// Área das costas, em cm (prévia e qualidade da imagem).
   final double widthCm;
   final double heightCm;
+
+  /// Centro da caixa arrastado no backoffice; `null` = colada ao nome.
+  final StorePreviewPoint? position;
 }
 
 /// Adicional da personalização: nome e imagem juntos têm preço próprio; as

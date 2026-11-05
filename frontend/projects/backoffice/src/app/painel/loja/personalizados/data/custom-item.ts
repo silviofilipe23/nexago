@@ -70,6 +70,7 @@ export const PLACEMENT_SHORT: Record<string, string> = {
   costas_inferior: 'Costas (inferior)',
   frente: 'Frente',
   manga: 'Manga',
+  barra: 'Barra (toalha)',
 };
 
 type Raw = Record<string, any>;

@@ -148,7 +148,10 @@ enum StoreNamePlacement {
   backUpper('costas_superior'),
   backLower('costas_inferior'),
   front('frente'),
-  sleeve('manga');
+  sleeve('manga'),
+
+  /// Barra da toalha: o nome bordado na faixa de baixo, de frente.
+  band('barra');
 
   const StoreNamePlacement(this.id);
 

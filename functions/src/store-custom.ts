@@ -27,7 +27,8 @@ const BLOCKLIST_ID = "blocklist";
 // Configuração (tela 11)
 // ---------------------------------------------------------------------------
 
-export type NamePlacement = "costas_superior" | "costas_inferior" | "frente" | "manga";
+/** `barra` = barra da toalha (nome bordado na faixa de baixo, de frente). */
+export type NamePlacement = "costas_superior" | "costas_inferior" | "frente" | "manga" | "barra";
 export type FontId = "bloco" | "classica" | "mono";
 export type ImageFormat = "png" | "jpg" | "svg";
 
@@ -76,7 +77,7 @@ export interface CustomizationConfig {
   defectOnlyReturns: boolean;
 }
 
-const PLACEMENTS: NamePlacement[] = ["costas_superior", "costas_inferior", "frente", "manga"];
+const PLACEMENTS: NamePlacement[] = ["costas_superior", "costas_inferior", "frente", "manga", "barra"];
 const FONTS: FontId[] = ["bloco", "classica", "mono"];
 const FORMATS: ImageFormat[] = ["png", "jpg", "svg"];
 const HEX_RE = /^#[0-9a-f]{6}$/i;

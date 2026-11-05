@@ -22,7 +22,9 @@ import {
   nameFontFraction,
   nameHint,
   nameHintWarns,
+  nameSide,
   nameStepTitle,
+  namePreviewBox,
   previewPhoto,
   previewPhotoNote,
   priceBreakdown,
@@ -68,6 +70,9 @@ describe('store-customize-model', () => {
       expect(nameStepTitle('costas_inferior')).toBe('Nome nas costas');
       expect(nameStepTitle('frente')).toBe('Nome na frente');
       expect(nameStepTitle('manga')).toBe('Nome na manga');
+      expect(nameStepTitle('barra')).toBe('Nome na barra');
+      expect(nameSide('barra')).toBe('frente');
+      expect(namePreviewBox('barra')).toEqual({ cx: 0.5, cy: 0.8, w: 0.6, h: 0.15 });
     });
 
     it('cor padrão = a de maior contraste com a peça; sem cor, a primeira', () => {

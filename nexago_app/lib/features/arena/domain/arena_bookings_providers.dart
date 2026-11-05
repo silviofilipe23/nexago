@@ -10,6 +10,7 @@ import 'arena_bookings_grouping.dart';
 import 'arena_bookings_ui_models.dart';
 import 'arena_date_utils.dart';
 import 'arena_manager_booking.dart';
+import 'arena_manager_bookings_window.dart';
 import 'arena_schedule_providers.dart';
 
 /// Modo da lista: Hoje / Amanhã / Futuras / Passadas.
@@ -30,8 +31,18 @@ final arenaManagerBookingsStreamProvider =
       if (arenaId == null || arenaId.isEmpty) {
         return Stream<List<ArenaManagerBooking>>.value(const []);
       }
-      final bookings$ =
-          ref.watch(bookingServiceProvider).watchBookingsForArena(arenaId);
+      // Janela por data, esticada para o dia escolhido na grade. O `select`
+      // só reassina quando a janela muda, não a cada troca de dia.
+      final window = ref.watch(
+        arenaScheduleSelectedDateProvider.select(
+          (day) => arenaManagerBookingsWindow(arenaTodayDateOnly(), focus: day),
+        ),
+      );
+      final bookings$ = ref.watch(bookingServiceProvider).watchBookingsForArenaInRange(
+            arenaId,
+            fromKey: window.fromKey,
+            toKey: window.toKey,
+          );
       final courts$ = ref.watch(courtsRepositoryProvider).watchCourts(arenaId);
       return _combineLatestBookingsCourts(bookings$, courts$);
     },

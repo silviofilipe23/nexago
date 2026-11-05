@@ -5,6 +5,7 @@ import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/domain/slots_providers.dart';
 import '../data/court_service.dart';
+import 'arena_date_utils.dart';
 import 'arena_manager_booking.dart';
 import 'arena_schedule_providers.dart';
 
@@ -34,8 +35,15 @@ final arenaCourtMonthlyBookingsProvider =
   final aid = arenaId.trim();
   if (aid.isEmpty) return Stream.value(const <String, int>{});
 
-  return ref.watch(bookingServiceProvider).watchBookingsForArena(aid).map((bookings) {
-    final now = DateTime.now();
+  final now = DateTime.now();
+  return ref
+      .watch(bookingServiceProvider)
+      .watchBookingsForArenaInRange(
+        aid,
+        fromKey: arenaDateKey(DateTime(now.year, now.month, 1)),
+        toKey: arenaDateKey(DateTime(now.year, now.month + 1, 0)),
+      )
+      .map((bookings) {
     final counts = <String, int>{};
     for (final b in bookings) {
       if (_isCanceledBooking(b)) continue;

@@ -6,7 +6,7 @@ import { arenaFirestore } from '../data/firestore';
 import { fetchCourtsList } from '../courts/courts-repository';
 import type { ArenaCourt } from '../courts/court.model';
 import { PROFESSOR_BOOKING_TAG, PROFESSOR_BOOKING_TAG_SHORT, bookingIsActive, dateKeyOf, type ArenaBooking } from '../bookings/arena-booking.model';
-import { resolveAthleteLabel, watchBookingsForArena } from '../bookings/bookings-repository';
+import { resolveAthleteLabel, watchBookingsForArenaInRange } from '../bookings/bookings-repository';
 import { ManualBookingModalComponent } from '../bookings/manual-booking-modal.component';
 import { applyBookingsOverlay, applyScheduleFilters, scheduleDayStats, type ArenaScheduleStatusFilter } from './arena-schedule-grouping';
 import { ARENA_SLOT_BLOCK_REASON_LABEL, ARENA_SLOT_BLOCK_REASONS, type ArenaSlot, type ArenaSlotBlockReason } from './arena-slot.model';
@@ -543,6 +543,7 @@ export class PanelAgendaComponent {
   /** Identidade da semana (segunda-feira) — ler só isso no efeito evita reabrir o listener
    *  do Firestore a cada troca de data dentro da MESMA semana (só quando a semana muda). */
   protected readonly weekStartKey = computed(() => this.weekDays()[0]?.dateKey ?? '');
+  private readonly weekEndKey = computed(() => this.weekDays().at(-1)?.dateKey ?? '');
 
   protected readonly weekSlotsWithOverlay = computed(() => applyBookingsOverlay(this.weekSlots(), this.bookings()));
 
@@ -677,8 +678,6 @@ export class PanelAgendaComponent {
   constructor() {
     effect(() => {
       const arenaId = this.arenaContext.arenaId();
-      this.unsubscribeBookings?.();
-      this.unsubscribeBookings = null;
       if (!arenaId) return;
 
       this.loading.set(true);
@@ -689,7 +688,19 @@ export class PanelAgendaComponent {
         this.courtsRaw.set(list);
         this.courtsRawLoaded.set(true);
       });
-      this.unsubscribeBookings = watchBookingsForArena(db, arenaId, (list) => {
+    });
+
+    // Reservas só da semana exibida (a visão de dia cai dentro dela): sem o `limit(256)` cego,
+    // que a partir de 256 reservas da arena escondia as de hoje. Reabre só quando a semana muda.
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      const fromKey = this.weekStartKey();
+      const toKey = this.weekEndKey();
+      this.unsubscribeBookings?.();
+      this.unsubscribeBookings = null;
+      if (!arenaId || !fromKey || !toKey) return;
+
+      this.unsubscribeBookings = watchBookingsForArenaInRange(arenaFirestore(), arenaId, { fromKey, toKey }, (list) => {
         this.bookings.set(list);
         this.resolveMissingAthleteLabels(list);
       });

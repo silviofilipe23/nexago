@@ -20,7 +20,8 @@ import {
   type ArenaBooking,
   type ArenaBookingViewMode,
 } from './arena-booking.model';
-import { resolveAthleteLabel, watchBookingsForArena } from './bookings-repository';
+import { resolveAthleteLabel, watchBookingsForArenaInRange } from './bookings-repository';
+import { bookingsListRange } from './bookings-window';
 import { fetchCourtsList } from '../courts/courts-repository';
 
 const VIEW_MODES: ArenaBookingViewMode[] = ['today', 'tomorrow', 'upcoming', 'past'];
@@ -473,7 +474,8 @@ export class PanelBookingsComponent {
       void fetchCourtsList(db, arenaId).then((courts) => {
         this.courtNames.set(new Map(courts.map((c) => [c.id, c.name])));
       });
-      this.unsubscribeBookings = watchBookingsForArena(db, arenaId, (list) => {
+      // Janela por data (um mês para trás, dois à frente) no lugar do `limit(256)` sem data.
+      this.unsubscribeBookings = watchBookingsForArenaInRange(db, arenaId, bookingsListRange(), (list) => {
         this.bookings.set(list);
         this.loading.set(false);
         this.resolveMissingAthleteLabels(list);

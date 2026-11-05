@@ -1,0 +1,213 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/auth/auth_providers.dart';
+import '../../../core/firebase/firebase_providers.dart';
+import '../../../core/observability/flow_error_log.dart';
+import '../../home_banners/domain/home_banner.dart';
+import '../../store/application/store_providers.dart';
+import '../domain/blog_library.dart';
+import '../domain/blog_logic.dart';
+import '../domain/blog_post.dart';
+import '../domain/blog_repository.dart';
+import '../infrastructure/firestore_blog_repository.dart';
+
+final blogRepositoryProvider = Provider<BlogRepository>((ref) {
+  return FirestoreBlogRepository(ref.watch(firestoreProvider));
+});
+
+final _blogUidProvider = Provider<String>((ref) {
+  return ref.watch(authProvider).valueOrNull?.uid.trim() ?? '';
+});
+
+/// Quantos posts o feed carrega (o blog é pequeno; sem paginação na fase 1).
+const blogFeedLimit = 60;
+
+/// Quantos a seção "Do blog" da Início mostra.
+const blogHomeLimit = 3;
+
+/// O feed: publicados para o app, do mais novo para o mais antigo.
+final blogFeedProvider = StreamProvider.autoDispose<List<BlogPost>>((ref) {
+  return ref.watch(blogRepositoryProvider).watchPublished(limit: blogFeedLimit);
+});
+
+/// Os mais recentes, para a seção "Do blog" da Início.
+final blogHomePostsProvider = StreamProvider.autoDispose<List<BlogPost>>((ref) {
+  return ref.watch(blogRepositoryProvider).watchPublished(limit: blogHomeLimit);
+});
+
+/// Um post; `null` = não existe ou não está mais publicado no app.
+final blogPostProvider = StreamProvider.autoDispose.family<BlogPost?, String>((
+  ref,
+  postId,
+) {
+  return ref.watch(blogRepositoryProvider).watchPost(postId);
+});
+
+/// Salvos e progresso do atleta, por id do post. Fica viva: o controller lê o
+/// estado atual antes de cada gravação (a rule exige o doc inteiro).
+final blogLibraryProvider = StreamProvider<Map<String, BlogLibraryEntry>>((
+  ref,
+) {
+  final uid = ref.watch(_blogUidProvider);
+  // Sem sessão fica carregando: um mapa vazio aqui faria o controller gravar
+  // por cima do que o atleta já salvou.
+  if (uid.isEmpty) return const Stream.empty();
+  return ref.watch(blogRepositoryProvider).watchLibrary(uid);
+});
+
+/// Chave estável (ids ordenados) dos posts que a tela de Salvos precisa —
+/// mudar só o progresso não refaz a busca. `null` enquanto carrega.
+final _blogLibraryIdsKeyProvider = Provider.autoDispose<String?>((ref) {
+  final library = ref.watch(blogLibraryProvider).valueOrNull;
+  return library == null ? null : blogLibraryIdsKey(library);
+});
+
+final _blogLibraryPostsProvider = FutureProvider.autoDispose<List<BlogPost>>((
+  ref,
+) async {
+  final key = ref.watch(_blogLibraryIdsKeyProvider);
+  // Biblioteca carregando: segue carregando (sem piscar a tela de vazio).
+  if (key == null) return Completer<List<BlogPost>>().future;
+  if (key.isEmpty) return const [];
+  return ref.watch(blogRepositoryProvider).fetchByIds(key.split(','));
+});
+
+/// A tela de Salvos e lendo: pela metade, salvos e lidos.
+final blogLibraryViewProvider =
+    Provider.autoDispose<AsyncValue<BlogLibraryView>>((ref) {
+      final library = ref.watch(blogLibraryProvider);
+      final posts = ref.watch(_blogLibraryPostsProvider);
+      if (library.hasError) {
+        return AsyncError(library.error!, library.stackTrace!);
+      }
+      if (posts.hasError) return AsyncError(posts.error!, posts.stackTrace!);
+      final entries = library.valueOrNull;
+      final found = posts.valueOrNull;
+      if (entries == null || found == null) return const AsyncLoading();
+      return AsyncData(buildBlogLibraryView(entries, found));
+    });
+
+/// O atleta marcou "Ajudou" no post?
+final blogHelpfulProvider = StreamProvider.autoDispose.family<bool, String>((
+  ref,
+  postId,
+) {
+  final uid = ref.watch(_blogUidProvider);
+  if (uid.isEmpty) return Stream.value(false);
+  return ref.watch(blogRepositoryProvider).watchHelpful(postId, uid);
+});
+
+/// A chamada do post vale para este build e este atleta? A Loja desligada não
+/// tem aba: o botão abriria o lugar errado.
+final blogCtaAvailableProvider = Provider.autoDispose.family<bool, String>((
+  ref,
+  destinationKey,
+) {
+  if (destinationKey != HomeBannerDestination.loja.key) return true;
+  return ref.watch(storeEnabledProvider);
+});
+
+final blogLibraryControllerProvider = Provider<BlogLibraryController>((ref) {
+  return BlogLibraryController(ref);
+});
+
+/// Gravações em `users/{uid}/blogLibrary/{postId}`. Cada uma parte do estado
+/// atual e manda o doc inteiro (a rule exige todas as chaves).
+///
+/// O estado atual é o último doc que este aparelho gravou, enquanto o stream
+/// não traz um mais novo confirmado pelo servidor: duas gravações seguidas
+/// (abrir + rolar, salvar logo depois de abrir) não se atropelam, e não é
+/// preciso esperar a confirmação — offline ela não chega.
+class BlogLibraryController {
+  BlogLibraryController(this._ref);
+
+  final Ref _ref;
+  final _written = <String, ({BlogLibraryEntry entry, DateTime at})>{};
+
+  DateTime _now() => DateTime.now();
+
+  /// O uid da sessão; logo depois de abrir o app, espera o Auth responder.
+  Future<String> _uid() async {
+    final uid = _ref.read(_blogUidProvider);
+    if (uid.isNotEmpty) return uid;
+    final user = await _ref.read(authProvider.future);
+    return user?.uid.trim() ?? '';
+  }
+
+  /// O estado atual do post na biblioteca de [uid] (doc novo se não há).
+  Future<({String uid, BlogLibraryEntry entry})?> _current(
+    String postId,
+  ) async {
+    final uid = await _uid();
+    if (uid.isEmpty || postId.isEmpty) return null;
+    final library = await _ref.read(blogLibraryProvider.future);
+    final remote = library[postId];
+    final local = _written['$uid/$postId'];
+    final remoteAt = remote?.updatedAt;
+    final useRemote =
+        local == null ||
+        (remote != null && remoteAt != null && remoteAt.isAfter(local.at));
+    return (
+      uid: uid,
+      entry: useRemote
+          ? remote ?? BlogLibraryEntry(postId: postId)
+          : local.entry,
+    );
+  }
+
+  /// Grava sem esperar o servidor; a falha (ex.: rule) vai ao Crashlytics e
+  /// o stream devolve o estado de verdade.
+  void _write(String uid, BlogLibraryEntry entry) {
+    _written['$uid/${entry.postId}'] = (entry: entry, at: _now());
+    unawaited(
+      _ref
+          .read(blogRepositoryProvider)
+          .writeLibraryEntry(uid, entry)
+          .catchError(
+            (Object e, StackTrace st) =>
+                recordFlowError('blog_library_write', e, st),
+          ),
+    );
+  }
+
+  /// Salva ou tira dos salvos; devolve o estado novo.
+  Future<bool> toggleSaved(String postId) async {
+    final current = await _current(postId);
+    if (current == null) throw StateError('Sem sessão.');
+    final next = current.entry.withSaved(!current.entry.saved, _now());
+    _write(current.uid, next);
+    return next.saved;
+  }
+
+  /// Abriu o post: grava o início da leitura uma vez só.
+  Future<void> markOpened(String postId) async {
+    final current = await _current(postId);
+    if (current == null || current.entry.readStartedAt != null) return;
+    _write(current.uid, current.entry.withOpened(_now()));
+  }
+
+  /// Leu até [progress] (0..1). Só grava quando avança.
+  Future<void> reportProgress(String postId, double progress) async {
+    final current = await _current(postId);
+    if (current == null) return;
+    final before = current.entry;
+    final next = before.withProgress(progress, _now());
+    if (next.progress <= before.progress &&
+        next.finishedAt == before.finishedAt &&
+        next.readStartedAt == before.readStartedAt) {
+      return;
+    }
+    _write(current.uid, next);
+  }
+
+  /// "Ajudou" do atleta: cria ou apaga a própria reação.
+  Future<void> setHelpful(String postId, {required bool helpful}) async {
+    final uid = await _uid();
+    if (uid.isEmpty || postId.isEmpty) return;
+    await _ref
+        .read(blogRepositoryProvider)
+        .setHelpful(postId, uid, helpful: helpful);
+  }
+}

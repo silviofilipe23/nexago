@@ -928,6 +928,16 @@ export {saveAppNews} from "./app-news";
 // rascunhos e espelho que o app lê, na mesma transação.
 export {saveAppGuide} from "./app-guide";
 
+// Blog nexaGO: posts escritos só pela callable; agendados viram publicados a cada 5 min; contadores
+// de "Ajudou" e leitores por gatilho. Spec em docs/superpowers/specs/2026-11-05-blog-fase-1-design.md.
+export {
+  saveBlogPost,
+  deleteBlogPost,
+  publishScheduledBlogPosts,
+  onBlogReactionWritten,
+  onBlogLibraryWritten,
+} from "./blog";
+
 // NexaSquad: regras do programa de embaixadores, versionadas. Escrita só por callable.
 export {saveSquadRules} from "./squad-rules";
 

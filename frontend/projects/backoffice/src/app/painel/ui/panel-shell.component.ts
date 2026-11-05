@@ -141,6 +141,15 @@ const APP_GROUP: NavGroup = {
   ],
 };
 
+/** Conteúdo editorial: o blog (app do atleta e site). */
+const CONTEUDO_GROUP: NavGroup = {
+  kind: 'group',
+  id: 'conteudo',
+  label: 'Conteúdo',
+  icon: 'file',
+  children: [{ kind: 'link', id: 'conteudo-blog', label: 'Blog', icon: 'file', route: '/painel/conteudo/blog' }],
+};
+
 const NAV_ITEMS: readonly PanelNavItem[] = [
   { kind: 'link', id: 'inicio', label: 'Início', icon: 'home', route: '/painel' },
   { kind: 'link', id: 'arenas', label: 'Arenas', icon: 'arena', route: '/painel/arenas' },
@@ -170,6 +179,7 @@ const NAV_ITEMS: readonly PanelNavItem[] = [
   { kind: 'link', id: 'atletas', label: 'Atletas', icon: 'users', route: '/painel/atletas' },
   SQUAD_GROUP,
   APP_GROUP,
+  CONTEUDO_GROUP,
   { kind: 'link', id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro' },
   LOJA_GROUP,
   { kind: 'soon', id: 'moderacao', label: 'Moderação', icon: 'shield' },
@@ -719,6 +729,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/app')) {
       return 'app-novidades';
+    }
+    if (path.startsWith('/painel/conteudo/blog')) {
+      return 'conteudo-blog';
     }
     if (path.startsWith('/painel/centros')) {
       return 'centros';

@@ -1,8 +1,10 @@
 // Porta da classe utilitária `prose` de `blog/[slug]/page.tsx` (site Next.js) — lá composta de
 // classes Tailwind arbitrárias (`[&_h2]:...`, `[&_strong]:...` etc.). O conteúdo de
-// `.prose-content` chega via `[innerHTML]` (BlogPost.bodyHtml), então não passa pelo compilador
-// de templates do Angular: os elementos filhos não recebem o atributo de encapsulamento
-// (_ngcontent-*), e por isso as regras aqui precisam de `::ng-deep` pra valer sobre eles.
+// `.prose-content` dos posts estáticos chega via `[innerHTML]` (BlogPost.bodyHtml), então não
+// passa pelo compilador de templates do Angular: os elementos filhos não recebem o atributo de
+// encapsulamento (_ngcontent-*), e por isso as regras aqui precisam de `::ng-deep` pra valer
+// sobre eles. Os posts do Firestore usam a mesma classe com blocos do template (binding escapado)
+// — as regras valem igual, mais `blockquote`/`figure`, que só esses blocos geram.
 // Mesmos tokens de `styles/tokens.scss` (cores/fontes), valores numéricos equivalentes às
 // classes Tailwind originais.
 :host {
@@ -49,6 +51,40 @@
       // [&_li]:marker:text-brand
       li::marker {
         color: var(--color-brand);
+      }
+    }
+
+    // Citação (bloco `quote` do backoffice)
+    blockquote {
+      margin-top: 2rem;
+      margin-bottom: 2rem;
+      border-left: 3px solid var(--color-brand);
+      padding-left: 1.25rem;
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 600;
+      line-height: 1.45;
+      letter-spacing: -0.01em;
+      color: var(--color-fg);
+    }
+
+    // Imagem com legenda (bloco `image` do backoffice)
+    figure {
+      margin-top: 2rem;
+      margin-bottom: 2rem;
+
+      img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: var(--radius-4);
+        border: 1px solid var(--color-line);
+      }
+
+      figcaption {
+        margin-top: 0.625rem;
+        font-size: 0.8125rem;
+        color: var(--color-text-dim);
       }
     }
 

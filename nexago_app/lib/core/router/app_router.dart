@@ -170,6 +170,9 @@ import '../../features/app_news/domain/app_news_logic.dart';
 import '../../features/app_news/presentation/app_news_detail_page.dart';
 import '../../features/app_news/presentation/app_news_page.dart';
 import '../../features/app_news/presentation/app_news_stories_page.dart';
+import '../../features/blog/presentation/blog_feed_page.dart';
+import '../../features/blog/presentation/blog_library_page.dart';
+import '../../features/blog/presentation/blog_post_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
 import '../../features/weather/presentation/booking_weather_choice_page.dart';
 import '../../features/athlete_billing/presentation/athlete_billing_routes.dart';
@@ -1641,6 +1644,24 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.appGuideTopic,
         builder: (context, state) => AppGuideTopicPage(
           topicId: state.pathParameters['topicId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.blog,
+        name: AppRouteNames.blog,
+        builder: (context, state) => const BlogFeedPage(),
+      ),
+      // Literal antes do :postId (senão "salvos" vira um id).
+      GoRoute(
+        path: AppRoutes.blogSaved,
+        name: AppRouteNames.blogSaved,
+        builder: (context, state) => const BlogLibraryPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.blogPost,
+        name: AppRouteNames.blogPost,
+        builder: (context, state) => BlogPostPage(
+          postId: state.pathParameters['postId']?.trim() ?? '',
         ),
       ),
       GoRoute(

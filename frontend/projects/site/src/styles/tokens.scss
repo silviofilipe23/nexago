@@ -38,6 +38,14 @@
   --color-pending: #f4c543;
   --color-win: #2bd17e;
 
+  /* Categorias do blog (mesmas cores do app/backoffice). Sempre com rótulo, nunca só cor. */
+  --color-cat-torneios: #ff6a1a;
+  --color-cat-treino: #2bd17e;
+  --color-cat-regras: #c9a7ff;
+  --color-cat-arenas: #e3b85c;
+  --color-cat-guia: #9ab4ff;
+  --color-cat-loja: #ff8a4a;
+
   /* Tipografia */
   --font-display: 'Sora', system-ui, sans-serif;
   --font-sans: 'Inter', system-ui, sans-serif;
@@ -98,6 +106,14 @@
   --color-live: #dc2626;
   --color-pending: #b45309;
   --color-win: #15803d;
+
+  /* Categorias no claro: tons escurecidos pra manter ≥4.5:1 como texto sobre o tint do chip. */
+  --color-cat-torneios: #c2410c;
+  --color-cat-treino: #15803d;
+  --color-cat-regras: #6d28d9;
+  --color-cat-arenas: #854d0e;
+  --color-cat-guia: #1d4ed8;
+  --color-cat-loja: #9a3412;
 
   --shadow-elev-1: 0 1px 2px rgba(24, 24, 27, 0.08);
   --shadow-elev-2: 0 8px 24px rgba(24, 24, 27, 0.1);

@@ -118,9 +118,10 @@ const _piece = Key('piece');
 final _pieceFinder = find.byKey(_piece);
 
 void _setView(WidgetTester tester) {
-  // 1800: os Ajustes ganharam "Avaliações dos professores", "Aparência" e
-  // "Abrir o Modo Focus sozinho", e "Sair da conta" precisa caber na tela.
-  tester.view.physicalSize = const Size(402, 1800);
+  // 1900: os Ajustes ganharam "Avaliações dos professores", "Aparência",
+  // "Abrir o Modo Focus sozinho" e "Blog", e "Sair da conta" precisa caber
+  // na tela.
+  tester.view.physicalSize = const Size(402, 1900);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 }

@@ -82,6 +82,10 @@ abstract final class AnalyticsEvents {
   static const storeOrderView = 'loja_pedido_view';
   static const storeOrdersView = 'loja_pedidos_view';
   static const storeRebuy = 'loja_comprar_de_novo';
+
+  // Blog
+  static const blogPostOpened = 'blog_post_aberto';
+  static const blogCta = 'blog_cta';
 }
 
 /// Parâmetros dos eventos da Loja, com os nomes do portal (`campanha_id`,

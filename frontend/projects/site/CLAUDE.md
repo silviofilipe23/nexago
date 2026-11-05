@@ -33,14 +33,15 @@ src/
       s/                    # mini-site de arena (/s/{slug}) — tema dinâmico por arena
       a/ o/ link-bio/       # link-in-bio de arena/organizador — componente único compartilhado
       docs/                 # documentação (54 recursos, 3 audiências) — busca + sidebar scrollspy
-      blog/                 # conteúdo estático local, sem CMS
+      blog/                 # /blog e /blog/:slug: posts do backoffice (Firestore `blogPosts`) + estáticos antigos de lib/blog/posts.ts
     shared/
       hub/                  # StatusBadge, ArenaCard, filter-controls — compartilhados entre páginas do hub
       ui/                   # ButtonDirective, StoreButtons, ToastService, ThemeToggle
       layout/               # SiteHeader, SiteFooter
       reveal.directive.ts
   lib/
-    firestore/              # repositórios de leitura (tournaments, arenas, leagues, arena-sites, link-pages)
+    firestore/              # repositórios de leitura (tournaments, arenas, leagues, arena-sites, link-pages, blog)
+    blog/                   # posts estáticos antigos, categorias (rótulo/cor) e a junção com os do Firestore (feed.ts)
     docs/                   # tipos + conteúdo da documentação (types.ts é o contrato entre shell e conteúdo)
     slug.ts                 # toSlugId/extractId — URLs "nome-decorativo-id"
     format.ts               # sportLabel, formatDate, STATUS_META
@@ -59,13 +60,13 @@ Regras de cor: tokens semânticos sempre (`bg-brand`, `text-fg`, nunca hex cru);
 ## Dados (Firestore)
 - Config em `@nexago/firebase-config` (projeto `volley-track-dev-4596c` — mesmo projeto dev usado pelos outros apps Angular do workspace). Chaves de cliente não são secretas; a segurança vive nas `firestore.rules`.
 - Apenas **leitura pública** (+ escrita pública nos formulários: contato, waitlist/lead, tracking de clique em link page). Repositórios em `src/lib/firestore/*.ts` — componentes não falam direto com o SDK.
-- **Coleções lidas**: `tournaments`, `leagues`, `arenas` (+ subcoleção `courts`), `arenaSitesPublic` (mini-sites), `linkPageSlugs`/`linkPages` (+ subcoleção `links`). Ver cada arquivo em `lib/firestore/` pro mapeamento exato de campos — a lógica de status de torneio (`tournament-status.ts`) é particularmente não-trivial, não reescrever sem entender o porquê de cada decisão (comentado no arquivo).
+- **Coleções lidas**: `tournaments`, `leagues`, `arenas` (+ subcoleção `courts`), `arenaSitesPublic` (mini-sites), `linkPageSlugs`/`linkPages` (+ subcoleção `links`), `blogPosts` (sempre com `status == 'published'` + `channels.site == true`; corpo é texto puro, renderizado por binding escapado, nunca `[innerHTML]`). Ver cada arquivo em `lib/firestore/` pro mapeamento exato de campos — a lógica de status de torneio (`tournament-status.ts`) é particularmente não-trivial, não reescrever sem entender o porquê de cada decisão (comentado no arquivo).
 - Padrão de fetch: `signal` + `loading` + `.then()` no `constructor()`, ou `effect()` quando o dado depende de um `input()` de rota (o Router reaproveita a mesma instância entre navegações do mesmo padrão de rota — precisa de guarda de obsolescência, ver `liga-detail.page.ts` como referência).
 
 ## SEO — sem SSR, compensado por uma Cloud Function
 CSR puro significa que bots que não executam JS (WhatsApp, Twitter, Facebook, LinkedIn, Slack, Telegram, Discord) nunca veem os `<meta>` que a página gera depois de montar. Solução: `functions/src/site-og-preview.ts` — uma Cloud Function que lê o Firestore direto (Admin SDK) e devolve HTML só com as meta tags certas (título, descrição, `og:image` usando a foto/logo real já salva no doc). O `.htaccess` redireciona **só User-Agents de bot conhecido** pra essa função nas rotas dinâmicas (`/torneios/:id`, `/ligas/:slug`, `/arena/:id`, `/s/:slug`, `/a/:slug`, `/o/:slug`); visitante humano nunca bate nessa regra.
 
-Páginas estáticas (landing, `/torneios`, `/ligas`, `/arenas`, `/rankings`, `/docs`, `/blog`) não precisam disso — o `<title>`/`<meta>` genérico do `index.html` já é suficiente pra elas.
+Páginas estáticas (landing, `/torneios`, `/ligas`, `/arenas`, `/rankings`, `/docs`, `/blog`) não precisam disso — o `<title>`/`<meta>` genérico do `index.html` já é suficiente pra elas. `/blog/:slug` ainda **não** passa pela `siteOgPreview` (fase 2 do blog): a página troca `<title>`/meta description/JSON-LD no navegador, mas a prévia de link em WhatsApp etc. sai com o genérico.
 
 ## Deploy
 1. `npm run build:site` (a partir de `frontend/`) → gera `dist/site/browser/`.

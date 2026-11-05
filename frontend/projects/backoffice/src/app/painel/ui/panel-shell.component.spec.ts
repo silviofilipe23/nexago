@@ -49,12 +49,13 @@ describe('PanelShellComponent', () => {
     expect(host.querySelector('.subnav')).toBeNull();
   });
 
-  it('Squad e App do atleta ficam entre Atletas e Financeiro, com os cinco filhos do Squad navegáveis', async () => {
+  it('Squad, App do atleta e Conteúdo ficam entre Atletas e Financeiro, com os cinco filhos do Squad navegáveis', async () => {
     const host = await mount();
     const top = labels(host, '.nav > .nav-item');
     expect(top.indexOf('Squad')).toBe(top.indexOf('Atletas') + 1);
     expect(top.indexOf('App do atleta')).toBe(top.indexOf('Squad') + 1);
-    expect(top.indexOf('Financeiro')).toBe(top.indexOf('App do atleta') + 1);
+    expect(top.indexOf('Conteúdo')).toBe(top.indexOf('App do atleta') + 1);
+    expect(top.indexOf('Financeiro')).toBe(top.indexOf('Conteúdo') + 1);
 
     groupButton(host, 'Squad').click();
     await TestBed.inject(ApplicationRef).whenStable();
@@ -75,6 +76,14 @@ describe('PanelShellComponent', () => {
     ]);
     // Sem comissão liberada: nenhuma contagem nos filhos.
     expect(host.querySelector('.subnav .badge')).toBeNull();
+  });
+
+  it('o grupo Conteúdo tem o Blog como link', async () => {
+    const host = await mount();
+    groupButton(host, 'Conteúdo').click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    const links = [...host.querySelectorAll('.subnav a.nav-item')];
+    expect(links.map((e) => [e.textContent!.trim(), e.getAttribute('href')])).toEqual([['Blog', '/painel/conteudo/blog']]);
   });
 
   it('o badge de Comissões é o número de embaixadores com repasse a fazer', async () => {

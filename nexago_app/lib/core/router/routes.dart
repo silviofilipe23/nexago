@@ -437,6 +437,13 @@ abstract final class AppRoutes {
   static const String appGuide = '/athlete/ajuda';
   static const String appGuideTopic = '/athlete/ajuda/:topicId';
 
+  /// Blog do atleta: feed, Salvos e lendo, e leitura do post. `blogSaved` é
+  /// literal e deve vir ANTES de [blogPost] no router (senão "salvos" casa
+  /// como :postId).
+  static const String blog = '/athlete/blog';
+  static const String blogSaved = '/athlete/blog/salvos';
+  static const String blogPost = '/athlete/blog/:postId';
+
   /// Meu cashback (saldo, regras e extrato). Mesmo caminho do portal e do
   /// `url` dos pushes `cashback_released` / `cashback_expiring`.
   static const String athleteCashback = '/cashback';
@@ -1260,6 +1267,9 @@ abstract final class AppRouteNames {
   static const String appNewsDetail = 'appNewsDetail';
   static const String appGuide = 'appGuide';
   static const String appGuideTopic = 'appGuideTopic';
+  static const String blog = 'blog';
+  static const String blogSaved = 'blogSaved';
+  static const String blogPost = 'blogPost';
   static const String athleteCashback = 'athleteCashback';
   static const String bookingWeatherChoice = 'bookingWeatherChoice';
   static const String athleteWeatherCredits = 'athleteWeatherCredits';

@@ -20,6 +20,11 @@ export interface PrintArea {
   enabled: boolean;
   /** Ausente em doc antigo = `null`. */
   position?: PreviewPoint | null;
+  /** O que cabe na área: imagem, texto ou os dois (o atleta escolhe). Doc antigo = só imagem. */
+  allowImage?: boolean;
+  allowText?: boolean;
+  /** Teto do texto na área (1–40). */
+  textMaxChars?: number;
 }
 
 /** Mesmo formato de `CustomizationConfig` em functions/src/store-custom.ts. */
@@ -97,9 +102,9 @@ export const DEFAULT_CUSTOMIZATION: CustomizationConfig = {
     minWidthPx: 1000,
     minHeightPx: 1000,
     areas: [
-      { id: 'peito_esquerdo', name: 'Peito esquerdo', widthCm: 9, heightCm: 9, enabled: true },
-      { id: 'centro_frente', name: 'Centro da frente', widthCm: 25, heightCm: 30, enabled: true },
-      { id: 'manga', name: 'Manga', widthCm: 7, heightCm: 7, enabled: false },
+      { id: 'peito_esquerdo', name: 'Peito esquerdo', widthCm: 9, heightCm: 9, enabled: true, allowImage: true, allowText: false, textMaxChars: 20 },
+      { id: 'centro_frente', name: 'Centro da frente', widthCm: 25, heightCm: 30, enabled: true, allowImage: true, allowText: false, textMaxChars: 20 },
+      { id: 'manga', name: 'Manga', widthCm: 7, heightCm: 7, enabled: false, allowImage: true, allowText: false, textMaxChars: 20 },
     ],
     removeBackground: true,
   },
@@ -138,7 +143,26 @@ export function customizationFromDoc(d: Raw | undefined): CustomizationConfig {
 /** Área sem `position` (doc antigo) ganha `null`: o "sujo" compara o JSON. */
 function imageFromDoc(base: CustomizationConfig['image'], raw: Raw | undefined): CustomizationConfig['image'] {
   const image = { ...base, ...(raw ?? {}) };
-  return { ...image, areas: image.areas.map((a: PrintArea) => ({ ...a, position: a.position ?? null })) };
+  return { ...image, areas: image.areas.map((a: PrintArea) => ({ ...a, position: a.position ?? null, ...areaContent(a) })) };
+}
+
+/** Opções de conteúdo resolvidas (doc antigo = só imagem, 20 caracteres). Igual a `areaContent` do servidor. */
+export function areaContent(a: PrintArea): { allowImage: boolean; allowText: boolean; textMaxChars: number } {
+  return { allowImage: a.allowImage !== false, allowText: a.allowText === true, textMaxChars: a.textMaxChars ?? 20 };
+}
+
+/** "imagem" · "texto" · "imagem ou texto". */
+export function areaContentLabel(a: PrintArea): string {
+  const { allowImage, allowText } = areaContent(a);
+  return allowImage && allowText ? 'imagem ou texto' : allowText ? 'texto' : 'imagem';
+}
+
+/** O que as áreas ligadas recebem, para os rótulos de preço: "imagem", "texto" ou "imagem ou texto". */
+export function areasKindLabel(c: CustomizationConfig): string {
+  const on = c.image.areas.filter((a) => a.enabled).map(areaContent);
+  const image = on.some((a) => a.allowImage);
+  const text = on.some((a) => a.allowText);
+  return image && text ? 'imagem ou texto' : text ? 'texto' : 'imagem';
 }
 
 /** Teto de áreas por produto (o mesmo da callable). */
@@ -148,6 +172,9 @@ export interface AreaDraft {
   name: string;
   widthCm: number;
   heightCm: number;
+  allowImage: boolean;
+  allowText: boolean;
+  textMaxChars: number;
 }
 
 /**
@@ -189,6 +216,12 @@ export function areaDraftError(draft: AreaDraft, areas: readonly PrintArea[], ed
   if (cm.some((n) => !Number.isInteger(n) || n < 1 || n > 100)) {
     return 'Largura e altura vão de 1 a 100 cm.';
   }
+  if (!draft.allowImage && !draft.allowText) {
+    return 'Escolha imagem, texto ou os dois.';
+  }
+  if (draft.allowText && (!Number.isInteger(draft.textMaxChars) || draft.textMaxChars < 1 || draft.textMaxChars > 40)) {
+    return 'O texto tem de 1 a 40 caracteres.';
+  }
   if (editingId === null && areas.length >= MAX_AREAS) {
     return `Cada produto tem até ${MAX_AREAS} áreas.`;
   }
@@ -214,8 +247,13 @@ export function customizationErrors(c: CustomizationConfig): CardErrors {
     c.image.minWidthPx < 100 || c.image.minHeightPx < 100 || c.image.minWidthPx > 10000 || c.image.minHeightPx > 10000
   ) {
     e.image = 'Resolução mínima vai de 100 a 10000 px.';
-  } else if (c.image.enabled && c.image.formats.length === 0) {
+  } else if (c.image.enabled && c.image.areas.some((a) => a.enabled && areaContent(a).allowImage) && c.image.formats.length === 0) {
     e.image = 'Aceite ao menos um formato.';
+  } else if (
+    c.image.enabled && c.image.areas.some((a) => a.enabled && areaContent(a).allowText) &&
+    (!c.name.fonts.some((f) => f.enabled) || c.name.colors.length === 0)
+  ) {
+    e.image = 'O texto usa as fontes e cores do card Nome: ligue ao menos uma de cada.';
   } else if (c.image.enabled && !c.image.areas.some((a) => a.enabled)) {
     e.image = 'Ligue ao menos uma área de impressão.';
   }
@@ -245,11 +283,12 @@ export function customizationErrors(c: CustomizationConfig): CardErrors {
 export function addOnLines(c: CustomizationConfig): { label: string; cents: number }[] {
   const lines: { label: string; cents: number }[] = [];
   if (c.name.enabled && c.image.enabled) {
-    lines.push({ label: 'Nome + imagem', cents: c.price.bothCents });
+    lines.push({ label: `Nome + ${areasKindLabel(c)}`, cents: c.price.bothCents });
   } else if (c.name.enabled) {
     lines.push({ label: 'Nome', cents: c.price.nameOnlyCents });
   } else if (c.image.enabled) {
-    lines.push({ label: 'Imagem', cents: c.price.imageOnlyCents });
+    const kind = areasKindLabel(c);
+    lines.push({ label: kind[0]!.toUpperCase() + kind.slice(1), cents: c.price.imageOnlyCents });
   }
   if (c.back.enabled) {
     lines.push({ label: `Costas: ${backKindLabel(c)}`, cents: c.price.backCents });

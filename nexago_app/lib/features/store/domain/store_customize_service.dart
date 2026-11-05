@@ -50,6 +50,29 @@ class StoreCustomImageChoice {
       };
 }
 
+/// Texto numa área de impressão, na fonte e na cor do nome — vai no lugar
+/// da imagem (nunca os dois).
+class StoreCustomAreaTextChoice {
+  const StoreCustomAreaTextChoice({
+    required this.areaId,
+    required this.text,
+    required this.fontId,
+    required this.color,
+  });
+
+  final String areaId;
+  final String text;
+  final String fontId;
+  final String color;
+
+  Map<String, Object> toMap() => {
+        'areaId': areaId,
+        'text': text,
+        'fontId': fontId,
+        'color': color,
+      };
+}
+
 /// Costas, abaixo do nome: número OU imagem já enviada ao Storage.
 class StoreCustomBackChoice {
   const StoreCustomBackChoice.number(String this.number)
@@ -86,14 +109,18 @@ class StoreCustomCartRequest {
     this.qty = 1,
     this.name,
     this.image,
+    this.areaText,
     this.back,
-  });
+  }) : assert(image == null || areaText == null, 'imagem OU texto na área');
 
   final String productId;
   final String skuId;
   final int qty;
   final StoreCustomNameChoice? name;
   final StoreCustomImageChoice? image;
+
+  /// No lugar de [image]: o servidor recusa os dois.
+  final StoreCustomAreaTextChoice? areaText;
   final StoreCustomBackChoice? back;
 
   Map<String, Object> toMap() => {
@@ -102,6 +129,7 @@ class StoreCustomCartRequest {
         'qty': qty,
         if (name != null) 'name': name!.toMap(),
         if (image != null) 'image': image!.toMap(),
+        if (areaText != null) 'areaText': areaText!.toMap(),
         if (back != null) 'back': back!.toMap(),
       };
 }
@@ -156,10 +184,12 @@ abstract interface class StoreCustomImagePicker {
 
 /// As duas callables da personalização e o envio da imagem do atleta.
 abstract interface class StoreCustomizeService {
-  /// Nome no blur do campo (a lista de bloqueio não sai do servidor).
+  /// Nome no blur do campo (a lista de bloqueio não sai do servidor). Com
+  /// [areaId], o texto daquela área (teto `textMaxChars`).
   Future<StoreNameCheck> checkName({
     required String productId,
     required String text,
+    String? areaId,
   });
 
   /// Revalida tudo no servidor e grava a linha personalizada no carrinho.

@@ -13,7 +13,10 @@ import {
   DEFAULT_CUSTOMIZATION,
   FONT_LABELS,
   MAX_AREAS,
+  areaContent,
+  areaContentLabel,
   areaDraftError,
+  areasKindLabel,
   newAreaId,
   type AreaDraft,
   FORMAT_LABELS,
@@ -28,6 +31,7 @@ import {
   type FontId,
   type ImageFormat,
   type NamePlacement,
+  type PrintArea,
 } from './data/customization';
 import {
   areaBox,
@@ -56,6 +60,9 @@ interface Drag {
   height: number;
   from: LayoutBox;
 }
+
+/** Área nova: 10 × 10 cm, só imagem, texto de até 20 se ligar. */
+const NEW_AREA: AreaDraft = { name: '', widthCm: 10, heightCm: 10, allowImage: true, allowText: false, textMaxChars: 20 };
 
 /** Passo das setas: 1% da peça; com Shift, 5%. */
 const KEY_STEP = 0.01;
@@ -298,6 +305,7 @@ const KEY_STEP_BIG = 0.05;
                       @for (a of config().image.areas; track a.id; let i = $index) {
                         <div class="list-row">
                           <span class="grow">{{ a.name }}</span>
+                          <span class="dim kind">{{ areaKind(a) }}</span>
                           <span class="mono dim">{{ a.widthCm }} × {{ a.heightCm }} cm</span>
                           <button type="button" class="icon-btn" [attr.aria-label]="'Editar área ' + a.name" [title]="'Editar ' + a.name" (click)="openArea(a.id)">
                             <bo-icon name="edit" [size]="14" />
@@ -337,7 +345,7 @@ const KEY_STEP_BIG = 0.05;
                         </bo-field>
                       }
                       @if (config().image.enabled) {
-                        <bo-field label="Só imagem">
+                        <bo-field [label]="'Só ' + areasKind()">
                           <span class="affix"><span class="pre">R$</span>
                             <input class="bo-input" inputmode="decimal" [value]="money(config().price.imageOnlyCents)" (change)="setPrice('imageOnlyCents', $event)" />
                           </span>
@@ -415,7 +423,7 @@ const KEY_STEP_BIG = 0.05;
                         (pointerup)="endDrag()"
                         (pointercancel)="endDrag()"
                         (keydown)="onKey($event, a.target)"
-                      ><span class="area-label">{{ a.name }}</span></span>
+                      ><span class="area-label">{{ a.name }}@if (a.kind !== 'imagem') {<br />{{ a.kind }}}</span></span>
                     }
                     @if (previewBack(); as b) {
                       <span
@@ -515,6 +523,22 @@ const KEY_STEP_BIG = 0.05;
               <span class="unit">cm</span>
             </div>
           </div>
+          <div class="field-like">
+            <span class="label">O atleta pode pôr</span>
+            <div class="chips" role="group" aria-label="O que cabe na área">
+              <button type="button" class="bo-chip" [class.active]="areaDraft().allowImage" [attr.aria-pressed]="areaDraft().allowImage" (click)="patchArea('allowImage', !areaDraft().allowImage)">Imagem</button>
+              <button type="button" class="bo-chip" [class.active]="areaDraft().allowText" [attr.aria-pressed]="areaDraft().allowText" (click)="patchArea('allowText', !areaDraft().allowText)">Texto</button>
+            </div>
+            @if (areaDraft().allowImage && areaDraft().allowText) {
+              <span class="hint">O atleta escolhe um dos dois. Mesmo preço da imagem.</span>
+            }
+          </div>
+          @if (areaDraft().allowText) {
+            <bo-field label="Máx. caracteres do texto">
+              <input class="bo-input" inputmode="numeric" [value]="areaDraft().textMaxChars" (input)="patchArea('textMaxChars', num($event))" />
+            </bo-field>
+            <p class="hint">O texto sai na fonte e na cor escolhidas para o nome (as do card Nome), com a mesma lista de palavras bloqueadas.</p>
+          }
           @if (areaEditing(); as id) {
             <div class="row-between bordered">
               <span class="hint">Ao salvar, carrinhos com essa área precisam ser refeitos; pedidos já feitos não mudam.</span>
@@ -621,6 +645,7 @@ const KEY_STEP_BIG = 0.05;
     .summary dd { margin: 0; font-family: var(--nx-font-display); font-weight: 600; color: var(--nx-text); }
     .summary .total { padding-top: 10px; border-top: 1px solid var(--nx-line); }
     .summary .total dd { font-size: 16px; font-weight: 800; }
+    .kind { font-size: 11px; }
     .icon-btn { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: none; border-radius: var(--nx-r-2); background: transparent; color: var(--nx-text-dim); cursor: pointer; }
     .icon-btn:hover { color: var(--nx-text); background: var(--nx-surface-2); }
     .add-area { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px dashed var(--nx-line-strong); border-radius: var(--nx-r-2); background: transparent; color: var(--nx-text-mute); font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; cursor: pointer; }
@@ -663,7 +688,7 @@ export class ProductCustomizationComponent {
   protected readonly areaOpen = signal(false);
   /** Id da área em edição; `null` = criando. */
   protected readonly areaEditing = signal<string | null>(null);
-  protected readonly areaDraft = signal<AreaDraft>({ name: '', widthCm: 10, heightCm: 10 });
+  protected readonly areaDraft = signal<AreaDraft>(NEW_AREA);
   protected readonly areaError = signal<string | null>(null);
 
   protected readonly leaveOpen = signal(false);
@@ -715,7 +740,7 @@ export class ProductCustomizationComponent {
     return c.image.enabled && this.side() === 'frente'
       ? c.image.areas
           .filter((a) => a.enabled)
-          .map((a) => ({ id: a.id, name: a.name, box: areaBox(a), target: `area:${a.id}` as DragTarget }))
+          .map((a) => ({ id: a.id, name: a.name, kind: areaContentLabel(a), box: areaBox(a), target: `area:${a.id}` as DragTarget }))
           // Maior primeiro: a área pequena fica por cima e continua dando para pegar.
           .sort((x, y) => y.box.w * y.box.h - x.box.w * x.box.h)
       : [];
@@ -884,7 +909,9 @@ export class ProductCustomizationComponent {
   protected openArea(id: string | null): void {
     const area = id === null ? null : this.config().image.areas.find((a) => a.id === id);
     this.areaEditing.set(area?.id ?? null);
-    this.areaDraft.set(area ? { name: area.name, widthCm: area.widthCm, heightCm: area.heightCm } : { name: '', widthCm: 10, heightCm: 10 });
+    this.areaDraft.set(
+      area ? { name: area.name, widthCm: area.widthCm, heightCm: area.heightCm, ...areaContent(area) } : NEW_AREA,
+    );
     this.areaError.set(null);
     this.areaOpen.set(true);
   }
@@ -908,10 +935,10 @@ export class ProductCustomizationComponent {
     this.patch((c) => {
       const area = editing === null ? null : c.image.areas.find((a) => a.id === editing);
       if (area) {
-        Object.assign(area, { name, widthCm: draft.widthCm, heightCm: draft.heightCm });
+        Object.assign(area, { ...draft, name });
       } else {
         const ids = c.image.areas.map((a) => a.id);
-        c.image.areas.push({ id: newAreaId(name, ids), name, widthCm: draft.widthCm, heightCm: draft.heightCm, enabled: true, position: null });
+        c.image.areas.push({ ...draft, id: newAreaId(name, ids), name, enabled: true, position: null });
       }
     });
     this.side.set('frente');
@@ -925,6 +952,12 @@ export class ProductCustomizationComponent {
     this.patch((c) => (c.image.areas = c.image.areas.filter((a) => a.id !== id)));
     this.areaOpen.set(false);
   }
+
+  protected areaKind(a: PrintArea): string {
+    return areaContentLabel(a);
+  }
+
+  protected readonly areasKind = computed(() => areasKindLabel(this.config()));
 
   protected removeColor(index: number): void {
     this.patch((c) => c.name.colors.splice(index, 1));

@@ -1,6 +1,7 @@
 /// Loja · Personalizar (app 02b nome / 02c imagem / costas): nome, preço,
-/// cor padrão, qualidade e validação da imagem, número das costas, geometria
-/// da prévia e o ajuste fino da imagem — puras, testáveis sem Firebase.
+/// cor padrão, qualidade e validação da imagem, texto na área, número das
+/// costas, geometria da prévia e o ajuste fino da imagem — puras, testáveis
+/// sem Firebase.
 ///
 /// A fonte de verdade é `docs/business-rules/loja-personalizar.md`,
 /// compartilhada com o portal web e com a callable
@@ -567,6 +568,41 @@ String? storeCustomPreviewPhotoNote(
 /// Título do passo da imagem pela área: só a manga sai da frente.
 String storeImageStepTitle(StoreCustomArea? area) =>
     area?.id == 'manga' ? 'Imagem na manga' : 'Imagem na frente';
+
+// ── Texto na área ───────────────────────────────────────────────────────
+
+/// O que vai na área: imagem OU texto (só o escolhido vai para o carrinho).
+enum StoreAreaContent { image, text }
+
+/// Conteúdo da área: o escolhido, se a área aceita; senão Imagem (o padrão
+/// com os dois); senão Texto.
+StoreAreaContent storeAreaContentOf(
+  StoreCustomArea area,
+  StoreAreaContent? chosen,
+) {
+  if (chosen == StoreAreaContent.text && area.allowText) return chosen!;
+  if (chosen == StoreAreaContent.image && area.allowImage) return chosen!;
+  return area.allowImage ? StoreAreaContent.image : StoreAreaContent.text;
+}
+
+/// Título do passo da área: só texto → "Texto na frente"; os dois →
+/// "Imagem ou texto"; só imagem → [storeImageStepTitle]. Igual ao portal.
+String storeAreaStepTitle(StoreCustomArea? area) {
+  if (area == null || !area.allowText) return storeImageStepTitle(area);
+  return area.allowImage ? 'Imagem ou texto' : 'Texto na frente';
+}
+
+/// A área está preenchida no conteúdo escolhido: imagem enviada ou texto
+/// não vazio. Vazio = como não ter escolhido a área. Conta como imagem no
+/// preço ([storeCustomExtraCents] `hasImage`) e no ✓ da aba.
+bool storeAreaFilled(
+  StoreAreaContent content, {
+  required bool imageReady,
+  required String text,
+}) =>
+    content == StoreAreaContent.image
+        ? imageReady
+        : normalizeStoreCustomName(text).isNotEmpty;
 
 /// "Camiseta Dry UV50 · Preta M" — o produto e os valores escolhidos.
 String storeCustomizeSubtitle(StoreProduct p, Map<String, String> selected) {

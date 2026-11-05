@@ -149,4 +149,20 @@ describe('custom-item', () => {
     expect(lines[1]).toContain('#NX-4835;Camiseta;Preta · M;ANA;nº 7;bloco');
     expect(lines[2]).toContain(';BIA;nº 10;');
   });
+
+  it('texto na área: lido do pedido, conferido no checklist com o teto da área e na planilha', () => {
+    const config = structuredClone(DEFAULT_CUSTOMIZATION);
+    config.image.areas.push({ id: 'nuca', name: 'Nuca', widthCm: 8, heightCm: 4, enabled: true, allowImage: false, allowText: true, textMaxChars: 5 });
+    const ok = item({ image: null, imageArea: 'nuca', areaText: { text: 'BEACH', font: 'mono', color: '#ff6a1a' } });
+    expect(ok.areaText).toEqual({ text: 'BEACH', font: 'mono', color: '#ff6a1a' });
+    expect(checklist(ok, config, []).find((r) => r.id === 'texto')!.level).toBe('ok');
+    const long = item({ image: null, imageArea: 'nuca', areaText: { text: 'BEACH CLUB', font: 'mono', color: '#ff6a1a' } });
+    expect(checklist(long, config, []).find((r) => r.id === 'texto')!.detail).toContain('acima do máximo de 5');
+    expect(checklist(ok, config, ['beach']).find((r) => r.id === 'texto')!.level).toBe('erro');
+    const csv = batchCsv([{ item: ok, areaLabel: 'Nuca 8×4 cm' }]).replace('﻿', '').split('\r\n');
+    expect(csv[0]).toContain('imagem;texto na area;arquivos');
+    expect(csv[1]).toContain(';Nuca 8×4 cm;;BEACH (mono, #ff6a1a);');
+    // Pedido antigo, sem o campo: nada muda.
+    expect(item().areaText).toBeNull();
+  });
 });

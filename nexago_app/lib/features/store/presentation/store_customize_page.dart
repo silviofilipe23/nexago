@@ -80,11 +80,24 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
   int _nameCheckSeq = 0;
   String? _loggedName;
 
-  // Imagem
+  // Imagem (ou texto) na área
   StoreImageDraft? _image;
   int _imageSeq = 0;
   String? _areaId;
   StoreImageTransform? _transform;
+  StoreAreaContent? _areaContent;
+
+  // Texto na área: as regras do nome, o teto da área
+  final TextEditingController _areaTextController = TextEditingController();
+  final FocusNode _areaTextFocus = FocusNode();
+  late StoreNameInputFormatter _areaTextFormatter;
+  int _areaTextShake = 0;
+  bool _areaTextInvalidChar = false;
+  StoreNameProblem? _areaTextProblem;
+
+  /// `areaId|texto` conferido por último (o teto muda com a área).
+  String? _checkedAreaText;
+  int _areaTextCheckSeq = 0;
 
   // Costas (abaixo do nome): número OU imagem
   final TextEditingController _backNumberController = TextEditingController();
@@ -111,11 +124,16 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     super.initState();
     _nameFocus.addListener(_onNameFocus);
     _backNumberFocus.addListener(_onBackNumberFocus);
+    _areaTextFocus.addListener(_onAreaTextFocus);
     // O formatter recebe a mudança antes do `onChanged`: guarda só o que
     // a tecla trouxe e treme o campo.
     _nameFormatter = StoreNameInputFormatter(
       maxChars: 12,
       onResult: _onNameFormatted,
+    );
+    _areaTextFormatter = StoreNameInputFormatter(
+      maxChars: 20,
+      onResult: _onAreaTextFormatted,
     );
     ref.listenManual<StoreProductLookup>(
       storeProductProvider(widget.productId),
@@ -141,6 +159,10 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
       ..removeListener(_onBackNumberFocus)
       ..dispose();
     _backNumberController.dispose();
+    _areaTextFocus
+      ..removeListener(_onAreaTextFocus)
+      ..dispose();
+    _areaTextController.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -158,6 +180,14 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
 
   bool get _imageReady =>
       _image?.status == StoreImageDraftStatus.ready && _image?.path != null;
+
+  String get _areaText => normalizeStoreCustomName(_areaTextController.text);
+
+  /// Texto da área reprovado pelo servidor (bloqueado, longo…) até mudar.
+  bool get _areaTextBlocked =>
+      _areaText.isNotEmpty &&
+      _areaTextProblem != null &&
+      _areaTextProblem != StoreNameProblem.empty;
 
   String get _backNumber => _backNumberController.text.trim();
 
@@ -177,6 +207,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
   bool get _hasChanges =>
       _hasName ||
       _image != null ||
+      _areaText.isNotEmpty ||
       _backNumber.isNotEmpty ||
       _backImage != null;
 
@@ -184,17 +215,19 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     final c = product.customization!;
     return [
       if (c.name.enabled) StoreCustomizeTab.name,
-      if (c.image.enabled) StoreCustomizeTab.image,
+      if (c.printAreas.isNotEmpty) StoreCustomizeTab.image,
       if (c.back.enabled) StoreCustomizeTab.back,
       if (product.axes.isNotEmpty) StoreCustomizeTab.variant,
     ];
   }
 
-  StoreCustomArea _area(StoreCustomImageOptions options) {
-    for (final a in options.areas) {
+  /// A área escolhida entre as do passo ([StoreCustomization.printAreas]);
+  /// padrão a 1ª.
+  StoreCustomArea _area(List<StoreCustomArea> areas) {
+    for (final a in areas) {
       if (a.id == _areaId) return a;
     }
-    return options.areas.first;
+    return areas.first;
   }
 
   StoreCustomFont _fontOf(StoreCustomNameOptions options) {
@@ -255,11 +288,17 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     _leave();
   }
 
+  /// Fonte do texto na área: a do nome (escolhida na aba Nome; sem escolha,
+  /// a 1ª ligada). O servidor só aceita as fontes do nome.
+  StoreCustomFont _areaTextFont(StoreCustomNameOptions options) =>
+      options.fonts.isEmpty ? StoreCustomFont.bloco : _fontOf(options);
+
   /// Nome → lado do nome; Imagem → frente; Costas → costas; "Cor e tam."
   /// mantém o lado que está na prévia.
   void _selectTab(StoreProduct product, StoreCustomizeTab tab) {
     if (tab != StoreCustomizeTab.name) _nameFocus.unfocus();
     if (tab != StoreCustomizeTab.back) _backNumberFocus.unfocus();
+    if (tab != StoreCustomizeTab.image) _areaTextFocus.unfocus();
     final current = _tab ?? _tabs(product).first;
     final shown = _side ?? _sideFor(current, product);
     setState(() {
@@ -365,6 +404,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
   Future<void> _pickImage(StoreProduct product, {bool back = false}) async {
     _nameFocus.unfocus();
     _backNumberFocus.unfocus();
+    _areaTextFocus.unfocus();
     final options = product.customization!.image;
     final choice = await showStoreImageSourceSheet(
       context: context,
@@ -431,7 +471,9 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
         _transform = problem == null
             ? storeDefaultImageTransform(
                 imageAspect: draft.aspect,
-                areaAspect: _areaAspect(_area(options)),
+                areaAspect: _areaAspect(
+                  _area(product.customization!.printAreas),
+                ),
               )
             : null;
       }
@@ -480,7 +522,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
         _logBack(StoreBackType.image, path);
         return;
       }
-      final area = _area(product.customization!.image);
+      final area = _area(product.customization!.printAreas);
       final dpi = storeEffectiveDpi(
         widthPx: draft.widthPx,
         heightPx: draft.heightPx,
@@ -515,7 +557,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     _upload(product, seq, back: back);
   }
 
-  void _selectArea(StoreCustomArea area) {
+  void _selectArea(StoreProduct product, StoreCustomArea area) {
     final image = _image;
     setState(() {
       _areaId = area.id;
@@ -526,7 +568,115 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
           areaAspect: _areaAspect(area),
         );
       }
+      // Área com teto menor corta o texto já digitado (o servidor
+      // recusaria); o problema conferido era o de outra área.
+      if (area.allowText) {
+        final text = formatStoreCustomNameInput(
+          _areaTextController.text,
+          area.textMaxChars,
+        ).text;
+        if (text != _areaTextController.text) {
+          _areaTextController.value = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: text.length),
+          );
+        }
+        if ('${area.id}|$_areaText' != _checkedAreaText) {
+          _areaTextProblem = null;
+        }
+      }
     });
+    if (storeAreaContentOf(area, _areaContent) == StoreAreaContent.text &&
+        !_areaTextFocus.hasFocus) {
+      _checkAreaText(product.id, area.id, _areaText);
+    }
+  }
+
+  // ── Texto na área ─────────────────────────────────────────────────────
+
+  /// `areaId|texto` da área escolhida agora (o que [_checkedAreaText]
+  /// guarda).
+  String get _areaTextKey {
+    final areas = ref
+            .read(storeProductProvider(widget.productId))
+            .product
+            ?.customization
+            ?.printAreas ??
+        const <StoreCustomArea>[];
+    return '${areas.isEmpty ? '' : _area(areas).id}|$_areaText';
+  }
+
+  void _selectAreaContent(StoreAreaContent content) {
+    if (content != StoreAreaContent.text) _areaTextFocus.unfocus();
+    setState(() {
+      _areaContent = content;
+      _side = StorePhotoView.front;
+    });
+  }
+
+  void _onAreaTextFormatted(bool rejected) {
+    if (!mounted) return;
+    if (rejected) {
+      setState(() {
+        _areaTextInvalidChar = true;
+        _areaTextShake++;
+      });
+    } else if (_areaTextInvalidChar) {
+      setState(() => _areaTextInvalidChar = false);
+    }
+  }
+
+  void _onAreaTextChanged(String _) {
+    setState(() {
+      // Bloqueado só até mudar o texto.
+      if (_areaTextKey != _checkedAreaText) _areaTextProblem = null;
+    });
+  }
+
+  void _onAreaTextFocus() {
+    if (_areaTextFocus.hasFocus || !mounted) return;
+    final text = _areaText;
+    if (_areaTextController.text != text) {
+      _areaTextController.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    }
+    setState(() => _areaTextInvalidChar = false);
+    final product = ref.read(storeProductProvider(widget.productId)).product;
+    final areas = product?.customization?.printAreas ?? const [];
+    if (product == null || areas.isEmpty) return;
+    final area = _area(areas);
+    if (!area.allowText) return;
+    _checkAreaText(product.id, area.id, text);
+  }
+
+  /// Blur → `checkStoreCustomName` com o `areaId`. Falha de rede não trava:
+  /// o servidor revalida no "Adicionar".
+  Future<void> _checkAreaText(
+    String productId,
+    String areaId,
+    String text,
+  ) async {
+    final key = '$areaId|$text';
+    if (text.isEmpty || key == _checkedAreaText) return;
+    final seq = ++_areaTextCheckSeq;
+    try {
+      final result = await _service.checkName(
+        productId: productId,
+        text: text,
+        areaId: areaId,
+      );
+      if (!mounted || seq != _areaTextCheckSeq || _areaTextKey != key) {
+        return;
+      }
+      setState(() {
+        _checkedAreaText = key;
+        _areaTextProblem = result.problem;
+      });
+    } catch (_) {
+      // Ignorado de propósito (ver acima).
+    }
   }
 
   // ── Costas ────────────────────────────────────────────────────────────
@@ -621,21 +771,38 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     }
     final customization = product.customization!;
     final hasName = _hasName && customization.name.enabled;
-    final image = _imageReady ? _image : null;
+    final areas = customization.printAreas;
+    // Produto sem área nenhuma: nem imagem nem texto.
+    final area = areas.isEmpty ? null : _area(areas);
+    final content =
+        area == null ? null : storeAreaContentOf(area, _areaContent);
+    // Só o conteúdo escolhido na área vai (o outro fica guardado na tela).
+    final image =
+        content == StoreAreaContent.image && _imageReady ? _image : null;
+    final nameColor = _colorOf(product, selected);
+    final areaText = content == StoreAreaContent.text &&
+            _areaText.isNotEmpty &&
+            nameColor != null
+        ? StoreCustomAreaTextChoice(
+            areaId: area!.id,
+            text: _areaText,
+            fontId: _areaTextFont(customization.name).id,
+            color: nameColor,
+          )
+        : null;
     final hasBack = _hasBack(customization.back);
-    if (!hasName && image == null && !hasBack) return;
+    if (!hasName && image == null && areaText == null && !hasBack) return;
 
     _nameFocus.unfocus();
     _backNumberFocus.unfocus();
+    _areaTextFocus.unfocus();
     final nameText = _nameText;
-    final nameColor = _colorOf(product, selected);
-    // Só com imagem: produto sem imagem pode não ter área nenhuma.
-    final area = image == null ? null : _area(customization.image);
     final back = hasBack ? _backChoice(customization.back) : null;
+    // Texto na área conta como imagem no adicional.
     final extra = storeCustomExtraCents(
       customization.price,
       hasName: hasName,
-      hasImage: image != null,
+      hasImage: image != null || areaText != null,
       hasBack: hasBack,
     );
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -665,6 +832,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
                         areaAspect: _areaAspect(area),
                       ),
                 ),
+          areaText: areaText,
           back: back,
         ),
       );
@@ -871,6 +1039,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     final customization = product.customization!;
     final nameOptions = customization.name;
     final imageOptions = customization.image;
+    final printAreas = customization.printAreas;
     final backOptions = customization.back;
     final selected = _selected ??= _initialSelection(product);
     final tabs = _tabs(product);
@@ -883,18 +1052,35 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
         onResult: _onNameFormatted,
       );
     }
+    final area = printAreas.isEmpty ? null : _area(printAreas);
+    if (area != null && _areaTextFormatter.maxChars != area.textMaxChars) {
+      _areaTextFormatter = StoreNameInputFormatter(
+        maxChars: area.textMaxChars,
+        onResult: _onAreaTextFormatted,
+      );
+    }
 
     final hasName = _hasName && nameOptions.enabled;
     final image = _image;
-    final imageReady = _imageReady;
+    final areaContent =
+        area == null ? null : storeAreaContentOf(area, _areaContent);
+    final areaIsImage = areaContent == StoreAreaContent.image;
+    final areaIsText = areaContent == StoreAreaContent.text;
+    final areaText = _areaText;
+    // Imagem enviada ou texto não vazio, no conteúdo escolhido da área.
+    final areaFilled = areaContent != null &&
+        storeAreaFilled(areaContent, imageReady: _imageReady, text: areaText);
+    final imageReady = areaIsImage && areaFilled;
+    final areaTextBlocked = areaIsText && _areaTextBlocked;
     final backType = storeBackTypeOf(backOptions, _backType);
     final backImage = _backImage;
     final backNumber = _backNumber;
     final hasBack = _hasBack(backOptions);
+    // Texto na área conta como imagem no adicional.
     final extra = storeCustomExtraCents(
       customization.price,
       hasName: hasName,
-      hasImage: imageReady,
+      hasImage: areaFilled,
       hasBack: hasBack,
     );
     final price = storeSelectionPrice(product, selected);
@@ -902,7 +1088,8 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
       skuPriceCents: price.cents,
       extraCents: extra,
     );
-    final imageBusy = image != null && !imageReady;
+    // Imagem subindo/reprovada só trava com Imagem escolhida na área.
+    final imageBusy = areaIsImage && image != null && !imageReady;
     // Costas no tipo escolhido: imagem ainda subindo/reprovada ou número que
     // não passa travam o Adicionar.
     final backBusy = backOptions.enabled &&
@@ -916,15 +1103,19 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     final backEmpty = backType == StoreBackType.number
         ? backNumber.isEmpty
         : backImage == null;
-    final canAdd = (hasName || imageReady || hasBack) &&
+    final canAdd = (hasName || areaFilled || hasBack) &&
         !_nameBlocked &&
+        !areaTextBlocked &&
         !imageBusy &&
         !backBusy &&
         !backInvalid &&
         !_adding;
     final font = nameOptions.enabled ? _fontOf(nameOptions) : null;
     final nameColor = nameOptions.enabled ? _colorOf(product, selected) : null;
-    final area = imageOptions.enabled ? _area(imageOptions) : null;
+    // Texto na área: fonte e cor do nome (sem nome, a 1ª fonte e a cor de
+    // maior contraste com a peça entre as do nome — as que o servidor aceita).
+    final areaTextFont = _areaTextFont(nameOptions);
+    final areaTextColor = _colorOf(product, selected);
     final config = ref.watch(storeShowcaseConfigProvider).valueOrNull ??
         StoreShowcaseConfig.empty;
     final media = MediaQuery.of(context);
@@ -951,10 +1142,26 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
           aloneCents: customization.price.imageOnlyCents,
           draft: image,
           area: area!,
+          areas: printAreas,
+          content: areaContent!,
+          onContent: _selectAreaContent,
+          text: area.allowText
+              ? StoreAreaTextInput(
+                  controller: _areaTextController,
+                  focusNode: _areaTextFocus,
+                  formatter: _areaTextFormatter,
+                  onChanged: _onAreaTextChanged,
+                  shakeTick: _areaTextShake,
+                  invalidChar: _areaTextInvalidChar,
+                  problem: areaText.isEmpty ? null : _areaTextProblem,
+                )
+              : null,
           onPick: () => _pickImage(product),
           onRetry: () => _retryUpload(product),
-          onArea: _selectArea,
-          onSkip: image == null ? _skipFrom(product, tab) : null,
+          onArea: (a) => _selectArea(product, a),
+          onSkip: (areaIsImage ? image == null : areaText.isEmpty)
+              ? _skipFrom(product, tab)
+              : null,
         ),
       StoreCustomizeTab.back => StoreCustomizeBackPanel(
           options: backOptions,
@@ -985,7 +1192,8 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
         ),
     };
 
-    final previewImage = image != null &&
+    final previewImage = areaIsImage &&
+            image != null &&
             image.status != StoreImageDraftStatus.invalid &&
             image.bytes != null
         ? StorePreviewImage(
@@ -1009,7 +1217,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
         extendBody: true,
         bottomNavigationBar: StoreCustomizeBottomBar(
           totalCents: total,
-          customized: extra > 0 || hasName || imageReady || hasBack,
+          customized: extra > 0 || hasName || areaFilled || hasBack,
           enabled: canAdd,
           busy: _adding,
           pixDiscountPct: config.benefits.pixDiscountPct,
@@ -1051,6 +1259,14 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
                       nameActive: tab == StoreCustomizeTab.name,
                       area: area,
                       image: previewImage,
+                      areaText: areaIsText
+                          ? StorePreviewAreaText(
+                              text: areaText,
+                              font: areaTextFont,
+                              color:
+                                  storeHexColor(areaTextColor) ?? Colors.white,
+                            )
+                          : null,
                       imageActive: tab == StoreCustomizeTab.image,
                       onTransform: (t) => setState(() => _transform = t),
                       back: backOptions.enabled
@@ -1118,7 +1334,7 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
                       current: tab,
                       done: {
                         if (hasName) StoreCustomizeTab.name,
-                        if (imageReady) StoreCustomizeTab.image,
+                        if (areaFilled) StoreCustomizeTab.image,
                         if (hasBack) StoreCustomizeTab.back,
                       },
                       onTap: (t) => _selectTab(product, t),

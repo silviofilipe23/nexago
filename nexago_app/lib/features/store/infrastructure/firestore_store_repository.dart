@@ -292,7 +292,9 @@ final RegExp _hexColor = RegExp(r'^#[0-9a-f]{6}$');
 /// Doc anterior às opções = nome, imagem e costas desligados. Fonte que o app
 /// não sabe desenhar fica de fora; sem fonte, sem cor ou sem área, a opção
 /// some. Costas só ligadas com uma opção válida (a imagem das costas precisa
-/// de formato no bloco `image`).
+/// de formato no bloco `image`). `areas` (imagem e/ou texto por área):
+/// espelho antigo, sem ela, = as de `image.areas`, só imagem; texto só com
+/// fonte e cor do nome que o app desenha.
 StoreCustomization storeCustomizationFromMap(Map<String, dynamic> data) {
   final name = _map(data['name']);
   final fonts = <StoreCustomFont>[
@@ -314,19 +316,22 @@ StoreCustomization storeCustomizationFromMap(Map<String, dynamic> data) {
         if (f is String && _str(f).isNotEmpty) _str(f).toLowerCase(),
   ];
   final areas = [
-    for (final a in _maps(image['areas']))
-      if (_str(a['id']).isNotEmpty &&
-          (_num(a['widthCm']) ?? 0) > 0 &&
-          (_num(a['heightCm']) ?? 0) > 0)
-        StoreCustomArea(
-          id: _str(a['id']),
-          name: _strOrNull(a['name']) ?? _str(a['id']),
-          widthCm: _num(a['widthCm'])!,
-          heightCm: _num(a['heightCm'])!,
-          position: _previewPoint(a['position']),
-        ),
+    for (final a in _maps(image['areas'])) ?_customArea(a),
   ];
   final maxSizeMb = _count(image['maxSizeMb']);
+  final imageOn =
+      image['enabled'] == true && formats.isNotEmpty && areas.isNotEmpty;
+  final typography = fonts.isNotEmpty && colors.isNotEmpty;
+  final printAreas = data['areas'] is List
+      ? [
+          for (final a in _maps(data['areas']))
+            ?_customArea(
+              a,
+              allowImage: a['image'] == true && formats.isNotEmpty,
+              allowText: a['text'] == true && typography,
+            ),
+        ]
+      : (imageOn ? areas : const <StoreCustomArea>[]);
 
   final back = _map(data['back']);
   final backNumber = back['allowNumber'] == true;
@@ -351,8 +356,7 @@ StoreCustomization storeCustomizationFromMap(Map<String, dynamic> data) {
       colors: colors,
     ),
     image: StoreCustomImageOptions(
-      enabled:
-          image['enabled'] == true && formats.isNotEmpty && areas.isNotEmpty,
+      enabled: imageOn,
       formats: formats,
       maxSizeMb: maxSizeMb > 0 ? maxSizeMb : 10,
       minWidthPx: _count(image['minWidthPx']),
@@ -374,6 +378,31 @@ StoreCustomization storeCustomizationFromMap(Map<String, dynamic> data) {
       bothCents: _count(price['bothCents']),
       backCents: _count(price['backCents']),
     ),
+    areas: printAreas,
+  );
+}
+
+/// Área de impressão; sem id, sem medida ou sem imagem nem texto, `null`.
+/// Teto do texto 1–40 (ausente = 20).
+StoreCustomArea? _customArea(
+  Map<String, dynamic> a, {
+  bool allowImage = true,
+  bool allowText = false,
+}) {
+  final width = _num(a['widthCm']) ?? 0;
+  final height = _num(a['heightCm']) ?? 0;
+  if (_str(a['id']).isEmpty || width <= 0 || height <= 0) return null;
+  if (!allowImage && !allowText) return null;
+  final maxChars = _count(a['textMaxChars']);
+  return StoreCustomArea(
+    id: _str(a['id']),
+    name: _strOrNull(a['name']) ?? _str(a['id']),
+    widthCm: width,
+    heightCm: height,
+    position: _previewPoint(a['position']),
+    allowImage: allowImage,
+    allowText: allowText,
+    textMaxChars: maxChars < 1 ? 20 : (maxChars > 40 ? 40 : maxChars),
   );
 }
 

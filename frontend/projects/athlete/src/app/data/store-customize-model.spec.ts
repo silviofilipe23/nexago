@@ -1,5 +1,9 @@
 import {
   areaPreviewBox,
+  areaStepTitle,
+  areaTextFont,
+  areasKindLabel,
+  stepAreas,
   clampTransform,
   contrastRatio,
   backNumberHint,
@@ -310,6 +314,35 @@ describe('store-customize-model', () => {
       expect(merged.items.length).toBe(3);
       expect(merged.items[0]).toBe(items[0]!);
       expect(merged.items[2]).toEqual({ productId: 'cam', skuId: 'preto_m', qty: 2 });
+    });
+  });
+
+  describe('texto na área', () => {
+    const area = { id: 'nuca', name: 'Nuca', widthCm: 8, heightCm: 4, image: false, text: true, textMaxChars: 10 };
+
+    it('áreas do passo: as do espelho novo; espelho antigo = image.areas como só imagem', () => {
+      const novo = storeProductFromDoc('cam', {
+        name: 'Camiseta', priceCents: 12990, customizable: true,
+        customization: { image: { enabled: false, formats: [] }, areas: [{ ...area, position: { x: 0.5, y: 0.1 } }, { id: 'x', name: 'X', widthCm: 5, heightCm: 5, image: true }] },
+      })!.customization!;
+      // Sem formato, a área "só imagem" não serve: fica só a de texto.
+      expect(stepAreas(novo).map((a) => a.id)).toEqual(['nuca']);
+      expect(hasCustomOptions(novo)).toBeTrue();
+      const antigo = storeProductFromDoc('cam', {
+        name: 'Camiseta', priceCents: 12990, customizable: true,
+        customization: { image: { enabled: true, formats: ['png'], areas: [{ id: 'peito_esquerdo', name: 'Peito', widthCm: 9, heightCm: 9 }] } },
+      })!.customization!;
+      expect(stepAreas(antigo)).toEqual([jasmine.objectContaining({ id: 'peito_esquerdo', image: true, text: false, textMaxChars: 20 })]);
+    });
+
+    it('título, rótulo do que o passo oferece e fonte que cabe na caixa', () => {
+      expect(areaStepTitle({ ...area, position: null })).toBe('Texto na frente');
+      expect(areaStepTitle({ ...area, image: true, position: null })).toBe('Imagem ou texto');
+      expect(areaStepTitle({ ...area, id: 'manga', image: true, text: false, position: null })).toBe('Imagem na manga');
+      expect(areasKindLabel([{ ...area, position: null }])).toBe('texto');
+      // Faixa larga e baixa (30 × 4 cm): a altura manda; caixa estreita (8 × 4): a largura.
+      expect(areaTextFont(3, { cx: 0.5, cy: 0.1, w: 30 / 60, h: 4 / 70 })).toBeCloseTo((4 / 70) * (7 / 6) * 100 * 0.7, 5);
+      expect(areaTextFont(3, { cx: 0.5, cy: 0.1, w: 8 / 60, h: 4 / 70 })).toBeCloseTo(0.088 * (8 / 60 / 0.6) * 100, 5);
     });
   });
 });

@@ -12,6 +12,9 @@ import {
 import {
   CONTENT_TYPE_BY_FORMAT,
   areaSizeLabel,
+  areaStepTitle,
+  areasKindLabel,
+  stepAreas,
   backNumberHint,
   backPreviewBox,
   backStepTitle,
@@ -27,7 +30,6 @@ import {
   imageQuality,
   imageQualityLabel,
   imageRulesLabel,
-  imageStepTitle,
   nameHint,
   nameHintWarns,
   nameLength,
@@ -60,6 +62,7 @@ import {
 import {
   categoryLabel,
   pixPriceCents,
+  type StoreArea,
   type StoreAxis,
   type StoreCustomArea,
   type StorePhotoView,
@@ -70,6 +73,7 @@ import { NxToastService } from '../shared/feedback';
 import { NxSkeletonComponent } from '../shared/loading/nx-skeleton.component';
 import {
   LojaCustomPreviewComponent,
+  type PreviewAreaText,
   type PreviewBack,
   type PreviewImage,
   type PreviewName,
@@ -194,12 +198,35 @@ export class LojaPersonalizarComponent {
   private readonly pickedAreaId = signal<string | null>(null);
   protected readonly transform = signal<ImageTransform>({ x: 0.5, y: 0.5, scale: 1 });
 
-  protected readonly area = computed<StoreCustomArea | null>(() => {
-    const areas = this.custom()?.image.areas ?? [];
+  /** Áreas do passo (imagem e/ou texto); vazio = passo desligado. */
+  protected readonly areas = computed<StoreArea[]>(() => {
+    const c = this.custom();
+    return c ? stepAreas(c) : [];
+  });
+  protected readonly area = computed<StoreArea | null>(() => {
+    const areas = this.areas();
     return areas.find((a) => a.id === this.pickedAreaId()) ?? areas[0] ?? null;
   });
+  /** Imagem ou texto na área: o escolhido, se ela aceita os dois; senão o único que ela aceita. */
+  private readonly pickedAreaKind = signal<'imagem' | 'texto'>('imagem');
+  protected readonly areaKind = computed<'imagem' | 'texto' | null>(() => {
+    const a = this.area();
+    if (!a) return null;
+    if (a.image && a.text) return this.pickedAreaKind();
+    return a.text ? 'texto' : 'imagem';
+  });
   protected readonly hasImage = computed(
-    () => !!this.custom()?.image.enabled && this.imageOn() && this.upload()?.status === 'done',
+    () => this.areaKind() === 'imagem' && this.imageOn() && this.upload()?.status === 'done',
+  );
+
+  // Texto na área: as regras, a fonte e a cor do nome; o teto é o da área.
+  protected readonly areaText = signal('');
+  protected readonly areaTextRejected = signal(false);
+  protected readonly areaTextShake = signal(false);
+  protected readonly areaTextProblem = signal<NameProblem | null>(null);
+  protected readonly areaTextLen = computed(() => nameLength(this.areaText()));
+  protected readonly hasAreaText = computed(
+    () => this.areaKind() === 'texto' && this.imageOn() && this.areaTextLen() > 0,
   );
   protected readonly quality = computed(() => {
     const up = this.upload();
@@ -251,11 +278,19 @@ export class LojaPersonalizarComponent {
     if (!c?.name.enabled || !this.nameOn()) return null;
     return { text: finalizeName(this.nameText()), fontId: this.fontId(), color: this.nameColor() ?? '#f4f4f5', placement: c.name.placement, position: c.name.position ?? null };
   });
-  protected readonly previewArea = computed(() => (this.custom()?.image.enabled && this.imageOn() ? this.area() : null));
+  protected readonly previewArea = computed(() => (this.imageOn() ? this.area() : null));
   protected readonly previewImage = computed<PreviewImage | null>(() => {
     const up = this.upload();
-    return up && this.previewArea() ? { url: up.previewUrl, aspect: up.aspect, transform: this.transform() } : null;
+    return up && this.previewArea() && this.areaKind() === 'imagem'
+      ? { url: up.previewUrl, aspect: up.aspect, transform: this.transform() }
+      : null;
   });
+  /** Texto na área, na fonte e na cor do nome (sem nome, a 1ª fonte e a cor de maior contraste). */
+  protected readonly previewAreaText = computed<PreviewAreaText | null>(() =>
+    this.previewArea() && this.areaKind() === 'texto'
+      ? { text: finalizeName(this.areaText()), fontId: this.fontId(), color: this.nameColor() ?? '#f4f4f5' }
+      : null,
+  );
   protected readonly previewBack = computed<PreviewBack | null>(() => {
     const c = this.custom();
     const kind = this.backKind();
@@ -287,7 +322,8 @@ export class LojaPersonalizarComponent {
   });
   protected readonly extraCents = computed(() => {
     const c = this.custom();
-    return c ? customExtraCents(c.price, this.hasName(), this.hasImage(), this.hasBack()) : 0;
+    // Texto na área custa o mesmo que a imagem.
+    return c ? customExtraCents(c.price, this.hasName(), this.hasImage() || this.hasAreaText(), this.hasBack()) : 0;
   });
   protected readonly unitCents = computed(() => this.baseCents() + this.extraCents());
   protected readonly breakdown = computed(() => priceBreakdown(this.baseCents(), this.extraCents()));
@@ -298,7 +334,8 @@ export class LojaPersonalizarComponent {
   protected readonly optionsTag = computed(() => {
     const c = this.custom();
     if (!c) return '';
-    const parts = [c.name.enabled ? 'Nome' : '', c.image.enabled ? 'imagem' : '', c.back.enabled ? 'costas' : ''].filter(Boolean);
+    const areas = this.areas();
+    const parts = [c.name.enabled ? 'Nome' : '', areas.length > 0 ? areasKindLabel(areas) : '', c.back.enabled ? 'costas' : ''].filter(Boolean);
     const tag = parts.join(' + ');
     return tag.charAt(0).toUpperCase() + tag.slice(1);
   });
@@ -313,7 +350,8 @@ export class LojaPersonalizarComponent {
       this.adding() ||
       this.upload()?.status === 'uploading' ||
       this.backUpload()?.status === 'uploading' ||
-      (this.hasName() && this.nameProblem() === 'blocked'),
+      (this.hasName() && this.nameProblem() === 'blocked') ||
+      (this.hasAreaText() && this.areaTextProblem() === 'blocked'),
   );
   protected readonly miniCartLines = computed(() => buildMiniCartLines(this.store.cart(), this.store.products()));
   protected readonly miniCartSubtotal = computed(() => this.miniCartLines().reduce((t, l) => t + l.totalCents, 0));
@@ -464,11 +502,73 @@ export class LojaPersonalizarComponent {
     if (on) this.side.set('frente');
   }
 
-  protected chooseArea(area: StoreCustomArea): void {
+  protected chooseArea(area: StoreArea): void {
     this.pickedAreaId.set(area.id);
     this.side.set('frente');
     const up = this.upload();
     if (up) this.transform.set(fitTransform(up.aspect, area));
+    // Área com teto menor corta o texto já digitado (o servidor recusaria).
+    if (area.text && nameLength(this.areaText()) > area.textMaxChars) {
+      this.areaText.set([...this.areaText()].slice(0, area.textMaxChars).join(''));
+      this.areaTextProblem.set(null);
+    }
+  }
+
+  protected chooseAreaKind(kind: 'imagem' | 'texto'): void {
+    this.pickedAreaKind.set(kind);
+    this.side.set('frente');
+  }
+
+  // ── Texto na área ───────────────────────────────────────────────
+
+  protected onAreaTextInput(input: HTMLInputElement): void {
+    const area = this.area();
+    if (!area) return;
+    const { value, rejected } = sanitizeNameInput(input.value, area.textMaxChars);
+    if (input.value !== value) {
+      const caret = Math.max(0, (input.selectionStart ?? value.length) - (input.value.length - value.length));
+      input.value = value;
+      input.setSelectionRange(caret, caret);
+    }
+    this.areaTextRejected.set(rejected);
+    if (rejected) {
+      this.areaTextShake.set(false);
+      this.later(() => this.areaTextShake.set(true), 0);
+      this.later(() => this.areaTextShake.set(false), SHAKE_MS);
+    }
+    if (value !== this.areaText()) this.areaTextProblem.set(null);
+    this.areaText.set(value);
+    this.side.set('frente');
+  }
+
+  /** Blur: como o nome — tira o espaço do fim e confere a lista de bloqueio com o teto da área. */
+  protected async onAreaTextBlur(input: HTMLInputElement): Promise<void> {
+    const p = this.product();
+    const area = this.area();
+    const text = finalizeName(this.areaText());
+    if (input.value !== text) input.value = text;
+    this.areaText.set(text);
+    this.areaTextRejected.set(false);
+    if (!p || !area || !text || !this.api) return;
+    const seq = ++this.checkSeq;
+    try {
+      const problem = await this.api.checkName(p.id, text, area.id);
+      if (seq === this.checkSeq && this.areaText() === text) this.areaTextProblem.set(problem);
+    } catch {
+      // Sem resposta, o servidor confere de novo ao adicionar.
+    }
+  }
+
+  protected areaTextHint(): string {
+    const area = this.area();
+    if (this.areaTextProblem() === 'blocked') return 'Esse texto não pode ser usado';
+    if (this.areaTextRejected()) return nameProblemMessage('chars');
+    return area ? nameHint(this.areaTextLen(), area.textMaxChars) : '';
+  }
+
+  protected areaTextHintWarn(): boolean {
+    const area = this.area();
+    return !!area && nameHintWarns(this.areaTextLen(), area.textMaxChars);
   }
 
   protected onFilePicked(input: HTMLInputElement, slot: Slot = 'front'): void {
@@ -599,8 +699,9 @@ export class LojaPersonalizarComponent {
     }
     const hasName = this.hasName();
     const hasImage = this.hasImage();
+    const hasAreaText = this.hasAreaText();
     const hasBack = this.hasBack();
-    if (!hasName && !hasImage && !hasBack) {
+    if (!hasName && !hasImage && !hasAreaText && !hasBack) {
       this.toast.warning('Escolha um nome, uma imagem ou as costas', 'Pra comprar sem personalizar, use a página do produto.');
       return;
     }
@@ -614,6 +715,9 @@ export class LojaPersonalizarComponent {
     const input: AddCustomItemInput = { productId: p.id, skuId: variant.id, qty: this.qty() };
     if (hasName) input.name = { text: finalizeName(this.nameText()), fontId: this.fontId(), color: this.nameColor()! };
     if (hasImage && up?.path && area) input.image = { path: up.path, areaId: area.id, transform: this.transform() };
+    if (hasAreaText && area) {
+      input.areaText = { areaId: area.id, text: finalizeName(this.areaText()), fontId: this.fontId(), color: this.nameColor()! };
+    }
     const backUp = this.backUpload();
     if (hasBack) {
       input.back =
@@ -632,7 +736,9 @@ export class LojaPersonalizarComponent {
       trackLojaEvent('loja_add_carrinho', { sku: variant.id, qtd: input.qty, preco: result.unitPriceCents, personalizado: true });
       this.celebrate();
     } catch (e) {
-      if (/não pode ser usado/i.test(String((e as { message?: unknown })?.message ?? ''))) this.nameProblem.set('blocked');
+      const message = String((e as { message?: unknown })?.message ?? '');
+      if (/texto não pode ser usado/i.test(message)) this.areaTextProblem.set('blocked');
+      else if (/não pode ser usado/i.test(message)) this.nameProblem.set('blocked');
       this.toast.error('Não deu pra adicionar ao carrinho', customizeErrorMessage(e, 'Tente de novo em instantes.'));
     } finally {
       this.adding.set(false);
@@ -688,14 +794,14 @@ export class LojaPersonalizarComponent {
     const c = this.custom();
     return c ? nameStepTitle(c.name.placement) : '';
   });
-  protected readonly imageTitle = computed(() => imageStepTitle(this.area()));
+  protected readonly imageTitle = computed(() => areaStepTitle(this.area()));
   protected readonly backTitle = computed(() => backStepTitle(this.backNamePlacement()));
   protected readonly backPrice = computed(() => `+ ${formatCentsBRL(this.custom()?.price.backCents ?? 0)}`);
   protected readonly backHint = computed(() => backNumberHint(this.custom()?.back.numberMaxDigits ?? 2));
   /** Número do passo das costas: depois de cor, nome e imagem ligados. */
   protected readonly backStepNumber = computed(() => {
     const c = this.custom();
-    return c ? 2 + (c.name.enabled ? 1 : 0) + (c.image.enabled ? 1 : 0) : 0;
+    return c ? 2 + (c.name.enabled ? 1 : 0) + (this.areas().length > 0 ? 1 : 0) : 0;
   });
   protected readonly nameSolo = computed(() => soloPriceLabel(this.custom()?.price.nameOnlyCents ?? 0, 'm'));
   protected readonly imageSolo = computed(() => soloPriceLabel(this.custom()?.price.imageOnlyCents ?? 0, 'f'));
@@ -717,6 +823,9 @@ export class LojaPersonalizarComponent {
   protected fontName(id: string): string {
     return fontLabel(id);
   }
+
+  /** "Adicionar imagem" · "Adicionar texto" · "Adicionar imagem ou texto". */
+  protected readonly addAreaLabel = computed(() => `Adicionar ${areasKindLabel(this.areas())}`);
 
   protected areaSize(area: StoreCustomArea): string {
     return areaSizeLabel(area);

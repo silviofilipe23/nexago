@@ -109,7 +109,7 @@ describe('customization', () => {
     });
 
     it('nome obrigatório e sem repetir; medidas de 1 a 100 cm; até o limite', () => {
-      const ok = { name: 'Nuca', widthCm: 8, heightCm: 4 };
+      const ok = { name: 'Nuca', widthCm: 8, heightCm: 4, allowImage: true, allowText: false, textMaxChars: 20 };
       expect(areaDraftError(ok, areas, null)).toBeNull();
       expect(areaDraftError({ ...ok, name: ' ' }, areas, null)).toBe('Dê um nome à área.');
       expect(areaDraftError({ ...ok, name: 'peito ESQUERDO' }, areas, null)).toBe('Já existe uma área com esse nome.');
@@ -119,6 +119,27 @@ describe('customization', () => {
       const full = Array.from({ length: MAX_AREAS }, (_, i) => ({ ...areas[0]!, id: `a${i}`, name: `A${i}` }));
       expect(areaDraftError(ok, full, null)).toBe('Cada produto tem até 10 áreas.');
       expect(areaDraftError(ok, full, 'a0')).toBeNull();
+      expect(areaDraftError({ ...ok, allowImage: false }, areas, null)).toBe('Escolha imagem, texto ou os dois.');
+      expect(areaDraftError({ ...ok, allowText: true, textMaxChars: 41 }, areas, null)).toBe('O texto tem de 1 a 40 caracteres.');
+      // Teto do texto desligado não importa.
+      expect(areaDraftError({ ...ok, textMaxChars: 0 }, areas, null)).toBeNull();
+    });
+
+    it('imagem ou texto: doc antigo = só imagem; texto pede fonte e cor; formato só com imagem', () => {
+      const c = customizationFromDoc({ active: true, image: { areas: [{ id: 'a', name: 'A', widthCm: 9, heightCm: 9, enabled: true }] } });
+      expect(c.image.areas[0]).toEqual(jasmine.objectContaining({ allowImage: true, allowText: false, textMaxChars: 20 }));
+      const text = { id: 'nuca', name: 'Nuca', widthCm: 8, heightCm: 4, enabled: true, allowImage: false, allowText: true, textMaxChars: 12 };
+      expect(customizationErrors(config((x) => {
+        x.image.areas = [text];
+        x.image.formats = [];
+      }))).toEqual({});
+      expect(customizationErrors(config((x) => {
+        x.image.areas = [text];
+        x.name.colors = [];
+        x.name.enabled = false;
+      })).image).toContain('fontes e cores do card Nome');
+      expect(addOnLines(config((x) => (x.image.areas = [text]))).map((l) => l.label)).toEqual(['Nome + texto']);
+      expect(addOnLines(config((x) => (x.image.areas = [{ ...text, allowImage: true }]))).map((l) => l.label)).toEqual(['Nome + imagem ou texto']);
     });
   });
 });

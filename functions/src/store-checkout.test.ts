@@ -197,6 +197,21 @@ describe("checkout · cotação e pedido", () => {
     assert.equal(blocked.lines[0]!.problem, "personalizacao_off");
   });
 
+  it("texto na área: vale com a config, sai do pedido se a área deixa de aceitar texto", async () => {
+    const {fake, db, productId, cart} = await setup();
+    const area = {id: "nuca", name: "Nuca", widthCm: 8, heightCm: 4, enabled: true, allowImage: false, allowText: true, textMaxChars: 10};
+    fake.seedDoc(`storeProductCustomization/${productId}`, {active: true, updatedAt: NOW, image: {areas: [area]}});
+    const areaText = {text: "BEACH", fontId: "bloco", color: "#ffffff", areaId: "nuca", areaName: "Nuca"};
+    cart([{productId, skuId: "m", qty: 1, lineId: "l1", customization: {configVersion: 1, areaText}}]);
+    const ok = await quoteCheckoutCore(db, "ana", {channel: "web", delivery: ARENA, couponCode: null}, NOW);
+    assert.equal(ok.lines[0]!.problem, null);
+    assert.equal(ok.lines[0]!.customizationLabel, "“BEACH”");
+    assert.equal(ok.lines[0]!.extraCents, 1990, "preço da imagem");
+    fake.seedDoc(`storeProductCustomization/${productId}`, {active: true, updatedAt: NOW, image: {areas: [{...area, allowText: false, allowImage: true}]}});
+    const off = await quoteCheckoutCore(db, "ana", {channel: "web", delivery: ARENA, couponCode: null}, NOW);
+    assert.equal(off.lines[0]!.problem, "personalizacao_off");
+  });
+
   it("cupom fora do formato não derruba a cotação: vira não encontrado", async () => {
     const {db, productId, cart} = await setup();
     cart([{productId, skuId: "m", qty: 1}]);

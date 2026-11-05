@@ -108,8 +108,11 @@ class FakeApi implements StoreCustomizeApi {
   addError: unknown = null;
   uploads: Array<{ uid: string; format: string; contentType: string; progress: (pct: number) => void; resolve: (path: string) => void; reject: (e: unknown) => void }> = [];
 
-  checkName(_productId: string, text: string) {
+  checkedAreas: Array<string | undefined> = [];
+
+  checkName(_productId: string, text: string, areaId?: string) {
     this.checked.push(text);
+    this.checkedAreas.push(areaId);
     return Promise.resolve(this.nameProblem);
   }
   uploadImage(uid: string, _file: Blob, format: string, contentType: string, onProgress: (pct: number) => void): CustomUpload {
@@ -339,6 +342,57 @@ describe('LojaPersonalizarComponent', () => {
     button(el, 'Imagem').click();
     harness.detectChanges();
     expect(text(el.querySelector('section[aria-labelledby="lz-step-4"] .lz-drop'))).toContain('Enviar imagem das costas');
+  });
+
+  it('texto na área: campo com as regras do nome, prévia na área, preço da imagem e pedido com areaText', async () => {
+    const withText = {
+      ...CUSTOMIZATION,
+      areas: [
+        { id: 'nuca', name: 'Nuca', widthCm: 8, heightCm: 4, position: { x: 0.5, y: 0.1 }, image: false, text: true, textMaxChars: 8 },
+        { id: 'peito_esquerdo', name: 'Peito esquerdo', widthCm: 9, heightCm: 9, position: null, image: true, text: true, textMaxChars: 12 },
+      ],
+    };
+    const { harness, el } = await render('/loja/p/camiseta-personalizada/personalizar?cor=preto&tam=m', [camiseta(withText)]);
+    expect(text(el.querySelector('#lz-step-3'))).toBe('Texto na frente');
+    expect(el.querySelector('input[type=file]')).toBeNull();
+    expect([...el.querySelectorAll('.lz-tag')].map(text)).toContain('Nome + imagem ou texto');
+
+    const field = el.querySelector('#lz-area-text') as HTMLInputElement;
+    field.value = 'beach club';
+    field.dispatchEvent(new Event('input'));
+    harness.detectChanges();
+    expect(field.value).toBe('BEACH CL');
+    field.value = 'beach';
+    field.dispatchEvent(new Event('input'));
+    field.dispatchEvent(new Event('blur'));
+    await settle(harness);
+    expect(api.checkedAreas).toEqual(['nuca']);
+    expect(text(el.querySelector('.lz-stage-main .cp-area-text'))).toBe('BEACH');
+    expect(text(el.querySelector('.lz-price'))).toBe('R$ 149,80');
+
+    // Área com os dois: escolhe Imagem ou Texto, e o texto digitado continua lá.
+    button(el, 'Peito esquerdo, 9 × 9 cm').click();
+    harness.detectChanges();
+    expect(text(el.querySelector('#lz-step-3'))).toBe('Imagem ou texto');
+    expect(button(el, 'Imagem').getAttribute('aria-checked')).toBe('true');
+    expect(el.querySelector('#lz-area-text')).toBeNull();
+    button(el, 'Texto').click();
+    harness.detectChanges();
+    expect((el.querySelector('#lz-area-text') as HTMLInputElement).value).toBe('BEACH');
+
+    button(el, 'Adicionar ao carrinho').click();
+    await settle(harness);
+    expect(api.added).toEqual([
+      { productId: 'cam', skuId: 'preto_m', qty: 1, areaText: { areaId: 'peito_esquerdo', text: 'BEACH', fontId: 'bloco', color: '#f4f4f5' } },
+    ]);
+
+    // Texto bloqueado no blur trava o Adicionar.
+    api.nameProblem = 'blocked';
+    const again = el.querySelector('#lz-area-text') as HTMLInputElement;
+    again.dispatchEvent(new Event('blur'));
+    await settle(harness);
+    expect(text(el.querySelector('#lz-area-text-hint'))).toBe('Esse texto não pode ser usado');
+    expect((el.querySelector('.lp-add') as HTMLButtonElement).disabled).toBeTrue();
   });
 
   it('erro do servidor vira toast com a mensagem dele', async () => {

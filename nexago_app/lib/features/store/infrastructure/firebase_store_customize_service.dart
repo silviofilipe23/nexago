@@ -52,11 +52,15 @@ class FirebaseStoreCustomizeService implements StoreCustomizeService {
   Future<StoreNameCheck> checkName({
     required String productId,
     required String text,
+    String? areaId,
   }) async {
     try {
-      final result = await _functions
-          .httpsCallable('checkStoreCustomName')
-          .call<Object?>({'productId': productId, 'text': text});
+      final result =
+          await _functions.httpsCallable('checkStoreCustomName').call<Object?>({
+        'productId': productId,
+        'text': text,
+        if (areaId != null) 'areaId': areaId,
+      });
       final data = result.data is Map
           ? Map<String, Object?>.from(result.data as Map)
           : const <String, Object?>{};

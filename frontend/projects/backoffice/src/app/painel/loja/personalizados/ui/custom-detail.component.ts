@@ -39,6 +39,10 @@ const COLOR_NAMES: Record<string, string> = { '#ffffff': 'branco', '#111111': 'p
               <span class="area" [style]="areaStyle()">
                 @if (it.image.url) { <img [src]="it.image.url" alt="Imagem enviada" /> }
               </span>
+            } @else if (it.areaText; as t) {
+              <span class="area area-text" [style]="areaStyle()">
+                <span [class]="'font-' + t.font" [style.color]="t.color">{{ t.text }}</span>
+              </span>
             }
             @if (nameOn() === 'frente') { <span class="name" [class]="'name font-' + it.font" [style.color]="it.nameColor">{{ displayName() }}</span> }
             <span class="mock-label">{{ sides().frente ? 'Foto do produto' : 'Mockup' }} · Frente</span>
@@ -167,6 +171,8 @@ const COLOR_NAMES: Record<string, string> = { '#ffffff': 'branco', '#111111': 'p
     .mock.has-photo .mock-label { color: var(--nx-text-mute); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
     .area { position: absolute; border: 1px dashed var(--nx-orange-500); background: rgba(255, 106, 26, 0.18); overflow: hidden; }
     .area img { width: 100%; height: 100%; object-fit: contain; }
+    .area-text { display: grid; place-items: center; container-type: inline-size; }
+    .area-text span { white-space: nowrap; font-size: 18cqw; line-height: 1; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
     .name { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); padding: 3px 10px; border: 1px dashed rgba(244, 244, 245, 0.35); border-radius: 4px; font-size: 16px; white-space: nowrap; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
     .font-bloco { font-family: var(--nx-font-display); font-weight: 800; }
     .font-classica { font-family: Georgia, serif; font-style: italic; font-weight: 700; }
@@ -261,6 +267,10 @@ export class CustomDetailComponent {
     const a = this.area();
     if (this.item().image && a) {
       return `Frente · ${a.name.toLowerCase()} ${a.widthCm}×${a.heightCm} cm`;
+    }
+    const t = this.item().areaText;
+    if (t) {
+      return `Frente · “${t.text}” ${a ? `na ${a.name.toLowerCase()} ${a.widthCm}×${a.heightCm} cm` : 'na área'}`;
     }
     return this.nameOn() === 'frente' ? `Frente · ${this.nameLine()}` : 'Frente · sem personalização';
   });

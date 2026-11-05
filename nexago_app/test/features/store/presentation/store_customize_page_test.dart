@@ -70,6 +70,9 @@ class _FakeCustomizeService implements StoreCustomizeService {
   final StoreCustomizeException? addError;
 
   final List<String> checked = [];
+
+  /// `areaId` de cada conferência (`null` = o nome).
+  final List<String?> checkedAreas = [];
   final List<StoreCustomCartRequest> added = [];
   final List<String> uploads = [];
 
@@ -77,8 +80,10 @@ class _FakeCustomizeService implements StoreCustomizeService {
   Future<StoreNameCheck> checkName({
     required String productId,
     required String text,
+    String? areaId,
   }) async {
     checked.add(text);
+    checkedAreas.add(areaId);
     return blocked.contains(text)
         ? const StoreNameCheck.problem(StoreNameProblem.blocked)
         : const StoreNameCheck.ok();
@@ -929,6 +934,206 @@ void main() {
       await tester.pump();
       expect(numberText(tester), '7');
       expect(_addEnabled(tester), isTrue);
+    });
+  });
+
+  group('texto na área', () {
+    const textOnly = StoreCustomArea(
+      id: 'centro_frente',
+      name: 'Centro da frente',
+      widthCm: 25,
+      heightCm: 10,
+      allowImage: false,
+      allowText: true,
+      textMaxChars: 8,
+    );
+    const both = StoreCustomArea(
+      id: 'peito_esquerdo',
+      name: 'Peito esquerdo',
+      widthCm: 9,
+      heightCm: 9,
+      allowText: true,
+      textMaxChars: 12,
+    );
+
+    /// A config dos testes com `areas` (o espelho novo); só texto =
+    /// imagem desligada (o app antigo não vê a área).
+    StoreProduct productWith(
+      List<StoreCustomArea> areas, {
+      bool imageOn = false,
+    }) =>
+        _camisetaWith(
+          StoreCustomization(
+            fromCents: _customization.fromCents,
+            leadDays: _customization.leadDays,
+            version: _customization.version,
+            name: _customization.name,
+            image: imageOn
+                ? StoreCustomImageOptions(
+                    enabled: true,
+                    formats: _customization.image.formats,
+                    minWidthPx: 1000,
+                    minHeightPx: 1000,
+                    areas: [
+                      for (final a in areas)
+                        if (a.allowImage) a,
+                    ],
+                  )
+                : StoreCustomImageOptions.disabled,
+            areas: areas,
+            price: _customization.price,
+          ),
+        );
+
+    Finder textField() =>
+        find.byKey(const ValueKey('store-customize-area-text-field'));
+
+    String textHint(WidgetTester tester) => tester
+        .widget<Text>(
+          find.byKey(const ValueKey('store-customize-area-text-hint')),
+        )
+        .data!;
+
+    testWidgets(
+        'área só de texto: campo, prévia, preço da imagem e o areaText', (
+      tester,
+    ) async {
+      final h = await _open(tester, product: productWith(const [textOnly]));
+
+      await tester.tap(find.byKey(const ValueKey('store-customize-tab-image')));
+      await tester.pump();
+      expect(find.text('TEXTO NA FRENTE'), findsOneWidget);
+      // Só texto: sem seletor, sem envio de imagem.
+      expect(
+        find.byKey(const ValueKey('store-customize-area-content-image')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('store-customize-upload')), findsNothing);
+      expect(textHint(tester), '0 de 8 · letras, números e espaço');
+      // Aba aberta e vazia: "SEU TEXTO" apagado na área.
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('store-customize-preview-area-text')),
+            )
+            .data,
+        StoreCopy.customizeYourText,
+      );
+      expect(_addEnabled(tester), isFalse);
+
+      await tester.enterText(textField(), 'vai brasil!');
+      await _settle(tester);
+      // Maiúsculas, sem o "!" e até textMaxChars.
+      expect(
+        tester.widget<TextField>(textField()).controller!.text,
+        'VAI BRAS',
+      );
+      await tester.enterText(textField(), 'vai time');
+      await tester.pump();
+      expect(textHint(tester), '8 de 8 · letras, números e espaço');
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('store-customize-preview-area-text')),
+            )
+            .data,
+        'VAI TIME',
+      );
+      // Texto na área custa o mesmo que a imagem.
+      expect(_total(tester), formatBRLFromCents(12990 + 1990));
+      expect(_addEnabled(tester), isTrue);
+
+      await _blur(tester);
+      expect(h.service.checked, ['VAI TIME']);
+      expect(h.service.checkedAreas, ['centro_frente']);
+
+      // Com nome: os dois (bothCents).
+      await tester.tap(find.byKey(const ValueKey('store-customize-tab-name')));
+      await tester.pump();
+      await tester.enterText(_nameField(), 'antunes');
+      await tester.pump();
+      expect(_total(tester), formatBRLFromCents(12990 + 2490));
+
+      await tester.tap(_addButton());
+      await _settle(tester);
+      final request = h.service.added.single;
+      expect(request.image, isNull);
+      // Fonte e cor do nome: Bloco e a de maior contraste com a peça preta.
+      expect(request.toMap()['areaText'], {
+        'areaId': 'centro_frente',
+        'text': 'VAI TIME',
+        'fontId': 'bloco',
+        'color': '#ffffff',
+      });
+      expect(request.name!.text, 'ANTUNES');
+    });
+
+    testWidgets('texto bloqueado mostra o aviso e trava o Adicionar', (
+      tester,
+    ) async {
+      final service = _FakeCustomizeService(blocked: {'FEIO'});
+      await _open(
+        tester,
+        service: service,
+        product: productWith(const [textOnly]),
+      );
+      await tester.tap(find.byKey(const ValueKey('store-customize-tab-image')));
+      await tester.pump();
+
+      await tester.enterText(textField(), 'feio');
+      await tester.pump();
+      expect(_addEnabled(tester), isTrue);
+      await _blur(tester);
+
+      expect(textHint(tester), StoreCopy.customizeAreaTextBlocked);
+      expect(_addEnabled(tester), isFalse);
+
+      await tester.enterText(textField(), 'feito');
+      await tester.pump();
+      expect(textHint(tester), '5 de 8 · letras, números e espaço');
+      expect(_addEnabled(tester), isTrue);
+    });
+
+    testWidgets('área com os dois: seletor Imagem · Texto, só o escolhido vai',
+        (tester) async {
+      final h = await _open(
+        tester,
+        product: productWith(const [both], imageOn: true),
+      );
+      await tester.tap(find.byKey(const ValueKey('store-customize-tab-image')));
+      await tester.pump();
+      expect(find.text('IMAGEM OU TEXTO'), findsOneWidget);
+      // Padrão Imagem.
+      expect(find.byKey(const ValueKey('store-customize-upload')), findsOne);
+      expect(textField(), findsNothing);
+
+      await tester.tap(
+        find.byKey(const ValueKey('store-customize-area-content-text')),
+      );
+      await tester.pump();
+      await tester.enterText(textField(), 'dupla');
+      await tester.pump();
+      expect(_total(tester), formatBRLFromCents(12990 + 1990));
+
+      // Volta pra Imagem: o texto fica guardado, mas não conta nem vai.
+      await tester.tap(
+        find.byKey(const ValueKey('store-customize-area-content-image')),
+      );
+      await tester.pump();
+      expect(_total(tester), formatBRLFromCents(12990));
+      expect(_addEnabled(tester), isFalse);
+
+      await tester.tap(
+        find.byKey(const ValueKey('store-customize-area-content-text')),
+      );
+      await tester.pump();
+      expect(tester.widget<TextField>(textField()).controller!.text, 'DUPLA');
+      await tester.tap(_addButton());
+      await _settle(tester);
+      final request = h.service.added.single;
+      expect(request.image, isNull);
+      expect(request.areaText!.areaId, 'peito_esquerdo');
+      expect(request.areaText!.text, 'DUPLA');
     });
   });
 }

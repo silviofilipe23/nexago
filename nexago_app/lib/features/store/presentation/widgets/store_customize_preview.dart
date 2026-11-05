@@ -64,6 +64,21 @@ class StorePreviewImage {
   final StoreImageTransform transform;
 }
 
+/// Texto na área, na fonte e na cor do nome: uma linha centrada na caixa,
+/// reduzida até caber na largura e com no máximo 70% da altura dela.
+class StorePreviewAreaText {
+  const StorePreviewAreaText({
+    required this.text,
+    this.font = StoreCustomFont.bloco,
+    this.color = Colors.white,
+  });
+
+  /// Vazio = "SEU TEXTO" apagado (só com a aba aberta).
+  final String text;
+  final StoreCustomFont font;
+  final Color color;
+}
+
 /// O que a prévia desenha nas costas, abaixo (ou acima) do nome: o número
 /// na fonte e na cor do nome, ou a imagem centralizada e inteira na caixa.
 class StorePreviewBack {
@@ -98,8 +113,8 @@ class StorePreviewBack {
 /// Prévia ilustrativa (300 de altura no desenho): foto do lado e da cor, ou
 /// listrado "MOCKUP · FRENTE/COSTAS"; o nome na faixa do placement (uma
 /// linha, fonte reduzida até caber), a imagem na área, com arrastar e
-/// pinça presos dentro dela, e as costas (número ou imagem) na caixa das
-/// costas.
+/// pinça presos dentro dela (ou o texto na área, uma linha), e as costas
+/// (número ou imagem) na caixa das costas.
 ///
 /// O quadro é a peça de referência de 60 × 70 cm centrada na prévia: as
 /// áreas mantêm a proporção em cm.
@@ -119,6 +134,7 @@ class StoreCustomizePreview extends StatefulWidget {
     this.nameActive = false,
     this.area,
     this.image,
+    this.areaText,
     this.imageActive = false,
     this.onTransform,
     this.back,
@@ -146,9 +162,12 @@ class StoreCustomizePreview extends StatefulWidget {
   /// Aba Nome aberta: caixa tracejada (e "SEU NOME" com o campo vazio).
   final bool nameActive;
 
-  /// `null` = produto sem imagem.
+  /// `null` = produto sem área de impressão.
   final StoreCustomArea? area;
   final StorePreviewImage? image;
+
+  /// Texto na área, no lugar de [image] (a área com Texto escolhido).
+  final StorePreviewAreaText? areaText;
 
   /// Aba Imagem aberta: contorno com alças e o ajuste fino ligado.
   final bool imageActive;
@@ -176,7 +195,9 @@ class _StoreCustomizePreviewState extends State<StoreCustomizePreview> {
   bool get _showArea =>
       widget.area != null &&
       widget.side == StorePhotoView.front &&
-      (widget.image != null || widget.imageActive);
+      (widget.image != null ||
+          (widget.areaText?.text.isNotEmpty ?? false) ||
+          widget.imageActive);
 
   bool get _showBack {
     final back = widget.back;
@@ -189,6 +210,7 @@ class _StoreCustomizePreviewState extends State<StoreCustomizePreview> {
 
   bool get _canAdjust =>
       widget.imageActive &&
+      widget.areaText == null &&
       widget.image != null &&
       widget.onTransform != null &&
       widget.side == StorePhotoView.front;
@@ -436,6 +458,8 @@ class _StoreCustomizePreviewState extends State<StoreCustomizePreview> {
     final rect = _areaRect(frame);
     final image = widget.image;
     final active = widget.imageActive;
+    final areaText = widget.areaText;
+    if (areaText != null) return [_areaText(rect, areaText, active)];
     if (image == null) {
       return [
         Positioned.fromRect(
@@ -492,6 +516,44 @@ class _StoreCustomizePreviewState extends State<StoreCustomizePreview> {
         ),
       ),
     ];
+  }
+
+  /// Uma linha centrada na caixa da área: fonte de até 70% da altura,
+  /// reduzida até caber na largura (como o nome na faixa).
+  Widget _areaText(Rect rect, StorePreviewAreaText areaText, bool active) {
+    final empty = areaText.text.isEmpty;
+    // A linha do texto tem 1,1 × a fonte (storeCustomFontStyle).
+    const maxLineHeight = 0.7;
+    return Positioned.fromRect(
+      rect: rect,
+      child: IgnorePointer(
+        child: CustomPaint(
+          key: const ValueKey('store-customize-preview-area-text-box'),
+          foregroundPainter: active
+              ? const _DashedBorderPainter(color: AppColors.brand)
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  empty ? StoreCopy.customizeYourText : areaText.text,
+                  key: const ValueKey('store-customize-preview-area-text'),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: storeCustomFontStyle(
+                    areaText.font,
+                    fontSize: rect.height * maxLineHeight / 1.1,
+                    color: areaText.color.withValues(alpha: empty ? 0.35 : 1),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _adjust(ScaleUpdateDetails d, Rect frame) {

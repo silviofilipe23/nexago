@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/firebase/firebase_providers.dart';
 import '../../../core/observability/flow_error_log.dart';
+import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../home_banners/domain/home_banner.dart';
 import '../../store/application/store_providers.dart';
 import '../domain/blog_library.dart';
 import '../domain/blog_logic.dart';
+import '../domain/blog_notify_prefs.dart';
 import '../domain/blog_post.dart';
 import '../domain/blog_repository.dart';
 import '../infrastructure/firestore_blog_repository.dart';
@@ -209,5 +211,66 @@ class BlogLibraryController {
     await _ref
         .read(blogRepositoryProvider)
         .setHelpful(postId, uid, helpful: helpful);
+  }
+}
+
+/// Avisos do blog por categoria (`blogNotifyPrefs/{uid}`). Sem sessão fica
+/// carregando, pelo mesmo motivo da biblioteca.
+final blogNotifyPrefsProvider = StreamProvider<BlogNotifyPrefs>((ref) {
+  final uid = ref.watch(_blogUidProvider);
+  if (uid.isEmpty) return const Stream.empty();
+  return ref.watch(blogRepositoryProvider).watchNotifyPrefs(uid);
+});
+
+/// Push ligado nas Configurações (`notificationPreferences.channels.push`)?
+/// `null` enquanto o perfil carrega. Desligado, o servidor não manda nenhum
+/// push do blog — os switches por categoria não teriam efeito.
+final blogPushChannelOnProvider = Provider.autoDispose<bool?>((ref) {
+  final profile = ref.watch(athleteProfileProvider).valueOrNull;
+  return profile?.notificationPreferences.channels.push;
+});
+
+final blogNotifyPrefsControllerProvider = Provider<BlogNotifyPrefsController>(
+  (ref) => BlogNotifyPrefsController(ref),
+);
+
+/// Liga e desliga categorias. Como na biblioteca, parte do último doc que o
+/// aparelho gravou até o stream trazer um mais novo do servidor, e não espera
+/// a confirmação (offline ela não chega).
+class BlogNotifyPrefsController {
+  BlogNotifyPrefsController(this._ref);
+
+  final Ref _ref;
+  ({String uid, BlogNotifyPrefs prefs, DateTime at})? _written;
+
+  Future<BlogNotifyPrefs?> setCategory(
+    BlogCategory category, {
+    required bool on,
+  }) async {
+    var uid = _ref.read(_blogUidProvider);
+    if (uid.isEmpty) {
+      uid = (await _ref.read(authProvider.future))?.uid.trim() ?? '';
+    }
+    if (uid.isEmpty) return null;
+    final remote = await _ref.read(blogNotifyPrefsProvider.future);
+    final local = _written;
+    final remoteAt = remote.updatedAt;
+    final useRemote =
+        local == null ||
+        local.uid != uid ||
+        (remoteAt != null && remoteAt.isAfter(local.at));
+    final current = useRemote ? remote : local.prefs;
+    final next = current.withCategory(category, on: on);
+    _written = (uid: uid, prefs: next, at: DateTime.now());
+    unawaited(
+      _ref
+          .read(blogRepositoryProvider)
+          .writeNotifyPrefs(uid, next)
+          .catchError(
+            (Object e, StackTrace st) =>
+                recordFlowError('blog_notify_prefs_write', e, st),
+          ),
+    );
+    return next;
   }
 }

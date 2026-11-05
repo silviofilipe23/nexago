@@ -45,6 +45,9 @@ export const BLOG_LIST_ITEM_MAX = 300;
 export const BLOG_QUOTE_MAX = 300;
 export const BLOG_CAPTION_MAX = 140;
 export const BLOG_CTA_LABEL_MAX = 32;
+/** Blocos nexaGO (torneio, produto) por post: cada um é uma leitura a mais no save e no leitor. */
+export const BLOG_EMBEDS_MAX = 10;
+export const BLOG_PUSH_CITY_MAX = 60;
 const URL_MAX = 1000;
 const WORDS_PER_MINUTE = 200;
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -57,7 +60,21 @@ export type BlogBlock =
   | {type: "heading"; text: string}
   | {type: "list"; items: string[]}
   | {type: "quote"; text: string}
-  | {type: "image"; url: string; caption: string};
+  | {type: "image"; url: string; caption: string}
+  // Blocos nexaGO (fase 2). Build sem eles ignora o tipo desconhecido; o servidor confere que o
+  // torneio/produto existe no save, o leitor mostra o estado ao vivo.
+  | {type: "tournament"; tournamentId: string}
+  | {type: "product"; productId: string}
+  | {type: "video"; url: string; caption: string};
+
+/** Push no horário da publicação (`blog-push.ts`). `city` `null` = todas; `sport` "all" = todos. */
+export interface BlogPushSettings {
+  enabled: boolean;
+  city: string | null;
+  sport: string;
+}
+
+export const BLOG_PUSH_OFF: BlogPushSettings = {enabled: false, city: null, sport: "all"};
 
 export interface BlogCta {
   label: string;
@@ -80,6 +97,8 @@ export interface BlogPostInput {
   cta: BlogCta | null;
   channels: {app: boolean; site: boolean};
   featured: boolean;
+  /** Opcional para quem ainda manda o formato da fase 1: ausente = sem push. */
+  push?: BlogPushSettings;
   status: BlogStatus;
   /** ISO 8601. Obrigatório só para `scheduled`; ignorado ao publicar agora. */
   publishAt: string | null;
@@ -103,6 +122,18 @@ export interface SaveBlogPostResult {
 
 const isStr = (v: unknown): v is string => typeof v === "string";
 const isHttps = (v: unknown): v is string => isStr(v) && v.length <= URL_MAX && /^https:\/\/\S+$/.test(v);
+const DOC_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const VIDEO_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be", "instagram.com", "www.instagram.com"]);
+
+/** Vídeo do YouTube ou do Instagram (o leitor abre fora do app; não há player embutido). */
+export function isVideoUrl(v: unknown): v is string {
+  if (!isHttps(v)) return false;
+  try {
+    return VIDEO_HOSTS.has(new URL(v).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
 
 /** Tira espaço das pontas e junta espaços repetidos de uma linha. */
 function line(v: string): string {
@@ -163,6 +194,17 @@ function blockErrors(block: unknown, n: number): string[] {
     if (!isStr(b["caption"])) return [`${where}: legenda inválida.`];
     if (line(b["caption"]).length > BLOG_CAPTION_MAX) return [`${where}: legenda passa de ${BLOG_CAPTION_MAX} caracteres.`];
     return [];
+  case "video":
+    if (!isVideoUrl(b["url"])) return [`${where}: vídeo precisa ser um link do YouTube ou do Instagram.`];
+    if (!isStr(b["caption"])) return [`${where}: legenda inválida.`];
+    if (line(b["caption"]).length > BLOG_CAPTION_MAX) return [`${where}: legenda passa de ${BLOG_CAPTION_MAX} caracteres.`];
+    return [];
+  case "tournament":
+    if (!isStr(b["tournamentId"]) || !DOC_ID_RE.test(b["tournamentId"])) return [`${where}: escolha o torneio.`];
+    return [];
+  case "product":
+    if (!isStr(b["productId"]) || !DOC_ID_RE.test(b["productId"])) return [`${where}: escolha o produto.`];
+    return [];
   default:
     return [`${where}: tipo desconhecido.`];
   }
@@ -205,7 +247,11 @@ export function blogPostErrors(input: unknown, now: Date): string[] {
 
   if (!Array.isArray(p.body) || p.body.length === 0) errors.push("Escreva o corpo do post.");
   else if (p.body.length > BLOG_BLOCKS_MAX) errors.push(`Até ${BLOG_BLOCKS_MAX} blocos.`);
-  else p.body.forEach((b, i) => errors.push(...blockErrors(b, i + 1)));
+  else {
+    p.body.forEach((b, i) => errors.push(...blockErrors(b, i + 1)));
+    const embeds = p.body.filter((b) => (b as {type?: unknown})?.type === "tournament" || (b as {type?: unknown})?.type === "product");
+    if (embeds.length > BLOG_EMBEDS_MAX) errors.push(`Até ${BLOG_EMBEDS_MAX} blocos de torneio e produto por post.`);
+  }
 
   if (p.cta !== null) {
     const cta = p.cta as Partial<BlogCta> | undefined;
@@ -221,6 +267,17 @@ export function blogPostErrors(input: unknown, now: Date): string[] {
   const ch = p.channels as {app?: unknown; site?: unknown} | undefined;
   if (!ch || typeof ch.app !== "boolean" || typeof ch.site !== "boolean") errors.push("Canais inválidos.");
   if (typeof p.featured !== "boolean") errors.push("Destaque inválido.");
+  if (p.push !== undefined) {
+    const push = p.push as Partial<BlogPushSettings> | null;
+    if (!push || typeof push.enabled !== "boolean") errors.push("Notificação inválida.");
+    else {
+      if (push.city !== null && (!isStr(push.city) || !line(push.city) || line(push.city).length > BLOG_PUSH_CITY_MAX)) {
+        errors.push("Cidade da notificação inválida.");
+      }
+      if (push.sport !== "all" && !resolveSport(push.sport)) errors.push("Esporte da notificação desconhecido.");
+      if (push.enabled && ch && ch.app === false) errors.push("A notificação abre o post no app: ligue \"Blog no app\".");
+    }
+  }
 
   if (!BLOG_STATUSES.includes(p.status as BlogStatus)) errors.push("Status inválido.");
   const at = p.publishAt === null || p.publishAt === undefined ? null : new Date(p.publishAt as string);
@@ -245,13 +302,19 @@ function storedBlock(b: BlogBlock): BlogBlock {
   case "list":
     return {type: "list", items: b.items.map(line).filter(Boolean)};
   case "image":
-    return {type: "image", url: b.url, caption: line(b.caption)};
+  case "video":
+    return {type: b.type, url: b.url, caption: line(b.caption)};
+  case "tournament":
+    return {type: "tournament", tournamentId: b.tournamentId};
+  case "product":
+    return {type: "product", productId: b.productId};
   }
 }
 
 function blockWords(b: BlogBlock): string {
   if (b.type === "list") return b.items.join(" ");
-  if (b.type === "image") return b.caption;
+  if (b.type === "image" || b.type === "video") return b.caption;
+  if (b.type === "tournament" || b.type === "product") return "";
   return b.text;
 }
 
@@ -284,8 +347,29 @@ export function storedBlogPost(p: BlogPostInput) {
     } : null,
     channels: {app: p.channels.app, site: p.channels.site},
     featured: p.featured,
+    push: storedPush(p.push),
     readMinutes: readMinutes(title, body),
   };
+}
+
+function storedPush(push: BlogPushSettings | undefined): BlogPushSettings {
+  if (!push) return BLOG_PUSH_OFF;
+  return {
+    enabled: push.enabled,
+    city: push.city === null ? null : line(push.city),
+    sport: push.sport === "all" ? "all" : resolveSport(push.sport)!.code,
+  };
+}
+
+/** Torneios e produtos citados no corpo, sem repetição: o save confere que existem. */
+export function blogEmbedRefs(body: BlogBlock[]): {tournaments: string[]; products: string[]} {
+  const tournaments = new Set<string>();
+  const products = new Set<string>();
+  for (const b of body) {
+    if (b.type === "tournament") tournaments.add(b.tournamentId);
+    if (b.type === "product") products.add(b.productId);
+  }
+  return {tournaments: [...tournaments], products: [...products]};
 }
 
 /**
@@ -327,7 +411,16 @@ export async function saveBlogPostCore(
   const slugRef = db.collection(BLOG_SLUGS).doc(data.slug);
 
   return db.runTransaction(async (tx) => {
-    const [snap, slugSnap] = await Promise.all([tx.get(ref), tx.get(slugRef)]);
+    const embeds = blogEmbedRefs(data.body);
+    const [snap, slugSnap, ...embedSnaps] = await Promise.all([
+      tx.get(ref),
+      tx.get(slugRef),
+      ...embeds.tournaments.map((id) => tx.get(db.collection("tournaments").doc(id))),
+      ...embeds.products.map((id) => tx.get(db.collection("storeShowcase").doc(id))),
+    ]);
+    if (embedSnaps.some((s) => !s.exists)) {
+      throw new HttpsError("failed-precondition", "Um torneio ou produto citado no post não existe mais. Troque o bloco.");
+    }
     const current = snap.exists ? snap.data()! : null;
     if (input.id && !current) throw new HttpsError("not-found", "Este post não existe mais.");
     const currentVersion = typeof current?.["version"] === "number" ? current["version"] : 0;
@@ -359,6 +452,9 @@ export async function saveBlogPostCore(
       ...data,
       status: input.post.status,
       publishAt,
+      // Do envio (`blog-push.ts`): o save nunca reenvia nem apaga o registro.
+      pushSentAt: current?.["pushSentAt"] ?? null,
+      pushResult: current?.["pushResult"] ?? null,
       helpfulCount: current?.["helpfulCount"] ?? 0,
       readCount: current?.["readCount"] ?? 0,
       createdAt: current?.["createdAt"] ?? stamp,

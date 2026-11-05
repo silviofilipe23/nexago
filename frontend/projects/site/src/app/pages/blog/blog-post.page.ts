@@ -5,6 +5,9 @@ import { RevealDirective } from '../../shared/reveal.directive';
 import { ButtonDirective } from '../../shared/ui/button.directive';
 import { StoreButtons } from '../../shared/ui/store-buttons';
 import { BlogCover } from './blog-cover';
+import { BlogTournamentBlock } from './blocks/blog-tournament-block';
+import { BlogProductBlock } from './blocks/blog-product-block';
+import { BlogVideoBlock } from './blocks/blog-video-block';
 import { getPostBySlug, STATIC_POST_AUTHOR, staticPostDate, staticReadMinutes, type BlogPost } from '../../../lib/blog/posts';
 import { getSiteBlogPostBySlug, type BlogCategory, type SiteBlogPost } from '../../../lib/firestore/blog';
 import { BLOG_CATEGORY_META, BLOG_NEUTRAL_CHIP } from '../../../lib/blog/categories';
@@ -46,7 +49,16 @@ interface PostHeader {
 @Component({
   selector: 'app-blog-post-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RevealDirective, ButtonDirective, StoreButtons, BlogCover],
+  imports: [
+    RouterLink,
+    RevealDirective,
+    ButtonDirective,
+    StoreButtons,
+    BlogCover,
+    BlogTournamentBlock,
+    BlogProductBlock,
+    BlogVideoBlock,
+  ],
   styleUrl: './blog-post.page.scss',
   template: `
     <main class="mx-auto max-w-3xl px-5 pb-24 pt-28 sm:px-6 sm:pt-32">
@@ -144,6 +156,12 @@ interface PostHeader {
                     <figcaption>{{ b.caption }}</figcaption>
                   }
                 </figure>
+              } @else if (b.type === 'tournament') {
+                <app-blog-tournament-block [tournamentId]="b.tournamentId" />
+              } @else if (b.type === 'product') {
+                <app-blog-product-block [productId]="b.productId" />
+              } @else if (b.type === 'video') {
+                <app-blog-video-block [url]="b.url" [caption]="b.caption" [provider]="b.provider" [youtubeId]="b.youtubeId" />
               }
             }
           </article>

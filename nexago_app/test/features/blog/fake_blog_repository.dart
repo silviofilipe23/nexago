@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:nexago_app/features/blog/domain/blog_library.dart';
+import 'package:nexago_app/features/blog/domain/blog_notify_prefs.dart';
 import 'package:nexago_app/features/blog/domain/blog_post.dart';
 import 'package:nexago_app/features/blog/domain/blog_repository.dart';
 
@@ -57,5 +58,29 @@ class FakeBlogRepository implements BlogRepository {
     required bool helpful,
   }) async {
     helpfulCalls.add(helpful);
+  }
+
+  BlogNotifyPrefs notifyPrefs = BlogNotifyPrefs.allOn;
+  final notifyWrites = <BlogNotifyPrefs>[];
+  final _prefsListeners = <StreamController<BlogNotifyPrefs>>[];
+
+  @override
+  Stream<BlogNotifyPrefs> watchNotifyPrefs(String uid) {
+    late final StreamController<BlogNotifyPrefs> c;
+    c = StreamController(
+      onListen: () => c.add(notifyPrefs),
+      onCancel: () => _prefsListeners.remove(c),
+    );
+    _prefsListeners.add(c);
+    return c.stream;
+  }
+
+  @override
+  Future<void> writeNotifyPrefs(String uid, BlogNotifyPrefs prefs) async {
+    notifyWrites.add(prefs);
+    notifyPrefs = prefs;
+    for (final c in [..._prefsListeners]) {
+      c.add(prefs);
+    }
   }
 }

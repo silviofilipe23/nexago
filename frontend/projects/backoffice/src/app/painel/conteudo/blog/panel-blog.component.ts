@@ -13,6 +13,7 @@ import {
   EMPTY_BLOG_CRITERIA,
   blogStats,
   filterPosts,
+  pushBadge,
   tabCounts,
   upcomingPosts,
   type BlogCriteria,
@@ -161,7 +162,17 @@ type LoadState = 'loading' | 'ok' | 'error';
                           </div>
                         </td>
                         <td><bo-blog-category-chip [category]="post.category" /></td>
-                        <td><bo-blog-status-pill [status]="post.status" /></td>
+                        <td>
+                          <div class="status">
+                            <bo-blog-status-pill [status]="post.status" />
+                            @if (push(post); as badge) {
+                              <span class="push" [class.sent]="badge.sent" [attr.title]="badge.sent ? 'Notificação push enviada' : 'Notificação push ligada'">
+                                <bo-icon name="bell" [size]="11" />
+                                {{ badge.text }}
+                              </span>
+                            }
+                          </div>
+                        </td>
                         <td class="date">{{ publication(post) }}</td>
                         <td class="num">{{ post.status === 'published' ? count(post.readCount) : '—' }}</td>
                       </tr>
@@ -232,6 +243,9 @@ type LoadState = 'loading' | 'ok' | 'error';
     th:last-child, td:last-child { padding-right: 16px; }
     td { padding: 12px 10px; border-top: 1px solid var(--nx-line); vertical-align: middle; }
     tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+    .status { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+    .push { display: inline-flex; align-items: center; gap: 4px; font-family: var(--nx-font-mono); font-size: 10.5px; color: var(--nx-text-dim); white-space: nowrap; }
+    .push.sent { color: var(--nx-win); }
     .num { text-align: right; font-family: var(--nx-font-mono); font-size: 13px; }
     .date { font-size: 13px; color: var(--nx-text-mute); white-space: nowrap; }
     .post-cell { width: 46%; }
@@ -328,6 +342,10 @@ export class PanelBlogComponent {
       return author;
     }
     return `${author} · chamada: ${post.cta.label || ctaDestinationLabel(post.cta.destination)}`;
+  }
+
+  protected push(post: BlogPost): { text: string; sent: boolean } | null {
+    return pushBadge(post);
   }
 
   protected publication(post: BlogPost): string {

@@ -111,6 +111,10 @@ const classReviewReplyNotificationType = 'class_review_reply';
 /// (`sendStoriesToPhone` em `functions/src/organizer-stories-share.ts`).
 const organizerStoriesReadyNotificationType = 'organizer_stories_ready';
 
+/// Post novo no blog (`onBlogPostPublishedPush` em `functions/src/blog-push.ts`):
+/// `url` é `/athlete/blog/<id>`, com `postId` e `category` junto.
+const blogPostNotificationType = 'blog_post';
+
 /// Cancelamento por chuva (spec `2026-10-29-cancelamento-por-chuva-design.md`).
 /// O `url` desses pushes é `/my-bookings` (existe nos apps da loja); este build
 /// reconhece o tipo + `bookingId` e abre a escolha da reserva.
@@ -533,6 +537,14 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   // Cashback liberado / vencendo: o backend manda `url: '/cashback'`; sem ele
   // (item antigo do inbox), o tipo ainda leva a Meu cashback.
   if (type.startsWith('cashback_')) return AppRoutes.athleteCashback;
+
+  // Post do blog: sem `url`, monta pelo `postId`; sem os dois, o feed.
+  if (type == blogPostNotificationType) {
+    final postId = (data['postId'] as String?)?.trim() ?? '';
+    if (postId.isEmpty) return AppRoutes.blog;
+    return AppRoutes.blogPost
+        .replaceAll(':postId', Uri.encodeComponent(postId));
+  }
 
   // NexaSquad (`notifySquad` em squad-applications.ts): convite e os lembretes
   // dele abrem o convite; aditivo abre o Squad, onde o aceite está; repasse

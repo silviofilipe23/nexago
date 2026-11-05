@@ -63,10 +63,59 @@ sealed class BlogBlock {
         final url = text('url');
         if (!url.startsWith('https://')) return null;
         return BlogImage(url: url, caption: text('caption'));
+      case 'video':
+        final url = text('url');
+        if (!isBlogVideoUrl(url)) return null;
+        return BlogVideo(url: url, caption: text('caption'));
+      case 'tournament':
+        final id = text('tournamentId');
+        return id.isEmpty ? null : BlogTournamentEmbed(id);
+      case 'product':
+        final id = text('productId');
+        return id.isEmpty ? null : BlogProductEmbed(id);
       default:
         return null;
     }
   }
+}
+
+/// Hosts aceitos no bloco de vídeo (mesmos do `isVideoUrl` do backend).
+const _videoHosts = {
+  'youtube.com',
+  'www.youtube.com',
+  'm.youtube.com',
+  'youtu.be',
+  'instagram.com',
+  'www.instagram.com',
+};
+
+/// Link https do YouTube ou do Instagram.
+bool isBlogVideoUrl(String url) {
+  if (!url.startsWith('https://')) return false;
+  final uri = Uri.tryParse(url);
+  return uri != null && _videoHosts.contains(uri.host.toLowerCase());
+}
+
+/// Id do vídeo do YouTube (`watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`,
+/// `/live/`), ou `null` (Instagram, link sem id).
+String? blogYoutubeId(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return null;
+  final host = uri.host.toLowerCase();
+  final valid = RegExp(r'^[A-Za-z0-9_-]{6,20}$');
+  String? pick(String? v) => v != null && valid.hasMatch(v) ? v : null;
+  if (host == 'youtu.be') {
+    return pick(uri.pathSegments.firstOrNull);
+  }
+  if (!host.endsWith('youtube.com')) return null;
+  final v = pick(uri.queryParameters['v']);
+  if (v != null) return v;
+  final segments = uri.pathSegments;
+  if (segments.length >= 2 &&
+      const {'shorts', 'embed', 'live'}.contains(segments.first)) {
+    return pick(segments[1]);
+  }
+  return null;
 }
 
 class BlogParagraph extends BlogBlock {
@@ -93,6 +142,37 @@ class BlogImage extends BlogBlock {
   const BlogImage({required this.url, this.caption = ''});
   final String url;
   final String caption;
+}
+
+/// Vídeo do YouTube ou do Instagram: card com miniatura que abre o link fora
+/// (sem player embutido).
+class BlogVideo extends BlogBlock {
+  const BlogVideo({required this.url, this.caption = ''});
+  final String url;
+  final String caption;
+
+  String? get youtubeId => blogYoutubeId(url);
+
+  /// Miniatura do YouTube; `null` no Instagram (não há endereço público).
+  String? get thumbnailUrl {
+    final id = youtubeId;
+    return id == null ? null : 'https://img.youtube.com/vi/$id/hqdefault.jpg';
+  }
+
+  bool get isInstagram =>
+      Uri.tryParse(url)?.host.toLowerCase().contains('instagram.com') ?? false;
+}
+
+/// Torneio citado no post (`tournaments/{id}`), lido ao vivo na leitura.
+class BlogTournamentEmbed extends BlogBlock {
+  const BlogTournamentEmbed(this.tournamentId);
+  final String tournamentId;
+}
+
+/// Produto da Loja citado no post (`storeShowcase/{id}`), lido ao vivo.
+class BlogProductEmbed extends BlogBlock {
+  const BlogProductEmbed(this.productId);
+  final String productId;
 }
 
 /// Botão no fim do post. Mesmas chaves do banner de novidades.

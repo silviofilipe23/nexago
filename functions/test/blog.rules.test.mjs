@@ -118,3 +118,14 @@ test('biblioteca: só o dono, com as chaves e tipos do contrato', async () => {
   await assertFails(setDoc(mine, library({ extra: true })));
   await assertFails(setDoc(mine, library({ updatedAt: new Date('2026-01-01') })));
 });
+
+test('avisos do blog: o atleta silencia categorias só no próprio doc', async () => {
+  const mine = doc(db(), 'blogNotifyPrefs', ATHLETE_UID);
+  await assertSucceeds(setDoc(mine, { muted: ['loja', 'regras'], updatedAt: serverTimestamp() }));
+  await assertSucceeds(getDoc(mine));
+  await assertSucceeds(setDoc(mine, { muted: [], updatedAt: serverTimestamp() }));
+  await assertFails(setDoc(mine, { muted: ['xadrez'], updatedAt: serverTimestamp() }));
+  await assertFails(setDoc(mine, { muted: [], updatedAt: serverTimestamp(), extra: 1 }));
+  await assertFails(getDoc(doc(db(OTHER_UID), 'blogNotifyPrefs', ATHLETE_UID)));
+  await assertFails(setDoc(doc(db(OTHER_UID), 'blogNotifyPrefs', ATHLETE_UID), { muted: [], updatedAt: serverTimestamp() }));
+});

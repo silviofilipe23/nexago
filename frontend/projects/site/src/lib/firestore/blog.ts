@@ -1,5 +1,6 @@
 import { collection, getDocs, limit, orderBy, query, where, type DocumentData } from 'firebase/firestore/lite';
 import { liteDb } from '../firebase-lite';
+import { videoProvider, youtubeVideoId, type VideoProvider } from '../blog/video';
 
 /**
  * Posts do blog escritos no backoffice (`blogPosts`, callable `saveBlogPost`). Contrato em
@@ -26,7 +27,11 @@ export type BlogBlock =
   | { type: 'heading'; text: string }
   | { type: 'list'; items: string[] }
   | { type: 'quote'; text: string }
-  | { type: 'image'; url: string; caption: string };
+  | { type: 'image'; url: string; caption: string }
+  // Blocos nexaGO (fase 2): o leitor busca o torneio/produto ao vivo e some com o bloco se não achar.
+  | { type: 'tournament'; tournamentId: string }
+  | { type: 'product'; productId: string }
+  | { type: 'video'; url: string; caption: string; provider: VideoProvider; youtubeId: string | null };
 
 export interface BlogCta {
   label: string;
@@ -59,6 +64,12 @@ const LIST_MAX = 60;
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+/** Id de documento seguro para `doc(...)`: sem barra (viraria outro caminho) e sem `.`/`..`. */
+function docId(value: unknown): string | null {
+  const s = text(value);
+  return s && s.length <= 128 && !s.includes('/') && s !== '.' && s !== '..' ? s : null;
 }
 
 function httpsUrl(value: unknown): string | null {
@@ -106,6 +117,20 @@ export function mapBlogBlock(raw: unknown): BlogBlock | null {
     case 'image': {
       const url = httpsUrl(b['url']);
       return url ? { type: 'image', url, caption: text(b['caption']) } : null;
+    }
+    case 'tournament': {
+      const id = docId(b['tournamentId']);
+      return id ? { type: 'tournament', tournamentId: id } : null;
+    }
+    case 'product': {
+      const id = docId(b['productId']);
+      return id ? { type: 'product', productId: id } : null;
+    }
+    case 'video': {
+      const url = httpsUrl(b['url']);
+      const provider = url ? videoProvider(url) : null;
+      if (!url || !provider) return null; // host fora de YouTube/Instagram
+      return { type: 'video', url, caption: text(b['caption']), provider, youtubeId: youtubeVideoId(url) };
     }
     default:
       return null;

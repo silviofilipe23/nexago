@@ -12,6 +12,7 @@ import '../../../core/ui/nexa_skeleton.dart';
 import '../application/blog_providers.dart';
 import '../domain/blog_logic.dart';
 import 'blog_navigation.dart';
+import 'widgets/blog_notify_widgets.dart';
 import 'widgets/blog_parts.dart';
 
 enum _Tab { saved, finished }
@@ -106,6 +107,11 @@ class _BlogLibraryPageState extends ConsumerState<BlogLibraryPage> {
               ..._savedTab(view, now)
             else
               ..._finishedTab(view, now),
+            // Avisos por categoria: no fim, nas duas abas.
+            if (view != null) ...[
+              const SizedBox(height: 22),
+              const BlogNotifyCard(),
+            ],
           ],
         ),
       ),

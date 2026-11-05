@@ -16,6 +16,9 @@ export const BLOG_LIST_ITEM_MAX = 300;
 export const BLOG_QUOTE_MAX = 300;
 export const BLOG_CAPTION_MAX = 140;
 export const BLOG_CTA_LABEL_MAX = 32;
+/** Blocos nexaGO (torneio, produto) por post: cada um é uma leitura a mais no save e no leitor. */
+export const BLOG_EMBEDS_MAX = 10;
+export const BLOG_PUSH_CITY_MAX = 60;
 const WORDS_PER_MINUTE = 200;
 
 /** Onde o site publica o blog (`frontend/projects/site`, rotas `/blog` e `/blog/:slug`). */
@@ -51,8 +54,39 @@ export type BlogBlock =
   | { type: 'heading'; text: string }
   | { type: 'list'; items: string[] }
   | { type: 'quote'; text: string }
-  | { type: 'image'; url: string; caption: string };
+  | { type: 'image'; url: string; caption: string }
+  // Blocos nexaGO (fase 2): o servidor confere no save que o torneio/produto existe.
+  | { type: 'tournament'; tournamentId: string }
+  | { type: 'product'; productId: string }
+  | { type: 'video'; url: string; caption: string };
 export type BlogBlockType = BlogBlock['type'];
+
+/** Push no horário da publicação. `city` `null` = todas; `sport` "all" = todos. */
+export interface BlogPushSettings {
+  enabled: boolean;
+  city: string | null;
+  sport: string;
+}
+
+export const BLOG_PUSH_OFF: BlogPushSettings = { enabled: false, city: null, sport: 'all' };
+
+/** Gravado só pelo servidor (`functions/src/blog-push.ts`) quando o envio começa e termina. */
+export interface BlogPushResult {
+  state: 'sending' | 'sent';
+  recipients: number;
+  sent: number;
+}
+
+/** Retorno da callable `estimateBlogPushReach`. */
+export interface BlogPushReach {
+  /** Recebem o push hoje (filtro + preferências + app atualizado). */
+  reachable: number;
+  /** Atletas no filtro de cidade e esporte, com ou sem o app atualizado. */
+  athletes: number;
+  minBuild: number;
+  /** Cidades dos atletas no filtro de esporte, mais frequentes primeiro (até 30). */
+  cities: Array<{ city: string; count: number }>;
+}
 
 export interface BlogCta {
   label: string;
@@ -76,6 +110,7 @@ export interface BlogPostInput {
   cta: BlogCta | null;
   channels: { app: boolean; site: boolean };
   featured: boolean;
+  push: BlogPushSettings;
   status: BlogStatus;
   /** ISO 8601. Obrigatório só para `scheduled`; ignorado ao publicar agora. */
   publishAt: string | null;
@@ -111,6 +146,10 @@ export interface BlogPost {
   cta: BlogCta | null;
   channels: { app: boolean; site: boolean };
   featured: boolean;
+  push: BlogPushSettings;
+  /** Quando o envio do push começou; preenchido = nunca mais envia. */
+  pushSentAt: Date | null;
+  pushResult: BlogPushResult | null;
   status: BlogStatus;
   publishAt: Date | null;
   readMinutes: number;
@@ -126,6 +165,36 @@ export function categoryMeta(id: string): { id: string; label: string; color: st
 
 export function ctaDestinationLabel(id: string): string {
   return BLOG_CTA_DESTINATIONS.find((d) => d.id === id)?.label ?? id;
+}
+
+const VIDEO_HOSTS = new Set(['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be', 'instagram.com', 'www.instagram.com']);
+
+/** Vídeo do YouTube ou do Instagram, como `isVideoUrl` do servidor (o leitor abre fora do app). */
+export function isVideoUrl(v: unknown): v is string {
+  if (typeof v !== 'string' || v.length > 1000 || !/^https:\/\/\S+$/.test(v)) {
+    return false;
+  }
+  try {
+    return VIDEO_HOSTS.has(new URL(v).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+/** Id do vídeo do YouTube (para a miniatura `img.youtube.com/vi/<id>/hqdefault.jpg`), ou `null`. */
+export function youtubeVideoId(url: string): string | null {
+  if (!isVideoUrl(url)) {
+    return null;
+  }
+  const u = new URL(url);
+  const host = u.hostname.toLowerCase();
+  const id =
+    host === 'youtu.be'
+      ? u.pathname.slice(1).split('/')[0]
+      : host.endsWith('youtube.com')
+        ? (u.searchParams.get('v') ?? u.pathname.match(/^\/(?:shorts|embed|live)\/([^/]+)/)?.[1] ?? null)
+        : null;
+  return id && /^[A-Za-z0-9_-]{6,20}$/.test(id) ? id : null;
 }
 
 /** "Liga nexaGO: tudo sobre a 2ª etapa" → "liga-nexago-tudo-sobre-a-2a-etapa". Igual ao servidor. */
@@ -146,8 +215,11 @@ function blockWords(b: BlogBlock): string {
   if (b.type === 'list') {
     return b.items.join(' ');
   }
-  if (b.type === 'image') {
+  if (b.type === 'image' || b.type === 'video') {
     return b.caption;
+  }
+  if (b.type === 'tournament' || b.type === 'product') {
+    return '';
   }
   return b.text;
 }
@@ -182,7 +254,12 @@ function blockFrom(raw: unknown): BlogBlock | null {
     case 'list':
       return { type: 'list', items: Array.isArray(b['items']) ? b['items'].map(str) : [] };
     case 'image':
-      return { type: 'image', url: str(b['url']), caption: str(b['caption']) };
+    case 'video':
+      return { type: b['type'], url: str(b['url']), caption: str(b['caption']) };
+    case 'tournament':
+      return str(b['tournamentId']) ? { type: 'tournament', tournamentId: str(b['tournamentId']) } : null;
+    case 'product':
+      return str(b['productId']) ? { type: 'product', productId: str(b['productId']) } : null;
     default:
       return null;
   }
@@ -192,6 +269,8 @@ export function blogPostFromDoc(id: string, data: Record<string, unknown>): Blog
   const author = (data['author'] ?? {}) as Record<string, unknown>;
   const channels = (data['channels'] ?? {}) as Record<string, unknown>;
   const cta = data['cta'] as Record<string, unknown> | null | undefined;
+  const push = (data['push'] ?? {}) as Record<string, unknown>;
+  const pushResult = data['pushResult'] as Record<string, unknown> | null | undefined;
   const status = BLOG_STATUSES.includes(data['status'] as BlogStatus) ? (data['status'] as BlogStatus) : 'draft';
   const category = BLOG_CATEGORIES.some((c) => c.id === data['category'])
     ? (data['category'] as BlogCategory)
@@ -218,6 +297,20 @@ export function blogPostFromDoc(id: string, data: Record<string, unknown>): Blog
         : null,
     channels: { app: channels['app'] !== false, site: channels['site'] !== false },
     featured: data['featured'] === true,
+    push: {
+      enabled: push['enabled'] === true,
+      city: str(push['city']) || null,
+      sport: str(push['sport']) || 'all',
+    },
+    pushSentAt: dateOf(data['pushSentAt']),
+    pushResult:
+      pushResult && typeof pushResult === 'object'
+        ? {
+            state: pushResult['state'] === 'sent' ? 'sent' : 'sending',
+            recipients: num(pushResult['recipients']),
+            sent: num(pushResult['sent']),
+          }
+        : null,
     status,
     publishAt: dateOf(data['publishAt']),
     readMinutes: num(data['readMinutes']),
@@ -299,4 +392,28 @@ export function savedAgoLabel(savedAt: Date, now: Date): string {
 
 export function formatCount(n: number): string {
   return n.toLocaleString('pt-BR');
+}
+
+// ---------- push ----------
+
+/** Linha do alcance estimado no editor. */
+export function reachLabel(reach: Pick<BlogPushReach, 'reachable' | 'athletes'>): string {
+  const n = (v: number, one: string, many: string) => `${formatCount(v)} ${v === 1 ? one : many}`;
+  return (
+    `Alcance estimado: ${n(reach.reachable, 'atleta', 'atletas')} com o app atualizado · ` +
+    `de ${formatCount(reach.athletes)} no público · respeita quem desligou avisos do blog`
+  );
+}
+
+/** Resumo do push já disparado: `null` = ainda não saiu. */
+export function pushSentLabel(post: Pick<BlogPost, 'pushSentAt' | 'pushResult'>, now: Date): string | null {
+  if (!post.pushSentAt && !post.pushResult) {
+    return null;
+  }
+  if (!post.pushResult || post.pushResult.state === 'sending') {
+    return 'Enviando push…';
+  }
+  const n = post.pushResult.recipients;
+  const at = post.pushSentAt ? ` em ${dayMonthLabel(post.pushSentAt, now)} · ${saoPauloParts(post.pushSentAt).time}` : '';
+  return `Push enviado${at} para ${formatCount(n)} ${n === 1 ? 'atleta' : 'atletas'}`;
 }

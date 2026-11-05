@@ -5,10 +5,12 @@ import {
   BLOG_CAPTION_MAX,
   BLOG_CTA_DESTINATIONS,
   BLOG_CTA_LABEL_MAX,
+  BLOG_EMBEDS_MAX,
   BLOG_HEADING_MAX,
   BLOG_LIST_ITEMS_MAX,
   BLOG_LIST_ITEM_MAX,
   BLOG_PARAGRAPH_MAX,
+  BLOG_PUSH_CITY_MAX,
   BLOG_QUOTE_MAX,
   BLOG_SEO_DESCRIPTION_MAX,
   BLOG_SLUG_MAX,
@@ -16,6 +18,7 @@ import {
   BLOG_TAGS_MAX,
   BLOG_TAG_MAX,
   BLOG_TITLE_MAX,
+  isVideoUrl,
   saoPauloIso,
   saoPauloParts,
   slugify,
@@ -51,6 +54,12 @@ export interface BlogDraft {
   app: boolean;
   site: boolean;
   featured: boolean;
+  pushEnabled: boolean;
+  /** Vazio = todas as cidades. */
+  pushCity: string;
+  pushSport: string;
+  /** O servidor já disparou (`pushSentAt`/`pushResult`): o push fica só de leitura. */
+  pushSent: boolean;
   /** Para onde o save leva o post. */
   status: BlogStatus;
   /** Parede de São Paulo; obrigatória para agendar, opcional (data planejada) em rascunho/revisão. */
@@ -72,10 +81,29 @@ export function emptyBlock(type: BlogBlock['type']): BlockDraft {
     case 'list':
       return { key: nextKey(), type, items: [''] };
     case 'image':
+    case 'video':
       return { key: nextKey(), type, url: '', caption: '' };
+    case 'tournament':
+      return { key: nextKey(), type, tournamentId: '' };
+    case 'product':
+      return { key: nextKey(), type, productId: '' };
     default:
       return { key: nextKey(), type, text: '' };
   }
+}
+
+/** Bloco de torneio ou produto já com o escolhido. */
+export function embedBlock(kind: 'tournament' | 'product', id: string): BlockDraft {
+  return kind === 'tournament' ? { key: nextKey(), type: kind, tournamentId: id } : { key: nextKey(), type: kind, productId: id };
+}
+
+export function isEmbed(b: BlogBlock): boolean {
+  return b.type === 'tournament' || b.type === 'product';
+}
+
+/** Blocos de torneio + produto no corpo (o teto é `BLOG_EMBEDS_MAX`). */
+export function embedCount(body: readonly BlogBlock[]): number {
+  return body.filter(isEmbed).length;
 }
 
 export function newBlogDraft(authorName: string): BlogDraft {
@@ -99,6 +127,10 @@ export function newBlogDraft(authorName: string): BlogDraft {
     app: true,
     site: true,
     featured: false,
+    pushEnabled: false,
+    pushCity: '',
+    pushSport: 'all',
+    pushSent: false,
     status: 'draft',
     date: '',
     time: DEFAULT_TIME,
@@ -130,6 +162,10 @@ export function draftFromPost(post: BlogPost): BlogDraft {
     app: post.channels.app,
     site: post.channels.site,
     featured: post.featured,
+    pushEnabled: post.push.enabled,
+    pushCity: post.push.city ?? '',
+    pushSport: post.push.sport,
+    pushSent: post.pushSentAt !== null || post.pushResult !== null,
     status: post.status,
     date: at?.date ?? '',
     time: at?.time ?? DEFAULT_TIME,
@@ -182,7 +218,12 @@ export function isBlankBlock(b: BlogBlock): boolean {
     case 'list':
       return b.items.every((i) => !i.trim());
     case 'image':
+    case 'video':
       return !b.url.trim();
+    case 'tournament':
+      return !b.tournamentId;
+    case 'product':
+      return !b.productId;
     default:
       return !b.text.trim();
   }
@@ -193,7 +234,12 @@ function stripKey(b: BlockDraft): BlogBlock {
     case 'list':
       return { type: 'list', items: b.items.map((i) => i.trim()).filter(Boolean) };
     case 'image':
-      return { type: 'image', url: b.url.trim(), caption: b.caption.trim() };
+    case 'video':
+      return { type: b.type, url: b.url.trim(), caption: b.caption.trim() };
+    case 'tournament':
+      return { type: 'tournament', tournamentId: b.tournamentId };
+    case 'product':
+      return { type: 'product', productId: b.productId };
     case 'paragraph':
       return { type: 'paragraph', text: b.text.trim() };
     default:
@@ -232,6 +278,13 @@ export function payloadFromDraft(draft: BlogDraft): BlogPostInput {
       : null,
     channels: { app: draft.app, site: draft.site },
     featured: draft.featured,
+    push: {
+      // Já enviado, o push não volta a sair (o servidor olha `pushSentAt`); desligar aqui só evita
+      // que "Blog no app" desligado depois do envio trave o save com a regra do push.
+      enabled: draft.pushEnabled && !(draft.pushSent && !draft.app),
+      city: line(draft.pushCity) || null,
+      sport: draft.pushSport,
+    },
     status: draft.status,
     publishAt: requestedPublishAt(draft),
   };
@@ -239,6 +292,7 @@ export function payloadFromDraft(draft: BlogDraft): BlogPostInput {
 
 const isHttps = (v: unknown): boolean => typeof v === 'string' && v.length <= 1000 && /^https:\/\/\S+$/.test(v);
 const line = (v: string) => v.replace(/\s+/g, ' ').trim();
+const DOC_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 function blockIssues(b: BlogBlock, n: number): string[] {
   const where = `Bloco ${n}`;
@@ -261,6 +315,15 @@ function blockIssues(b: BlogBlock, n: number): string[] {
         return [`${where}: imagem sem endereço https.`];
       }
       return line(b.caption).length > BLOG_CAPTION_MAX ? [`${where}: legenda passa de ${BLOG_CAPTION_MAX} caracteres.`] : [];
+    case 'video':
+      if (!isVideoUrl(b.url)) {
+        return [`${where}: vídeo precisa ser um link do YouTube ou do Instagram.`];
+      }
+      return line(b.caption).length > BLOG_CAPTION_MAX ? [`${where}: legenda passa de ${BLOG_CAPTION_MAX} caracteres.`] : [];
+    case 'tournament':
+      return DOC_ID_RE.test(b.tournamentId) ? [] : [`${where}: escolha o torneio.`];
+    case 'product':
+      return DOC_ID_RE.test(b.productId) ? [] : [`${where}: escolha o produto.`];
   }
 }
 
@@ -310,6 +373,9 @@ export function payloadIssues(p: BlogPostInput, now: Date): string[] {
     errors.push(`Até ${BLOG_BLOCKS_MAX} blocos.`);
   } else {
     p.body.forEach((b, i) => errors.push(...blockIssues(b, i + 1)));
+    if (embedCount(p.body) > BLOG_EMBEDS_MAX) {
+      errors.push(`Até ${BLOG_EMBEDS_MAX} blocos de torneio e produto por post.`);
+    }
   }
   if (p.cta) {
     if (!line(p.cta.label)) {
@@ -321,6 +387,17 @@ export function payloadIssues(p: BlogPostInput, now: Date): string[] {
       errors.push('Escolha para onde a chamada leva.');
     } else if (p.cta.destination === 'url' && !isHttps(p.cta.url)) {
       errors.push('Chamada para link precisa de endereço https.');
+    }
+  }
+  if (p.push) {
+    if (p.push.city !== null && line(p.push.city).length > BLOG_PUSH_CITY_MAX) {
+      errors.push('Cidade da notificação inválida.');
+    }
+    if (p.push.sport !== 'all' && !resolveSport(p.push.sport)) {
+      errors.push('Esporte da notificação desconhecido.');
+    }
+    if (p.push.enabled && !p.channels.app) {
+      errors.push('A notificação abre o post no app: ligue "Blog no app".');
     }
   }
   if (p.status === 'scheduled') {

@@ -3,7 +3,15 @@ import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { getDownloadURL, ref as storageRef, uploadBytesResumable } from 'firebase/storage';
 import { backofficeDb, backofficeFunctions, backofficeStorage } from '../../../data/firebase';
-import { blogPostFromDoc, type BlogPost, type SaveBlogPostInput, type SaveBlogPostResult } from './blog-post';
+import { showcaseProductFromDoc, type ShowcaseProduct } from './blog-embeds';
+import {
+  blogPostFromDoc,
+  type BlogCategory,
+  type BlogPost,
+  type BlogPushReach,
+  type SaveBlogPostInput,
+  type SaveBlogPostResult,
+} from './blog-post';
 
 /**
  * Admin lê `blogPosts` direto do Firestore (as rules deixam); escrita só pelas callables
@@ -28,6 +36,24 @@ export class BlogPostsRepository {
 
   async delete(id: string): Promise<void> {
     await httpsCallable<{ id: string }, unknown>(backofficeFunctions(), 'deleteBlogPost')({ id });
+  }
+
+  /** Quantos atletas o push alcançaria hoje (`estimateBlogPushReach`, `functions/src/blog-push.ts`). */
+  async estimatePushReach(input: { city: string | null; sport: string; category: BlogCategory }): Promise<BlogPushReach> {
+    const r = await httpsCallable<typeof input, BlogPushReach>(backofficeFunctions(), 'estimateBlogPushReach')(input);
+    return r.data;
+  }
+
+  /** Vitrine pública inteira (`storeShowcase`): poucas dezenas de docs, filtrados na tela. */
+  async listShowcase(): Promise<ShowcaseProduct[]> {
+    const snap = await getDocs(collection(backofficeDb(), 'storeShowcase'));
+    return snap.docs.map((d) => showcaseProductFromDoc(d.id, d.data())).filter((p): p is ShowcaseProduct => p !== null);
+  }
+
+  /** Produto da vitrine pelo id; `null` = saiu da vitrine (o save do post recusa). */
+  async showcaseProduct(id: string): Promise<ShowcaseProduct | null> {
+    const snap = await getDoc(doc(backofficeDb(), 'storeShowcase', id));
+    return snap.exists() ? showcaseProductFromDoc(snap.id, snap.data()) : null;
   }
 
   /**

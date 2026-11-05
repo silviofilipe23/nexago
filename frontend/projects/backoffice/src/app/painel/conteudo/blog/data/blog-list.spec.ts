@@ -1,4 +1,4 @@
-import { EMPTY_BLOG_CRITERIA, blogStats, filterPosts, normalizeSearch, tabCounts, upcomingPosts } from './blog-list';
+import { EMPTY_BLOG_CRITERIA, blogStats, filterPosts, normalizeSearch, pushBadge, tabCounts, upcomingPosts } from './blog-list';
 import type { BlogPost } from './blog-post';
 
 function post(id: string, over: Partial<BlogPost> = {}): BlogPost {
@@ -17,6 +17,9 @@ function post(id: string, over: Partial<BlogPost> = {}): BlogPost {
     cta: null,
     channels: { app: true, site: true },
     featured: false,
+    push: { enabled: false, city: null, sport: 'all' },
+    pushSentAt: null,
+    pushResult: null,
     status: 'published',
     publishAt: new Date('2026-10-20T12:00:00Z'),
     readMinutes: 1,
@@ -74,5 +77,21 @@ describe('blog · lista', () => {
     expect(items[2]).toEqual(jasmine.objectContaining({ date: null, meta: 'em revisão sem data' }));
     expect(items[3]!.meta).toBe('rascunho sem data');
     expect(upcomingPosts(POSTS, NOW, 2).length).toBe(2);
+  });
+
+  it('indicador de push: enviado com quantos, enviando, ou ligado para sair ao publicar', () => {
+    const on = { enabled: true, city: null, sport: 'all' };
+    expect(pushBadge(post('x', { pushSentAt: NOW, pushResult: { state: 'sent', recipients: 1240, sent: 1200 } }))).toEqual({
+      text: 'push para 1.240',
+      sent: true,
+    });
+    expect(pushBadge(post('x', { pushSentAt: NOW, pushResult: { state: 'sending', recipients: 0, sent: 0 } }))).toEqual({
+      text: 'enviando push',
+      sent: true,
+    });
+    expect(pushBadge(post('x', { status: 'scheduled', push: on }))).toEqual({ text: 'push ao publicar', sent: false });
+    // Publicado com push ligado e nunca enviado: não vai sair, então nada aparece.
+    expect(pushBadge(post('x', { status: 'published', push: on }))).toBeNull();
+    expect(pushBadge(post('x'))).toBeNull();
   });
 });

@@ -2,7 +2,6 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { RouterLink } from '@angular/router';
 import { callableErrorMessage } from '../../data/callable-error';
 import { IconComponent } from '../../ui/icon.component';
-import { KpiMiniComponent } from '../../ui/kpi-mini.component';
 import { PageHeaderComponent } from '../../ui/page-header.component';
 import { PanelCardComponent } from '../../ui/panel-card.component';
 import { PanelShellComponent } from '../../ui/panel-shell.component';
@@ -28,7 +27,10 @@ import {
   saoPauloParts,
   type BlogPost,
 } from './data/blog-post';
+import { metricCards, type BlogWindowMetrics } from './data/blog-metrics';
+import { BlogMetricsRepository } from './data/blog-metrics.repository';
 import { BlogPostsRepository } from './data/blog-posts.repository';
+import { BlogMetricCardComponent } from './ui/blog-metric-card.component';
 import { BlogCategoryChipComponent, BlogCoverThumbComponent, BlogStatusPillComponent } from './ui/blog-badges.component';
 
 type LoadState = 'loading' | 'ok' | 'error';
@@ -42,7 +44,7 @@ type LoadState = 'loading' | 'ok' | 'error';
     PanelShellComponent,
     PageHeaderComponent,
     PanelCardComponent,
-    KpiMiniComponent,
+    BlogMetricCardComponent,
     IconComponent,
     PillComponent,
     BlogCategoryChipComponent,
@@ -68,12 +70,23 @@ type LoadState = 'loading' | 'ok' | 'error';
       </bo-page-header>
 
       <div class="body">
-        <div class="kpis">
-          <bo-kpi-mini label="Posts publicados" [value]="kpi(stats().published)" />
-          <bo-kpi-mini label="Agendados" [value]="kpi(stats().scheduled)" [tone]="stats().scheduled ? 'yellow' : 'neutral'" />
-          <bo-kpi-mini label="Leituras · todos os posts" [value]="kpi(stats().reads)" />
-          <bo-kpi-mini label="“Ajudou” · todos os posts" [value]="kpi(stats().helpful)" [tone]="stats().helpful ? 'green' : 'neutral'" />
-        </div>
+        <section class="metrics" aria-label="Métricas dos últimos 30 dias">
+          <div class="kpis">
+            @for (card of cards(); track card.label) {
+              <bo-blog-metric-card [card]="card" [loading]="metricsState() === 'loading'" />
+            }
+          </div>
+          <p class="metrics-foot">
+            @if (metricsState() === 'error') {
+              <span class="metrics-error" role="status" [attr.title]="metricsError()">
+                Não foi possível carregar as métricas.
+                <button type="button" class="link-btn" (click)="loadMetrics()">Tentar de novo</button>
+              </span>
+              ·
+            }
+            Números do app; leituras pelo site não entram.
+          </p>
+        </section>
 
         <div class="columns">
           <bo-panel-card class="main" pad="sm">
@@ -218,7 +231,11 @@ type LoadState = 'loading' | 'ok' | 'error';
     .header-actions a { text-decoration: none; }
     .body { padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
     @media (max-width: 760px) { .body { padding: 16px; } }
-    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+    .metrics { display: flex; flex-direction: column; gap: 8px; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+    .metrics-foot { margin: 0; font-size: 11.5px; color: var(--nx-text-dim); }
+    .metrics-error { color: var(--nx-pending); }
+    .link-btn { padding: 0; border: none; background: none; color: var(--nx-orange-400); font: inherit; text-decoration: underline; cursor: pointer; }
     .columns { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
     @media (max-width: 1180px) { .columns { grid-template-columns: minmax(0, 1fr); } }
 
@@ -288,6 +305,12 @@ export class PanelBlogComponent {
   protected readonly posts = signal<BlogPost[]>([]);
   protected readonly criteria = signal<BlogCriteria>(EMPTY_BLOG_CRITERIA);
   private readonly now = new Date();
+  private readonly metricsRepository = inject(BlogMetricsRepository);
+  protected readonly metricsState = signal<LoadState>('loading');
+  private readonly metrics = signal<BlogWindowMetrics | null>(null);
+  /** Detalhe do erro no `title` (ex.: índice ainda não publicado); a linha fica discreta. */
+  protected readonly metricsError = signal('');
+  protected readonly cards = computed(() => metricCards(this.metricsState() === 'ok' ? this.metrics() : null));
 
   protected readonly stats = computed(() => blogStats(this.posts()));
   protected readonly counts = computed(() => tabCounts(this.posts(), this.criteria()));
@@ -295,7 +318,20 @@ export class PanelBlogComponent {
   protected readonly upcoming = computed(() => upcomingPosts(this.posts(), this.now));
 
   constructor() {
+    // Em paralelo e independentes: a tabela não espera as métricas, e falha nelas não derruba a página.
     void this.load();
+    void this.loadMetrics();
+  }
+
+  async loadMetrics(): Promise<void> {
+    this.metricsState.set('loading');
+    try {
+      this.metrics.set(await this.metricsRepository.window(new Date()));
+      this.metricsState.set('ok');
+    } catch (error) {
+      this.metricsError.set(callableErrorMessage(error));
+      this.metricsState.set('error');
+    }
   }
 
   async load(): Promise<void> {
@@ -326,10 +362,6 @@ export class PanelBlogComponent {
 
   protected value(event: Event): string {
     return (event.target as HTMLInputElement | HTMLSelectElement).value;
-  }
-
-  protected kpi(n: number): string {
-    return this.state() === 'ok' ? formatCount(n) : '—';
   }
 
   protected count(n: number): string {

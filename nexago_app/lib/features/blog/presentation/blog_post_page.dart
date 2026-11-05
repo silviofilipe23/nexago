@@ -23,6 +23,7 @@ import '../application/blog_providers.dart';
 import '../domain/blog_library.dart';
 import '../domain/blog_logic.dart';
 import '../domain/blog_post.dart';
+import '../domain/blog_read_session.dart';
 import 'blog_navigation.dart';
 import 'widgets/blog_embeds.dart';
 import 'widgets/blog_notify_widgets.dart';
@@ -31,6 +32,11 @@ import 'widgets/blog_parts.dart';
 /// Leitura do post: capa, autor, blocos, chamada no fim, "Ajudou" e "Leia
 /// também". Grava o início da leitura ao abrir e o progresso conforme rola
 /// (só aumenta; perto do fim marca como lido).
+///
+/// Métricas: cada abertura é uma sessão ([BlogReadSession]) que conta o tempo
+/// só com a tela à vista (outra tela por cima pausa) e grava UMA vez em
+/// `blogReads` — ao sair da tela ou quando o app vai para segundo plano (onde
+/// o sistema pode matá-lo). Voltar do segundo plano abre sessão nova.
 class BlogPostPage extends ConsumerStatefulWidget {
   const BlogPostPage({super.key, required this.postId});
 
@@ -53,6 +59,16 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
   final _bodyEndKey = GlobalKey();
   final _progress = ValueNotifier<double>(0);
   late final BlogLibraryController _library;
+  late final BlogReadRecorder _reads;
+  late final DateTime Function() _clock;
+  late final AppLifecycleListener _lifecycle;
+
+  /// Post desta abertura e a sessão de leitura em curso.
+  BlogPost? _sessionPost;
+  BlogReadSession? _session;
+
+  /// Esta tela é a do topo (nenhuma rota por cima).
+  bool _routeCurrent = true;
 
   bool _opened = false;
   double _maxProgress = 0;
@@ -69,11 +85,55 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
   void initState() {
     super.initState();
     _library = ref.read(blogLibraryControllerProvider);
+    _reads = ref.read(blogReadRecorderProvider);
+    _clock = ref.read(blogReadClockProvider);
+    _lifecycle = AppLifecycleListener(
+      onPause: _onAppPaused,
+      onResume: _onAppResumed,
+    );
     _scroll.addListener(_onScroll);
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // `ModalRoute.of` avisa quando outra rota cobre (ou descobre) esta.
+    _routeCurrent = ModalRoute.of(context)?.isCurrent ?? true;
+    final session = _session;
+    if (session == null) return;
+    _routeCurrent ? session.resume() : session.pause();
+  }
+
+  void _startSession(BlogPost post) {
+    final session = BlogReadSession(
+      postId: post.id,
+      category: post.category,
+      clock: _clock,
+      startProgress: _progress.value,
+    );
+    if (!_routeCurrent) session.pause();
+    _session = session;
+  }
+
+  /// Segundo plano: o sistema pode matar o app sem `dispose`, então a sessão
+  /// fecha e grava aqui.
+  void _onAppPaused() {
+    final session = _session;
+    if (session != null) _reads.record(session);
+  }
+
+  /// De volta do segundo plano: a sessão gravada na pausa não reabre.
+  void _onAppResumed() {
+    final post = _sessionPost;
+    if (post != null && (_session?.isClosed ?? false)) _startSession(post);
+  }
+
+  @override
   void dispose() {
+    _lifecycle.dispose();
+    // Sessão já gravada na pausa não grava de novo (`close` só devolve uma vez).
+    final session = _session;
+    if (session != null) _reads.record(session);
     // Sai da tela: grava o que avançou desde a última vez.
     if (_opened && _maxProgress > _written + 0.005) {
       unawaited(
@@ -91,6 +151,8 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
   void _onOpened(BlogPost post) {
     if (_opened) return;
     _opened = true;
+    _sessionPost = post;
+    _startSession(post);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(_library.markOpened(post.id).catchError((Object _) {}));
@@ -121,6 +183,7 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
         ? 1.0
         : (position.pixels / target).clamp(0.0, 1.0);
     _progress.value = value;
+    _session?.reportProgress(value);
     if (value > _maxProgress) _maxProgress = value;
     _maybeWriteProgress();
   }
@@ -290,7 +353,10 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
                       AppNewsPrimaryButton(
                         key: const Key('blog-cta'),
                         label: cta.label,
-                        onTap: () => openBlogCta(context, ref, cta),
+                        onTap: () {
+                          _session?.markCtaClicked();
+                          openBlogCta(context, ref, cta);
+                        },
                       ),
                     ],
                     const SizedBox(height: 20),

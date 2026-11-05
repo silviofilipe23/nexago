@@ -3504,6 +3504,31 @@ service cloud.firestore {
         && request.resource.data.muted.toSet().hasOnly(['torneios', 'treino', 'regras', 'arenas', 'guia', 'loja'])
         && request.resource.data.updatedAt == request.time;
     }
+    // Sessão de leitura no app (métricas do backoffice): o atleta grava a própria ao sair do post,
+    // só de post publicado, e nunca altera. `functions/src/blog-metrics.ts`.
+    match /blogReads/{readId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['postId', 'uid', 'category', 'seconds', 'progress', 'finished', 'ctaClicked', 'at'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.postId is string
+        && request.resource.data.postId.size() > 0 && request.resource.data.postId.size() <= 64
+        && request.resource.data.category in ['torneios', 'treino', 'regras', 'arenas', 'guia', 'loja']
+        && request.resource.data.seconds is int
+        && request.resource.data.seconds >= 0 && request.resource.data.seconds <= 3600
+        && request.resource.data.progress is number
+        && request.resource.data.progress >= 0 && request.resource.data.progress <= 1
+        && request.resource.data.finished is bool
+        && request.resource.data.ctaClicked is bool
+        && request.resource.data.at == request.time
+        && get(/databases/$(database)/documents/blogPosts/$(request.resource.data.postId)).data.status == 'published';
+      allow update, delete: if false;
+    }
+    // Primeira/última leitura de cada atleta; só o gatilho onBlogReadCreated grava.
+    match /blogReaders/{uid} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
     // Reserva do endereço `/blog/{slug}`; só a callable mexe.
     match /blogSlugs/{slug} {
       allow read: if isAdmin() || isSuperAdmin();

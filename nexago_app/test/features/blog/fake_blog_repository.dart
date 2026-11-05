@@ -83,4 +83,11 @@ class FakeBlogRepository implements BlogRepository {
       c.add(prefs);
     }
   }
+
+  final reads = <Map<String, Object>>[];
+
+  @override
+  Future<void> recordRead(Map<String, Object> payload) async {
+    reads.add(payload);
+  }
 }

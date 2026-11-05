@@ -150,3 +150,49 @@ Só o dono lê/grava; doc ausente = recebe todas. Chaves exatamente essas duas.
 `siteOgPreview` atende `/blog/{slug}` (título · Blog nexaGO, `seoDescription`/subtitle, capa). O `.htaccess`
 do site passou a apontar para a function do DEV em São Paulo (o endereço antigo, us-central1 do prod,
 respondia 404 para todas as rotas).
+
+---
+
+# Métricas (branch `claude/blog-metricas`)
+
+Os 4 cards do protótipo `Blog-bo-01-posts` + "resultado do post" no editor. Só dados do app (o site é anônimo).
+
+## `blogReads/{autoId}` — uma sessão de leitura
+
+```ts
+{
+  postId: string; uid: string;   // uid == autor da escrita
+  category: BlogCategory;        // do post, para recortes futuros
+  seconds: int;                  // 0..3600, tempo ATIVO na tela (pausa com o app em segundo plano)
+  progress: number;              // 0..1, maior posição lida no corpo
+  finished: boolean;             // progress >= 0.95 nesta sessão
+  ctaClicked: boolean;           // tocou no botão da chamada do fim do post nesta sessão
+  at: serverTimestamp;           // == request.time
+}
+```
+
+O app grava UMA vez ao sair do post (voltar, trocar de rota, matar o app → no `dispose`/pausa), só se
+`seconds >= 5` (abaixo disso é toque por engano). Só post publicado (a rule confere). Ninguém altera nem apaga;
+só admin lê.
+
+## `blogReaders/{uid}` → `{firstReadAt, lastReadAt}`
+
+Gatilho `onBlogReadCreated`. Só admin lê.
+
+## Cards (backoffice, janela = últimos 30 dias até agora; anterior = os 30 antes)
+
+| Card | Valor | Linha de baixo |
+|---|---|---|
+| Leituras · 30 dias | `count(blogReads where at >= início)` | "▲ N% vs. 30 dias antes" (`count` da janela anterior; sem base = "primeiros 30 dias") |
+| Leitores únicos | `count(blogReaders where lastReadAt >= início)` | "N% já liam antes" (`count(lastReadAt >= início && firstReadAt < início)` / únicos) |
+| Tempo médio de leitura | `average(seconds)` na janela, "2m 48s" | "lido até o fim: N%" (`count(finished == true)` / leituras) |
+| Cliques nas chamadas | `count(ctaClicked == true)` na janela | "N% das leituras" |
+
+Sem nenhuma leitura na janela: valor "—" e a linha "sem leituras no app ainda". Índices em
+`firestore.indexes.json` (`at+seconds`, `finished+at`, `ctaClicked+at`, `postId+seconds`,
+`firstReadAt+lastReadAt`).
+
+## Resultado do post (editor, post publicado)
+
+`where postId == id`: leituras (count), tempo médio (average seconds), lido até o fim (count finished),
+cliques na chamada (count ctaClicked), mais o "Ajudou" (`helpfulCount`) e leitores (`readCount`) que já existem.

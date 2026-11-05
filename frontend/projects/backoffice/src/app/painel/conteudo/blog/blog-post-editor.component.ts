@@ -57,6 +57,7 @@ import { BlogStatusPillComponent } from './ui/blog-badges.component';
 import { BLOCK_LABELS, BlogBlockEditorComponent } from './ui/blog-block-editor.component';
 import { BlogEmbedMenuComponent, type BlogEmbedChoice } from './ui/blog-embed-menu.component';
 import { BlogEmbedPickerComponent } from './ui/blog-embed-picker.component';
+import { BlogPostResultComponent } from './ui/blog-post-result.component';
 import { BlogPushSettingsComponent } from './ui/blog-push-settings.component';
 import { BlogImagePickerComponent } from './ui/blog-image-picker.component';
 
@@ -110,6 +111,7 @@ function isConflict(error: unknown): boolean {
     BlogEmbedPickerComponent,
     BlogEmbedMenuComponent,
     BlogPushSettingsComponent,
+    BlogPostResultComponent,
   ],
   template: `
     <bo-panel-shell>
@@ -300,6 +302,15 @@ function isConflict(error: unknown): boolean {
                   </ul>
                 }
               </bo-panel-card>
+
+              @if (savedStatus() === 'published' && postId(); as id) {
+                <bo-blog-post-result
+                  [postId]="id"
+                  [hasCta]="savedCounts().hasCta"
+                  [helpfulCount]="savedCounts().helpful"
+                  [readCount]="savedCounts().readers"
+                />
+              }
 
               <bo-panel-card pad="sm" title="Onde aparece">
                 <div class="toggles">
@@ -594,6 +605,8 @@ export class BlogPostEditorComponent {
   private readonly savedAt = signal<Date | null>(null);
   private readonly savedPushSentAt = signal<Date | null>(null);
   private readonly savedPushResult = signal<BlogPushResult | null>(null);
+  /** Do doc gravado, para o "Resultado do post". */
+  protected readonly savedCounts = signal({ hasCta: false, helpful: 0, readers: 0 });
 
   /** Seletor de torneio/produto aberto: `index` `null` = bloco novo no fim; número = trocar aquele. */
   protected readonly picker = signal<{ kind: EmbedKind; index: number | null; current: string | null } | null>(null);
@@ -679,6 +692,7 @@ export class BlogPostEditorComponent {
       this.savedAt.set(post.updatedAt);
       this.savedPushSentAt.set(post.pushSentAt);
       this.savedPushResult.set(post.pushResult);
+      this.savedCounts.set({ hasCta: post.cta !== null, helpful: post.helpfulCount, readers: post.readCount });
       this.version.set(post.version);
       this.state.set('ok');
     } catch (error) {
@@ -871,6 +885,7 @@ export class BlogPostEditorComponent {
         this.draft.update((d) => ({ ...d, slug: result.slug }));
       }
       this.savedJson.set(JSON.stringify({ ...post, slug: result.slug }));
+      this.savedCounts.update((c) => ({ ...c, hasCta: post.cta !== null }));
       this.postId.set(result.id);
       this.confirming.set(null);
       this.showNotice(pushGoesOut ? 'Post publicado. O push sai em instantes.' : this.savedMessage(result.status));

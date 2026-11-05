@@ -12,6 +12,7 @@ import '../domain/blog_library.dart';
 import '../domain/blog_logic.dart';
 import '../domain/blog_notify_prefs.dart';
 import '../domain/blog_post.dart';
+import '../domain/blog_read_session.dart';
 import '../domain/blog_repository.dart';
 import '../infrastructure/firestore_blog_repository.dart';
 
@@ -272,5 +273,42 @@ class BlogNotifyPrefsController {
           ),
     );
     return next;
+  }
+}
+
+/// Relógio das sessões de leitura (o teste troca por um controlável).
+final blogReadClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
+
+final blogReadRecorderProvider = Provider<BlogReadRecorder>(
+  (ref) => BlogReadRecorder(ref),
+);
+
+/// Grava a sessão de leitura em `blogReads` ao fechar. Sem esperar o servidor
+/// (offline o SDK enfileira) e sem quebrar a tela se falhar.
+class BlogReadRecorder {
+  BlogReadRecorder(this._ref);
+
+  final Ref _ref;
+
+  /// Fecha [session] e grava se valer (logado, categoria conhecida, ≥ 5 s).
+  /// Sessão já fechada não grava de novo.
+  void record(BlogReadSession session) {
+    final payload = session.close(uid: _ref.read(_blogUidProvider));
+    if (payload == null) return;
+    try {
+      unawaited(
+        _ref
+            .read(blogRepositoryProvider)
+            .recordRead(payload)
+            .catchError(
+              (Object e, StackTrace st) =>
+                  recordFlowError('blog_read_write', e, st),
+            ),
+      );
+    } catch (e, st) {
+      recordFlowError('blog_read_write', e, st);
+    }
   }
 }

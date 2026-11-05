@@ -29,4 +29,8 @@ abstract interface class BlogRepository {
 
   /// Grava o doc inteiro (`muted` + `updatedAt` do servidor).
   Future<void> writeNotifyPrefs(String uid, BlogNotifyPrefs prefs);
+
+  /// Cria `blogReads/{autoId}` com [payload] + `at` do servidor. Só create:
+  /// a rule não deixa alterar nem apagar.
+  Future<void> recordRead(Map<String, Object> payload);
 }

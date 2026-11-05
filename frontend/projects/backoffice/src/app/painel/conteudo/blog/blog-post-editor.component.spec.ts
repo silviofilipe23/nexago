@@ -5,6 +5,7 @@ import { AuthService } from '../../../auth/auth.service';
 import { TournamentsRepository, type TournamentRow } from '../../torneios/data/tournaments.repository';
 import { BlogPostEditorComponent } from './blog-post-editor.component';
 import type { BlogPost, BlogPushReach, SaveBlogPostInput, SaveBlogPostResult } from './data/blog-post';
+import { BlogMetricsRepository } from './data/blog-metrics.repository';
 import { BlogPostsRepository } from './data/blog-posts.repository';
 
 const STORED: BlogPost = {
@@ -83,6 +84,10 @@ describe('BlogPostEditorComponent', () => {
             listShowcase: () => Promise.resolve([]),
             showcaseProduct: () => Promise.resolve(null),
           },
+        },
+        {
+          provide: BlogMetricsRepository,
+          useValue: { post: () => Promise.resolve({ reads: 2140, avgSeconds: 151, finished: 1284, ctaClicks: 96 }) },
         },
         {
           provide: TournamentsRepository,
@@ -242,5 +247,26 @@ describe('BlogPostEditorComponent', () => {
     primary(host).click();
     await settle();
     expect(save.calls.mostRecent().args[0].post.body).toContain({ type: 'tournament', tournamentId: 't1' });
+  });
+
+  it('post publicado mostra o resultado; agendado não', async () => {
+    const host = await mount('p1', undefined, { ...STORED, cta: { label: 'Personalizar', destination: 'loja', url: null } });
+    const rows = [...host.querySelectorAll('bo-blog-post-result .row')].map((r) => [
+      r.querySelector('dt')!.textContent!.trim(),
+      r.querySelector('dd')!.textContent!.trim(),
+    ]);
+    expect(rows).toEqual([
+      ['Leituras no app', '2.140'],
+      ['Tempo médio', '2m 31s'],
+      ['Lido até o fim', '60%'],
+      ['Cliques na chamada', '96 · 4,5%'],
+      ['“Ajudou”', '2'],
+      ['Leitores', '10'],
+    ]);
+  });
+
+  it('post agendado não mostra o resultado', async () => {
+    const host = await mount('p1', undefined, { ...STORED, status: 'scheduled', publishAt: new Date('2099-01-01T12:00:00Z') });
+    expect(host.querySelector('bo-blog-post-result')).toBeNull();
   });
 });

@@ -30,6 +30,8 @@ import {
 import { metricCards, type BlogWindowMetrics } from './data/blog-metrics';
 import { BlogMetricsRepository } from './data/blog-metrics.repository';
 import { BlogPostsRepository } from './data/blog-posts.repository';
+import { buildSuggestions, prefillParams, type Suggestion } from './data/blog-suggestions';
+import { BlogSuggestionsRepository, type SuggestionSources } from './data/blog-suggestions.repository';
 import { BlogMetricCardComponent } from './ui/blog-metric-card.component';
 import { BlogCategoryChipComponent, BlogCoverThumbComponent, BlogStatusPillComponent } from './ui/blog-badges.component';
 
@@ -196,7 +198,29 @@ type LoadState = 'loading' | 'ok' | 'error';
             }
           </bo-panel-card>
 
-          <bo-panel-card class="side" pad="sm" kicker="Próximas publicações" title="Na fila">
+          <div class="side">
+          @if (suggestions().length > 0) {
+            <bo-panel-card pad="sm" kicker="Do que está acontecendo no nexaGO" title="Pautas sugeridas">
+              <div class="pautas">
+                @for (s of suggestions(); track s.key) {
+                  <div class="pauta">
+                    <span [class]="'p-kicker kind-' + s.kind">{{ s.kicker }}</span>
+                    <span class="p-title">{{ s.title }}</span>
+                    @if (s.postId) {
+                      <a class="p-action" [routerLink]="['/painel/conteudo/blog', s.postId]">Abrir post →</a>
+                    } @else if (s.prefill) {
+                      <a class="p-action" routerLink="/painel/conteudo/blog/novo" [queryParams]="params(s)">Criar rascunho →</a>
+                    }
+                  </div>
+                }
+              </div>
+            </bo-panel-card>
+          }
+          <bo-panel-card pad="sm" kicker="Próximas publicações" title="Na fila">
+            <a card-actions class="cal-link" routerLink="/painel/conteudo/blog/calendario">
+              <bo-icon name="calendar" [size]="13" />
+              Calendário
+            </a>
             @if (state() === 'loading') {
               <div class="skeleton-row"></div>
             } @else if (upcoming().length === 0) {
@@ -222,6 +246,7 @@ type LoadState = 'loading' | 'ok' | 'error';
               </div>
             }
           </bo-panel-card>
+          </div>
         </div>
       </div>
     </bo-panel-shell>
@@ -279,6 +304,18 @@ type LoadState = 'loading' | 'ok' | 'error';
     .empty a { text-decoration: none; }
 
     .none { margin: 0; font-size: 12.5px; color: var(--nx-text-dim); }
+    .side { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    .cal-link { display: inline-flex; align-items: center; gap: 6px; color: var(--nx-orange-400); text-decoration: none; font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; }
+    .cal-link:hover { color: var(--nx-orange-500); }
+    .pautas { display: flex; flex-direction: column; gap: 8px; }
+    .pauta { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: var(--nx-r-3); background: var(--nx-surface-1); }
+    .p-kicker { font-family: var(--nx-font-mono); font-size: 10px; letter-spacing: 0.12em; color: var(--nx-orange-500); }
+    .p-kicker.kind-ranking { color: var(--nx-win); }
+    .p-kicker.kind-product { color: var(--nx-pending); }
+    .p-kicker.kind-push { color: #9ab4ff; }
+    .p-title { font-family: var(--nx-font-display); font-weight: 600; font-size: 13.5px; line-height: 1.35; color: var(--nx-text); }
+    .p-action { align-self: flex-start; color: var(--nx-orange-400); text-decoration: none; font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; }
+    .p-action:hover { color: var(--nx-orange-500); }
     .queue { display: flex; flex-direction: column; gap: 4px; margin: 0 -8px; }
     .q-item { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: var(--nx-r-2); color: inherit; text-decoration: none; }
     .q-item:hover { background: var(--nx-surface-1); }
@@ -307,6 +344,13 @@ export class PanelBlogComponent {
   private readonly now = new Date();
   private readonly metricsRepository = inject(BlogMetricsRepository);
   protected readonly metricsState = signal<LoadState>('loading');
+  private readonly suggestionsRepository = inject(BlogSuggestionsRepository);
+  private readonly sources = signal<SuggestionSources | null>(null);
+  /** Só depois dos posts e das fontes: antes disso não dá para saber o que já tem post. */
+  protected readonly suggestions = computed<Suggestion[]>(() => {
+    const sources = this.sources();
+    return sources && this.state() === 'ok' ? buildSuggestions({ posts: this.posts(), ...sources }, this.now) : [];
+  });
   private readonly metrics = signal<BlogWindowMetrics | null>(null);
   /** Detalhe do erro no `title` (ex.: índice ainda não publicado); a linha fica discreta. */
   protected readonly metricsError = signal('');
@@ -321,6 +365,20 @@ export class PanelBlogComponent {
     // Em paralelo e independentes: a tabela não espera as métricas, e falha nelas não derruba a página.
     void this.load();
     void this.loadMetrics();
+    void this.loadSuggestions();
+  }
+
+  /** Cada fonte falha sozinha no repositório; erro geral aqui só esconde a seção. */
+  private async loadSuggestions(): Promise<void> {
+    try {
+      this.sources.set(await this.suggestionsRepository.load(this.now));
+    } catch {
+      this.sources.set(null);
+    }
+  }
+
+  protected params(s: Suggestion): Record<string, string> {
+    return s.prefill ? prefillParams(s.prefill) : {};
   }
 
   async loadMetrics(): Promise<void> {

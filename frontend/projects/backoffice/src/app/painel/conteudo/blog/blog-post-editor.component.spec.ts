@@ -59,6 +59,7 @@ describe('BlogPostEditorComponent', () => {
     id: string | null,
     saveImpl?: (input: SaveBlogPostInput) => Promise<SaveBlogPostResult>,
     stored: BlogPost = STORED,
+    query: Record<string, string> = {},
   ): Promise<HTMLElement> {
     estimate = jasmine.createSpy('estimatePushReach').and.resolveTo(REACH);
     save = jasmine.createSpy('save').and.callFake(
@@ -72,7 +73,10 @@ describe('BlogPostEditorComponent', () => {
         provideZonelessChangeDetection(),
         provideRouter([]),
         { provide: AuthService, useValue: { displayName: signal('Ana Souza'), user: signal(null) } },
-        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap(id ? { id } : {}) } } },
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: convertToParamMap(id ? { id } : {}), queryParamMap: convertToParamMap(query) } },
+        },
         {
           provide: BlogPostsRepository,
           useValue: {
@@ -343,5 +347,32 @@ describe('BlogPostEditorComponent', () => {
       ['Vídeo', false],
     ]);
     expect(host.querySelector('bo-blog-embed-menu .note')!.textContent).toContain('Até 10 blocos nexaGO (torneio, produto, arena, ranking) por post.');
+  });
+
+  it('post novo por pauta: query params preenchem o rascunho e ele vai ao salvar', async () => {
+    const host = await mount(null, undefined, STORED, {
+      categoria: 'torneios',
+      esporte: 'beachVolleyball',
+      titulo: 'Inscrições abertas: Copa Goiás Beach',
+      torneio: 't1',
+    });
+    expect(host.querySelector<HTMLInputElement>('.title-input')!.value).toBe('Inscrições abertas: Copa Goiás Beach');
+    expect(host.querySelector('bo-blog-embed-preview')!.textContent).toContain('Copa Goiás Beach');
+    expect(save).not.toHaveBeenCalled();
+    type(host.querySelector<HTMLTextAreaElement>('textarea.paragraph')!, 'Vem aí.');
+    await settle();
+    primary(host).click();
+    await settle();
+    expect(save.calls.mostRecent().args[0].post).toEqual(
+      jasmine.objectContaining({
+        category: 'torneios',
+        sport: 'beachVolleyball',
+        slug: 'inscricoes-abertas-copa-goias-beach',
+        body: [
+          { type: 'paragraph', text: 'Vem aí.' },
+          { type: 'tournament', tournamentId: 't1' },
+        ],
+      }),
+    );
   });
 });

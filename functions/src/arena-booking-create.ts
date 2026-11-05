@@ -35,6 +35,7 @@ import {weatherCreditToApply, type WeatherCreditUse} from "./arena-weather-model
 import {hasBlockedSlotOverlap} from "./arena-recurring-booking";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {arenaBookingStartAt} from "./arena-booking-start-at";
+import {arenaBlockApplies} from "./arena-block-guard";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -156,7 +157,7 @@ async function ensureNotBlocked(arenaId: string, athleteId: string): Promise<voi
   const db = getFirestore();
   const blockId = `${safeIdPart(arenaId)}_${safeIdPart(athleteId)}`;
   const snap = await db.collection(ARENA_BLOCKS).doc(blockId).get();
-  if (!snap.exists) return;
+  if (!snap.exists || !arenaBlockApplies(snap.data(), arenaId)) return;
   const reason = (snap.data()?.["reason"] as string | undefined)?.trim();
   const suffix = reason ? ` Motivo: ${reason}` : "";
   throw new HttpsError(

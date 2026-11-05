@@ -432,6 +432,20 @@ class AnalyticsService {
 
   Future<void> logPeladaShared() =>
       _analytics.logEvent(name: AnalyticsEvents.peladaShared);
+
+  // --- Blog ---
+
+  /// [category]: chave da categoria do post (`torneios`, `treino`…).
+  Future<void> logBlogPostOpened(String category) => _analytics.logEvent(
+        name: AnalyticsEvents.blogPostOpened,
+        parameters: {'categoria': category},
+      );
+
+  /// [destination]: chave do destino da chamada (`torneios`, `url`…).
+  Future<void> logBlogCta(String destination) => _analytics.logEvent(
+        name: AnalyticsEvents.blogCta,
+        parameters: {'destino': destination},
+      );
 }
 
 final analyticsServiceProvider = Provider<AnalyticsService>(

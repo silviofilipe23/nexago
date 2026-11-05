@@ -15,7 +15,9 @@ export interface BlogPost {
   bodyHtml: string;
 }
 
-// TODO: novos posts entram aqui (cada um com seu bodyHtml). Sem CMS por enquanto.
+// Posts antigos, anteriores ao blog do backoffice (`blogPosts` no Firestore, ver
+// `lib/firestore/blog.ts`). Continuam no ar; post novo nasce no backoffice, não aqui. Se um
+// slug daqui colidir com um do Firestore, o do Firestore vence (ver `lib/blog/feed.ts`).
 const COMO_FUNCIONA_LIGA_BODY = `
   <p>
     A Liga nexaGO é o circuito que organiza os esportes de areia em uma temporada com começo,
@@ -67,3 +69,21 @@ export function getAllPosts(): BlogPost[] {
 export function getPostBySlug(slug: string): BlogPost | null {
   return posts.find((p) => p.slug === slug) ?? null;
 }
+
+/**
+ * Data do post como dia local. `new Date('2026-06-20')` seria meia-noite UTC, que no Brasil
+ * (UTC-3) cai no dia anterior — o card mostrava "19 de junho".
+ */
+export function staticPostDate(post: BlogPost): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(post.date);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
+
+/** Mesma conta do servidor para os posts do Firestore: 200 palavras/min, mínimo 1. */
+export function staticReadMinutes(post: BlogPost): number {
+  const words = `${post.title} ${post.bodyHtml.replace(/<[^>]*>/g, ' ')}`.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
+/** Autor exibido nos posts estáticos (eles não têm autor gravado). */
+export const STATIC_POST_AUTHOR = 'Equipe nexaGO';

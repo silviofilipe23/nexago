@@ -205,6 +205,30 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/app/ajuda/panel-app-guide.component').then((m) => m.PanelAppGuideComponent),
   },
+  { path: 'painel/conteudo', pathMatch: 'full', redirectTo: 'painel/conteudo/blog' },
+  {
+    path: 'painel/conteudo/blog',
+    title: 'Blog — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/conteudo/blog/panel-blog.component').then((m) => m.PanelBlogComponent),
+  },
+  {
+    path: 'painel/conteudo/blog/novo',
+    title: 'Novo post — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/conteudo/blog/blog-post-editor.component').then((m) => m.BlogPostEditorComponent),
+  },
+  {
+    path: 'painel/conteudo/blog/:id',
+    title: 'Editar post — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/conteudo/blog/blog-post-editor.component').then((m) => m.BlogPostEditorComponent),
+  },
   {
     path: 'painel/equipe',
     title: 'Equipe — NexaGO Backoffice',

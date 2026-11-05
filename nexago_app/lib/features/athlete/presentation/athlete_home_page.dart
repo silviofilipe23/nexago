@@ -32,6 +32,7 @@ import '../../tournaments/presentation/widgets/pending_tournament_inviter_invite
 import '../../tournaments/presentation/widgets/pending_tournament_reviews_section.dart';
 import '../../athlete_billing/presentation/widgets/athlete_billing_home_alert.dart';
 import '../../athlete_training/presentation/widgets/athlete_training_home_entry.dart';
+import '../../blog/presentation/widgets/home_blog_section.dart';
 import '../../home_banners/presentation/widgets/home_news_section.dart';
 import '../../athlete_plus/presentation/widgets/athlete_plus_waitlist_card.dart';
 import '../../messages/application/messages_providers.dart';
@@ -391,6 +392,8 @@ class AthleteHomePage extends ConsumerWidget {
                         child: _HomeRegistrationTrackerSection(),
                       ),
                       const AthleteHomeCompetitionsSection(),
+                      // Blog: os posts mais recentes; sem post, some.
+                      const HomeBlogSection(),
                       // Loja: sem card na Home — fica na aba da barra.
                       // NexaSquad: na Home, só o atalho da linha de atalhos
                       // (o card segue no perfil).

@@ -1,0 +1,182 @@
+import { collection, getDocs, limit, orderBy, query, where, type DocumentData } from 'firebase/firestore/lite';
+import { liteDb } from '../firebase-lite';
+
+/**
+ * Posts do blog escritos no backoffice (`blogPosts`, callable `saveBlogPost`). Contrato em
+ * `docs/superpowers/specs/2026-11-05-blog-fase-1-design.md`.
+ *
+ * Toda consulta filtra `status == 'published'` (a rule pública só libera esses) e
+ * `channels.site == true` (o post pode ter sido publicado só pro app), ordenando por
+ * `publishAt` desc — o índice composto existe para essa combinação.
+ *
+ * Diferente dos vizinhos (`leagues.ts`, `tournaments.ts`), aqui as funções **não** engolem o
+ * erro: o blog tem os posts estáticos de `lib/blog/posts.ts` como reserva, e a página precisa
+ * distinguir "não há post no Firestore" (cai no estático / 404) de "a leitura falhou" (estado
+ * de erro). Quem chama trata o `catch`.
+ *
+ * Texto é texto puro: o mapeamento só normaliza, e a renderização usa binding normal (escapado).
+ */
+
+export const BLOG_CATEGORIES = ['torneios', 'treino', 'regras', 'arenas', 'guia', 'loja'] as const;
+export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
+
+/** Blocos do corpo já normalizados. O parágrafo vem quebrado em `parts` (um `<p>` por parte). */
+export type BlogBlock =
+  | { type: 'paragraph'; parts: string[] }
+  | { type: 'heading'; text: string }
+  | { type: 'list'; items: string[] }
+  | { type: 'quote'; text: string }
+  | { type: 'image'; url: string; caption: string };
+
+export interface BlogCta {
+  label: string;
+  /** Chave de destino do app (`HomeBannerDestination`) — o site não navega para elas. */
+  destination: string;
+  /** Só com `destination == 'url'` e https; senão null. */
+  url: string | null;
+}
+
+export interface SiteBlogPost {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle: string;
+  /** `seoDescription`, ou o subtítulo quando vazio. */
+  description: string;
+  coverUrl: string | null;
+  /** null quando a categoria gravada não é uma das conhecidas. */
+  category: BlogCategory | null;
+  tags: string[];
+  author: { name: string; role: string } | null;
+  body: BlogBlock[];
+  cta: BlogCta | null;
+  publishAt: Date | null;
+  readMinutes: number | null;
+}
+
+const COLLECTION = 'blogPosts';
+const LIST_MAX = 60;
+
+function text(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function httpsUrl(value: unknown): string | null {
+  const s = text(value);
+  return /^https:\/\/\S+$/i.test(s) ? s : null;
+}
+
+function toDate(value: unknown): Date | null {
+  if (value && typeof (value as { toDate?: () => Date }).toDate === 'function') {
+    return (value as { toDate: () => Date }).toDate();
+  }
+  return null;
+}
+
+/** Linha em branco separa parágrafos; `\n` simples continua dentro do parágrafo (quebra de linha). */
+export function splitParagraphs(value: string): string[] {
+  return value
+    .replace(/\r\n?/g, '\n')
+    .split(/\n[ \t]*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+/** Bloco desconhecido, vazio ou malformado vira null (e é descartado). */
+export function mapBlogBlock(raw: unknown): BlogBlock | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const b = raw as Record<string, unknown>;
+  switch (b['type']) {
+    case 'paragraph': {
+      const parts = splitParagraphs(typeof b['text'] === 'string' ? b['text'] : '');
+      return parts.length > 0 ? { type: 'paragraph', parts } : null;
+    }
+    case 'heading': {
+      const t = text(b['text']);
+      return t ? { type: 'heading', text: t } : null;
+    }
+    case 'quote': {
+      const t = text(b['text']);
+      return t ? { type: 'quote', text: t } : null;
+    }
+    case 'list': {
+      const items = Array.isArray(b['items']) ? b['items'].map(text).filter(Boolean) : [];
+      return items.length > 0 ? { type: 'list', items } : null;
+    }
+    case 'image': {
+      const url = httpsUrl(b['url']);
+      return url ? { type: 'image', url, caption: text(b['caption']) } : null;
+    }
+    default:
+      return null;
+  }
+}
+
+function mapCta(raw: unknown): BlogCta | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const c = raw as Record<string, unknown>;
+  const label = text(c['label']);
+  if (!label) return null;
+  const destination = text(c['destination']);
+  return { label, destination, url: destination === 'url' ? httpsUrl(c['url']) : null };
+}
+
+function isCategory(value: unknown): value is BlogCategory {
+  return typeof value === 'string' && (BLOG_CATEGORIES as readonly string[]).includes(value);
+}
+
+/**
+ * Doc → post do site. null quando falta o essencial (slug/título) ou quando o doc não é um post
+ * publicado no site — redundante com a query, mas barato e protege contra um uso futuro sem filtro.
+ */
+export function mapBlogPost(id: string, d: DocumentData): SiteBlogPost | null {
+  const slug = text(d['slug']);
+  const title = text(d['title']);
+  if (!slug || !title) return null;
+  if (d['status'] !== 'published' || d['channels']?.['site'] !== true) return null;
+
+  const subtitle = text(d['subtitle']);
+  const authorName = text(d['author']?.['name']);
+  const minutes = Number(d['readMinutes']);
+
+  return {
+    id,
+    slug,
+    title,
+    subtitle,
+    description: text(d['seoDescription']) || subtitle,
+    coverUrl: httpsUrl(d['coverUrl']),
+    category: isCategory(d['category']) ? d['category'] : null,
+    tags: Array.isArray(d['tags']) ? d['tags'].map(text).filter(Boolean) : [],
+    author: authorName ? { name: authorName, role: text(d['author']?.['role']) } : null,
+    body: Array.isArray(d['body'])
+      ? d['body'].map(mapBlogBlock).filter((b: BlogBlock | null): b is BlogBlock => b !== null)
+      : [],
+    cta: mapCta(d['cta']),
+    publishAt: toDate(d['publishAt']),
+    readMinutes: Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : null,
+  };
+}
+
+function publishedOnSite() {
+  return [where('status', '==', 'published'), where('channels.site', '==', true)] as const;
+}
+
+/** Posts publicados no site, mais recentes primeiro. Lança em caso de falha de leitura. */
+export async function getSiteBlogPosts(max = LIST_MAX): Promise<SiteBlogPost[]> {
+  const snap = await getDocs(
+    query(collection(liteDb, COLLECTION), ...publishedOnSite(), orderBy('publishAt', 'desc'), limit(max)),
+  );
+  return snap.docs
+    .map((doc) => mapBlogPost(doc.id, doc.data()))
+    .filter((p): p is SiteBlogPost => p !== null);
+}
+
+/** Post publicado no site pelo slug, ou null se não existir. Lança em caso de falha de leitura. */
+export async function getSiteBlogPostBySlug(slug: string): Promise<SiteBlogPost | null> {
+  const snap = await getDocs(
+    query(collection(liteDb, COLLECTION), where('slug', '==', slug), ...publishedOnSite(), limit(1)),
+  );
+  const doc = snap.docs[0];
+  return doc ? mapBlogPost(doc.id, doc.data()) : null;
+}

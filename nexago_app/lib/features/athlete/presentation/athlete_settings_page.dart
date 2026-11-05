@@ -364,6 +364,15 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
               children: [
                 const AppNewsSettingsTile(),
                 AthleteSettingsTile(
+                  key: const Key('athlete-settings-blog'),
+                  icon: Icons.article_outlined,
+                  title: 'Blog',
+                  subtitle: 'Dicas, regras e novidades do nexaGO',
+                  variant: AthleteSettingsIconVariant.neutral,
+                  onTap: () => context.pushNamed(AppRouteNames.blog),
+                  showDivider: true,
+                ),
+                AthleteSettingsTile(
                   icon: Icons.help_outline_rounded,
                   title: 'Ajuda e suporte',
                   subtitle: 'Como usar cada função do app',

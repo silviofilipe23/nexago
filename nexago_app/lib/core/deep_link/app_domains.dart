@@ -48,6 +48,10 @@ abstract final class AppShareLinks {
   static String teamProfile(String teamId) =>
       '${AppDomains.athletePortal}/equipes/$teamId';
 
+  /// Post do blog no site (`/blog/:slug`, lido ao vivo do Firestore).
+  /// Exceção à regra acima: o site não é App Link, então o link abre a web.
+  static String blogPost(String slug) => '${AppDomains.site}/blog/$slug';
+
   /// Convite genérico pra conhecer/baixar o app (indicação, Sand Rank).
   static const String appDownload = AppDomains.site;
 }

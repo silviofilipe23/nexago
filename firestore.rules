@@ -2344,6 +2344,23 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Salvos e progresso de leitura do blog. Lista privada do dono; o gatilho
+    // onBlogLibraryWritten conta um leitor no post quando `readStartedAt` aparece.
+    function blogLibraryOk(d) {
+      return d.keys().hasOnly(['saved', 'savedAt', 'progress', 'readStartedAt', 'finishedAt', 'updatedAt'])
+        && d.saved is bool
+        && (d.savedAt == null || d.savedAt is timestamp)
+        && d.progress is number && d.progress >= 0 && d.progress <= 1
+        && (d.readStartedAt == null || d.readStartedAt is timestamp)
+        && (d.finishedAt == null || d.finishedAt is timestamp)
+        && d.updatedAt == request.time;
+    }
+    match /users/{userId}/blogLibrary/{postId} {
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null && request.auth.uid == userId
+        && blogLibraryOk(request.resource.data);
+    }
+
     // Partidas que o atleta escolheu acompanhar ("Seguir partida"), origem da
     // seção Acompanhando e do re-sync dos tópicos FCM no boot. Mesma forma de
     // `favorites`: lista privada do dono, sem leitura por terceiros.
@@ -3451,6 +3468,33 @@ service cloud.firestore {
     // saveHomeBanners (`functions/src/home-banners.ts`), saveAppNews (`functions/src/app-news.ts`) e
     // saveAppGuide (`functions/src/app-guide.ts`).
     match /appAdminConfig/{docId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+    // Blog nexaGO (backoffice › Conteúdo › Blog). Escrita só pela callable saveBlogPost
+    // (`functions/src/blog.ts`). Leitor só vê publicado — toda consulta de cliente precisa do
+    // filtro `status == "published"`; rascunho, revisão e agendado ficam com o admin. Agendado
+    // vira publicado pela agendada `publishScheduledBlogPosts` (a rule não compara `publishAt`
+    // com a hora da consulta). Spec: docs/superpowers/specs/2026-11-05-blog-fase-1-design.md.
+    match /blogPosts/{postId} {
+      allow read: if resource.data.status == 'published' || isAdmin() || isSuperAdmin();
+      allow write: if false;
+
+      // "Ajudou" do atleta: um doc por uid, criado ou apagado por ele; `helpfulCount` no post
+      // é do gatilho onBlogReactionWritten.
+      match /reactions/{uid} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow create: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['kind', 'createdAt'])
+          && request.resource.data.kind == 'helpful'
+          && request.resource.data.createdAt == request.time
+          && get(/databases/$(database)/documents/blogPosts/$(postId)).data.status == 'published';
+        allow delete: if request.auth != null && request.auth.uid == uid;
+        allow update: if false;
+      }
+    }
+    // Reserva do endereço `/blog/{slug}`; só a callable mexe.
+    match /blogSlugs/{slug} {
       allow read: if isAdmin() || isSuperAdmin();
       allow write: if false;
     }

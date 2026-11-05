@@ -34,6 +34,7 @@ import {
   type BlogRankingMode,
   type BlogStatus,
 } from './blog-post';
+import type { DraftPrefill } from './blog-suggestions';
 
 /** Bloco no editor: o do post + uma chave estável para o `@for` (mover não recria o campo). */
 export type BlockDraft = BlogBlock & { key: string };
@@ -191,6 +192,27 @@ export function draftFromPost(post: BlogPost): BlogDraft {
     status: post.status,
     date: at?.date ?? '',
     time: at?.time ?? DEFAULT_TIME,
+  };
+}
+
+/**
+ * Rascunho aberto por uma pauta sugerida: categoria, esporte, título e o bloco nexaGO depois do
+ * parágrafo em branco do começo. Nada é salvo até o editor salvar.
+ */
+export function applyPrefill(draft: BlogDraft, prefill: DraftPrefill): BlogDraft {
+  const block =
+    prefill.block?.type === 'tournament'
+      ? embedBlock('tournament', prefill.block.id)
+      : prefill.block?.type === 'product'
+        ? embedBlock('product', prefill.block.id)
+        : prefill.block?.type === 'ranking'
+          ? rankingBlock({ sport: prefill.block.sport, mode: 'athletes', gender: 'all' })
+          : null;
+  return {
+    ...withTitle(draft, prefill.title),
+    category: prefill.category,
+    sport: prefill.sport,
+    body: block ? [...draft.body, block] : draft.body,
   };
 }
 

@@ -11,6 +11,7 @@ import { PanelCardComponent } from '../../ui/panel-card.component';
 import { PanelShellComponent } from '../../ui/panel-shell.component';
 import { ToggleComponent } from '../../ui/toggle.component';
 import {
+  applyPrefill,
   draftFromPost,
   embedBlock,
   rankingBlock,
@@ -54,6 +55,7 @@ import {
   type BlogStatus,
 } from './data/blog-post';
 import { BlogPostsRepository } from './data/blog-posts.repository';
+import { prefillFromParams } from './data/blog-suggestions';
 import { BlogStatusPillComponent } from './ui/blog-badges.component';
 import { BLOCK_LABELS, BlogBlockEditorComponent } from './ui/blog-block-editor.component';
 import { BlogEmbedMenuComponent, type BlogEmbedChoice } from './ui/blog-embed-menu.component';
@@ -681,6 +683,12 @@ export class BlogPostEditorComponent {
     this.conflict.set(false);
     const id = this.postId();
     if (id === null) {
+      // Pauta sugerida: o rascunho já vem preenchido pelos query params (sobrevivem a recarregar).
+      const query = this.route.snapshot.queryParamMap;
+      const prefill = prefillFromParams((key) => query.get(key));
+      if (prefill) {
+        this.draft.update((d) => applyPrefill(d, prefill));
+      }
       this.savedJson.set(JSON.stringify(this.payload()));
       this.state.set('ok');
       return;

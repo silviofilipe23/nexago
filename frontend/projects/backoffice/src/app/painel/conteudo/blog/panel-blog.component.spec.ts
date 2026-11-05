@@ -6,6 +6,7 @@ import type { BlogPost } from './data/blog-post';
 import type { BlogWindowMetrics } from './data/blog-metrics';
 import { BlogMetricsRepository } from './data/blog-metrics.repository';
 import { BlogPostsRepository } from './data/blog-posts.repository';
+import { BlogSuggestionsRepository, type SuggestionSources } from './data/blog-suggestions.repository';
 import { PanelBlogComponent } from './panel-blog.component';
 
 function post(id: string, over: Partial<BlogPost> = {}): BlogPost {
@@ -54,7 +55,12 @@ const METRICS: BlogWindowMetrics = {
   returningReaders: 1180,
 };
 
+const NO_SOURCES: SuggestionSources = { tournaments: [], stages: [], products: [] };
+
 describe('PanelBlogComponent', () => {
+  let sources: SuggestionSources = NO_SOURCES;
+  beforeEach(() => (sources = NO_SOURCES));
+
   async function mount(
     list: () => Promise<BlogPost[]> = () => Promise.resolve(POSTS),
     window: () => Promise<BlogWindowMetrics> = () => Promise.resolve(METRICS),
@@ -67,6 +73,7 @@ describe('PanelBlogComponent', () => {
         { provide: AuthService, useValue: { displayName: signal('Ana Souza'), user: signal(null) } },
         { provide: BlogPostsRepository, useValue: { list } },
         { provide: BlogMetricsRepository, useValue: { window } },
+        { provide: BlogSuggestionsRepository, useValue: { load: () => Promise.resolve(sources) } },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(PanelBlogComponent);
@@ -135,5 +142,37 @@ describe('PanelBlogComponent', () => {
       Promise.resolve({ reads: 0, prevReads: 0, avgSeconds: null, finished: 0, ctaClicks: 0, readers: 0, returningReaders: 0 }),
     );
     expect(texts(host, 'bo-blog-metric-card .note')).toEqual(Array(4).fill('sem leituras no app ainda'));
+  });
+
+  it('pautas sugeridas: torneio sem post vira rascunho preenchido; agendado sem push abre o post', async () => {
+    sources = {
+      ...NO_SOURCES,
+      tournaments: [{ id: 't9', name: 'Copa Goiás Beach', sport: 'beach_volleyball', status: 'inscricoes', startAt: new Date('2099-11-10T12:00:00Z') }],
+    };
+    const host = await mount();
+    const cards = [...host.querySelectorAll<HTMLElement>('.pauta')];
+    expect(cards.map((c) => c.querySelector('.p-title')!.textContent!.trim())).toEqual([
+      'Copa Goiás Beach abre inscrições e ainda não tem post',
+      'Chegou a Toalha: post agendado, falta o push',
+    ]);
+    const draft = cards[0]!.querySelector<HTMLAnchorElement>('.p-action')!;
+    expect(draft.textContent!.trim()).toBe('Criar rascunho →');
+    const url = new URL(draft.href);
+    expect(url.pathname).toBe('/painel/conteudo/blog/novo');
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      categoria: 'torneios',
+      esporte: 'beachVolleyball',
+      titulo: 'Inscrições abertas: Copa Goiás Beach',
+      torneio: 't9',
+    });
+    const open = cards[1]!.querySelector<HTMLAnchorElement>('.p-action')!;
+    expect([open.textContent!.trim(), open.getAttribute('href')]).toEqual(['Abrir post →', '/painel/conteudo/blog/b']);
+    expect(host.querySelector('.cal-link')!.getAttribute('href')).toBe('/painel/conteudo/blog/calendario');
+  });
+
+  it('sem pauta a seção some', async () => {
+    const host = await mount(() => Promise.resolve(POSTS.filter((p) => p.status !== 'scheduled')));
+    expect(host.querySelector('.pauta')).toBeNull();
+    expect(host.textContent).not.toContain('Pautas sugeridas');
   });
 });

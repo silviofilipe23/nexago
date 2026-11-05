@@ -1,4 +1,5 @@
 import {
+  applyPrefill,
   draftFromPost,
   embedBlock,
   embedCount,
@@ -270,5 +271,24 @@ describe('blog · formulário', () => {
     expect(payloadIssues(payloadFromDraft(filled({ body: [embedBlock('arena', 'id com espaço')] })), NOW)).toEqual([
       'Bloco 1: escolha a arena.',
     ]);
+  });
+
+  it('pauta abre o rascunho preenchido: título com endereço, categoria, esporte e o bloco depois do parágrafo', () => {
+    const d = applyPrefill(newBlogDraft('Ana'), {
+      category: 'torneios',
+      sport: 'beachVolleyball',
+      title: 'Quem subiu no ranking de Vôlei de praia',
+      block: { type: 'ranking', sport: 'beachVolleyball' },
+    });
+    expect([d.title, d.slug, d.category, d.sport]).toEqual([
+      'Quem subiu no ranking de Vôlei de praia',
+      'quem-subiu-no-ranking-de-volei-de-praia',
+      'torneios',
+      'beachVolleyball',
+    ]);
+    expect(d.body.map((b) => b.type)).toEqual(['paragraph', 'ranking']);
+    expect(d.body[1]).toEqual(jasmine.objectContaining({ sport: 'beachVolleyball', mode: 'athletes', gender: 'all' }));
+    const loja = applyPrefill(newBlogDraft('Ana'), { category: 'loja', sport: 'all', title: 'Chegou: Toalha', block: { type: 'product', id: 'p1' } });
+    expect(loja.body[1]).toEqual(jasmine.objectContaining({ type: 'product', productId: 'p1' }));
   });
 });

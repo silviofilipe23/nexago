@@ -222,6 +222,14 @@ export const routes: Routes = [
       import('./painel/conteudo/blog/blog-post-editor.component').then((m) => m.BlogPostEditorComponent),
   },
   {
+    // Antes de `:id`: senão "calendario" vira id de post.
+    path: 'painel/conteudo/blog/calendario',
+    title: 'Calendário do blog — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/conteudo/blog/blog-calendar.component').then((m) => m.BlogCalendarComponent),
+  },
+  {
     path: 'painel/conteudo/blog/:id',
     title: 'Editar post — NexaGO Backoffice',
     canActivate: [authGuard],

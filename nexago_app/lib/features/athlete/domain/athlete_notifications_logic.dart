@@ -714,6 +714,14 @@ AthleteNotificationPresentation _basePresentation(
       );
     // NexaSquad: o push não manda `url`; o destino sai do tipo/`kind`, igual ao toque no push
     // (convite → tela do convite, aditivo → Squad, repasse → Ganhos).
+    // A equipe respondeu a dúvida no blog: abre o post, onde a resposta está.
+    case blogCommentReplyNotificationType:
+      return AthleteNotificationPresentation(
+        icon: Icons.chat_bubble_outline_rounded,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        routePath: resolveNotificationRoute({...data, 'type': type}),
+      );
     // Post novo no blog: abre a leitura (`url` ou `postId`), como o push.
     case blogPostNotificationType:
       return AthleteNotificationPresentation(

@@ -314,6 +314,7 @@ function isConflict(error: unknown): boolean {
                   [hasCta]="savedCounts().hasCta"
                   [helpfulCount]="savedCounts().helpful"
                   [readCount]="savedCounts().readers"
+                  [commentCount]="savedCounts().comments"
                 />
               }
 
@@ -614,7 +615,7 @@ export class BlogPostEditorComponent {
   private readonly savedPushSentAt = signal<Date | null>(null);
   private readonly savedPushResult = signal<BlogPushResult | null>(null);
   /** Do doc gravado, para o "Resultado do post". */
-  protected readonly savedCounts = signal({ hasCta: false, helpful: 0, readers: 0 });
+  protected readonly savedCounts = signal({ hasCta: false, helpful: 0, readers: 0, comments: 0 });
 
   /** Seletor de torneio/produto aberto: `index` `null` = bloco novo no fim; número = trocar aquele. */
   protected readonly picker = signal<{ kind: EmbedKind; index: number | null; current: string | null } | null>(null);
@@ -708,7 +709,12 @@ export class BlogPostEditorComponent {
       this.savedAt.set(post.updatedAt);
       this.savedPushSentAt.set(post.pushSentAt);
       this.savedPushResult.set(post.pushResult);
-      this.savedCounts.set({ hasCta: post.cta !== null, helpful: post.helpfulCount, readers: post.readCount });
+      this.savedCounts.set({
+        hasCta: post.cta !== null,
+        helpful: post.helpfulCount,
+        readers: post.readCount,
+        comments: post.commentCount,
+      });
       this.version.set(post.version);
       this.state.set('ok');
     } catch (error) {

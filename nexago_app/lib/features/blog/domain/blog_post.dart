@@ -292,6 +292,7 @@ class BlogPost {
     this.readMinutes = 1,
     this.helpfulCount = 0,
     this.readCount = 0,
+    this.commentCount = 0,
   });
 
   final String id;
@@ -319,6 +320,9 @@ class BlogPost {
   final int readMinutes;
   final int helpfulCount;
   final int readCount;
+
+  /// Comentários aprovados (gatilho `onBlogCommentWritten`); sem o campo, 0.
+  final int commentCount;
 
   String get categoryLabel => category?.label ?? 'Blog';
 
@@ -377,6 +381,7 @@ class BlogPost {
       readMinutes: count('readMinutes', min: 1),
       helpfulCount: count('helpfulCount'),
       readCount: count('readCount'),
+      commentCount: count('commentCount'),
     );
   }
 }

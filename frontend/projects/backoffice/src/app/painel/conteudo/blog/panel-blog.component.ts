@@ -29,6 +29,7 @@ import {
 } from './data/blog-post';
 import { metricCards, type BlogWindowMetrics } from './data/blog-metrics';
 import { BlogMetricsRepository } from './data/blog-metrics.repository';
+import { BlogBadgesService } from '../../data/blog-badges.service';
 import { BlogPostsRepository } from './data/blog-posts.repository';
 import { buildSuggestions, prefillParams, type Suggestion } from './data/blog-suggestions';
 import { BlogSuggestionsRepository, type SuggestionSources } from './data/blog-suggestions.repository';
@@ -345,6 +346,7 @@ export class PanelBlogComponent {
   private readonly metricsRepository = inject(BlogMetricsRepository);
   protected readonly metricsState = signal<LoadState>('loading');
   private readonly suggestionsRepository = inject(BlogSuggestionsRepository);
+  private readonly blogBadges = inject(BlogBadgesService);
   private readonly sources = signal<SuggestionSources | null>(null);
   /** Só depois dos posts e das fontes: antes disso não dá para saber o que já tem post. */
   protected readonly suggestions = computed<Suggestion[]>(() => {
@@ -366,6 +368,8 @@ export class PanelBlogComponent {
     void this.load();
     void this.loadMetrics();
     void this.loadSuggestions();
+    // Selo "Comentários" do menu fresco ao entrar na lista.
+    void this.blogBadges.refresh();
   }
 
   /** Cada fonte falha sozinha no repositório; erro geral aqui só esconde a seção. */

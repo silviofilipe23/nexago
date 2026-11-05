@@ -123,7 +123,8 @@ void main() {
     expect(find.text('Inscreva a dupla junto.'), findsOneWidget);
     expect(find.text('Ver torneios'), findsOneWidget);
     expect(find.text('Seguir'), findsNothing);
-    expect(find.text('Ficou dúvida'), findsNothing);
+    // "Ficou dúvida" entrou com os comentários (só com sessão).
+    expect(find.text('Ficou dúvida'), findsOneWidget);
   });
 
   testWidgets('ao abrir grava o início da leitura', (tester) async {

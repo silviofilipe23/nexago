@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
+import { BlogBadgesService } from '../data/blog-badges.service';
 import { SquadBadgesService } from '../data/squad-badges.service';
 import { StoreBadgesService } from '../data/store-badges.service';
 import { TournamentBadgesService } from '../data/tournament-badges.service';
@@ -147,7 +148,11 @@ const CONTEUDO_GROUP: NavGroup = {
   id: 'conteudo',
   label: 'Conteúdo',
   icon: 'file',
-  children: [{ kind: 'link', id: 'conteudo-blog', label: 'Blog', icon: 'file', route: '/painel/conteudo/blog' }],
+  children: [
+    { kind: 'link', id: 'conteudo-blog', label: 'Blog', icon: 'file', route: '/painel/conteudo/blog' },
+    // Badge real: comentários e dúvidas esperando moderação (BlogBadgesService).
+    { kind: 'link', id: 'conteudo-comentarios', label: 'Comentários', icon: 'mail', route: '/painel/conteudo/blog/comentarios' },
+  ],
 };
 
 const NAV_ITEMS: readonly PanelNavItem[] = [
@@ -628,6 +633,7 @@ export class PanelShellComponent {
   private readonly badges = inject(StoreBadgesService);
   private readonly squadBadges = inject(SquadBadgesService);
   private readonly tournamentBadges = inject(TournamentBadgesService);
+  private readonly blogBadges = inject(BlogBadgesService);
 
   constructor() {
     // Só com sessão: o shell monta atrás do authGuard, mas a leitura exige admin.
@@ -638,6 +644,7 @@ export class PanelShellComponent {
       void this.badges.loadCustom();
       void this.squadBadges.load();
       void this.tournamentBadges.load();
+      void this.blogBadges.load();
     }
   }
 
@@ -662,6 +669,9 @@ export class PanelShellComponent {
     }
     if (item.id === 'squad-candidaturas') {
       return this.squadBadges.newApplications() || undefined;
+    }
+    if (item.id === 'conteudo-comentarios') {
+      return this.blogBadges.pendingComments() || undefined;
     }
     if (item.id === 'torneios-contratos') {
       return this.tournamentBadges.requestedContracts() || undefined;
@@ -729,6 +739,10 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/app')) {
       return 'app-novidades';
+    }
+    // Antes de '/painel/conteudo/blog': a fila é mais específica.
+    if (path.startsWith('/painel/conteudo/blog/comentarios')) {
+      return 'conteudo-comentarios';
     }
     if (path.startsWith('/painel/conteudo/blog')) {
       return 'conteudo-blog';

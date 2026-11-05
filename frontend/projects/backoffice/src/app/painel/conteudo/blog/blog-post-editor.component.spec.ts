@@ -33,6 +33,7 @@ const STORED: BlogPost = {
   helpfulCount: 2,
   updatedAt: new Date('2026-10-28T12:00:00Z'),
   version: 4,
+  commentCount: 0,
 };
 
 describe('BlogPostEditorComponent', () => {
@@ -261,7 +262,7 @@ describe('BlogPostEditorComponent', () => {
   });
 
   it('post publicado mostra o resultado; agendado não', async () => {
-    const host = await mount('p1', undefined, { ...STORED, cta: { label: 'Personalizar', destination: 'loja', url: null } });
+    const host = await mount('p1', undefined, { ...STORED, commentCount: 3, cta: { label: 'Personalizar', destination: 'loja', url: null } });
     const rows = [...host.querySelectorAll('bo-blog-post-result .row')].map((r) => [
       r.querySelector('dt')!.textContent!.trim(),
       r.querySelector('dd')!.textContent!.trim(),
@@ -274,6 +275,9 @@ describe('BlogPostEditorComponent', () => {
       ['“Ajudou”', '2'],
       ['Leitores', '10'],
     ]);
+    const link = host.querySelector<HTMLAnchorElement>('bo-blog-post-result .comments')!;
+    expect(link.textContent!.trim()).toBe('Comentários: 3 aprovados →');
+    expect(link.getAttribute('href')).toBe('/painel/conteudo/blog/comentarios?post=p1&aba=approved');
   });
 
   it('post agendado não mostra o resultado', async () => {

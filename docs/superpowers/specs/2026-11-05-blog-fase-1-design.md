@@ -221,3 +221,36 @@ Arena, ranking, torneio e produto dividem o teto de 10 blocos nexaGO por post. B
   ranking completo" para a tela de ranking do app no mesmo recorte. Lista vazia: o bloco some. Site: o
   mesmo top 5 lido das coleções públicas `artifacts/{projectId}/public/data/athleteRankingsBySport` /
   `teamRankingsBySport` (siga o mapeamento do app), com link para baixar o app.
+
+---
+
+# Comentários e "Ficou dúvida" (branch `claude/blog-comentarios`)
+
+Só no app (o site não mostra nome de atleta). Moderação ANTES de aparecer. Código: `functions/src/blog-comments.ts`.
+
+## `blogPosts/{postId}/blogComments/{commentId}`
+
+```ts
+{
+  uid: string;
+  author: {name: string; photoUrl: string | null};  // retrato do perfil público: apelido, senão "Ana S."
+  text: string;                     // 2..600, texto puro
+  kind: "comment" | "question";     // "question" = botão "Ficou dúvida"
+  status: "pending" | "approved" | "rejected";
+  createdAt: Timestamp;
+  moderatedAt: Timestamp | null; moderatedBy: {uid, name} | null;
+  reply: {text: string; by: {uid, name}; at: Timestamp} | null;   // resposta da equipe
+}
+```
+
+- Leitura: atleta logado lê `approved` (consulta com `where status == 'approved'`) e os PRÓPRIOS em qualquer
+  status (`where uid == me`); admin lê tudo, inclusive por collection group (`blogComments`). Atleta apaga o
+  próprio. Escrita só pelas callables.
+- `postBlogComment({postId, text, kind})` → `{id}`: post publicado no app; até 3 pendentes do mesmo atleta
+  no mesmo post (`resource-exhausted` com mensagem pronta).
+- `moderateBlogComment({postId, commentId, action: "approve"|"reject"|"delete"|"reply", reply?})` (admin).
+  `reply` (2..600) aprova e, na PRIMEIRA resposta, manda push ao autor: `type: "blog_comment_reply"`,
+  `data.url = /athlete/blog/<postId>`, título "A equipe respondeu sua dúvida".
+- `blogPosts/{id}.commentCount` = aprovados (gatilho `onBlogCommentWritten`). Doc sem o campo = 0.
+- Índices: `blogComments` (status, createdAt desc), (uid, createdAt desc), (uid, status) e collection group
+  (status, createdAt desc).

@@ -1,7 +1,11 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
+import '../../../core/firebase/functions_region.dart';
+
+import '../domain/blog_comment.dart';
 import '../domain/blog_library.dart';
 import '../domain/blog_logic.dart';
 import '../domain/blog_notify_prefs.dart';
@@ -14,9 +18,14 @@ import '../domain/blog_repository.dart';
 /// A rule de `blogPosts` só deixa ler publicado: toda consulta filtra
 /// `status == published`, senão o Firestore nega a consulta inteira.
 class FirestoreBlogRepository implements BlogRepository {
-  FirestoreBlogRepository(this._db);
+  FirestoreBlogRepository(this._db, {FirebaseFunctions? functions})
+    : _functionsOverride = functions;
 
   final FirebaseFirestore _db;
+  final FirebaseFunctions? _functionsOverride;
+
+  /// Só na hora da callable: a instância regional, nunca a padrão (Iowa).
+  FirebaseFunctions get _functions => _functionsOverride ?? nexagoFunctions;
 
   /// Limite do `in` do Firestore.
   static const _inChunk = 30;
@@ -155,4 +164,52 @@ class FirestoreBlogRepository implements BlogRepository {
   Future<void> recordRead(Map<String, Object> payload) => _db
       .collection('blogReads')
       .add({...payload, 'at': FieldValue.serverTimestamp()});
+
+  CollectionReference<Map<String, dynamic>> _comments(String postId) =>
+      _posts.doc(postId).collection('blogComments');
+
+  static List<BlogComment> _commentsFrom(
+    QuerySnapshot<Map<String, dynamic>> snap,
+  ) => [for (final d in snap.docs) ?BlogComment.fromMap(d.id, d.data())];
+
+  /// Índice `blogComments (status, createdAt desc)`.
+  @override
+  Stream<List<BlogComment>> watchApprovedComments(
+    String postId, {
+    required int limit,
+  }) => _comments(postId)
+      .where('status', isEqualTo: BlogCommentStatus.approved.key)
+      .orderBy('createdAt', descending: true)
+      .limit(limit)
+      .snapshots()
+      .map(_commentsFrom);
+
+  /// Índice `blogComments (uid, createdAt desc)`; a rule só deixa ler os
+  /// próprios com `where uid == me`.
+  @override
+  Stream<List<BlogComment>> watchOwnComments(String postId, String uid) =>
+      _comments(postId)
+          .where('uid', isEqualTo: uid)
+          .orderBy('createdAt', descending: true)
+          .limit(20)
+          .snapshots()
+          .map(_commentsFrom);
+
+  @override
+  Future<String> postComment(
+    String postId, {
+    required String text,
+    required BlogCommentKind kind,
+  }) async {
+    final result = await _functions.httpsCallable('postBlogComment').call(
+      <String, dynamic>{'postId': postId, 'text': text.trim(), 'kind': kind.key},
+    );
+    final data = result.data;
+    final id = data is Map ? data['id'] : null;
+    return id is String ? id : '';
+  }
+
+  @override
+  Future<void> deleteComment(String postId, String commentId) =>
+      _comments(postId).doc(commentId).delete();
 }

@@ -27,6 +27,7 @@ function post(id: string, over: Partial<BlogPost> = {}): BlogPost {
     helpfulCount: 0,
     updatedAt: new Date('2026-10-20T12:00:00Z'),
     version: 1,
+    commentCount: 0,
     ...over,
   };
 }

@@ -32,6 +32,7 @@ import {professorCourtDiscountForQuote, resolveProfessorBooking} from "./arena-p
 import {applyProfessorCourtDiscount, type ProfessorCourtDiscountOutcome} from "./arena-professor-court-discount";
 import {reserveWeatherCreditInTransaction, weatherCreditSummary} from "./arena-weather-credits";
 import {weatherCreditToApply, type WeatherCreditUse} from "./arena-weather-model";
+import {arenaBlockApplies} from "./arena-block-guard";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -153,7 +154,7 @@ async function ensureNotBlocked(arenaId: string, athleteId: string): Promise<voi
   const db = getFirestore();
   const blockId = `${safeIdPart(arenaId)}_${safeIdPart(athleteId)}`;
   const snap = await db.collection(ARENA_BLOCKS).doc(blockId).get();
-  if (!snap.exists) return;
+  if (!snap.exists || !arenaBlockApplies(snap.data(), arenaId)) return;
   const reason = (snap.data()?.["reason"] as string | undefined)?.trim();
   const suffix = reason ? ` Motivo: ${reason}` : "";
   throw new HttpsError(

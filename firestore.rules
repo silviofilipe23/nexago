@@ -279,6 +279,15 @@ service cloud.firestore {
         (!('paidAt' in request.resource.data) ||
          request.resource.data.paidAt == resource.data.paidAt);
     }
+    function inscriptionOrganizerPaymentFieldsUnchanged() {
+      // Fila "A conferir" do organizador e canal do pagamento: escritos só pelas
+      // Cloud Functions. `affectedKeys` pega também o campo APAGADO — sem isto o
+      // atleta tirava a própria inscrição da fila apagando `declaredPaidAt`.
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'paymentVerifiedByOrganizer', 'declaredPaidAt', 'organizerConfirmedShareUids',
+        'paymentMethod', 'paymentChannel'
+      ]);
+    }
     function inscriptionHoldFieldsUnchanged() {
       // Prazo de garantia da vaga: escrito só pelas Cloud Functions. A
       // comparação de presença é o que importa — sem ela o atleta APAGARIA o
@@ -1601,9 +1610,12 @@ service cloud.firestore {
         isSuperAdmin() ||
         arenaCanWrite(request.resource.data.arenaId, 'agenda')
       );
+      // `arenaId` congelado: sem isto a equipe de uma arena moveria o slot
+      // (bloqueado, por exemplo) para a grade de outra.
       allow update: if request.auth != null && (
         isSuperAdmin() ||
-        arenaCanWrite(resource.data.arenaId, 'agenda')
+        (arenaCanWrite(resource.data.arenaId, 'agenda') &&
+          request.resource.data.arenaId == resource.data.arenaId)
       );
       allow delete: if request.auth != null && (
         isSuperAdmin() ||
@@ -1622,16 +1634,13 @@ service cloud.firestore {
         request.resource.data.paymentType == 'local';
       allow update, delete: if false;
     }
+    // Travas de horário: escritas só pelas Cloud Functions (Admin SDK). O ID é
+    // determinístico ({arenaId}_{courtId}_{dateKey}_h{HH}); liberar a escrita
+    // ao gestor deixava uma arena travar o horário de outra.
     match /arenaSlotLocks/{lockId} {
       allow read: if true;
-      allow create: if request.auth != null && (
-        isSuperAdmin() ||
-        arenaCanWrite(request.resource.data.arenaId, 'agenda')
-      );
-      allow update, delete: if request.auth != null && (
-        isSuperAdmin() ||
-        arenaCanWrite(resource.data.arenaId, 'agenda')
-      );
+      allow create, update: if false;
+      allow delete: if request.auth != null && isSuperAdmin();
     }
     // Links curtos de convite (crescimento viral): leitura pública com dados mínimos da reserva
     match /arenaBookingInvites/{shareCode} {
@@ -1779,10 +1788,10 @@ service cloud.firestore {
       // com ela (fetchInvite). Era o comportamento efetivo com o catch-all
       // antigo; apertar exige repensar o preview do convite primeiro.
       allow read: if request.auth != null;
-      allow create: if request.auth != null && (
-        isSuperAdmin() ||
-        arenaCanWrite(request.resource.data.arenaId, 'agenda')
-      );
+      // Criação só pelas Cloud Functions (createArenaBooking,
+      // createArenaManualBooking, mensalista, planos): elas checam trava,
+      // bloqueio e preço. O cliente nunca cria reserva direto.
+      allow create: if request.auth != null && isSuperAdmin();
       allow update: if request.auth != null && (
         (resource.data.get('athleteId', null) == request.auth.uid &&
           arenaBookingOwnerUpdateOk()) ||
@@ -2058,15 +2067,32 @@ service cloud.firestore {
         )
       );
 
-      allow create, update: if request.auth != null && (
+      // O ID amarra o bloqueio à arena: sem isto uma arena gravava
+      // `{outraArena}_{atleta}` e bloqueava o atleta na arena alheia.
+      allow create: if request.auth != null && (
         isSuperAdmin() ||
         (
           request.resource.data.arenaId is string &&
           request.resource.data.athleteId is string &&
+          blockId == request.resource.data.arenaId + '_' + request.resource.data.athleteId &&
           request.resource.data.reason is string &&
           request.resource.data.reason.size() > 0 &&
           request.resource.data.reason.size() <= 500 &&
           arenaCanWrite(request.resource.data.arenaId, 'agenda')
+        )
+      );
+
+      // Update (o `set(merge)` de BookingService.blockUser num bloqueio que já
+      // existe): arena e atleta congelados, permissão pela arena gravada.
+      allow update: if request.auth != null && (
+        isSuperAdmin() ||
+        (
+          request.resource.data.arenaId == resource.data.arenaId &&
+          request.resource.data.athleteId == resource.data.athleteId &&
+          request.resource.data.reason is string &&
+          request.resource.data.reason.size() > 0 &&
+          request.resource.data.reason.size() <= 500 &&
+          arenaCanWrite(resource.data.arenaId, 'agenda')
         )
       );
 
@@ -3013,6 +3039,7 @@ service cloud.firestore {
            (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player1Id == request.auth.uid ||
             get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player2Id == request.auth.uid)) &&
           inscriptionPaymentFieldsUnchanged() &&
+          inscriptionOrganizerPaymentFieldsUnchanged() &&
           inscriptionHoldFieldsUnchanged() &&
           inscriptionEnrollmentFieldsUnchanged() &&
           inscriptionLgpdFieldsUnchanged() &&

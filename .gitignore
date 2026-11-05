@@ -76,3 +76,6 @@ node_modules/
 
 # Superpowers subagent-driven-development scratch workspace
 .superpowers/
+
+# exportações de marketing (fotos de atletas)
+marketing/

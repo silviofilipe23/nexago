@@ -355,6 +355,41 @@ void main() {
       expect(storeNameBandWidth(StoreNamePlacement.sleeve), 0.18);
     });
 
+    test('posição arrastada no backoffice manda; sem ela, o padrão', () {
+      expect(
+        storeNamePreviewCenter(StoreNamePlacement.front, (x: 0.3, y: 0.2)),
+        (x: 0.3, y: 0.2),
+      );
+      expect(
+        storeNamePreviewCenter(StoreNamePlacement.front, null),
+        (x: 0.5, y: 0.30),
+      );
+      // Faixa do nome: só o centro fica preso na horizontal.
+      expect(
+        storeNamePreviewCenter(StoreNamePlacement.front, (x: 0.02, y: 1)),
+        (x: 0.02, y: 0.925),
+      );
+      const moved = StoreCustomArea(
+        id: 'peito_esquerdo',
+        name: 'Peito esquerdo',
+        widthCm: 9,
+        heightCm: 9,
+        position: (x: 0.32, y: 0.3),
+      );
+      expect(storeAreaPreviewCenter(moved), (x: 0.32, y: 0.3));
+      expect(storeAreaPreviewCenter(_peito), (x: 0.68, y: 0.30));
+      // Área no canto: inteira dentro da peça.
+      const corner = StoreCustomArea(
+        id: 'x',
+        name: 'X',
+        widthCm: 12,
+        heightCm: 14,
+        position: (x: 0, y: 0),
+      );
+      expect(storeAreaPreviewCenter(corner).x, closeTo(0.1, 1e-9));
+      expect(storeAreaPreviewCenter(corner).y, closeTo(0.1, 1e-9));
+    });
+
     test('título do passo da imagem pela área', () {
       expect(storeImageStepTitle(_peito), 'Imagem na frente');
       expect(
@@ -678,6 +713,36 @@ void main() {
       expect(full.width, 1);
       expect(full.height, 1);
       expect(full.y, 0.5);
+    });
+
+    test('caixa: na posição arrastada; sem ela, colada ao nome arrastado', () {
+      const placed = StoreCustomBackOptions(
+        enabled: true,
+        allowNumber: true,
+        widthCm: 25,
+        heightCm: 25,
+        position: (x: 0.4, y: 0.7),
+      );
+      final box = storeBackBox(placed, StoreNamePlacement.backUpper);
+      expect((box.x, box.y), (0.4, 0.7));
+      final h = 25 / 70;
+      final follow = storeBackBox(
+        back,
+        StoreNamePlacement.backUpper,
+        namePosition: (x: 0.5, y: 0.1),
+      );
+      expect(follow.y, closeTo(0.1 + 0.075 + 0.03 + h / 2, 1e-9));
+      // Posição no canto: a caixa continua inteira dentro da peça.
+      const corner = StoreCustomBackOptions(
+        enabled: true,
+        allowNumber: true,
+        widthCm: 25,
+        heightCm: 25,
+        position: (x: 1, y: 1),
+      );
+      final inside = storeBackBox(corner, null);
+      expect(inside.x + inside.width / 2, closeTo(1, 1e-9));
+      expect(inside.y + inside.height / 2, closeTo(1, 1e-9));
     });
 
     test('qualidade da imagem pela área das costas', () {

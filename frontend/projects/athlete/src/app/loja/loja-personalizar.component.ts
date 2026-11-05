@@ -249,7 +249,7 @@ export class LojaPersonalizarComponent {
   protected readonly previewName = computed<PreviewName | null>(() => {
     const c = this.custom();
     if (!c?.name.enabled || !this.nameOn()) return null;
-    return { text: finalizeName(this.nameText()), fontId: this.fontId(), color: this.nameColor() ?? '#f4f4f5', placement: c.name.placement };
+    return { text: finalizeName(this.nameText()), fontId: this.fontId(), color: this.nameColor() ?? '#f4f4f5', placement: c.name.placement, position: c.name.position ?? null };
   });
   protected readonly previewArea = computed(() => (this.custom()?.image.enabled && this.imageOn() ? this.area() : null));
   protected readonly previewImage = computed<PreviewImage | null>(() => {
@@ -262,7 +262,7 @@ export class LojaPersonalizarComponent {
     if (!c || !kind || !this.backOn()) return null;
     const up = this.backUpload();
     return {
-      box: backPreviewBox(c.back, this.backNamePlacement()),
+      box: backPreviewBox(c.back, this.backNamePlacement(), c.name.position ?? null),
       kind,
       // Sem nome escolhido, a cor de maior contraste com a peça (a mesma conta do nome).
       number: kind === 'numero' ? { text: this.backNumber(), fontId: this.fontId(), color: this.nameColor() ?? '#f4f4f5' } : null,

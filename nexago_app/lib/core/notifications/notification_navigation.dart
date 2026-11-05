@@ -115,6 +115,10 @@ const organizerStoriesReadyNotificationType = 'organizer_stories_ready';
 /// `url` é `/athlete/blog/<id>`, com `postId` e `category` junto.
 const blogPostNotificationType = 'blog_post';
 
+/// A equipe respondeu a dúvida do atleta num post (`moderateBlogComment` em
+/// `functions/src/blog-comments.ts`): `url` é `/athlete/blog/<postId>`.
+const blogCommentReplyNotificationType = 'blog_comment_reply';
+
 /// Cancelamento por chuva (spec `2026-10-29-cancelamento-por-chuva-design.md`).
 /// O `url` desses pushes é `/my-bookings` (existe nos apps da loja); este build
 /// reconhece o tipo + `bookingId` e abre a escolha da reserva.
@@ -538,8 +542,10 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   // (item antigo do inbox), o tipo ainda leva a Meu cashback.
   if (type.startsWith('cashback_')) return AppRoutes.athleteCashback;
 
-  // Post do blog: sem `url`, monta pelo `postId`; sem os dois, o feed.
-  if (type == blogPostNotificationType) {
+  // Post do blog (e resposta à dúvida nele): sem `url`, monta pelo `postId`;
+  // sem os dois, o feed.
+  if (type == blogPostNotificationType ||
+      type == blogCommentReplyNotificationType) {
     final postId = (data['postId'] as String?)?.trim() ?? '';
     if (postId.isEmpty) return AppRoutes.blog;
     return AppRoutes.blogPost

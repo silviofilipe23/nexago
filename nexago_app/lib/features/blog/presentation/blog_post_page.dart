@@ -25,6 +25,7 @@ import '../domain/blog_logic.dart';
 import '../domain/blog_post.dart';
 import '../domain/blog_read_session.dart';
 import 'blog_navigation.dart';
+import 'widgets/blog_comments_section.dart';
 import 'widgets/blog_embeds.dart';
 import 'widgets/blog_embeds_arena_ranking.dart';
 import 'widgets/blog_notify_widgets.dart';
@@ -70,6 +71,9 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
 
   /// Esta tela é a do topo (nenhuma rota por cima).
   bool _routeCurrent = true;
+
+  /// "Ficou dúvida" → composer dos comentários em modo dúvida.
+  final _composer = BlogCommentComposerController();
 
   bool _opened = false;
   double _maxProgress = 0;
@@ -131,6 +135,7 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
 
   @override
   void dispose() {
+    _composer.dispose();
     _lifecycle.dispose();
     // Sessão já gravada na pausa não grava de novo (`close` só devolve uma vez).
     final session = _session;
@@ -366,7 +371,11 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
                       count: helpfulCount,
                       onTap: () => _toggleHelpful(post, helpful),
                       category: post.category,
+                      onQuestion: ref.watch(blogSessionUidProvider).isEmpty
+                          ? null
+                          : _composer.askQuestion,
                     ),
+                    BlogCommentsSection(post: post, composer: _composer),
                     if (related.isNotEmpty) ...[
                       const SizedBox(height: 28),
                       Semantics(
@@ -703,11 +712,16 @@ class _HelpfulCard extends StatelessWidget {
     required this.count,
     required this.onTap,
     required this.category,
+    this.onQuestion,
   });
 
   final bool helpful;
   final int count;
   final VoidCallback onTap;
+
+  /// "Ficou dúvida": abre o composer dos comentários em modo dúvida. `null`
+  /// sem sessão (comentar exige login).
+  final VoidCallback? onQuestion;
 
   /// Categoria do post: a linha "Avisar posts de …" embaixo do botão.
   final BlogCategory? category;
@@ -735,54 +749,14 @@ class _HelpfulCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Semantics(
-            toggled: helpful,
-            child: Material(
-              color: helpful
-                  ? AppColors.brand.withValues(alpha: 0.10)
-                  : Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: radius,
-                side: BorderSide(
-                  color: helpful
-                      ? AppColors.brand
-                      : colors.onSurface.withValues(alpha: 0.16),
-                ),
-              ),
-              child: InkWell(
-                key: const Key('blog-helpful'),
-                onTap: onTap,
-                borderRadius: radius,
-                child: SizedBox(
-                  height: 46,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        helpful
-                            ? Icons.thumb_up_alt_rounded
-                            : Icons.thumb_up_alt_outlined,
-                        size: 17,
-                        color: helpful
-                            ? colors.brandText
-                            : colors.onSurfaceMuted,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        count > 0 ? 'Ajudou · $count' : 'Ajudou',
-                        style: AppTypography.soraRegular(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: helpful
-                              ? colors.onSurface
-                              : colors.onSurfaceMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          Row(
+            children: [
+              Expanded(child: _helpfulButton(colors, radius)),
+              if (onQuestion != null) ...[
+                const SizedBox(width: 10),
+                Expanded(child: _questionButton(colors, radius)),
+              ],
+            ],
           ),
           if (category != null) ...[
             const SizedBox(height: 12),
@@ -792,6 +766,90 @@ class _HelpfulCard extends StatelessWidget {
       ),
     );
   }
+
+  Widget _questionButton(AppThemeColors colors, BorderRadius radius) =>
+      Material(
+        color: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: radius,
+          side: BorderSide(color: colors.onSurface.withValues(alpha: 0.16)),
+        ),
+        child: InkWell(
+          key: const Key('blog-question'),
+          onTap: onQuestion,
+          borderRadius: radius,
+          child: SizedBox(
+            height: 46,
+            child: Center(
+              child: Text(
+                'Ficou dúvida',
+                style: AppTypography.soraRegular(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colors.onSurfaceMuted,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  Widget _helpfulButton(
+    AppThemeColors colors,
+    BorderRadius radius,
+  ) => Semantics(
+    toggled: helpful,
+    child: Material(
+      color: helpful
+          ? AppColors.brand.withValues(alpha: 0.10)
+          : Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: radius,
+        side: BorderSide(
+          color: helpful
+              ? AppColors.brand
+              : colors.onSurface.withValues(alpha: 0.16),
+        ),
+      ),
+      child: InkWell(
+        key: const Key('blog-helpful'),
+        onTap: onTap,
+        borderRadius: radius,
+        child: SizedBox(
+          height: 46,
+          // Meia largura com "Ficou dúvida" ao lado: fonte grande encolhe
+          // em vez de estourar.
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    helpful
+                        ? Icons.thumb_up_alt_rounded
+                        : Icons.thumb_up_alt_outlined,
+                    size: 17,
+                    color: helpful ? colors.brandText : colors.onSurfaceMuted,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    count > 0 ? 'Ajudou · $count' : 'Ajudou',
+                    style: AppTypography.soraRegular(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: helpful ? colors.onSurface : colors.onSurfaceMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _Unavailable extends StatelessWidget {

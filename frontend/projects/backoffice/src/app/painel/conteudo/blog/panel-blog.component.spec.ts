@@ -5,6 +5,7 @@ import { AuthService } from '../../../auth/auth.service';
 import type { BlogPost } from './data/blog-post';
 import type { BlogWindowMetrics } from './data/blog-metrics';
 import { BlogMetricsRepository } from './data/blog-metrics.repository';
+import { BlogCommentsRepository } from './data/blog-comments.repository';
 import { BlogPostsRepository } from './data/blog-posts.repository';
 import { BlogSuggestionsRepository, type SuggestionSources } from './data/blog-suggestions.repository';
 import { PanelBlogComponent } from './panel-blog.component';
@@ -35,6 +36,7 @@ function post(id: string, over: Partial<BlogPost> = {}): BlogPost {
     helpfulCount: 0,
     updatedAt: null,
     version: 1,
+    commentCount: 0,
     ...over,
   };
 }
@@ -74,6 +76,7 @@ describe('PanelBlogComponent', () => {
         { provide: BlogPostsRepository, useValue: { list } },
         { provide: BlogMetricsRepository, useValue: { window } },
         { provide: BlogSuggestionsRepository, useValue: { load: () => Promise.resolve(sources) } },
+        { provide: BlogCommentsRepository, useValue: { pendingCount: () => Promise.resolve(4) } },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(PanelBlogComponent);

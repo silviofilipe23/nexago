@@ -32,6 +32,7 @@ function post(id: string, over: Partial<BlogPost>): BlogPost {
     helpfulCount: 0,
     updatedAt: null,
     version: 1,
+    commentCount: 0,
     ...over,
   };
 }

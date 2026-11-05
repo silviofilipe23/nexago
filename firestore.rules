@@ -3480,6 +3480,18 @@ service cloud.firestore {
       allow read: if resource.data.status == 'published' || isAdmin() || isSuperAdmin();
       allow write: if false;
 
+      // Comentários e dúvidas ("Ficou dúvida"). Escrita só pelas callables postBlogComment e
+      // moderateBlogComment (`functions/src/blog-comments.ts`): tudo nasce pendente e só aparece
+      // aprovado. Atleta logado lê os aprovados e os próprios (para ver "aguardando aprovação");
+      // pode apagar o próprio. Ficam só no app: o site não lê (nome de atleta).
+      match /blogComments/{commentId} {
+        allow read: if isAdmin() || isSuperAdmin()
+          || (request.auth != null && resource.data.status == 'approved')
+          || (request.auth != null && resource.data.uid == request.auth.uid);
+        allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+        allow create, update: if false;
+      }
+
       // "Ajudou" do atleta: um doc por uid, criado ou apagado por ele; `helpfulCount` no post
       // é do gatilho onBlogReactionWritten.
       match /reactions/{uid} {
@@ -3523,6 +3535,10 @@ service cloud.firestore {
         && request.resource.data.at == request.time
         && get(/databases/$(database)/documents/blogPosts/$(request.resource.data.postId)).data.status == 'published';
       allow update, delete: if false;
+    }
+    // Fila de moderação do backoffice: consulta collection group de `blogComments`.
+    match /{path=**}/blogComments/{commentId} {
+      allow read: if isAdmin() || isSuperAdmin();
     }
     // Primeira/última leitura de cada atleta; só o gatilho onBlogReadCreated grava.
     match /blogReaders/{uid} {

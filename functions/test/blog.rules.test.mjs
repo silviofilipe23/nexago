@@ -157,3 +157,24 @@ test('sessão de leitura: o atleta grava a própria, de post publicado, e só o 
   await assertSucceeds(getDoc(doc(adminDb(), 'blogReads', 'r1')));
   await assertFails(setDoc(doc(adminDb(), 'blogReaders', ATHLETE_UID), { firstReadAt: serverTimestamp() }));
 });
+
+test('comentários: aprovado para quem está logado, o próprio em qualquer status, escrita só servidor', async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const store = ctx.firestore();
+    await setDoc(doc(store, 'blogPosts', 'pub', 'blogComments', 'ok'), { uid: OTHER_UID, status: 'approved', text: 'Boa' });
+    await setDoc(doc(store, 'blogPosts', 'pub', 'blogComments', 'mine'), { uid: ATHLETE_UID, status: 'pending', text: 'Dúvida' });
+    await setDoc(doc(store, 'blogPosts', 'pub', 'blogComments', 'theirs'), { uid: OTHER_UID, status: 'pending', text: 'Oi' });
+  });
+  const anon = testEnv.unauthenticatedContext().firestore();
+  await assertFails(getDoc(doc(anon, 'blogPosts', 'pub', 'blogComments', 'ok')));
+  await assertSucceeds(getDoc(doc(db(), 'blogPosts', 'pub', 'blogComments', 'ok')));
+  await assertSucceeds(getDoc(doc(db(), 'blogPosts', 'pub', 'blogComments', 'mine')));
+  await assertFails(getDoc(doc(db(), 'blogPosts', 'pub', 'blogComments', 'theirs')));
+  await assertSucceeds(getDocs(query(collection(db(), 'blogPosts', 'pub', 'blogComments'), where('status', '==', 'approved'))));
+  await assertSucceeds(getDocs(query(collection(db(), 'blogPosts', 'pub', 'blogComments'), where('uid', '==', ATHLETE_UID))));
+  await assertFails(getDocs(collection(db(), 'blogPosts', 'pub', 'blogComments')));
+  await assertFails(setDoc(doc(db(), 'blogPosts', 'pub', 'blogComments', 'new'), { uid: ATHLETE_UID, status: 'approved', text: 'x' }));
+  await assertFails(deleteDoc(doc(db(), 'blogPosts', 'pub', 'blogComments', 'theirs')));
+  await assertSucceeds(deleteDoc(doc(db(), 'blogPosts', 'pub', 'blogComments', 'mine')));
+  await assertSucceeds(getDoc(doc(adminDb(), 'blogPosts', 'pub', 'blogComments', 'theirs')));
+});

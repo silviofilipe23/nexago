@@ -2,6 +2,7 @@ import { ApplicationRef, provideZonelessChangeDetection, signal } from '@angular
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { BlogBadgesService } from '../data/blog-badges.service';
 import { SquadBadgesService } from '../data/squad-badges.service';
 import { StoreBadgesService } from '../data/store-badges.service';
 import { TournamentBadgesService } from '../data/tournament-badges.service';
@@ -78,12 +79,15 @@ describe('PanelShellComponent', () => {
     expect(host.querySelector('.subnav .badge')).toBeNull();
   });
 
-  it('o grupo Conteúdo tem o Blog como link', async () => {
+  it('o grupo Conteúdo tem o Blog e a fila de Comentários como links', async () => {
     const host = await mount();
     groupButton(host, 'Conteúdo').click();
     await TestBed.inject(ApplicationRef).whenStable();
     const links = [...host.querySelectorAll('.subnav a.nav-item')];
-    expect(links.map((e) => [e.textContent!.trim(), e.getAttribute('href')])).toEqual([['Blog', '/painel/conteudo/blog']]);
+    expect(links.map((e) => [e.textContent!.trim(), e.getAttribute('href')])).toEqual([
+      ['Blog', '/painel/conteudo/blog'],
+      ['Comentários', '/painel/conteudo/blog/comentarios'],
+    ]);
   });
 
   it('o badge de Comissões é o número de embaixadores com repasse a fazer', async () => {
@@ -93,6 +97,15 @@ describe('PanelShellComponent', () => {
     await TestBed.inject(ApplicationRef).whenStable();
     const item = [...host.querySelectorAll('.subnav a.nav-item')].find((e) => e.textContent!.includes('Comissões'))!;
     expect(item.querySelector('.badge')!.textContent!.trim()).toBe('14');
+  });
+
+  it('o badge de Comentários é o número de pendentes da fila do blog', async () => {
+    const host = await mount();
+    TestBed.inject(BlogBadgesService).pendingComments.set(4);
+    groupButton(host, 'Conteúdo').click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    const item = [...host.querySelectorAll('.subnav a.nav-item')].find((e) => e.textContent!.includes('Comentários'))!;
+    expect(item.querySelector('.badge')!.textContent!.trim()).toBe('4');
   });
 
   it('Embaixadores mostra os contratos ativos e Candidaturas as novas', async () => {

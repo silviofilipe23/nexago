@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { callableErrorMessage } from '../../../data/callable-error';
 import { PanelCardComponent } from '../../../ui/panel-card.component';
 import { postResultRows, type BlogPostMetrics } from '../data/blog-metrics';
@@ -13,7 +14,7 @@ type State = { state: 'loading' } | { state: 'ok'; metrics: BlogPostMetrics } | 
 @Component({
   selector: 'bo-blog-post-result',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelCardComponent],
+  imports: [PanelCardComponent, RouterLink],
   template: `
     <bo-panel-card pad="sm" title="Resultado do post" kicker="Desde a publicação · app">
       @switch (result().state) {
@@ -33,6 +34,9 @@ type State = { state: 'loading' } | { state: 'ok'; metrics: BlogPostMetrics } | 
               </div>
             }
           </dl>
+          <a class="comments" routerLink="/painel/conteudo/blog/comentarios" [queryParams]="{ post: postId(), aba: 'approved' }">
+            Comentários: {{ commentCount() }} {{ commentCount() === 1 ? 'aprovado' : 'aprovados' }} →
+          </a>
           <p class="foot">Leituras pelo site não entram.</p>
         }
       }
@@ -44,6 +48,8 @@ type State = { state: 'loading' } | { state: 'ok'; metrics: BlogPostMetrics } | 
     .row:first-child { border-top: none; padding-top: 0; }
     dt { font-size: 12.5px; color: var(--nx-text-mute); }
     dd { margin: 0; font-family: var(--nx-font-mono); font-size: 13px; font-weight: 600; color: var(--nx-text); white-space: nowrap; }
+    .comments { display: inline-block; margin-top: 10px; font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; color: var(--nx-orange-400); text-decoration: none; }
+    .comments:hover { color: var(--nx-orange-500); }
     .foot { margin: 10px 0 0; font-size: 11px; color: var(--nx-text-dim); }
     .error { margin: 0 0 10px; font-size: 12px; line-height: 1.45; color: var(--nx-pending); }
     .skeleton { height: 150px; border-radius: var(--nx-r-2); background: var(--nx-surface-1); opacity: 0.6; }
@@ -56,6 +62,8 @@ export class BlogPostResultComponent {
   readonly hasCta = input(false);
   readonly helpfulCount = input(0);
   readonly readCount = input(0);
+  /** Aprovados (`commentCount` do post). */
+  readonly commentCount = input(0);
 
   protected readonly result = signal<State>({ state: 'loading' });
   private seq = 0;

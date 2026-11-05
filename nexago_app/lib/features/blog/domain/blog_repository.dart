@@ -1,3 +1,4 @@
+import 'blog_comment.dart';
 import 'blog_library.dart';
 import 'blog_notify_prefs.dart';
 import 'blog_post.dart';
@@ -33,4 +34,23 @@ abstract interface class BlogRepository {
   /// Cria `blogReads/{autoId}` com [payload] + `at` do servidor. Só create:
   /// a rule não deixa alterar nem apagar.
   Future<void> recordRead(Map<String, Object> payload);
+
+  /// Aprovados do post, do mais novo, até [limit].
+  Stream<List<BlogComment>> watchApprovedComments(
+    String postId, {
+    required int limit,
+  });
+
+  /// Os do atleta [uid] no post, em qualquer status.
+  Stream<List<BlogComment>> watchOwnComments(String postId, String uid);
+
+  /// Callable `postBlogComment`; devolve o id do comentário (nasce pendente).
+  Future<String> postComment(
+    String postId, {
+    required String text,
+    required BlogCommentKind kind,
+  });
+
+  /// O atleta apaga o próprio comentário.
+  Future<void> deleteComment(String postId, String commentId);
 }

@@ -8,6 +8,7 @@ import '../../../core/observability/flow_error_log.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../home_banners/domain/home_banner.dart';
 import '../../store/application/store_providers.dart';
+import '../domain/blog_comment.dart';
 import '../domain/blog_library.dart';
 import '../domain/blog_logic.dart';
 import '../domain/blog_notify_prefs.dart';
@@ -311,4 +312,54 @@ class BlogReadRecorder {
       recordFlowError('blog_read_write', e, st);
     }
   }
+}
+
+/// uid da sessão ("" sem login): os comentários só existem com sessão (a rule
+/// exige auth), e o "Apagar" só aparece no próprio.
+final blogSessionUidProvider = Provider<String>(
+  (ref) => ref.watch(_blogUidProvider),
+);
+
+/// Quantos aprovados por página ("Ver mais" pede outra).
+const blogCommentsPageSize = 30;
+
+/// Aprovados do post, do mais novo, até `limit`.
+final blogApprovedCommentsProvider = StreamProvider.autoDispose
+    .family<List<BlogComment>, ({String postId, int limit})>((ref, args) {
+      if (ref.watch(_blogUidProvider).isEmpty) return const Stream.empty();
+      return ref
+          .watch(blogRepositoryProvider)
+          .watchApprovedComments(args.postId, limit: args.limit);
+    });
+
+/// Os do atleta no post, em qualquer status (pendente/recusado só ele vê).
+final blogOwnCommentsProvider = StreamProvider.autoDispose
+    .family<List<BlogComment>, String>((ref, postId) {
+      final uid = ref.watch(_blogUidProvider);
+      if (uid.isEmpty) return const Stream.empty();
+      return ref.watch(blogRepositoryProvider).watchOwnComments(postId, uid);
+    });
+
+final blogCommentsControllerProvider = Provider<BlogCommentsController>(
+  (ref) => BlogCommentsController(ref),
+);
+
+/// Envia (callable `postBlogComment`) e apaga o próprio comentário. Os dois
+/// esperam o servidor: a tela mostra o erro (pendentes demais, post fora do
+/// ar) em vez de fingir que deu certo.
+class BlogCommentsController {
+  BlogCommentsController(this._ref);
+
+  final Ref _ref;
+
+  Future<String> post(
+    String postId, {
+    required String text,
+    required BlogCommentKind kind,
+  }) => _ref
+      .read(blogRepositoryProvider)
+      .postComment(postId, text: text.trim(), kind: kind);
+
+  Future<void> delete(String postId, String commentId) =>
+      _ref.read(blogRepositoryProvider).deleteComment(postId, commentId);
 }

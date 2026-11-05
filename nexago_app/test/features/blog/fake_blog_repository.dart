@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:nexago_app/features/blog/domain/blog_comment.dart';
 import 'package:nexago_app/features/blog/domain/blog_library.dart';
 import 'package:nexago_app/features/blog/domain/blog_notify_prefs.dart';
 import 'package:nexago_app/features/blog/domain/blog_post.dart';
@@ -89,5 +90,83 @@ class FakeBlogRepository implements BlogRepository {
   @override
   Future<void> recordRead(Map<String, Object> payload) async {
     reads.add(payload);
+  }
+
+  /// Comentários por post (aprovados e de qualquer autor).
+  final comments = <String, List<BlogComment>>{};
+  final postedComments =
+      <({String postId, String text, BlogCommentKind kind})>[];
+  final deletedComments = <String>[];
+
+  /// Erro da próxima chamada a [postComment] (ex.: pendentes demais).
+  Object? postCommentError;
+  final _commentListeners =
+      <({String postId, String? uid, StreamController<List<BlogComment>> c})>[];
+
+  List<BlogComment> _visible(String postId, String? uid) => [
+    for (final c in comments[postId] ?? const <BlogComment>[])
+      if (uid == null ? c.status == BlogCommentStatus.approved : c.uid == uid)
+        c,
+  ];
+
+  Stream<List<BlogComment>> _watch(String postId, String? uid) {
+    final c = StreamController<List<BlogComment>>();
+    final entry = (postId: postId, uid: uid, c: c);
+    c.onListen = () => c.add(_visible(postId, uid));
+    c.onCancel = () => _commentListeners.remove(entry);
+    _commentListeners.add(entry);
+    return c.stream;
+  }
+
+  void _emitComments(String postId) {
+    for (final l in [..._commentListeners]) {
+      if (l.postId == postId) l.c.add(_visible(postId, l.uid));
+    }
+  }
+
+  @override
+  Stream<List<BlogComment>> watchApprovedComments(
+    String postId, {
+    required int limit,
+  }) => _watch(postId, null).map((l) => l.take(limit).toList());
+
+  @override
+  Stream<List<BlogComment>> watchOwnComments(String postId, String uid) =>
+      _watch(postId, uid);
+
+  @override
+  Future<String> postComment(
+    String postId, {
+    required String text,
+    required BlogCommentKind kind,
+  }) async {
+    final error = postCommentError;
+    if (error != null) {
+      postCommentError = null;
+      throw error;
+    }
+    postedComments.add((postId: postId, text: text, kind: kind));
+    final id = 'novo-${postedComments.length}';
+    (comments[postId] ??= []).insert(
+      0,
+      BlogComment(
+        id: id,
+        uid: 'u1',
+        authorName: 'Você',
+        text: text,
+        kind: kind,
+        status: BlogCommentStatus.pending,
+        createdAt: DateTime.now(),
+      ),
+    );
+    _emitComments(postId);
+    return id;
+  }
+
+  @override
+  Future<void> deleteComment(String postId, String commentId) async {
+    deletedComments.add(commentId);
+    comments[postId]?.removeWhere((c) => c.id == commentId);
+    _emitComments(postId);
   }
 }

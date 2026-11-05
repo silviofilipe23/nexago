@@ -48,4 +48,36 @@ void main() {
     expect(p.icon, Icons.article_outlined);
     expect(p.routePath, '/athlete/blog/p1');
   });
+
+  test('resposta à dúvida: o toque abre o post; inbox com ícone de chat', () {
+    expect(
+      resolveNotificationRoute({
+        'type': blogCommentReplyNotificationType,
+        'url': '/athlete/blog/p1',
+        'postId': 'p1',
+      }),
+      '/athlete/blog/p1',
+    );
+    expect(
+      resolveNotificationRoute({
+        'type': blogCommentReplyNotificationType,
+        'postId': 'p2',
+      }),
+      '/athlete/blog/p2',
+    );
+    final p = notificationPresentation(
+      AthleteInboxNotification(
+        id: 'n2',
+        title: 'A equipe respondeu sua dúvida',
+        body: 'No post "Liga". Toque para ler.',
+        type: blogCommentReplyNotificationType,
+        data: const {'url': '/athlete/blog/p1', 'postId': 'p1'},
+        read: false,
+        dismissed: false,
+        createdAt: DateTime(2026, 11, 5),
+      ),
+    );
+    expect(p.icon, Icons.chat_bubble_outline_rounded);
+    expect(p.routePath, '/athlete/blog/p1');
+  });
 }

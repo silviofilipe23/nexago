@@ -173,6 +173,8 @@ export interface BlogPost {
   readMinutes: number;
   readCount: number;
   helpfulCount: number;
+  /** Comentários aprovados (gatilho `onBlogCommentWritten`); doc sem o campo = 0. */
+  commentCount: number;
   updatedAt: Date | null;
   version: number;
 }
@@ -345,6 +347,7 @@ export function blogPostFromDoc(id: string, data: Record<string, unknown>): Blog
     readMinutes: num(data['readMinutes']),
     readCount: num(data['readCount']),
     helpfulCount: num(data['helpfulCount']),
+    commentCount: num(data['commentCount']),
     updatedAt: dateOf(data['updatedAt']),
     version: num(data['version']),
   };

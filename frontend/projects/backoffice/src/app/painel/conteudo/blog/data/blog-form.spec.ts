@@ -72,6 +72,7 @@ describe('blog · formulário', () => {
       helpfulCount: 0,
       updatedAt: null,
       version: 3,
+      commentCount: 0,
       ...over,
     });
     expect(draftFromPost(post({ status: 'draft' })).slugTouched).toBeFalse();
@@ -232,6 +233,7 @@ describe('blog · formulário', () => {
       helpfulCount: 0,
       updatedAt: null,
       version: 1,
+      commentCount: 0,
     });
     expect([base.pushEnabled, base.pushCity, base.pushSent]).toEqual([true, 'Goiânia', true]);
   });

@@ -23,7 +23,7 @@ final _post = BlogPost(
   id: 'liga',
   title: 'Liga nexaGO: tudo sobre a 2ª etapa',
   slug: 'liga',
-  category: BlogCategory.torneios,
+  categoryKey: 'torneios',
   authorName: 'Marcelo R.',
   publishAt: DateTime(2026, 10, 28),
   readMinutes: 4,
@@ -197,7 +197,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('blog-notify-switch')));
     await _settle(tester);
-    expect(repo.notifyWrites.single.muted, {BlogCategory.torneios});
+    expect(repo.notifyWrites.single.muted, {'torneios'});
   });
 
   testWidgets('push desligado: dica e atalho em vez do switch', (tester) async {
@@ -221,14 +221,7 @@ void main() {
     final repo = await _pump(
       tester,
       location: AppRoutes.blogSaved,
-      prefs: const BlogNotifyPrefs(
-        muted: {
-          BlogCategory.regras,
-          BlogCategory.arenas,
-          BlogCategory.guia,
-          BlogCategory.loja,
-        },
-      ),
+      prefs: const BlogNotifyPrefs(muted: {'regras', 'arenas', 'guia', 'loja'}),
     );
 
     expect(find.text('Avisos do blog'), findsOneWidget);
@@ -239,10 +232,6 @@ void main() {
     await tester.tap(find.byKey(const Key('blog-notify-sheet-regras')));
     await _settle(tester);
 
-    expect(repo.notifyWrites.single.muted, {
-      BlogCategory.arenas,
-      BlogCategory.guia,
-      BlogCategory.loja,
-    });
+    expect(repo.notifyWrites.single.muted, {'arenas', 'guia', 'loja'});
   });
 }

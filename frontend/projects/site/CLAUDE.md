@@ -41,7 +41,7 @@ src/
       reveal.directive.ts
   lib/
     firestore/              # repositórios de leitura (tournaments, arenas, leagues, arena-sites, link-pages, blog, store-showcase, rankings)
-    blog/                   # posts estáticos antigos, categorias (rótulo/cor) e a junção com os do Firestore (feed.ts)
+    blog/                   # posts estáticos antigos, categorias (6 de origem ⊕ `blogCategories`, categories.ts) e a junção com os do Firestore (feed.ts)
     docs/                   # tipos + conteúdo da documentação (types.ts é o contrato entre shell e conteúdo)
     slug.ts                 # toSlugId/extractId — URLs "nome-decorativo-id"
     format.ts               # sportLabel, formatDate, STATUS_META
@@ -57,10 +57,12 @@ public/
 
 Regras de cor: tokens semânticos sempre (`bg-brand`, `text-fg`, nunca hex cru); `live`/`pending`/`win` sempre acompanhados de ícone/label, nunca só cor.
 
+Exceção: cor de categoria do blog criada no backoffice (`blogCategories/{id}.color`/`colorLight`) é dado dinâmico em hex — entra só como custom property no elemento (`BlogCategoryChip`: `--cat-dark`/`--cat-light`, o tema escolhe; `BlogCover`: tom escuro na arte). As 6 de origem usam os tokens `--color-cat-*` (fora do `@theme`, em `:root`, para sempre saírem no CSS).
+
 ## Dados (Firestore)
 - Config em `@nexago/firebase-config` (projeto `volley-track-dev-4596c` — mesmo projeto dev usado pelos outros apps Angular do workspace). Chaves de cliente não são secretas; a segurança vive nas `firestore.rules`.
 - Apenas **leitura pública** (+ escrita pública nos formulários: contato, waitlist/lead, tracking de clique em link page). Repositórios em `src/lib/firestore/*.ts` — componentes não falam direto com o SDK.
-- **Coleções lidas**: `tournaments`, `leagues`, `arenas` (+ subcoleção `courts`), `arenaSitesPublic` (mini-sites), `linkPageSlugs`/`linkPages` (+ subcoleção `links`), `blogPosts` (sempre com `status == 'published'` + `channels.site == true`; corpo é texto puro, renderizado por binding escapado, nunca `[innerHTML]`; os blocos Torneio/Produto/Vídeo/Arena/Ranking leem o torneio, `storeShowcase/{id}` e `arenas/{id}` ao vivo e somem se o doc não existir ou não for público — componentes em `pages/blog/blocks/`), `public_profiles` e `artifacts/{projectId}/public/data/{athleteRankingsBySport,teamRankingsBySport,teams}` (bloco Ranking — espelho do ranking do app em `lib/firestore/rankings.ts`, com o custo do filtro de gênero documentado lá). Ver cada arquivo em `lib/firestore/` pro mapeamento exato de campos — a lógica de status de torneio (`tournament-status.ts`) é particularmente não-trivial, não reescrever sem entender o porquê de cada decisão (comentado no arquivo).
+- **Coleções lidas**: `tournaments`, `leagues`, `arenas` (+ subcoleção `courts`), `arenaSitesPublic` (mini-sites), `linkPageSlugs`/`linkPages` (+ subcoleção `links`), `blogPosts` (sempre com `status == 'published'` + `channels.site == true`; `author.photoUrl` quando o post tem autor cadastrado; corpo é texto puro, renderizado por binding escapado, nunca `[innerHTML]`; os blocos Torneio/Produto/Vídeo/Arena/Ranking leem o torneio, `storeShowcase/{id}` e `arenas/{id}` ao vivo e somem se o doc não existir ou não for público — componentes em `pages/blog/blocks/`), `blogCategories` (rótulo/cor/ordem/ativa, mesclado com as 6 de origem — `lib/firestore/blog-categories.ts`; falha = só as de origem), `public_profiles` e `artifacts/{projectId}/public/data/{athleteRankingsBySport,teamRankingsBySport,teams}` (bloco Ranking — espelho do ranking do app em `lib/firestore/rankings.ts`, com o custo do filtro de gênero documentado lá). Ver cada arquivo em `lib/firestore/` pro mapeamento exato de campos — a lógica de status de torneio (`tournament-status.ts`) é particularmente não-trivial, não reescrever sem entender o porquê de cada decisão (comentado no arquivo).
 - Padrão de fetch: `signal` + `loading` + `.then()` no `constructor()`, ou `effect()` quando o dado depende de um `input()` de rota (o Router reaproveita a mesma instância entre navegações do mesmo padrão de rota — precisa de guarda de obsolescência, ver `liga-detail.page.ts` como referência).
 
 ## SEO — sem SSR, compensado por uma Cloud Function

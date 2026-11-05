@@ -54,7 +54,8 @@ describe('blog · post', () => {
     expect(post.helpfulCount).toBe(0);
     const bad = blogPostFromDoc('p2', { status: 'x', category: 'y' });
     expect(bad.status).toBe('draft');
-    expect(bad.category).toBe('torneios');
+    // Id desconhecido fica como está: a tela mostra "Blog" neutro (categoria apagada ou de build novo).
+    expect(bad.category).toBe('y');
     expect(bad.cta).toBeNull();
   });
 
@@ -159,5 +160,12 @@ describe('blog · post', () => {
   it('resumo do ranking no editor', () => {
     expect(rankingSummary({ sport: 'beachVolleyball', mode: 'teams', gender: 'feminino' })).toBe('Top 5 · Vôlei de praia · Equipes · Feminino');
     expect(rankingSummary({ sport: 'beach_tennis', mode: 'athletes', gender: 'all' })).toBe('Top 5 · Beach tennis · Atletas · Todos os gêneros');
+  });
+
+  it('autor: id e foto do cadastro quando há; post antigo só com nome e função', () => {
+    const post = blogPostFromDoc('p', { author: { id: 'a1', name: 'Ana', role: 'Editora', photoUrl: 'https://x/a.jpg' } });
+    expect(post.author).toEqual({ id: 'a1', name: 'Ana', role: 'Editora', photoUrl: 'https://x/a.jpg' });
+    const old = blogPostFromDoc('v', { author: { name: 'Ana', role: '' } });
+    expect(old.author).toEqual({ id: null, name: 'Ana', role: '', photoUrl: null });
   });
 });

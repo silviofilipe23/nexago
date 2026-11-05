@@ -9,47 +9,46 @@ import 'blog_post.dart';
 class BlogNotifyPrefs {
   const BlogNotifyPrefs({this.muted = const {}, this.updatedAt});
 
-  /// Categorias silenciadas.
-  final Set<BlogCategory> muted;
+  /// Ids das categorias silenciadas (de origem ou criadas no backoffice).
+  final Set<String> muted;
 
   /// Hora do servidor; `null` sem doc ou com a gravação pendente.
   final DateTime? updatedAt;
 
   static const allOn = BlogNotifyPrefs();
 
-  bool isOn(BlogCategory category) => !muted.contains(category);
+  bool isOn(String categoryKey) => !muted.contains(categoryKey);
 
-  List<BlogCategory> get enabled => [
-    for (final c in BlogCategory.values)
-      if (isOn(c)) c,
+  /// Das [categories] (as ativas, na ordem), as que estão ligadas.
+  List<BlogCategory> enabledIn(List<BlogCategory> categories) => [
+    for (final c in categories)
+      if (isOn(c.key)) c,
   ];
 
-  /// Liga ou desliga [category].
-  BlogNotifyPrefs withCategory(BlogCategory category, {required bool on}) =>
+  /// Liga ou desliga a categoria [categoryKey].
+  BlogNotifyPrefs withCategory(String categoryKey, {required bool on}) =>
       BlogNotifyPrefs(
-        muted: on ? ({...muted}..remove(category)) : {...muted, category},
+        muted: on ? ({...muted}..remove(categoryKey)) : {...muted, categoryKey},
         updatedAt: updatedAt,
       );
 
-  /// Só `muted` (na ordem fixa das categorias); `updatedAt` é do servidor.
+  /// Só `muted` (ordenado, para o doc não mudar à toa); `updatedAt` é do
+  /// servidor. Id de categoria desativada continua silenciado.
   Map<String, Object?> toWriteMap() => {
-    'muted': [
-      for (final c in BlogCategory.values)
-        if (muted.contains(c)) c.key,
-    ],
+    'muted': [...muted]..sort(),
   };
 
-  /// Chave desconhecida (categoria de build mais novo) fica de fora.
+  /// Só ids no formato de categoria; o resto fica de fora.
   static BlogNotifyPrefs fromMap(Map<String, dynamic>? map) {
     if (map == null) return allOn;
     final raw = map['muted'];
-    final updatedAt = blogDate(map['updatedAt']);
     return BlogNotifyPrefs(
       muted: {
         if (raw is List)
-          for (final k in raw) ?BlogCategory.fromKey(k),
+          for (final k in raw)
+            if (isBlogCategoryId(k)) k as String,
       },
-      updatedAt: updatedAt,
+      updatedAt: blogDate(map['updatedAt']),
     );
   }
 }
@@ -60,20 +59,20 @@ String _joinPt(List<String> items) {
   return '${items.sublist(0, items.length - 1).join(', ')} e ${items.last}';
 }
 
-/// Resumo do card "Avisos do blog": "Torneios e Treino ligados", "Todas as
-/// categorias ligadas", "Todas, menos Loja", "Todos desligados".
-String blogNotifySummary(BlogNotifyPrefs prefs) {
-  final on = prefs.enabled;
-  final total = BlogCategory.values.length;
-  if (on.length == total) return 'Todas as categorias ligadas';
+/// Resumo do card "Avisos do blog" sobre as [categories] ativas: "Torneios e
+/// Treino ligados", "Todas as categorias ligadas", "Todas, menos Loja",
+/// "Todos desligados".
+String blogNotifySummary(BlogNotifyPrefs prefs, List<BlogCategory> categories) {
+  final on = prefs.enabledIn(categories);
+  if (on.length == categories.length) return 'Todas as categorias ligadas';
   if (on.isEmpty) return 'Todos desligados';
   if (on.length <= 3) {
     final labels = _joinPt([for (final c in on) c.label]);
     return on.length == 1 ? '$labels ligado' : '$labels ligados';
   }
   final off = [
-    for (final c in BlogCategory.values)
-      if (!prefs.isOn(c)) c.label,
+    for (final c in categories)
+      if (!prefs.isOn(c.key)) c.label,
   ];
   return 'Todas, menos ${_joinPt(off)}';
 }

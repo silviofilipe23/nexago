@@ -8,7 +8,7 @@ import 'package:nexago_app/features/home_banners/domain/home_banner.dart';
 
 BlogPost _post(
   String id, {
-  BlogCategory? category = BlogCategory.treino,
+  String categoryKey = 'treino',
   bool featured = false,
   DateTime? at,
   String title = 'Post',
@@ -19,7 +19,7 @@ BlogPost _post(
   id: id,
   title: title,
   subtitle: subtitle,
-  category: category,
+  categoryKey: categoryKey,
   featured: featured,
   publishAt: at,
   tags: tags,
@@ -61,7 +61,7 @@ void main() {
       })!;
 
       expect(post.title, 'Liga nexaGO');
-      expect(post.category, BlogCategory.torneios);
+      expect(post.categoryKey, 'torneios');
       expect(post.tags, ['liga']);
       expect(post.authorName, 'Marcelo R.');
       expect(post.body.map((b) => b.runtimeType), [
@@ -91,8 +91,10 @@ void main() {
         'coverUrl': 'http://x',
         'readMinutes': 0,
       })!;
-      expect(post.category, isNull);
-      expect(post.categoryLabel, 'Blog');
+      // O id fica no post; a lista efetiva não o conhece = "Blog".
+      expect(post.categoryKey, 'podcast');
+      expect(BlogTaxonomy.defaults.of(post.categoryKey), isNull);
+      expect(BlogTaxonomy.defaults.labelOf(post.categoryKey), 'Blog');
       expect(post.coverUrl, isNull);
       expect(post.readMinutes, 1);
     });
@@ -192,15 +194,28 @@ void main() {
       expect(blogFeaturedPost(const []), isNull);
     });
 
-    test('chips só das categorias com post, na ordem fixa', () {
+    test('chips só das categorias ATIVAS com post, na ordem da lista', () {
       final posts = [
-        _post('a', category: BlogCategory.loja),
-        _post('b', category: BlogCategory.torneios),
-        _post('c', category: null),
+        _post('a', categoryKey: 'loja'),
+        _post('b', categoryKey: 'torneios'),
+        _post('c', categoryKey: 'podcast'), // desconhecida
+        _post('d', categoryKey: 'regras'),
+        _post('e', categoryKey: 'saude'),
       ];
-      expect(blogCategoriesWithPosts(posts), [
-        BlogCategory.torneios,
-        BlogCategory.loja,
+      final taxonomy = BlogTaxonomy.merge({
+        'regras': {'active': false},
+        'saude': {
+          'label': 'Saúde',
+          'color': '#33CCAA',
+          'colorLight': '#11664F',
+          'order': 1,
+          'active': true,
+        },
+      });
+      expect(blogCategoriesWithPosts(posts, taxonomy).map((c) => c.key), [
+        'torneios',
+        'saude',
+        'loja',
       ]);
     });
 
@@ -252,12 +267,12 @@ void main() {
     });
 
     test('leia também: mesma categoria primeiro, completa com recentes', () {
-      final post = _post('x', category: BlogCategory.regras);
+      final post = _post('x', categoryKey: 'regras');
       final feed = [
         post,
-        _post('t1', category: BlogCategory.treino),
-        _post('r1', category: BlogCategory.regras),
-        _post('t2', category: BlogCategory.treino),
+        _post('t1', categoryKey: 'treino'),
+        _post('r1', categoryKey: 'regras'),
+        _post('t2', categoryKey: 'treino'),
       ];
       expect(blogRelatedPosts(post, feed).map((p) => p.id), ['r1', 't1']);
       expect(blogRelatedPosts(post, [post]), isEmpty);
@@ -454,59 +469,80 @@ void main() {
   });
 
   group('avisos por categoria', () {
+    final categories = BlogTaxonomy.defaults.active;
+
     test('doc ausente = todas ligadas', () {
       final prefs = BlogNotifyPrefs.fromMap(null);
-      expect(prefs.enabled, BlogCategory.values);
-      expect(blogNotifySummary(prefs), 'Todas as categorias ligadas');
+      expect(prefs.enabledIn(categories), categories);
+      expect(
+        blogNotifySummary(prefs, categories),
+        'Todas as categorias ligadas',
+      );
     });
 
-    test('lê muted, ignora chave desconhecida e grava na ordem fixa', () {
+    test('lê muted (inclusive id de categoria criada), ignora o que não é id '
+        'e grava ordenado', () {
       final prefs = BlogNotifyPrefs.fromMap({
-        'muted': ['loja', 'podcast', 'regras', 3],
+        'muted': ['loja', 'saude-corpo', 'Fora Do Formato', 'regras', 3],
       });
-      expect(prefs.muted, {BlogCategory.loja, BlogCategory.regras});
+      expect(prefs.muted, {'loja', 'saude-corpo', 'regras'});
       expect(prefs.toWriteMap(), {
-        'muted': ['regras', 'loja'],
+        'muted': ['loja', 'regras', 'saude-corpo'],
       });
       expect(prefs.toWriteMap().keys, ['muted']);
     });
 
     test('alternar liga e desliga uma categoria', () {
-      final off = BlogNotifyPrefs.allOn.withCategory(
-        BlogCategory.torneios,
-        on: false,
-      );
-      expect(off.isOn(BlogCategory.torneios), isFalse);
-      expect(off.isOn(BlogCategory.treino), isTrue);
-      final on = off.withCategory(BlogCategory.torneios, on: true);
+      final off = BlogNotifyPrefs.allOn.withCategory('torneios', on: false);
+      expect(off.isOn('torneios'), isFalse);
+      expect(off.isOn('treino'), isTrue);
+      final on = off.withCategory('torneios', on: true);
       expect(on.muted, isEmpty);
     });
 
     test('resumo do card', () {
-      BlogNotifyPrefs only(List<BlogCategory> on) => BlogNotifyPrefs(
+      BlogNotifyPrefs only(List<String> on) => BlogNotifyPrefs(
         muted: {
-          for (final c in BlogCategory.values)
-            if (!on.contains(c)) c,
+          for (final c in categories)
+            if (!on.contains(c.key)) c.key,
         },
       );
       expect(
-        blogNotifySummary(only([BlogCategory.torneios, BlogCategory.treino])),
+        blogNotifySummary(only(['torneios', 'treino']), categories),
         'Torneios e Treino ligados',
       );
-      expect(blogNotifySummary(only([BlogCategory.regras])), 'Regras ligado');
+      expect(blogNotifySummary(only(['regras']), categories), 'Regras ligado');
       expect(
-        blogNotifySummary(
-          only([BlogCategory.torneios, BlogCategory.treino, BlogCategory.guia]),
-        ),
+        blogNotifySummary(only(['torneios', 'treino', 'guia']), categories),
         'Torneios, Treino e Guia do app ligados',
       );
       expect(
         blogNotifySummary(
-          BlogNotifyPrefs(muted: {BlogCategory.loja, BlogCategory.arenas}),
+          const BlogNotifyPrefs(muted: {'loja', 'arenas'}),
+          categories,
         ),
         'Todas, menos Arenas e Loja',
       );
-      expect(blogNotifySummary(only(const [])), 'Todos desligados');
+      expect(blogNotifySummary(only(const []), categories), 'Todos desligados');
+    });
+
+    test('resumo com categoria criada e desativada fora', () {
+      final active = BlogTaxonomy.merge({
+        'loja': {'active': false},
+        'saude': {
+          'label': 'Saúde',
+          'color': '#33CCAA',
+          'colorLight': '#11664F',
+          'order': 9,
+        },
+      }).active;
+      expect(active.map((c) => c.key), contains('saude'));
+      expect(active.map((c) => c.key), isNot(contains('loja')));
+      // Loja desativada e silenciada não conta: o resto todo ligado.
+      expect(
+        blogNotifySummary(const BlogNotifyPrefs(muted: {'loja'}), active),
+        'Todas as categorias ligadas',
+      );
     });
   });
 }

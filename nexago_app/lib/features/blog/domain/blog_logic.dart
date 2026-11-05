@@ -22,12 +22,16 @@ BlogPost? blogFeaturedPost(List<BlogPost> posts) {
   return posts.where((p) => p.featured).firstOrNull ?? posts.first;
 }
 
-/// As categorias que têm post, na ordem do enum (os chips do feed).
-List<BlogCategory> blogCategoriesWithPosts(List<BlogPost> posts) {
-  final present = {for (final p in posts) ?p.category};
+/// Os chips do feed: as categorias ATIVAS que têm post, na ordem da lista
+/// efetiva.
+List<BlogCategory> blogCategoriesWithPosts(
+  List<BlogPost> posts,
+  BlogTaxonomy taxonomy,
+) {
+  final present = {for (final p in posts) p.categoryKey};
   return [
-    for (final c in BlogCategory.values)
-      if (present.contains(c)) c,
+    for (final c in taxonomy.active)
+      if (present.contains(c.key)) c,
   ];
 }
 
@@ -148,7 +152,7 @@ List<BlogPost> blogRelatedPosts(
   int max = 2,
 }) {
   final others = posts.where((p) => p.id != post.id).toList();
-  final same = others.where((p) => p.category == post.category).take(max);
+  final same = others.where((p) => p.categoryKey == post.categoryKey).take(max);
   final result = [...same];
   for (final p in others) {
     if (result.length >= max) break;

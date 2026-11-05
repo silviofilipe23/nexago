@@ -17,7 +17,7 @@ import '../fake_blog_repository.dart';
 final _post = BlogPost(
   id: 'liga',
   title: 'Liga nexaGO: tudo sobre a 2ª etapa',
-  category: BlogCategory.torneios,
+  categoryKey: 'torneios',
   readMinutes: 4,
   commentCount: 2,
   body: const [BlogParagraph('A 2ª etapa chega com categorias novas.')],

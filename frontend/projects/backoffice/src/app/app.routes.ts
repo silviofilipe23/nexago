@@ -222,6 +222,20 @@ export const routes: Routes = [
       import('./painel/conteudo/blog/blog-post-editor.component').then((m) => m.BlogPostEditorComponent),
   },
   {
+    path: 'painel/conteudo/blog/categorias',
+    title: 'Categorias do blog — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/conteudo/blog/blog-categories.component').then((m) => m.BlogCategoriesComponent),
+  },
+  {
+    path: 'painel/conteudo/blog/autores',
+    title: 'Autores do blog — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/conteudo/blog/blog-authors.component').then((m) => m.BlogAuthorsComponent),
+  },
+  {
     // Antes de `:id`, como o calendário.
     path: 'painel/conteudo/blog/comentarios',
     title: 'Comentários do blog — NexaGO Backoffice',

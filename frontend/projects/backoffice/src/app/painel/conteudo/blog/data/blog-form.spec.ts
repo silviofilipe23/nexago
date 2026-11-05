@@ -1,5 +1,6 @@
 import {
   applyPrefill,
+  withAuthor,
   draftFromPost,
   embedBlock,
   embedCount,
@@ -292,5 +293,47 @@ describe('blog · formulário', () => {
     expect(d.body[1]).toEqual(jasmine.objectContaining({ sport: 'beachVolleyball', mode: 'athletes', gender: 'all' }));
     const loja = applyPrefill(newBlogDraft('Ana'), { category: 'loja', sport: 'all', title: 'Chegou: Toalha', block: { type: 'product', id: 'p1' } });
     expect(loja.body[1]).toEqual(jasmine.objectContaining({ type: 'product', productId: 'p1' }));
+  });
+
+  it('autor do cadastro: id vai no post; texto livre manda id null; post antigo abre em texto livre', () => {
+    const ana = { id: 'a1', name: 'Ana Souza', role: 'Editora · Conteúdo', photoUrl: null, bio: '', active: true };
+    const d = withAuthor(filled(), ana);
+    expect(payloadFromDraft(d).author).toEqual({ id: 'a1', name: 'Ana Souza', role: 'Editora · Conteúdo' });
+    const free = withAuthor(d, null);
+    expect(free.authorName).toBe('Ana Souza');
+    expect(payloadFromDraft({ ...free, authorName: 'Convidado', authorRole: '' }).author).toEqual({ id: null, name: 'Convidado', role: '' });
+    const base = draftFromPost({
+      id: 'p',
+      title: 'T',
+      subtitle: '',
+      slug: 't',
+      seoDescription: '',
+      coverUrl: null,
+      category: 'saude-corpo',
+      sport: 'all',
+      tags: [],
+      author: { name: 'Antigo', role: 'Equipe' },
+      body: [],
+      cta: null,
+      channels: { app: true, site: true },
+      featured: false,
+      push: { enabled: false, city: null, sport: 'all' },
+      pushSentAt: null,
+      pushResult: null,
+      status: 'draft',
+      publishAt: null,
+      readMinutes: 1,
+      readCount: 0,
+      helpfulCount: 0,
+      updatedAt: null,
+      version: 1,
+      commentCount: 0,
+    });
+    expect([base.authorId, base.authorName, base.category]).toEqual([null, 'Antigo', 'saude-corpo']);
+  });
+
+  it('categoria criada vale; id fora do formato é erro', () => {
+    expect(payloadIssues(payloadFromDraft(filled({ category: 'saude-corpo' })), NOW)).toEqual([]);
+    expect(payloadIssues(payloadFromDraft(filled({ category: '' })), NOW)).toEqual(['Escolha uma categoria.']);
   });
 });

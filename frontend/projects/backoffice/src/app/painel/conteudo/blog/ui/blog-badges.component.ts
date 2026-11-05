@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { PillComponent, type PillTone } from '../../../ui/pill.component';
-import { BLOG_STATUS_LABELS, categoryMeta, type BlogStatus } from '../data/blog-post';
+import { BLOG_STATUS_LABELS, type BlogStatus } from '../data/blog-post';
+import { BlogTaxonomyService } from '../data/blog-taxonomy.service';
 
 const STATUS_TONES: Record<BlogStatus, PillTone> = {
   published: 'green',
@@ -37,7 +38,9 @@ export class BlogStatusPillComponent {
 })
 export class BlogCategoryChipComponent {
   readonly category = input.required<string>();
-  protected readonly meta = computed(() => categoryMeta(this.category()));
+  private readonly taxonomy = inject(BlogTaxonomyService);
+  /** Cor e rótulo da lista efetiva (doc vence o padrão); id sumido = "Blog" neutro. */
+  protected readonly meta = computed(() => this.taxonomy.meta(this.category()));
 }
 
 /** Miniatura da capa; sem capa, um bloco na cor da categoria com o rótulo dela. */
@@ -63,6 +66,8 @@ export class BlogCategoryChipComponent {
 export class BlogCoverThumbComponent {
   readonly coverUrl = input<string | null>(null);
   readonly category = input.required<string>();
-  protected readonly meta = computed(() => categoryMeta(this.category()));
+  private readonly taxonomy = inject(BlogTaxonomyService);
+  /** Cor e rótulo da lista efetiva (doc vence o padrão); id sumido = "Blog" neutro. */
+  protected readonly meta = computed(() => this.taxonomy.meta(this.category()));
   protected readonly gradient = computed(() => `linear-gradient(135deg, #111114 0%, ${this.meta().color}66 140%)`);
 }

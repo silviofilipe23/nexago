@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input, linkedSignal } from '@angular/core';
-import { BLOG_CATEGORY_META, BLOG_NEUTRAL_ART } from '../../../lib/blog/categories';
-import type { BlogCategory } from '../../../lib/firestore/blog';
+import { BLOG_NEUTRAL_ART, type BlogCategoryView } from '../../../lib/blog/categories';
 
 /**
  * Capa do post: a foto, ou — sem foto (ou se ela não carregar) — a arte padrão em gradiente da
@@ -33,7 +32,7 @@ import type { BlogCategory } from '../../../lib/firestore/blog';
 })
 export class BlogCover {
   readonly coverUrl = input<string | null>(null);
-  readonly category = input<BlogCategory | null>(null);
+  readonly category = input<BlogCategoryView | null>(null);
   readonly label = input<string | null>(null);
   /** Capa acima da dobra (página do post): carrega sem esperar o scroll. */
   readonly eager = input(false);
@@ -42,8 +41,8 @@ export class BlogCover {
   protected readonly failed = linkedSignal({ source: this.coverUrl, computation: () => false });
 
   protected readonly art = computed(() => {
-    const category = this.category();
-    const color = category ? BLOG_CATEGORY_META[category].art : BLOG_NEUTRAL_ART;
+    // Hex validado no mapeamento (`#RRGGBB`): o tom escuro da categoria, de origem ou do doc.
+    const color = this.category()?.art ?? BLOG_NEUTRAL_ART;
     return (
       'repeating-linear-gradient(135deg, rgba(255,255,255,0.03) 0 10px, transparent 10px 20px), ' +
       `linear-gradient(135deg, #0b0b0c 0%, ${color} 140%)`

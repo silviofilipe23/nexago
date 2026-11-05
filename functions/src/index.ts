@@ -940,6 +940,7 @@ export {
 export {onBlogPostPublishedPush, estimateBlogPushReach} from "./blog-push";
 export {onBlogReadCreated} from "./blog-metrics";
 export {postBlogComment, moderateBlogComment, onBlogCommentWritten} from "./blog-comments";
+export {saveBlogCategory, saveBlogAuthor} from "./blog-taxonomy";
 
 // NexaSquad: regras do programa de embaixadores, versionadas. Escrita só por callable.
 export {saveSquadRules} from "./squad-rules";

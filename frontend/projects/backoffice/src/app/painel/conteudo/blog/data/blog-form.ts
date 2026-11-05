@@ -35,6 +35,7 @@ import {
   type BlogStatus,
 } from './blog-post';
 import type { DraftPrefill } from './blog-suggestions';
+import { isCategoryId, type BlogAuthorDef } from './blog-taxonomy';
 
 /** Bloco no editor: o do post + uma chave estável para o `@for` (mover não recria o campo). */
 export type BlockDraft = BlogBlock & { key: string };
@@ -50,6 +51,8 @@ export interface BlogDraft {
   category: BlogCategory;
   sport: string;
   tags: string[];
+  /** Autor do cadastro (`blogAuthors`); `null` = texto livre (nome e função abaixo). */
+  authorId: string | null;
   authorName: string;
   authorRole: string;
   body: BlockDraft[];
@@ -140,6 +143,7 @@ export function newBlogDraft(authorName: string): BlogDraft {
     category: 'torneios',
     sport: 'all',
     tags: [],
+    authorId: null,
     authorName: authorName.slice(0, BLOG_AUTHOR_FIELD_MAX),
     authorRole: DEFAULT_AUTHOR_ROLE,
     body: [emptyBlock('paragraph')],
@@ -175,6 +179,8 @@ export function draftFromPost(post: BlogPost): BlogDraft {
     category: post.category,
     sport: post.sport,
     tags: [...post.tags],
+    // Post antigo (sem `author.id`) abre em texto livre, como foi gravado.
+    authorId: post.author.id ?? null,
     authorName: post.author.name,
     authorRole: post.author.role,
     body: post.body.map((b) => ({ ...b, ...(b.type === 'list' ? { items: [...b.items] } : {}), key: nextKey() })),
@@ -214,6 +220,17 @@ export function applyPrefill(draft: BlogDraft, prefill: DraftPrefill): BlogDraft
     sport: prefill.sport,
     body: block ? [...draft.body, block] : draft.body,
   };
+}
+
+/**
+ * Escolher autor do cadastro copia nome e função para o rascunho (a validação e a prévia usam); o
+ * servidor grava o retrato do cadastro de qualquer jeito. `null` = voltar ao texto livre, com o que
+ * estava escrito.
+ */
+export function withAuthor(draft: BlogDraft, author: BlogAuthorDef | null): BlogDraft {
+  return author
+    ? { ...draft, authorId: author.id, authorName: author.name.slice(0, BLOG_AUTHOR_FIELD_MAX), authorRole: author.role.slice(0, BLOG_AUTHOR_FIELD_MAX) }
+    : { ...draft, authorId: null };
 }
 
 /** Título mudou: o endereço acompanha enquanto ninguém mexeu nele. */
@@ -319,7 +336,7 @@ export function payloadFromDraft(draft: BlogDraft): BlogPostInput {
     category: draft.category,
     sport: draft.sport,
     tags: [...new Set(draft.tags.map(cleanTag).filter(Boolean))],
-    author: { name: draft.authorName.trim(), role: draft.authorRole.trim() },
+    author: { id: draft.authorId, name: draft.authorName.trim(), role: draft.authorRole.trim() },
     body: draft.body.filter((b) => !isBlankBlock(b)).map(stripKey),
     cta: draft.ctaEnabled
       ? {
@@ -416,6 +433,9 @@ export function payloadIssues(p: BlogPostInput, now: Date): string[] {
   }
   if (p.coverUrl !== null && !isHttps(p.coverUrl)) {
     errors.push('Capa sem endereço https.');
+  }
+  if (!isCategoryId(p.category)) {
+    errors.push('Escolha uma categoria.');
   }
   if (p.sport !== 'all' && !resolveSport(p.sport)) {
     errors.push('Esporte desconhecido.');

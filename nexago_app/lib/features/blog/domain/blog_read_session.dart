@@ -21,7 +21,7 @@ const blogReadMaxSeconds = 3600;
 class BlogReadSession {
   BlogReadSession({
     required this.postId,
-    required this.category,
+    required this.categoryKey,
     required DateTime Function() clock,
     double startProgress = 0,
   }) : _clock = clock,
@@ -29,7 +29,9 @@ class BlogReadSession {
        _progress = _clamp(startProgress);
 
   final String postId;
-  final BlogCategory? category;
+
+  /// Id da categoria do post; fora do formato (vazio) não grava.
+  final String categoryKey;
   final DateTime Function() _clock;
 
   Duration _active = Duration.zero;
@@ -91,14 +93,15 @@ class BlogReadSession {
     if (_closed) return null;
     pause();
     _closed = true;
-    final category = this.category;
-    if (uid.isEmpty || postId.isEmpty || category == null) return null;
+    if (uid.isEmpty || postId.isEmpty || !isBlogCategoryId(categoryKey)) {
+      return null;
+    }
     final secs = seconds;
     if (secs < blogReadMinSeconds) return null;
     return {
       'postId': postId,
       'uid': uid,
-      'category': category.key,
+      'category': categoryKey,
       'seconds': secs,
       'progress': _progress,
       'finished': finished,

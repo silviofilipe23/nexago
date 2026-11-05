@@ -152,6 +152,8 @@ const CONTEUDO_GROUP: NavGroup = {
     { kind: 'link', id: 'conteudo-blog', label: 'Blog', icon: 'file', route: '/painel/conteudo/blog' },
     // Badge real: comentários e dúvidas esperando moderação (BlogBadgesService).
     { kind: 'link', id: 'conteudo-comentarios', label: 'Comentários', icon: 'mail', route: '/painel/conteudo/blog/comentarios' },
+    { kind: 'link', id: 'conteudo-categorias', label: 'Categorias', icon: 'flag', route: '/painel/conteudo/blog/categorias' },
+    { kind: 'link', id: 'conteudo-autores', label: 'Autores', icon: 'users', route: '/painel/conteudo/blog/autores' },
   ],
 };
 
@@ -743,6 +745,12 @@ export class PanelShellComponent {
     // Antes de '/painel/conteudo/blog': a fila é mais específica.
     if (path.startsWith('/painel/conteudo/blog/comentarios')) {
       return 'conteudo-comentarios';
+    }
+    if (path.startsWith('/painel/conteudo/blog/categorias')) {
+      return 'conteudo-categorias';
+    }
+    if (path.startsWith('/painel/conteudo/blog/autores')) {
+      return 'conteudo-autores';
     }
     if (path.startsWith('/painel/conteudo/blog')) {
       return 'conteudo-blog';

@@ -7,6 +7,17 @@ import { BlogPostEditorComponent } from './blog-post-editor.component';
 import type { BlogPost, BlogPushReach, SaveBlogPostInput, SaveBlogPostResult } from './data/blog-post';
 import { BlogMetricsRepository } from './data/blog-metrics.repository';
 import { BlogPostsRepository } from './data/blog-posts.repository';
+import { BlogTaxonomyRepository } from './data/blog-taxonomy.repository';
+import { categoryFromDoc, type BlogAuthorDef, type BlogCategoryDef } from './data/blog-taxonomy';
+
+const CATEGORY_DOCS: BlogCategoryDef[] = [
+  categoryFromDoc('saude-corpo', { label: 'Saúde & corpo', color: '#3DD9C1', colorLight: '#0F6E60', order: 6, active: true })!,
+  categoryFromDoc('regras', { label: 'Regras', color: '#C9A7FF', colorLight: '#6B3FB8', order: 2, active: false })!,
+];
+const AUTHORS: BlogAuthorDef[] = [
+  { id: 'a1', name: 'Marcelo Rocha', role: 'Professor', photoUrl: null, bio: '', active: true },
+  { id: 'a2', name: 'Bruno Lima', role: 'Arena', photoUrl: null, bio: '', active: false },
+];
 
 const STORED: BlogPost = {
   id: 'p1',
@@ -98,6 +109,10 @@ describe('BlogPostEditorComponent', () => {
           },
         },
         {
+          provide: BlogTaxonomyRepository,
+          useValue: { categoryDocs: () => Promise.resolve(CATEGORY_DOCS), authors: () => Promise.resolve(AUTHORS) },
+        },
+        {
           provide: BlogMetricsRepository,
           useValue: { post: () => Promise.resolve({ reads: 2140, avgSeconds: 151, finished: 1284, ctaClicks: 96 }) },
         },
@@ -151,7 +166,7 @@ describe('BlogPostEditorComponent', () => {
         slug: 'liga-nexago-2a-etapa',
         status: 'draft',
         body: [{ type: 'paragraph', text: 'Tudo o que você precisa saber.' }],
-        author: { name: 'Ana Souza', role: 'Equipe nexaGO' },
+        author: { id: null, name: 'Ana Souza', role: 'Equipe nexaGO' },
         publishAt: null,
       }),
     );
@@ -378,5 +393,26 @@ describe('BlogPostEditorComponent', () => {
         ],
       }),
     );
+  });
+
+  it('categorias e autores do cadastro: inativa só aparece marcada; escolher autor manda o id', async () => {
+    const host = await mount('p1', undefined, { ...STORED, category: 'regras', author: { id: 'a2', name: 'Bruno Lima', role: 'Arena' } });
+    const categories = [...host.querySelectorAll<HTMLOptionElement>('bo-field select option')].map((o) => o.textContent!.trim());
+    expect(categories).toContain('Saúde & corpo');
+    expect(categories).toContain('Regras (inativa)');
+    const authors = [...host.querySelectorAll<HTMLButtonElement>('bo-blog-author-picker .option')];
+    expect(authors.map((b) => b.querySelector('.name')!.textContent!.trim())).toEqual(['Marcelo Rocha', 'Bruno Lima (inativo)', 'Outro (texto livre)']);
+    expect(authors[1]!.getAttribute('aria-checked')).toBe('true');
+    expect(host.querySelector('bo-blog-author-picker input')).toBeNull();
+
+    authors[0]!.click();
+    await settle();
+    primary(host).click();
+    await settle();
+    expect(save.calls.mostRecent().args[0].post.author).toEqual({ id: 'a1', name: 'Marcelo Rocha', role: 'Professor' });
+
+    authors[2]!.click();
+    await settle();
+    expect(host.querySelectorAll('bo-blog-author-picker input').length).toBe(2);
   });
 });

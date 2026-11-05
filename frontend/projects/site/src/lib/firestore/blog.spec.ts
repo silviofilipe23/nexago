@@ -1,4 +1,4 @@
-import { mapBlogBlock, mapBlogPost, splitParagraphs } from './blog';
+import { mapBlogAuthor, mapBlogBlock, mapBlogPost, splitParagraphs } from './blog';
 
 const ts = (iso: string) => ({ toDate: () => new Date(iso) });
 
@@ -109,9 +109,14 @@ describe('mapBlogPost', () => {
     expect(mapBlogPost('id1', doc({ seoDescription: 'Para o Google' }))?.description).toBe('Para o Google');
   });
 
-  it('é tolerante: categoria desconhecida, capa não-https e readMinutes inválido viram null', () => {
-    const p = mapBlogPost('id1', doc({ category: 'video', coverUrl: 'javascript:alert(1)', readMinutes: 'x', author: {} }));
-    expect(p?.category).toBeNull();
+  it('categoria: qualquer id no formato do servidor passa (criada no backoffice); fora do formato vira null', () => {
+    expect(mapBlogPost('id1', doc({ category: 'saude-corpo' }))?.category).toBe('saude-corpo');
+    expect(mapBlogPost('id1', doc({ category: 'Saúde' }))?.category).toBeNull();
+    expect(mapBlogPost('id1', doc({ category: 7 }))?.category).toBeNull();
+  });
+
+  it('é tolerante: capa não-https, readMinutes inválido e autor sem nome viram null', () => {
+    const p = mapBlogPost('id1', doc({ coverUrl: 'javascript:alert(1)', readMinutes: 'x', author: {} }));
     expect(p?.coverUrl).toBeNull();
     expect(p?.readMinutes).toBeNull();
     expect(p?.author).toBeNull();
@@ -132,5 +137,22 @@ describe('mapBlogPost', () => {
     expect(mapBlogPost('a', doc({ status: 'scheduled' }))).toBeNull();
     expect(mapBlogPost('a', doc({ slug: '' }))).toBeNull();
     expect(mapBlogPost('a', doc({ title: undefined }))).toBeNull();
+  });
+});
+
+describe('mapBlogAuthor', () => {
+  it('post antigo ({name, role}) fica sem foto', () => {
+    expect(mapBlogAuthor({ name: ' Ana ', role: 'Redação' })).toEqual({ name: 'Ana', role: 'Redação', photoUrl: null });
+  });
+
+  it('retrato do autor cadastrado traz a foto https; outra coisa vira null', () => {
+    expect(mapBlogAuthor({ id: 'a1', name: 'Ana', role: '', photoUrl: 'https://cdn.x/a.jpg' })?.photoUrl).toBe('https://cdn.x/a.jpg');
+    expect(mapBlogAuthor({ id: 'a1', name: 'Ana', role: '', photoUrl: 'http://cdn.x/a.jpg' })?.photoUrl).toBeNull();
+    expect(mapBlogAuthor({ id: 'a1', name: 'Ana', role: '', photoUrl: null })?.photoUrl).toBeNull();
+  });
+
+  it('sem nome não há autor', () => {
+    expect(mapBlogAuthor({ name: '  ', photoUrl: 'https://cdn.x/a.jpg' })).toBeNull();
+    expect(mapBlogAuthor(null)).toBeNull();
   });
 });

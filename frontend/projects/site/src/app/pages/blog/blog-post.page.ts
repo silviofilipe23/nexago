@@ -11,9 +11,12 @@ import { BlogVideoBlock } from './blocks/blog-video-block';
 import { BlogArenaBlock } from './blocks/blog-arena-block';
 import { BlogRankingBlock } from './blocks/blog-ranking-block';
 import { getPostBySlug, STATIC_POST_AUTHOR, staticPostDate, staticReadMinutes, type BlogPost } from '../../../lib/blog/posts';
-import { getSiteBlogPostBySlug, type BlogCategory, type SiteBlogPost } from '../../../lib/firestore/blog';
-import { BLOG_CATEGORY_META, BLOG_NEUTRAL_CHIP } from '../../../lib/blog/categories';
-import { isoDay } from '../../../lib/blog/feed';
+import { getSiteBlogPostBySlug, type SiteBlogPost } from '../../../lib/firestore/blog';
+import { getBlogCategories } from '../../../lib/firestore/blog-categories';
+import type { BlogCategoryView } from '../../../lib/blog/categories';
+import { isoDay, resolveCategory } from '../../../lib/blog/feed';
+import { BlogCategoryChip } from './blog-category-chip';
+import { BlogAuthorAvatar } from './blog-author-avatar';
 import { formatDate } from '../../../lib/format';
 
 const BASE = 'https://nexago.com.br';
@@ -25,10 +28,12 @@ interface PostHeader {
   title: string;
   subtitle: string | null;
   description: string;
-  category: BlogCategory | null;
+  /** Categoria resolvida (cor do chip/capa); null nos estáticos e em id que não existe mais. */
+  category: BlogCategoryView | null;
   labels: string[];
   authorName: string | null;
   authorRole: string | null;
+  authorPhotoUrl: string | null;
   date: Date | null;
   readMinutes: number | null;
   coverUrl: string | null;
@@ -62,6 +67,8 @@ interface PostHeader {
     BlogVideoBlock,
     BlogArenaBlock,
     BlogRankingBlock,
+    BlogCategoryChip,
+    BlogAuthorAvatar,
   ],
   styleUrl: './blog-post.page.scss',
   template: `
@@ -89,10 +96,7 @@ interface PostHeader {
           @if (h.labels.length > 0) {
             <div class="mt-8 flex flex-wrap items-center gap-2">
               @for (l of h.labels; track l) {
-                <span
-                  class="rounded-pill border px-2.5 py-1 font-mono text-[11px] font-600 uppercase tracking-wider"
-                  [class]="chipClass(h.category)"
-                >{{ l }}</span>
+                <app-blog-category-chip [label]="l" [category]="h.category" />
               }
             </div>
           }
@@ -108,23 +112,31 @@ interface PostHeader {
             <p class="mt-4 text-balance text-lg leading-relaxed text-text-mute">{{ h.subtitle }}</p>
           }
 
-          <div class="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-text-dim">
+          <div class="mt-6 flex items-center gap-3 text-sm text-text-dim">
             @if (h.authorName) {
-              <span>
-                Por <span class="font-600 text-fg">{{ h.authorName }}</span>
-                @if (h.authorRole) {
-                  <span>, {{ h.authorRole }}</span>
+              <app-blog-author-avatar [name]="h.authorName" [photoUrl]="h.authorPhotoUrl" [size]="40" />
+            }
+            <div class="min-w-0">
+              @if (h.authorName) {
+                <p>
+                  Por <span class="font-600 text-fg">{{ h.authorName }}</span>
+                  @if (h.authorRole) {
+                    <span>, {{ h.authorRole }}</span>
+                  }
+                </p>
+              }
+              <p [class.mt-0.5]="!!h.authorName">
+                @if (h.date) {
+                  <time [attr.datetime]="isoDay(h.date)">{{ formatDate(h.date) }}</time>
                 }
-              </span>
-              <span aria-hidden="true">·</span>
-            }
-            @if (h.date) {
-              <time [attr.datetime]="isoDay(h.date)">{{ formatDate(h.date) }}</time>
-            }
-            @if (h.readMinutes) {
-              <span aria-hidden="true">·</span>
-              <span>{{ h.readMinutes }} min de leitura</span>
-            }
+                @if (h.date && h.readMinutes) {
+                  <span aria-hidden="true"> · </span>
+                }
+                @if (h.readMinutes) {
+                  <span>{{ h.readMinutes }} min de leitura</span>
+                }
+              </p>
+            </div>
           </div>
         </div>
 
@@ -132,7 +144,7 @@ interface PostHeader {
           <app-blog-cover
             class="mt-10 aspect-[16/9] rounded-5 border border-line"
             [coverUrl]="v.post.coverUrl"
-            [category]="v.post.category"
+            [category]="h.category"
             [label]="h.labels.length > 0 ? h.labels[0] : null"
             [eager]="true"
           />
@@ -222,6 +234,8 @@ export class BlogPostPage {
   /** A leitura do Firestore falhou e não havia post estático com o slug. */
   protected readonly failed = signal(false);
   private readonly attempt = signal(0);
+  /** Lista efetiva de categorias (padrões ⊕ `blogCategories`), lida junto com o post. */
+  private readonly categories = signal<BlogCategoryView[]>([]);
 
   protected readonly formatDate = formatDate;
   protected readonly isoDay = isoDay;
@@ -245,32 +259,35 @@ export class BlogPostPage {
         undoHead?.();
       });
 
-      getSiteBlogPostBySlug(slug)
+      const read = getSiteBlogPostBySlug(slug)
         .then((post) => ({ post, failed: false }))
         .catch((err: unknown) => {
           console.error('[blog] getSiteBlogPostBySlug failed:', err);
           return { post: null, failed: true };
-        })
-        .then(({ post, failed }) => {
-          if (cancelled) return; // resposta de uma navegação anterior, já obsoleta
-
-          const local = post ? null : getPostBySlug(slug);
-          const view: PostView | null = post
-            ? { kind: 'remote', post }
-            : local
-              ? { kind: 'static', post: local }
-              : null;
-
-          this.view.set(view);
-          this.failed.set(!view && failed);
-          this.loading.set(false);
-
-          if (view) {
-            undoHead = this.applyHead(view);
-          } else {
-            this.titleService.setTitle(failed ? 'Blog · nexaGO' : 'Post não encontrado · nexaGO');
-          }
         });
+
+      // Categorias em paralelo; nunca falham (sem leitura = só as 6 de origem).
+      Promise.all([read, getBlogCategories()]).then(([{ post, failed }, categories]) => {
+        if (cancelled) return; // resposta de uma navegação anterior, já obsoleta
+        this.categories.set(categories);
+
+        const local = post ? null : getPostBySlug(slug);
+        const view: PostView | null = post
+          ? { kind: 'remote', post }
+          : local
+            ? { kind: 'static', post: local }
+            : null;
+
+        this.view.set(view);
+        this.failed.set(!view && failed);
+        this.loading.set(false);
+
+        if (view) {
+          undoHead = this.applyHead(view);
+        } else {
+          this.titleService.setTitle(failed ? 'Blog · nexaGO' : 'Post não encontrado · nexaGO');
+        }
+      });
     });
   }
 
@@ -281,14 +298,17 @@ export class BlogPostPage {
   protected header(v: PostView): PostHeader {
     if (v.kind === 'remote') {
       const p = v.post;
+      const category = resolveCategory(p.category, this.categories());
       return {
         title: p.title,
         subtitle: p.subtitle || null,
         description: p.description,
-        category: p.category,
-        labels: p.category ? [BLOG_CATEGORY_META[p.category].label] : p.tags.slice(0, 1),
+        category,
+        // Id sem categoria (doc apagado, build antigo) = sem chip.
+        labels: category ? [category.label] : [],
         authorName: p.author?.name ?? null,
         authorRole: p.author?.role || null,
+        authorPhotoUrl: p.author?.photoUrl ?? null,
         date: p.publishAt,
         readMinutes: p.readMinutes,
         coverUrl: p.coverUrl,
@@ -303,14 +323,11 @@ export class BlogPostPage {
       labels: p.tags ?? [],
       authorName: STATIC_POST_AUTHOR,
       authorRole: null,
+      authorPhotoUrl: null,
       date: staticPostDate(p),
       readMinutes: staticReadMinutes(p),
       coverUrl: null,
     };
-  }
-
-  protected chipClass(category: BlogCategory | null): string {
-    return category ? BLOG_CATEGORY_META[category].chip : BLOG_NEUTRAL_CHIP;
   }
 
   /** Título, meta description e JSON-LD do post. Devolve o desfazer (troca de post ou saída). */

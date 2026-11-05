@@ -40,15 +40,11 @@ const WORDS_PER_MINUTE = 200;
 export const BLOG_SITE_HOST = 'nexago.com.br';
 export const BLOG_SITE_URL = `https://${BLOG_SITE_HOST}/blog`;
 
-export const BLOG_CATEGORIES = [
-  { id: 'torneios', label: 'Torneios', color: '#FF6A1A' },
-  { id: 'treino', label: 'Treino', color: '#2BD17E' },
-  { id: 'regras', label: 'Regras', color: '#C9A7FF' },
-  { id: 'arenas', label: 'Arenas', color: '#E3B85C' },
-  { id: 'guia', label: 'Guia do app', color: '#9AB4FF' },
-  { id: 'loja', label: 'Loja', color: '#FF8A4A' },
-] as const;
-export type BlogCategory = (typeof BLOG_CATEGORIES)[number]['id'];
+/**
+ * Id de categoria: uma das de origem ou um doc de `blogCategories` (`blog-taxonomy.ts`). A lista, os
+ * rótulos e as cores vêm do `BlogTaxonomyService` (padrões ⊕ docs).
+ */
+export type BlogCategory = string;
 
 export const BLOG_STATUSES = ['draft', 'review', 'scheduled', 'published'] as const;
 export type BlogStatus = (typeof BLOG_STATUSES)[number];
@@ -123,7 +119,8 @@ export interface BlogPostInput {
   category: BlogCategory;
   sport: string;
   tags: string[];
-  author: { name: string; role: string };
+  /** Com `id`, o servidor grava o retrato do cadastro (nome/função/foto); `null` = texto livre. */
+  author: { id: string | null; name: string; role: string };
   body: BlogBlock[];
   cta: BlogCta | null;
   channels: { app: boolean; site: boolean };
@@ -159,7 +156,8 @@ export interface BlogPost {
   category: BlogCategory;
   sport: string;
   tags: string[];
-  author: { name: string; role: string };
+  /** `id` do cadastro de autores; post antigo (ou texto livre) não tem. */
+  author: { id?: string | null; name: string; role: string; photoUrl?: string | null };
   body: BlogBlock[];
   cta: BlogCta | null;
   channels: { app: boolean; site: boolean };
@@ -177,10 +175,6 @@ export interface BlogPost {
   commentCount: number;
   updatedAt: Date | null;
   version: number;
-}
-
-export function categoryMeta(id: string): { id: string; label: string; color: string } {
-  return BLOG_CATEGORIES.find((c) => c.id === id) ?? { id, label: id, color: '#9AB4FF' };
 }
 
 export function ctaDestinationLabel(id: string): string {
@@ -303,9 +297,8 @@ export function blogPostFromDoc(id: string, data: Record<string, unknown>): Blog
   const push = (data['push'] ?? {}) as Record<string, unknown>;
   const pushResult = data['pushResult'] as Record<string, unknown> | null | undefined;
   const status = BLOG_STATUSES.includes(data['status'] as BlogStatus) ? (data['status'] as BlogStatus) : 'draft';
-  const category = BLOG_CATEGORIES.some((c) => c.id === data['category'])
-    ? (data['category'] as BlogCategory)
-    : 'torneios';
+  // Id desconhecido continua o do doc: a tela mostra "Blog" na cor neutra (como os leitores).
+  const category = str(data['category']);
   return {
     id,
     title: str(data['title']),
@@ -316,7 +309,12 @@ export function blogPostFromDoc(id: string, data: Record<string, unknown>): Blog
     category,
     sport: str(data['sport']) || 'all',
     tags: Array.isArray(data['tags']) ? data['tags'].map(str).filter(Boolean) : [],
-    author: { name: str(author['name']), role: str(author['role']) },
+    author: {
+      id: str(author['id']) || null,
+      name: str(author['name']),
+      role: str(author['role']),
+      photoUrl: /^https:\/\//.test(str(author['photoUrl'])) ? str(author['photoUrl']) : null,
+    },
     body: Array.isArray(data['body']) ? data['body'].map(blockFrom).filter((b): b is BlogBlock => b !== null) : [],
     cta:
       cta && typeof cta === 'object'

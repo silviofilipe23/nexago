@@ -112,7 +112,7 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
   void _startSession(BlogPost post) {
     final session = BlogReadSession(
       postId: post.id,
-      category: post.category,
+      categoryKey: post.categoryKey,
       clock: _clock,
       startProgress: _progress.value,
     );
@@ -164,7 +164,9 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
       unawaited(_library.markOpened(post.id).catchError((Object _) {}));
       logAnalytics(
         ref,
-        (a) => a.logBlogPostOpened(post.category?.key ?? 'outra'),
+        (a) => a.logBlogPostOpened(
+          post.categoryKey.isEmpty ? 'outra' : post.categoryKey,
+        ),
       );
       // Post que cabe na tela inteira já está lido.
       _onScroll();
@@ -370,7 +372,14 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
                       helpful: helpful,
                       count: helpfulCount,
                       onTap: () => _toggleHelpful(post, helpful),
-                      category: post.category,
+                      // Categoria desativada não manda mais aviso: sem a linha.
+                      category: switch (watchBlogCategory(
+                        ref,
+                        post.categoryKey,
+                      )) {
+                        final c? when c.active => c,
+                        _ => null,
+                      },
                       onQuestion: ref.watch(blogSessionUidProvider).isEmpty
                           ? null
                           : _composer.askQuestion,
@@ -455,13 +464,14 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
   }
 }
 
-class _PostHeader extends StatelessWidget {
+class _PostHeader extends ConsumerWidget {
   const _PostHeader({required this.post});
 
   final BlogPost post;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final category = watchBlogCategory(ref, post.categoryKey);
     final colors = context.themeColors;
     final date = post.publishAt;
     final detail = [
@@ -474,8 +484,8 @@ class _PostHeader extends StatelessWidget {
         Row(
           children: [
             BlogPill(
-              label: post.categoryLabel,
-              tone: blogCategoryTone(post.category, colors),
+              label: category?.label ?? 'Blog',
+              tone: blogCategoryTone(category, colors),
             ),
             const SizedBox(width: 8),
             Text(
@@ -518,25 +528,9 @@ class _PostHeader extends StatelessWidget {
           const SizedBox(height: 14),
           Row(
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.brand.withValues(alpha: 0.16),
-                  border: Border.all(
-                    color: colors.onSurface.withValues(alpha: 0.12),
-                  ),
-                ),
-                child: Text(
-                  blogAuthorInitials(post.authorName),
-                  style: AppTypography.soraRegular(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: colors.brandText,
-                  ),
-                ),
+              BlogAuthorAvatar(
+                name: post.authorName,
+                photoUrl: post.authorPhotoUrl,
               ),
               const SizedBox(width: 10),
               Expanded(

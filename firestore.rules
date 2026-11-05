@@ -3512,8 +3512,7 @@ service cloud.firestore {
       allow create, update: if request.auth != null && request.auth.uid == uid
         && request.resource.data.keys().hasOnly(['muted', 'updatedAt'])
         && request.resource.data.muted is list
-        && request.resource.data.muted.size() <= 6
-        && request.resource.data.muted.toSet().hasOnly(['torneios', 'treino', 'regras', 'arenas', 'guia', 'loja'])
+        && request.resource.data.muted.size() <= 30
         && request.resource.data.updatedAt == request.time;
     }
     // Sessão de leitura no app (métricas do backoffice): o atleta grava a própria ao sair do post,
@@ -3525,7 +3524,9 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.postId is string
         && request.resource.data.postId.size() > 0 && request.resource.data.postId.size() <= 64
-        && request.resource.data.category in ['torneios', 'treino', 'regras', 'arenas', 'guia', 'loja']
+        && request.resource.data.category is string
+        && request.resource.data.category.matches('^[a-z0-9]+(-[a-z0-9]+)*$')
+        && request.resource.data.category.size() <= 32
         && request.resource.data.seconds is int
         && request.resource.data.seconds >= 0 && request.resource.data.seconds <= 3600
         && request.resource.data.progress is number
@@ -3543,6 +3544,16 @@ service cloud.firestore {
     // Primeira/última leitura de cada atleta; só o gatilho onBlogReadCreated grava.
     match /blogReaders/{uid} {
       allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+    // Categorias e autores do blog (backoffice › Conteúdo). Leitura pública: app, site e backoffice
+    // montam rótulo, cor e foto. Escrita só por saveBlogCategory/saveBlogAuthor (`blog-taxonomy.ts`).
+    match /blogCategories/{categoryId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /blogAuthors/{authorId} {
+      allow read: if true;
       allow write: if false;
     }
     // Reserva do endereço `/blog/{slug}`; só a callable mexe.

@@ -28,7 +28,7 @@ const _ranking = BlogRankingEmbed(
 BlogPost _post(List<BlogBlock> body) => BlogPost(
   id: 'p1',
   title: 'Onde jogar em Goiânia',
-  category: BlogCategory.arenas,
+  categoryKey: 'arenas',
   readMinutes: 3,
   body: [const BlogParagraph('Abertura.'), ...body],
 );

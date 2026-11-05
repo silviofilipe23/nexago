@@ -34,7 +34,8 @@ class _BlogFeedPageState extends ConsumerState<BlogFeedPage> {
   String _query = '';
 
   /// `null` = "Para você" (todas).
-  BlogCategory? _category;
+  /// Id da categoria escolhida nos chips; `null` = "Para você" (todas).
+  String? _category;
 
   @override
   void dispose() {
@@ -139,11 +140,14 @@ class _BlogFeedPageState extends ConsumerState<BlogFeedPage> {
     List<BlogPost> posts,
     Map<String, BlogLibraryEntry> library,
   ) {
-    final categories = blogCategoriesWithPosts(posts);
-    final category = categories.contains(_category) ? _category : null;
+    final categories = blogCategoriesWithPosts(
+      posts,
+      ref.watch(blogTaxonomyProvider),
+    );
+    final category = categories.where((c) => c.key == _category).firstOrNull;
     final visible = category == null
         ? posts
-        : posts.where((p) => p.category == category).toList();
+        : posts.where((p) => p.categoryKey == category.key).toList();
     final featured = blogFeaturedPost(visible);
     final rest = [
       for (final p in visible)
@@ -159,7 +163,7 @@ class _BlogFeedPageState extends ConsumerState<BlogFeedPage> {
         _CategoryChips(
           categories: categories,
           selected: category,
-          onSelected: (c) => setState(() => _category = c),
+          onSelected: (c) => setState(() => _category = c?.key),
         ),
       ],
       if (featured != null) ...[
@@ -387,14 +391,15 @@ class _Chip extends StatelessWidget {
 
 /// Card grande do topo: capa, selos Destaque + categoria, título e meta.
 /// Fundo sempre escuro (é a capa), nos dois temas.
-class _FeaturedCard extends StatelessWidget {
+class _FeaturedCard extends ConsumerWidget {
   const _FeaturedCard({required this.post, required this.onTap});
 
   final BlogPost post;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final category = watchBlogCategory(ref, post.categoryKey);
     const radius = BorderRadius.all(Radius.circular(24));
     return Semantics(
       button: true,
@@ -444,8 +449,8 @@ class _FeaturedCard extends StatelessWidget {
                               solid: true,
                             ),
                           BlogPill(
-                            label: post.categoryLabel,
-                            tone: blogCategoryRawTone(post.category),
+                            label: category?.label ?? 'Blog',
+                            tone: blogCategoryRawTone(category),
                           ),
                         ],
                       ),

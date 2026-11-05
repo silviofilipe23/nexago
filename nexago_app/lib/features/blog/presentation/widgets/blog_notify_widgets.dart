@@ -23,13 +23,13 @@ void _openNotificationSettings(BuildContext context) =>
 Future<void> _setCategory(
   BuildContext context,
   WidgetRef ref,
-  BlogCategory category,
+  String categoryKey,
   bool on,
 ) async {
   try {
     await ref
         .read(blogNotifyPrefsControllerProvider)
-        .setCategory(category, on: on);
+        .setCategory(categoryKey, on: on);
   } catch (e) {
     if (!context.mounted) return;
     showAppSnackBar(
@@ -70,7 +70,7 @@ class BlogNotifyCategoryRow extends ConsumerWidget {
     if (category == null || prefs == null) return const SizedBox.shrink();
     final pushOff = ref.watch(blogPushChannelOnProvider) == false;
     final colors = context.themeColors;
-    final on = prefs.isOn(category);
+    final on = prefs.isOn(category.key);
 
     return Container(
       key: const Key('blog-notify-row'),
@@ -126,7 +126,7 @@ class BlogNotifyCategoryRow extends ConsumerWidget {
             _switch(
               key: const Key('blog-notify-switch'),
               value: on,
-              onChanged: (v) => _setCategory(context, ref, category, v),
+              onChanged: (v) => _setCategory(context, ref, category.key, v),
             ),
         ],
       ),
@@ -186,7 +186,10 @@ class BlogNotifyCard extends ConsumerWidget {
                     Text(
                       pushOff
                           ? 'Push desligado nas notificações do app'
-                          : blogNotifySummary(prefs),
+                          : blogNotifySummary(
+                              prefs,
+                              ref.watch(blogTaxonomyProvider).active,
+                            ),
                       style: AppTypography.soraRegular(
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
@@ -319,7 +322,8 @@ class _BlogNotifySheet extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 8),
-          for (final c in BlogCategory.values)
+          // Só as ativas: desativada não manda mais aviso.
+          for (final c in ref.watch(blogTaxonomyProvider).active)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
               child: Row(
@@ -338,10 +342,10 @@ class _BlogNotifySheet extends ConsumerWidget {
                   ),
                   _switch(
                     key: Key('blog-notify-sheet-${c.key}'),
-                    value: prefs.isOn(c),
+                    value: prefs.isOn(c.key),
                     onChanged: pushOff
                         ? null
-                        : (v) => _setCategory(context, ref, c, v),
+                        : (v) => _setCategory(context, ref, c.key, v),
                   ),
                 ],
               ),

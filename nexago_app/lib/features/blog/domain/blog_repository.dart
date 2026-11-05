@@ -53,4 +53,7 @@ abstract interface class BlogRepository {
 
   /// O atleta apaga o próprio comentário.
   Future<void> deleteComment(String postId, String commentId);
+
+  /// `blogCategories` mesclado com as 6 de origem.
+  Stream<BlogTaxonomy> watchCategories();
 }

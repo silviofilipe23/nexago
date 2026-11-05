@@ -63,7 +63,7 @@ class BlogArenaEmbedCard extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const BlogCategoryLabel(BlogCategory.arenas),
+                const BlogCategoryLabel('arenas'),
                 const SizedBox(height: 4),
                 Text(
                   arena.name,

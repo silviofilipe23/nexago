@@ -21,14 +21,18 @@ import {callerCanAccessBackoffice} from "./auth-roles";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {HOME_BANNER_DESTINATIONS, type Actor, type HomeBannerDestination} from "./home-banners";
 import {resolveSport} from "./sports/catalog";
+import {authorSnapshot, categoryExists, isCategoryId, BLOG_DEFAULT_CATEGORY_IDS} from "./blog-taxonomy";
 
 const BACKOFFICE_CALLABLE = {region: CLIENT_FACING_REGIONS, invoker: "public" as const};
 
 export const BLOG_POSTS = "blogPosts";
 export const BLOG_SLUGS = "blogSlugs";
 
-/** Espelha `backoffice/.../conteudo/blog/data/blog-post.ts` — mudar os dois. */
-export const BLOG_CATEGORIES = ["torneios", "treino", "regras", "arenas", "guia", "loja"] as const;
+/**
+ * As 6 categorias de origem. Desde as telas de Categorias (`blog-taxonomy.ts`) a categoria é qualquer id
+ * de `blogCategories` ou uma destas; a lista fica para quem só precisa das de origem.
+ */
+export const BLOG_CATEGORIES = BLOG_DEFAULT_CATEGORY_IDS;
 export const BLOG_STATUSES = ["draft", "review", "scheduled", "published"] as const;
 export const BLOG_TITLE_MAX = 90;
 export const BLOG_SUBTITLE_MAX = 160;
@@ -57,7 +61,8 @@ const URL_MAX = 1000;
 const WORDS_PER_MINUTE = 200;
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
+/** Id de categoria (de origem ou de `blogCategories`). */
+export type BlogCategory = string;
 export type BlogStatus = (typeof BLOG_STATUSES)[number];
 
 export type BlogBlock =
@@ -100,7 +105,8 @@ export interface BlogPostInput {
   category: BlogCategory;
   sport: string;
   tags: string[];
-  author: {name: string; role: string};
+  /** Com `id`, o save copia nome/função/foto de `blogAuthors`; sem, é texto livre. */
+  author: {id?: string | null; name: string; role: string};
   body: BlogBlock[];
   cta: BlogCta | null;
   channels: {app: boolean; site: boolean};
@@ -246,7 +252,8 @@ export function blogPostErrors(input: unknown, now: Date): string[] {
     errors.push(`Descrição passa de ${BLOG_SEO_DESCRIPTION_MAX} caracteres.`);
   }
   if (p.coverUrl !== null && !isHttps(p.coverUrl)) errors.push("Capa sem endereço https.");
-  if (!BLOG_CATEGORIES.includes(p.category as BlogCategory)) errors.push("Escolha uma categoria.");
+  // Se a categoria existe é conferido no save (`categoryExists`), que lê `blogCategories`.
+  if (!isCategoryId(p.category)) errors.push("Escolha uma categoria.");
   if (p.sport !== "all" && !resolveSport(p.sport)) errors.push("Esporte desconhecido.");
 
   if (!Array.isArray(p.tags) || !p.tags.every(isStr)) errors.push("Tags inválidas.");
@@ -435,6 +442,10 @@ export async function saveBlogPostCore(
   const slugRef = db.collection(BLOG_SLUGS).doc(data.slug);
 
   return db.runTransaction(async (tx) => {
+    if (!(await categoryExists(tx, db, data.category))) {
+      throw new HttpsError("failed-precondition", "Esta categoria não existe mais. Escolha outra.");
+    }
+    const author = await authorSnapshot(tx, db, input.post.author);
     const embeds = blogEmbedRefs(data.body);
     const [snap, slugSnap, ...embedSnaps] = await Promise.all([
       tx.get(ref),
@@ -475,6 +486,7 @@ export async function saveBlogPostCore(
 
     tx.set(ref, {
       ...data,
+      author,
       status: input.post.status,
       publishAt,
       // Do envio (`blog-push.ts`): o save nunca reenvia nem apaga o registro.

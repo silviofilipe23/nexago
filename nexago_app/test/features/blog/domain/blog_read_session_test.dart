@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nexago_app/features/blog/domain/blog_post.dart';
 import 'package:nexago_app/features/blog/domain/blog_read_session.dart';
 
 void main() {
@@ -7,8 +6,8 @@ void main() {
   DateTime clock() => now;
   void advance(int seconds) => now = now.add(Duration(seconds: seconds));
 
-  BlogReadSession session({BlogCategory? category = BlogCategory.treino}) =>
-      BlogReadSession(postId: 'p1', category: category, clock: clock);
+  BlogReadSession session({String categoryKey = 'treino'}) =>
+      BlogReadSession(postId: 'p1', categoryKey: categoryKey, clock: clock);
 
   setUp(() => now = DateTime(2026, 11, 5, 10));
 
@@ -76,7 +75,7 @@ void main() {
   });
 
   test('finished a partir de 0,95 nesta sessão; chamada tocada', () {
-    final s = session(category: BlogCategory.torneios)
+    final s = session(categoryKey: 'torneios')
       ..reportProgress(0.96)
       ..markCtaClicked();
     advance(60);
@@ -89,7 +88,7 @@ void main() {
   test('progresso inicial da sessão nova e limites 0..1', () {
     final s = BlogReadSession(
       postId: 'p1',
-      category: BlogCategory.treino,
+      categoryKey: 'treino',
       clock: clock,
       startProgress: 0.5,
     )..reportProgress(3);
@@ -109,12 +108,15 @@ void main() {
     expect(s.close(uid: 'u1'), isNull);
   });
 
-  test('sem sessão logada ou categoria desconhecida não grava', () {
+  test('sem sessão logada ou sem categoria válida não grava; criada grava', () {
     final a = session();
     advance(30);
     expect(a.close(uid: ''), isNull);
-    final b = session(category: null);
+    final b = session(categoryKey: '');
     advance(30);
     expect(b.close(uid: 'u1'), isNull);
+    final c = session(categoryKey: 'saude-corpo');
+    advance(30);
+    expect(c.close(uid: 'u1')!['category'], 'saude-corpo');
   });
 }

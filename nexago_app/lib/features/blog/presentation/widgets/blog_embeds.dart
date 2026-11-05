@@ -259,7 +259,7 @@ class BlogProductEmbedCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const BlogCategoryLabel(BlogCategory.loja),
+                    const BlogCategoryLabel('loja'),
                     const SizedBox(height: 4),
                     Text(
                       product.name,

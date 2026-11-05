@@ -1,8 +1,8 @@
 import { resolveSport } from '@nexago/sports';
 import type { TournamentStatus } from '../../../torneios/data/tournaments.repository';
 import { normalizeSearch } from './blog-list';
+import { isCategoryId } from './blog-taxonomy';
 import {
-  BLOG_CATEGORIES,
   BLOG_TITLE_MAX,
   dayMonthLabel,
   saoPauloParts,
@@ -131,7 +131,8 @@ export function prefillParams(p: DraftPrefill): Record<string, string> {
 export function prefillFromParams(get: (key: string) => string | null): DraftPrefill | null {
   const title = (get('titulo') ?? '').replace(/\s+/g, ' ').trim().slice(0, BLOG_TITLE_MAX);
   const rawCategory = get('categoria');
-  const category = BLOG_CATEGORIES.find((c) => c.id === rawCategory)?.id ?? null;
+  // Categoria criada no backoffice também vale; se não existir mais, o editor mostra "(não existe mais)".
+  const category = isCategoryId(rawCategory) ? rawCategory : null;
   const tournament = get('torneio');
   const product = get('produto');
   const ranking = resolveSport(get('ranking'))?.code ?? null;

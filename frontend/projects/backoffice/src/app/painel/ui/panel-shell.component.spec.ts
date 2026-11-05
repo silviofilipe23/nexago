@@ -79,7 +79,7 @@ describe('PanelShellComponent', () => {
     expect(host.querySelector('.subnav .badge')).toBeNull();
   });
 
-  it('o grupo Conteúdo tem o Blog e a fila de Comentários como links', async () => {
+  it('o grupo Conteúdo tem Blog, Comentários, Categorias e Autores como links', async () => {
     const host = await mount();
     groupButton(host, 'Conteúdo').click();
     await TestBed.inject(ApplicationRef).whenStable();
@@ -87,6 +87,8 @@ describe('PanelShellComponent', () => {
     expect(links.map((e) => [e.textContent!.trim(), e.getAttribute('href')])).toEqual([
       ['Blog', '/painel/conteudo/blog'],
       ['Comentários', '/painel/conteudo/blog/comentarios'],
+      ['Categorias', '/painel/conteudo/blog/categorias'],
+      ['Autores', '/painel/conteudo/blog/autores'],
     ]);
   });
 

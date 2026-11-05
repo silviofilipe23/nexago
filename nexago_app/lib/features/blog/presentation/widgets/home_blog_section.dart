@@ -98,7 +98,7 @@ class _CompactRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    BlogCategoryLabel(post.category),
+                    BlogCategoryLabel(post.categoryKey),
                     const SizedBox(height: 3),
                     Text(
                       post.title,

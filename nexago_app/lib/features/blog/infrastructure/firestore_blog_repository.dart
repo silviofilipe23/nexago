@@ -202,7 +202,11 @@ class FirestoreBlogRepository implements BlogRepository {
     required BlogCommentKind kind,
   }) async {
     final result = await _functions.httpsCallable('postBlogComment').call(
-      <String, dynamic>{'postId': postId, 'text': text.trim(), 'kind': kind.key},
+      <String, dynamic>{
+        'postId': postId,
+        'text': text.trim(),
+        'kind': kind.key,
+      },
     );
     final data = result.data;
     final id = data is Map ? data['id'] : null;
@@ -212,4 +216,15 @@ class FirestoreBlogRepository implements BlogRepository {
   @override
   Future<void> deleteComment(String postId, String commentId) =>
       _comments(postId).doc(commentId).delete();
+
+  /// Leitura pública; até 30 docs (teto do backend).
+  @override
+  Stream<BlogTaxonomy> watchCategories() => _db
+      .collection('blogCategories')
+      .limit(50)
+      .snapshots()
+      .map(
+        (snap) =>
+            BlogTaxonomy.merge({for (final d in snap.docs) d.id: d.data()}),
+      );
 }

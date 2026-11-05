@@ -124,7 +124,9 @@ test('avisos do blog: o atleta silencia categorias só no próprio doc', async (
   await assertSucceeds(setDoc(mine, { muted: ['loja', 'regras'], updatedAt: serverTimestamp() }));
   await assertSucceeds(getDoc(mine));
   await assertSucceeds(setDoc(mine, { muted: [], updatedAt: serverTimestamp() }));
-  await assertFails(setDoc(mine, { muted: ['xadrez'], updatedAt: serverTimestamp() }));
+  await assertSucceeds(setDoc(mine, { muted: ['saude-corpo'], updatedAt: serverTimestamp() }));
+  await assertFails(setDoc(mine, { muted: 'loja', updatedAt: serverTimestamp() }));
+  await assertFails(setDoc(mine, { muted: Array.from({ length: 31 }, (_, i) => `c${i}`), updatedAt: serverTimestamp() }));
   await assertFails(setDoc(mine, { muted: [], updatedAt: serverTimestamp(), extra: 1 }));
   await assertFails(getDoc(doc(db(OTHER_UID), 'blogNotifyPrefs', ATHLETE_UID)));
   await assertFails(setDoc(doc(db(OTHER_UID), 'blogNotifyPrefs', ATHLETE_UID), { muted: [], updatedAt: serverTimestamp() }));
@@ -177,4 +179,14 @@ test('comentários: aprovado para quem está logado, o próprio em qualquer stat
   await assertFails(deleteDoc(doc(db(), 'blogPosts', 'pub', 'blogComments', 'theirs')));
   await assertSucceeds(deleteDoc(doc(db(), 'blogPosts', 'pub', 'blogComments', 'mine')));
   await assertSucceeds(getDoc(doc(adminDb(), 'blogPosts', 'pub', 'blogComments', 'theirs')));
+});
+
+test('categorias e autores: leitura pública, escrita só servidor; leitura com categoria criada', async () => {
+  const anon = testEnv.unauthenticatedContext().firestore();
+  await assertSucceeds(getDoc(doc(anon, 'blogCategories', 'torneios')));
+  await assertSucceeds(getDocs(collection(anon, 'blogAuthors')));
+  await assertFails(setDoc(doc(adminDb(), 'blogCategories', 'nova'), { label: 'Nova' }));
+  await assertFails(setDoc(doc(adminDb(), 'blogAuthors', 'a1'), { name: 'Ana' }));
+  await assertSucceeds(setDoc(doc(db(), 'blogReads', 'cat-nova'), read({ category: 'saude-corpo' })));
+  await assertFails(setDoc(doc(db(), 'blogReads', 'cat-ruim'), read({ category: 'Saúde' })));
 });

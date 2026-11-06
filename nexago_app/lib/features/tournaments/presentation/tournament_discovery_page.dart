@@ -166,6 +166,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                           child: CompeteHubMenuCard(
                             key: const Key('compete-hub-blog'),
                             imageAsset: CompeteHubArt.blog,
+                            badge: 'NOVO',
                             title: 'Blog',
                             description:
                                 'Notícias, dicas de treino e regras do jogo',

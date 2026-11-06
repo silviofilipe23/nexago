@@ -60,6 +60,10 @@ void main() {
     expect(blogRect.top, classesRect.top);
     expect(blogRect.size, classesRect.size);
     expect(blogRect.width, lessThan(430 / 2));
+    expect(
+      find.descendant(of: card, matching: find.text('NOVO')),
+      findsOneWidget,
+    );
 
     await tester.tap(card);
     await tester.pumpAndSettle();

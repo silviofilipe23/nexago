@@ -16,11 +16,11 @@
  *
  * - Cada guia tem o formato da funcionalidade das Novidades (`appConfig/appNews`).
  * - `destination`: as mesmas chaves do banner da Home (reservar, bora-jogar, peladas, torneios,
- *   ranking, duplas, treinos, aulas, loja, indicar, missoes, minhas-reservas, creditos-chuva, url).
+ *   ranking, duplas, treinos, aulas, loja, indicar, missoes, minhas-reservas, creditos-chuva, blog, url).
  *   Chave que o build não conhece esconde o guia; guia da Loja some com a Loja desligada. Os guias
  *   de Chuva usam `minhas-reservas`/`creditos-chuva` (build 116+): no build 115, sem as telas de
- *   chuva, eles nem aparecem.
- * - `icon`: map, invite, cancel, story, handshake, focus, chat, star ou rain (sem ele, vale o ícone
+ *   chuva, eles nem aparecem. Os do Blog usam `blog` (build 118+): antes dele a categoria some.
+ * - `icon`: map, invite, cancel, story, handshake, focus, chat, star, rain ou blog (sem ele, vale o ícone
  *   do destino; chave que o build não conhece também).
  * - Texto levantado do código das telas em 27/10/2026 (Chuva em 29/10/2026) — rótulos reais de botões e caminhos. Regra
  *   com número (prazo, limite) desatualiza se a regra mudar: conferir antes de republicar.
@@ -113,6 +113,12 @@ const IMAGES = {
   // Arte em docs/app-news-art/modo-focus.html (card do Focus da Início, com o deslizar).
   "modo-focus":
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fmodo-focus.webp?alt=media&token=c0e757cf-061a-46d0-8367-ef5b32dfd2f6",
+  // Arte da novidade 1.0.20 (docs/app-news-art/blog.html): feed com destaque e post salvo.
+  "blog":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.20-blog.webp?alt=media&token=5488765a-b76f-40f6-bc1b-21863ccf9c2f",
+  // docs/app-news-art/blog-duvida.html: "Ficou dúvida" e a resposta da equipe.
+  "blog-duvida":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fblog-duvida.webp?alt=media&token=74352b82-a7d9-4f89-b6d8-b73e5fbdcf48",
 };
 
 const CATEGORIES = [
@@ -531,6 +537,49 @@ const CATEGORIES = [
         where: "Configurações › Convidar amigos",
         ctaLabel: "Convidar amigos",
         destination: "indicar",
+      },
+    ],
+  },
+  {
+    id: "blog",
+    title: "Blog",
+    topics: [
+      {
+        id: "guia-ler-blog",
+        icon: "blog",
+        imageUrl: IMAGES["blog"],
+        title: "Ler e salvar posts do blog",
+        summary: "Notícias, dicas de treino e regras do jogo, escritas pela equipe nexaGO.",
+        description:
+          "O blog reúne posts sobre torneios, treino, regras e arenas. Filtre por assunto ou busque um tema, salve o que quiser ler depois e continue de onde parou: o app guarda até onde você leu.",
+        steps: [
+          "No Hub, toque no card \"Blog\" (ou em Configurações › Blog)",
+          "Toque num assunto no topo para filtrar, ou use a busca",
+          "No post, toque em \"Salvar\" para guardar e ler depois",
+          "Toque no ícone \"Salvos e lendo\", no topo do blog, para ver os salvos e os que ficaram pela metade",
+        ],
+        where: "Hub › Blog",
+        ctaLabel: "Abrir o blog",
+        destination: "blog",
+      },
+      {
+        id: "guia-duvida-blog",
+        icon: "chat",
+        imageUrl: IMAGES["blog-duvida"],
+        title: "Dúvidas e avisos do blog",
+        summary: "Pergunte no fim do post e escolha de quais assuntos receber aviso.",
+        description:
+          "No fim de cada post dá para dizer se ele ajudou ou mandar uma dúvida. Comentários e dúvidas aparecem depois que a equipe aprova, e a resposta da equipe fica embaixo da sua pergunta. Você também escolhe de quais assuntos quer receber push quando sair post novo.",
+        steps: [
+          "No fim do post, toque em \"Ficou dúvida\" e escreva a sua pergunta",
+          "Ela aparece como \"Aguardando aprovação\" até a equipe liberar",
+          "Quando a equipe responder, você recebe um aviso",
+          "No post, use \"Avisar posts de\" para ligar ou desligar o aviso do assunto",
+          "Em \"Salvos e lendo\", \"Avisos do blog\" mostra todos os assuntos de uma vez",
+        ],
+        where: "Blog › fim do post",
+        ctaLabel: "Abrir o blog",
+        destination: "blog",
       },
     ],
   },

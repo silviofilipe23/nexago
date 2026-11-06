@@ -367,7 +367,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   key: const Key('athlete-settings-blog'),
                   icon: Icons.article_outlined,
                   title: 'Blog',
-                  subtitle: 'Dicas, regras e novidades do nexaGO',
+                  subtitle: 'Notícias, dicas de treino e regras do jogo',
                   variant: AthleteSettingsIconVariant.neutral,
                   onTap: () => context.pushNamed(AppRouteNames.blog),
                   showDivider: true,

@@ -163,14 +163,18 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                         ),
                         const SizedBox(width: _gridGap),
                         Expanded(
-                          child: CompeteHubMenuCard(
-                            key: const Key('compete-hub-blog'),
-                            imageAsset: CompeteHubArt.blog,
-                            badge: 'NOVO',
-                            title: 'Blog',
-                            description:
-                                'Notícias, dicas de treino e regras do jogo',
-                            onTap: () => context.pushNamed(AppRouteNames.blog),
+                          child: AthleteHomeTourAnchor(
+                            target: AthleteHomeTourTarget.blog,
+                            child: CompeteHubMenuCard(
+                              key: const Key('compete-hub-blog'),
+                              imageAsset: CompeteHubArt.blog,
+                              badge: 'NOVO',
+                              title: 'Blog',
+                              description:
+                                  'Notícias, dicas de treino e regras do jogo',
+                              onTap: () =>
+                                  context.pushNamed(AppRouteNames.blog),
+                            ),
                           ),
                         ),
                       ],

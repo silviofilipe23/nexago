@@ -25,6 +25,7 @@ IconData homeBannerIcon(HomeBannerDestination destination) =>
       HomeBannerDestination.minhasReservas => Icons.event_note_outlined,
       HomeBannerDestination.creditosChuva =>
         Icons.account_balance_wallet_outlined,
+      HomeBannerDestination.blog => Icons.article_outlined,
       HomeBannerDestination.url => Icons.open_in_new_rounded,
     };
 
@@ -65,6 +66,7 @@ Future<void> openAppDestination(
     HomeBannerDestination.missoes => AppRouteNames.athleteQuest,
     HomeBannerDestination.minhasReservas => AppRouteNames.myBookings,
     HomeBannerDestination.creditosChuva => AppRouteNames.athleteWeatherCredits,
+    HomeBannerDestination.blog => AppRouteNames.blog,
     HomeBannerDestination.reservar ||
     HomeBannerDestination.loja ||
     HomeBannerDestination.url =>

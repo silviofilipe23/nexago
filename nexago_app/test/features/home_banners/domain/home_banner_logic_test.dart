@@ -49,6 +49,11 @@ void main() {
           HomeBannerDestination.creditosChuva);
     });
 
+    test('chave do blog abre o feed do blog', () {
+      expect(HomeBanner.fromMap(raw({'destination': 'blog'}))!.destination,
+          HomeBannerDestination.blog);
+    });
+
     test('chave desconhecida para este build esconde o banner', () {
       expect(HomeBanner.fromMap(raw({'destination': 'radar'})), isNull);
       expect(HomeBanner.fromMap(raw({'audience': 'inativos'})), isNull);

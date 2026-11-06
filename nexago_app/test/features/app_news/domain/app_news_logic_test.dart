@@ -96,6 +96,11 @@ void main() {
         AppNewsFeature.fromMap(feature('b', {'icon': 'rain'}))!.icon,
         AppNewsIcon.rain,
       );
+      final blog = AppNewsFeature.fromMap(
+        feature('c', {'icon': 'blog', 'destination': 'blog'}),
+      )!;
+      expect(blog.icon, AppNewsIcon.blog);
+      expect(blog.destination, HomeBannerDestination.blog);
     });
   });
 

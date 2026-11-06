@@ -29,6 +29,8 @@
  * - Os stories aparecem UMA vez por versão, só para quem já tinha conta antes
  *   da `date`, com as funcionalidades que o atleta ainda não usou.
  *
+ * CONTEÚDO 1.0.20: o Blog do nexaGO, com o destino novo `blog` e o ícone `blog` — builds
+ * anteriores não conhecem o destino e escondem a funcionalidade (o blog só existe a partir do 118).
  * CONTEÚDO 1.0.18: a chuva (previsão em toda reserva, Modo chuva/pedido com
  * remarcar ou crédito, crédito na próxima reserva), com os destinos novos
  * `minhas-reservas` e `creditos-chuva` — o build 115 não os conhece.
@@ -46,8 +48,8 @@
  *
  * Uso (na pasta functions/):
  *   node scripts/seed-app-news.js --project <projectId> --show
- *   node scripts/seed-app-news.js --project <projectId> --version 1.0.18 --build 116
- *   node scripts/seed-app-news.js --project <projectId> --version 1.0.18 --build 116 --yes
+ *   node scripts/seed-app-news.js --project <projectId> --version 1.0.20 --build 118
+ *   node scripts/seed-app-news.js --project <projectId> --version 1.0.20 --build 118 --yes
  *
  * Sem --yes é DRY-RUN: mostra o estado atual e o que seria gravado.
  *
@@ -111,15 +113,53 @@ const IMAGES = {
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-chuva-sem-custo.webp?alt=media&token=668e04a6-1e32-4a8c-9e3b-93a3320e95c1",
   "credito-chuva":
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-credito-chuva.webp?alt=media&token=d4edaffe-1652-4fce-9f89-0deb8c5fd39b",
+  "blog":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.20-blog.webp?alt=media&token=5488765a-b76f-40f6-bc1b-21863ccf9c2f",
 };
 
-// 1.0.18 (build 116): chuva. As chaves `minhas-reservas` e `creditos-chuva` só existem a partir
-// deste build, então quem está no 115 nem veria as funcionalidades com botão.
+// 1.0.20 (build 118): o Blog. A chave `blog` só existe a partir deste build.
 function currentRelease(build) {
   return {
     version,
     build,
     date,
+    stories: true,
+    features: [
+      {
+        id: "blog-nexago",
+        icon: "blog",
+        title: "Blog do nexaGO",
+        summary: "Notícias, dicas de treino e regras do jogo.",
+        description:
+          "Posts da equipe nexaGO sobre torneios, treino, regras e arenas. Salve para ler depois, volte de onde parou e, no fim do post, mande sua dúvida: a equipe responde ali mesmo.",
+        steps: [
+          "No Hub, toque no card Blog",
+          "Filtre por assunto ou busque um tema",
+          "Toque em Salvar para ler depois",
+          "No fim do post, toque em Ficou dúvida",
+        ],
+        where: "Hub › Blog",
+        ctaLabel: "Abrir o blog",
+        destination: "blog",
+        imageUrl: IMAGES["blog"],
+      },
+    ],
+    // PRs com mudança no app para o atleta depois do corte da 1.0.19 (03/11): #1096–#1122.
+    improvements: [
+      "Hub de cara nova: seis cards com arte, com Aulas e treinos e o Blog",
+      "Toalha nexaGO com o seu nome na barra",
+      "Personalização da Loja aceita imagem ou texto na área de impressão",
+      "Concluir o cadastro não volta mais para o formulário",
+    ],
+  };
+}
+
+// 1.0.18 completa (chuva): para quem ainda está no build 116 ou 117 ela é a atual. As chaves
+// `minhas-reservas` e `creditos-chuva` só existem a partir do 116.
+const RELEASE_1_0_18 = {
+    version: "1.0.18",
+    build: 116,
+    date: "2026-10-29",
     stories: true,
     features: [
       {
@@ -182,8 +222,7 @@ function currentRelease(build) {
       "Horário de início de cada categoria na página do torneio",
       "Título do Ranking inteiro na barra, ao lado dos ícones",
     ],
-  };
-}
+};
 
 // 1.0.17 completa (botões, imagens e stories): para quem ainda está no build 115 ela é a atual.
 const RELEASE_1_0_17 = {
@@ -386,7 +425,7 @@ async function run() {
   }
   const releases = [
     currentRelease(build),
-    ...[RELEASE_1_0_17, ...PREVIOUS].filter((r) => r.build < build),
+    ...[RELEASE_1_0_18, RELEASE_1_0_17, ...PREVIOUS].filter((r) => r.build < build),
   ];
   console.log("\nSeria gravado:");
   printCurrent({releases});

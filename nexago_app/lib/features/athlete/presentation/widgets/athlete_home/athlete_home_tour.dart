@@ -21,6 +21,7 @@ enum AthleteHomeTourTarget {
   notifications,
   tournaments,
   ranking,
+  blog,
   focus,
   navBar,
 }
@@ -108,6 +109,19 @@ const athleteHomeTourSteps = [
     body: 'Veja sua posição e a pontuação da temporada, por esporte e '
         'categoria.',
     tab: athleteShellCompeteTabIndex,
+    holePadding: 4,
+    holeRadius: 20,
+  ),
+  AthleteHomeTourStep(
+    target: AthleteHomeTourTarget.blog,
+    title: 'Blog do nexaGO',
+    body: 'Notícias, dicas de treino e regras do jogo. Salve os posts para '
+        'ler depois e mande sua dúvida nos comentários.',
+    bodyWithoutTarget: 'No Hub tem o Blog do nexaGO: notícias, dicas de '
+        'treino e regras do jogo. Salve os posts para ler depois e mande sua '
+        'dúvida nos comentários.',
+    tab: athleteShellCompeteTabIndex,
+    since: 5,
     holePadding: 4,
     holeRadius: 20,
   ),
@@ -331,9 +345,18 @@ class _AthleteHomeTourOverlayState extends State<AthleteHomeTourOverlay> {
   void _prepare(int index) {
     final step = widget.steps[index];
     widget.onStep?.call(index + 1, widget.steps.length, step.target);
-    if (step.tab != _tab) {
+    final showTab = widget.onShowTab;
+    if (step.tab != _tab && showTab != null) {
       _tab = step.tab;
-      widget.onShowTab?.call(step.tab);
+      if (index == 0) {
+        // Do initState: trocar a aba agora mexeria no provider da casca no
+        // meio do build. Acontece quando o único passo novo mora no Hub.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) showTab(step.tab);
+        });
+      } else {
+        showTab(step.tab);
+      }
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;

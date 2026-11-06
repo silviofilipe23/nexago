@@ -25,6 +25,7 @@ export const ICONS = [
   { id: 'map', label: 'Mapa' },
   { id: 'invite', label: 'Convite' },
   { id: 'rain', label: 'Chuva' },
+  { id: 'blog', label: 'Blog' },
 ] as const;
 export type AppNewsIcon = (typeof ICONS)[number]['id'];
 

@@ -23,6 +23,7 @@ export const DESTINATIONS = [
   { id: 'missoes', label: 'Missões' },
   { id: 'minhas-reservas', label: 'Minhas reservas' },
   { id: 'creditos-chuva', label: 'Créditos de chuva' },
+  { id: 'blog', label: 'Blog' },
   { id: 'url', label: 'Link externo' },
 ] as const;
 export type HomeBannerDestination = (typeof DESTINATIONS)[number]['id'];

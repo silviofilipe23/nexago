@@ -18,7 +18,8 @@ class AthleteHomeTourStore {
   /// v2: entraram alugar quadra, torneios e ranking — quem viu a v1 vê de novo.
   /// v3: a barra do iPhone fica nativa no tour e a quadra vira o botão Reservar.
   /// v4: entrou o Modo Focus — quem viu a v3 vê só esse passo.
-  static const version = 4;
+  /// v5: entrou o Blog no Hub — quem viu a v4 vê só esse passo.
+  static const version = 5;
 
   static String _key(String uid) => 'athlete_home_tour_seen_$uid';
 

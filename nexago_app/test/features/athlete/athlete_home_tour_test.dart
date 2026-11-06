@@ -95,6 +95,10 @@ Widget _shell(
                         ),
                       ],
                     ),
+                    AthleteHomeTourAnchor(
+                      target: AthleteHomeTourTarget.blog,
+                      child: SizedBox(height: 120, width: 180),
+                    ),
                   ],
                 ),
               ],
@@ -163,11 +167,11 @@ void main() {
     }
 
     testWidgets(
-        'passa pelas abas: conta, sino, quadra, torneios, ranking, Focus, '
-        'barra', (tester) async {
+        'passa pelas abas: conta, sino, quadra, torneios, ranking, blog, '
+        'Focus, barra', (tester) async {
       await open(tester);
 
-      expect(find.text('1 DE 7'), findsOneWidget);
+      expect(find.text('1 DE 8'), findsOneWidget);
       expect(find.text('Sua conta fica aqui'), findsOneWidget);
 
       await next(tester);
@@ -191,11 +195,15 @@ void main() {
       expect(find.text('Ranking'), findsOneWidget);
 
       await next(tester);
+      expect(find.text('Blog do nexaGO'), findsOneWidget);
+      expect(tab.value, athleteShellCompeteTabIndex);
+
+      await next(tester);
       expect(find.text('Modo Focus no dia do torneio'), findsOneWidget);
       expect(tab.value, 0, reason: 'o card do Focus mora na Início');
 
       await next(tester);
-      expect(find.text('7 DE 7'), findsOneWidget);
+      expect(find.text('8 DE 8'), findsOneWidget);
       expect(find.text('Navegue pelas abas'), findsOneWidget);
       expect(tab.value, 0, reason: 'o último passo volta para a Início');
       expect(find.text('Entendi'), findsOneWidget);
@@ -242,9 +250,9 @@ void main() {
         (tester) async {
       await open(tester, withBell: false);
 
-      expect(find.text('1 DE 6'), findsOneWidget);
+      expect(find.text('1 DE 7'), findsOneWidget);
       await next(tester);
-      expect(find.text('2 DE 6'), findsOneWidget);
+      expect(find.text('2 DE 7'), findsOneWidget);
       expect(find.text('Alugue uma quadra'), findsOneWidget);
     });
 
@@ -269,7 +277,7 @@ void main() {
       final card = tester.getRect(find.text('Sua conta fica aqui'));
       expect(card.top, greaterThan(account.bottom));
 
-      for (var i = 0; i < 6; i++) {
+      for (var i = 0; i < 7; i++) {
         await next(tester);
       }
 
@@ -440,7 +448,7 @@ void main() {
         'account',
         'notifications',
       ]);
-      expect(steps.first.namedArguments[#total], 7);
+      expect(steps.first.namedArguments[#total], 8);
 
       final finished = analytics.of(#logHomeTourFinished).single;
       expect(finished.namedArguments[#result], 'pulou');
@@ -451,15 +459,15 @@ void main() {
     testWidgets('analytics: chegou ao fim registra "concluiu"', (tester) async {
       await pumpShell(tester);
 
-      for (var i = 0; i < 7; i++) {
+      for (var i = 0; i < 8; i++) {
         await tester.tap(find.byKey(const Key('athlete-home-tour-next')));
         await tester.pumpAndSettle();
       }
 
-      expect(analytics.of(#logHomeTourStep), hasLength(7));
+      expect(analytics.of(#logHomeTourStep), hasLength(8));
       final finished = analytics.of(#logHomeTourFinished).single;
       expect(finished.namedArguments[#result], 'concluiu');
-      expect(finished.namedArguments[#step], 7);
+      expect(finished.namedArguments[#step], 8);
     });
 
     testWidgets('não abre de novo para quem já viu', (tester) async {
@@ -468,19 +476,39 @@ void main() {
       expect(find.byType(AthleteHomeTourOverlay), findsNothing);
     });
 
-    testWidgets('quem viu a v3 vê só o passo novo do Focus', (tester) async {
-      final store = await pumpShell(tester, seen: 3);
+    testWidgets('quem viu a v4 vê só o passo novo do Blog', (tester) async {
+      final store = await pumpShell(tester, seen: 4);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(AthleteHomeTourAnnouncer)),
+      );
 
-      expect(find.text('Modo Focus no dia do torneio'), findsOneWidget);
+      // O único passo novo mora no Hub: o tour abre já trocando de aba.
+      expect(find.text('Blog do nexaGO'), findsOneWidget);
       expect(find.text('NOVIDADE'), findsOneWidget);
       expect(find.text('Sua conta fica aqui'), findsNothing);
+      expect(
+        container.read(athleteShellTabIndexProvider),
+        athleteShellCompeteTabIndex,
+      );
       expect(store.marked, ['u1']);
 
       await tester.tap(find.text('Entendi'));
       await tester.pumpAndSettle();
       expect(find.byType(AthleteHomeTourOverlay), findsNothing);
+      expect(container.read(athleteShellTabIndexProvider), 0);
       expect(analytics.of(#logHomeTourStep).single.namedArguments[#target],
-          'focus');
+          'blog');
+    });
+
+    testWidgets('quem viu a v3 vê os passos novos do Blog e do Focus',
+        (tester) async {
+      await pumpShell(tester, seen: 3);
+
+      expect(find.text('1 DE 2'), findsOneWidget);
+      expect(find.text('Blog do nexaGO'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('athlete-home-tour-next')));
+      await tester.pumpAndSettle();
+      expect(find.text('Modo Focus no dia do torneio'), findsOneWidget);
     });
 
     testWidgets('não abre fora da aba Início', (tester) async {

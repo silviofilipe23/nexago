@@ -35,6 +35,7 @@ enum HomeBannerDestination {
   missoes('missoes'),
   minhasReservas('minhas-reservas'),
   creditosChuva('creditos-chuva'),
+  blog('blog'),
   url('url');
 
   const HomeBannerDestination(this.key);

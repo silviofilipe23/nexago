@@ -159,9 +159,9 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                           context.pushNamed(AppRouteNames.classDirectory),
                     ),
                     const SizedBox(height: _gridGap),
-                    CompeteHubWideCard(
+                    CompeteHubFeatureCard(
                       key: const Key('compete-hub-blog'),
-                      icon: Icons.article_outlined,
+                      imageAsset: CompeteHubArt.blog,
                       title: 'Blog',
                       description: 'Dicas, regras e novidades do nexaGO',
                       onTap: () => context.pushNamed(AppRouteNames.blog),

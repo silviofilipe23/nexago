@@ -19,6 +19,9 @@ abstract final class CompeteHubArt {
 
   /// Card largo "Aulas e treinos".
   static const String classes = 'assets/images/compete/aulas.webp';
+
+  /// Card largo "Blog".
+  static const String blog = 'assets/images/compete/blog.webp';
 }
 
 /// Escurecimento da arte inteira: multiplica os canais por ~0,65. O preto
@@ -54,7 +57,7 @@ class CompeteHubMenuCard extends StatefulWidget {
 
   /// Proporção largura/altura do card: um pouco mais largo que alto, para o
   /// menu inteiro caber na tela sem rolar muito.
-  static const double aspectRatio = 1.15;
+  static const double aspectRatio = 1.4;
 
   /// Quanto o card encolhe enquanto está sob o dedo.
   static const double pressedScale = 0.96;
@@ -100,7 +103,7 @@ class _CompeteHubMenuCardState extends State<CompeteHubMenuCard> {
               fit: BoxFit.cover,
               // As artes são retrato e o card é baixo: o enquadramento sobe
               // para não cortar troféu e cabeças no topo.
-              alignment: const Alignment(0, -0.45),
+              alignment: const Alignment(0, -0.8),
               child: InkWell(
                 onTap: widget.onTap,
                 // Reusa o InkWell que já existe para o ripple em vez de

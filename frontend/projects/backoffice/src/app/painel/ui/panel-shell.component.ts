@@ -109,7 +109,10 @@ const SQUAD_GROUP: NavGroup = {
   ],
 };
 
-/** Torneios: a lista + os pacotes vendidos ao organizador (planos v2), os contratos pedidos, as cotas Sponsors e as taxas. */
+/**
+ * Torneios: a lista + os pacotes vendidos ao organizador (planos v2), os contratos pedidos, as cotas
+ * Sponsors, as taxas e quanto a NexaGO arrecadou em cada torneio.
+ */
 const TORNEIOS_GROUP: NavGroup = {
   kind: 'group',
   id: 'torneios-grupo',
@@ -123,6 +126,8 @@ const TORNEIOS_GROUP: NavGroup = {
     { kind: 'link', id: 'torneios-sponsors', label: 'Sponsors', icon: 'sponsor', route: '/painel/torneios/sponsors' },
     // Comissão sobre inscrições: padrão da plataforma e exceção por torneio.
     { kind: 'link', id: 'torneios-taxas', label: 'Taxas', icon: 'percent', route: '/painel/torneios/taxas' },
+    // Receita da NexaGO por torneio: taxa cobrada menos o que a plataforma banca.
+    { kind: 'link', id: 'torneios-arrecadacao', label: 'Arrecadação', icon: 'trend-up', route: '/painel/torneios/arrecadacao' },
   ],
 };
 
@@ -714,6 +719,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/torneios/taxas')) {
       return 'torneios-taxas';
+    }
+    if (path.startsWith('/painel/torneios/arrecadacao')) {
+      return 'torneios-arrecadacao';
     }
     if (path.startsWith('/painel/torneios')) {
       return 'torneios';

@@ -148,21 +148,25 @@ export class TournamentFeesRepository {
     return new Map(entries);
   }
 
-  /** Taxa já cobrada no torneio: agregação do extrato do caixa (só créditos de inscrição). */
+  /**
+   * Taxa já cobrada no torneio: agregação do extrato do caixa (só créditos de inscrição).
+   *
+   * Uma soma por consulta: duas ou mais somas na mesma agregação exigem índice composto com os
+   * campos somados, e sem ele o Firestore recusa (FAILED_PRECONDITION) — era o que deixava a coluna
+   * "Receita NexaGO" sempre em "—". Uma soma (com ou sem `count`) usa o índice automático.
+   */
   async revenue(tournamentId: string): Promise<TournamentRevenue> {
     const ledger = collection(backofficeDb(), 'tournamentWallets', tournamentId, 'ledger');
-    const snap = await getAggregateFromServer(ledger, {
-      fee: sum('platformFeeReais'),
+    const [fee, athleteFee, gross] = await Promise.all([
+      getAggregateFromServer(ledger, { fee: sum('platformFeeReais'), payments: count() }),
       // Só existe quando o atleta pagou parte da taxa; a soma ignora quem não tem o campo.
-      athleteFee: sum('serviceFeeReais'),
-      gross: sum('grossReais'),
-      payments: count(),
-    });
-    const data = snap.data();
+      getAggregateFromServer(ledger, { athleteFee: sum('serviceFeeReais') }),
+      getAggregateFromServer(ledger, { gross: sum('grossReais') }),
+    ]);
     return {
-      feeReais: money(money(data.fee) + money(data.athleteFee)),
-      grossReais: money(data.gross),
-      payments: data.payments,
+      feeReais: money(money(fee.data().fee) + money(athleteFee.data().athleteFee)),
+      grossReais: money(gross.data().gross),
+      payments: fee.data().payments,
     };
   }
 

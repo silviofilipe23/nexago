@@ -136,6 +136,7 @@ describe('PanelShellComponent', () => {
       '/painel/torneios/contratos',
       '/painel/torneios/sponsors',
       '/painel/torneios/taxas',
+      '/painel/torneios/arrecadacao',
     ]);
     const item = links.find((e) => e.textContent!.includes('Contratos'))!;
     expect(item.querySelector('.badge')!.textContent!.trim()).toBe('2');

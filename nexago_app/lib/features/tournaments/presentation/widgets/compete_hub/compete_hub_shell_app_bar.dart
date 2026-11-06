@@ -51,9 +51,9 @@ class CompeteHubHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 3),
-              // Subtítulo mono do painel web ("torneios, ranking, equipes…").
+              // Subtítulo mono, no estilo do painel web.
               Text(
-                'TORNEIOS, RANKING, EQUIPES E ATLETAS',
+                'TUDO QUE VOCÊ PRECISA ESTÁ AQUI',
                 style: AppTypography.eyebrow.copyWith(
                   color: context.themeColors.onSurfaceMuted,
                 ),

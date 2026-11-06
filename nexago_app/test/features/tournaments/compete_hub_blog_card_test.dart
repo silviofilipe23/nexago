@@ -50,8 +50,7 @@ void main() {
     await tester.scrollUntilVisible(card, 200,
         scrollable: find.byType(Scrollable).first);
     expect(find.text('Blog'), findsOneWidget);
-    expect(find.text('Dicas de treino, regras, torneios e novidades do nexaGO'),
-        findsOneWidget);
+    expect(find.text('Dicas, regras e novidades do nexaGO'), findsOneWidget);
 
     await tester.tap(card);
     await tester.pumpAndSettle();

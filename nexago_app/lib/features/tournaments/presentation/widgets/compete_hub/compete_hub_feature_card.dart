@@ -32,7 +32,7 @@ class CompeteHubFeatureCard extends StatefulWidget {
     required this.description,
     required this.onTap,
     this.badge,
-    this.height = 150,
+    this.height = 112,
   });
 
   final String imageAsset;
@@ -91,8 +91,8 @@ class _CompeteHubFeatureCardState extends State<CompeteHubFeatureCard> {
                     ),
                     if (badge != null)
                       Positioned(
-                        top: AppSpacing.sm + 2,
-                        left: AppSpacing.sm + 2,
+                        top: AppSpacing.sm,
+                        left: AppSpacing.sm,
                         child: Container(
                           height: 20,
                           padding: const EdgeInsets.symmetric(horizontal: 7),
@@ -112,7 +112,7 @@ class _CompeteHubFeatureCardState extends State<CompeteHubFeatureCard> {
                         ),
                       ),
                     Padding(
-                      padding: const EdgeInsets.all(AppSpacing.md + 2),
+                      padding: const EdgeInsets.all(AppSpacing.md),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.end,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -126,14 +126,14 @@ class _CompeteHubFeatureCardState extends State<CompeteHubFeatureCard> {
                               height: 1.15,
                             ),
                           ),
-                          const SizedBox(height: AppSpacing.xs),
+                          const SizedBox(height: 2),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Expanded(
                                 child: Text(
                                   widget.description,
-                                  maxLines: 2,
+                                  maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: AppTypography.bodyS.copyWith(
                                     fontSize: 11,

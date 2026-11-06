@@ -21,7 +21,7 @@ import '../../athlete/presentation/widgets/athlete_home/athlete_account_sheet.da
 import '../../athlete/presentation/widgets/athlete_home/athlete_home_tour.dart';
 
 /// Respiro entre os cards do grid 2x2, nos dois eixos.
-const double _gridGap = AppSpacing.md + 2;
+const double _gridGap = AppSpacing.md;
 
 /// Aba Competir — menu de navegação no padrão do painel do portal web:
 /// quatro cards (Torneios e ligas, Ranking, Equipes, Atletas), o card largo
@@ -39,8 +39,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
       data: (allowed) => allowed && activeRole == AppMobileRole.arena,
       orElse: () => false,
     );
-    final bottomClearance =
-        nexaBottomNavBarHeight(context) +
+    final bottomClearance = nexaBottomNavBarHeight(context) +
         MediaQuery.viewPaddingOf(context).bottom +
         16;
 
@@ -117,8 +116,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                             child: CompeteHubMenuCard(
                               imageAsset: CompeteHubArt.ranking,
                               title: 'Ranking',
-                              description:
-                                  'Sua posição e a pontuação da temporada',
+                              description: 'Sua posição na temporada',
                               onTap: () => context
                                   .pushNamed(AppRouteNames.athleteRanking),
                             ),
@@ -133,7 +131,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                           child: CompeteHubMenuCard(
                             imageAsset: CompeteHubArt.teams,
                             title: 'Equipes',
-                            description: 'Equipes da comunidade perto de você',
+                            description: 'Equipes perto de você',
                             onTap: () =>
                                 context.pushNamed(AppRouteNames.teamDiscover),
                           ),
@@ -144,8 +142,8 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                             imageAsset: CompeteHubArt.athletes,
                             title: 'Atletas',
                             description: 'Encontre jogadores da comunidade',
-                            onTap: () =>
-                                context.pushNamed(AppRouteNames.athleteDiscover),
+                            onTap: () => context
+                                .pushNamed(AppRouteNames.athleteDiscover),
                           ),
                         ),
                       ],
@@ -156,8 +154,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                       imageAsset: CompeteHubArt.classes,
                       badge: 'NOVO',
                       title: 'Aulas e treinos',
-                      description:
-                          'Arenas, CTs e professores independentes perto de você',
+                      description: 'Arenas, CTs e professores perto de você',
                       onTap: () =>
                           context.pushNamed(AppRouteNames.classDirectory),
                     ),
@@ -166,16 +163,14 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                       key: const Key('compete-hub-blog'),
                       icon: Icons.article_outlined,
                       title: 'Blog',
-                      description:
-                          'Dicas de treino, regras, torneios e novidades do nexaGO',
+                      description: 'Dicas, regras e novidades do nexaGO',
                       onTap: () => context.pushNamed(AppRouteNames.blog),
                     ),
                     const SizedBox(height: _gridGap),
                     CompeteHubWideCard(
                       icon: Icons.storefront_outlined,
                       title: 'Organizadores',
-                      description:
-                          'Conheça quem organiza os eventos e siga para saber quando abrem inscrições',
+                      description: 'Siga e saiba quando abrem inscrições',
                       onTap: () =>
                           context.pushNamed(AppRouteNames.organizersDirectory),
                     ),

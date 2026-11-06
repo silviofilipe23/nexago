@@ -52,8 +52,9 @@ class CompeteHubMenuCard extends StatefulWidget {
     required this.onTap,
   });
 
-  /// Proporção largura/altura do card (retrato).
-  static const double aspectRatio = 0.78;
+  /// Proporção largura/altura do card: um pouco mais largo que alto, para o
+  /// menu inteiro caber na tela sem rolar muito.
+  static const double aspectRatio = 1.15;
 
   /// Quanto o card encolhe enquanto está sob o dedo.
   static const double pressedScale = 0.96;
@@ -97,6 +98,9 @@ class _CompeteHubMenuCardState extends State<CompeteHubMenuCard> {
               image: _imageProvider(context, constraints.maxWidth),
               colorFilter: _artDim,
               fit: BoxFit.cover,
+              // As artes são retrato e o card é baixo: o enquadramento sobe
+              // para não cortar troféu e cabeças no topo.
+              alignment: const Alignment(0, -0.45),
               child: InkWell(
                 onTap: widget.onTap,
                 // Reusa o InkWell que já existe para o ripple em vez de
@@ -110,41 +114,45 @@ class _CompeteHubMenuCardState extends State<CompeteHubMenuCard> {
                       decoration: BoxDecoration(gradient: _scrim),
                     ),
                     Padding(
-                      padding: const EdgeInsets.all(AppSpacing.md + 2),
+                      padding: const EdgeInsets.all(AppSpacing.md),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.end,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             widget.title,
-                            maxLines: 2,
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.titleS.copyWith(
                               color: AppColors.white,
                               height: 1.15,
                             ),
                           ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Flexible(
-                            child: Text(
-                              widget.description,
-                              maxLines: 4,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTypography.bodyS.copyWith(
-                                fontSize: 10,
-                                height: 1.3,
-                                color: AppColors.white.withValues(alpha: 0.74),
+                          const SizedBox(height: 2),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  widget.description,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTypography.bodyS.copyWith(
+                                    fontSize: 10,
+                                    height: 1.3,
+                                    color: AppColors.white.withValues(
+                                      alpha: 0.74,
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.sm + 2),
-                          const Align(
-                            alignment: Alignment.centerRight,
-                            child: Icon(
-                              Icons.arrow_forward_rounded,
-                              size: 17,
-                              color: AppColors.white,
-                            ),
+                              const SizedBox(width: AppSpacing.xs),
+                              const Icon(
+                                Icons.arrow_forward_rounded,
+                                size: 16,
+                                color: AppColors.white,
+                              ),
+                            ],
                           ),
                         ],
                       ),

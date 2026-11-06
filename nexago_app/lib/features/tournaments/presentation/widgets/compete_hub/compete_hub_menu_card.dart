@@ -17,10 +17,10 @@ abstract final class CompeteHubArt {
   static const String teams = 'assets/images/compete/equipes.webp';
   static const String athletes = 'assets/images/compete/atletas.webp';
 
-  /// Card largo "Aulas e treinos".
+  /// Card "Aulas e treinos".
   static const String classes = 'assets/images/compete/aulas.webp';
 
-  /// Card largo "Blog".
+  /// Card "Blog".
   static const String blog = 'assets/images/compete/blog.webp';
 }
 
@@ -53,6 +53,7 @@ class CompeteHubMenuCard extends StatefulWidget {
     required this.title,
     required this.description,
     required this.onTap,
+    this.badge,
   });
 
   /// Proporção largura/altura do card: um pouco mais largo que alto, para o
@@ -66,6 +67,9 @@ class CompeteHubMenuCard extends StatefulWidget {
   final String title;
   final String description;
   final VoidCallback onTap;
+
+  /// Selo laranja no canto ("NOVO").
+  final String? badge;
 
   @override
   State<CompeteHubMenuCard> createState() => _CompeteHubMenuCardState();
@@ -82,6 +86,7 @@ class _CompeteHubMenuCardState extends State<CompeteHubMenuCard> {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final badge = widget.badge;
 
     return AspectRatio(
       aspectRatio: CompeteHubMenuCard.aspectRatio,
@@ -116,6 +121,28 @@ class _CompeteHubMenuCardState extends State<CompeteHubMenuCard> {
                     const DecoratedBox(
                       decoration: BoxDecoration(gradient: _scrim),
                     ),
+                    if (badge != null)
+                      Positioned(
+                        top: AppSpacing.sm,
+                        left: AppSpacing.sm,
+                        child: Container(
+                          height: 20,
+                          padding: const EdgeInsets.symmetric(horizontal: 7),
+                          decoration: BoxDecoration(
+                            color: AppColors.brand,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            badge,
+                            style: AppTypography.mono(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0A0A0A),
+                            ).copyWith(letterSpacing: 0.8),
+                          ),
+                        ),
+                      ),
                     Padding(
                       padding: const EdgeInsets.all(AppSpacing.md),
                       child: Column(

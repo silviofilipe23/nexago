@@ -50,7 +50,16 @@ void main() {
     await tester.scrollUntilVisible(card, 200,
         scrollable: find.byType(Scrollable).first);
     expect(find.text('Blog'), findsOneWidget);
-    expect(find.text('Dicas, regras e novidades do nexaGO'), findsOneWidget);
+    expect(find.text('Notícias, dicas de treino e regras do jogo'), findsOneWidget);
+
+    // Meia largura, ao lado de Aulas e treinos, como os cards do grid.
+    final blogRect = tester.getRect(card);
+    final classesRect = tester.getRect(
+      find.byKey(const Key('compete-hub-classes')),
+    );
+    expect(blogRect.top, classesRect.top);
+    expect(blogRect.size, classesRect.size);
+    expect(blogRect.width, lessThan(430 / 2));
 
     await tester.tap(card);
     await tester.pumpAndSettle();

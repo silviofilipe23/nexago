@@ -878,6 +878,7 @@ export {
   upsertPlatformCost,
   deletePlatformCost,
 } from "./backoffice-finance";
+export {getCompanyFinance} from "./backoffice-company-finance";
 // Backoffice — Centros de Treinamento (ativar/suspender, recebimento, assinatura).
 export {
   approveTrainingCenterReceiving,

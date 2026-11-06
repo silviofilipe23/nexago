@@ -184,6 +184,10 @@ Upload pede login.
   meio). Nome, áreas ligadas e costas se arrastam (mouse/toque) ou andam pelas setas (1%; Shift, 5%);
   área menor fica por cima. Trocar o `Local` do nome devolve o nome ao padrão do novo local e mostra o
   lado dele. "Voltar ao padrão" zera todas as posições.
+- **O lado do nome é do `Local`, não do arrasto.** As opções dizem o lado ("Costas · em cima",
+  "Frente · barra da toalha"…); a prévia abre no lado do nome. Nome nas costas numa peça sem foto
+  das costas mostra um aviso no card Nome (a Toalha ficou com "Costas superior", o padrão, e o app
+  mostrava o nome nas costas com o card Costas desligado).
 - Sem imagem: placeholder listrado "SUA IMAGEM" na área.
 
 ### Nota de produção

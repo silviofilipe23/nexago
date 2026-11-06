@@ -21,6 +21,8 @@ import {
   type AreaDraft,
   FORMAT_LABELS,
   PLACEMENT_LABELS,
+  initialPreviewSide,
+  nameSideOf,
   addOnCents,
   addOnLines,
   backKindLabel,
@@ -160,7 +162,7 @@ const KEY_STEP_BIG = 0.05;
                   <bo-toggle ariaLabel="Personalizar nome" [checked]="config().name.enabled" (checkedChange)="set('name.enabled', $event)" />
                 </div>
                 <fieldset class="stack" [disabled]="!config().name.enabled">
-                  <div class="two">
+                  <div class="two name-row">
                     <bo-field label="Máx. caracteres">
                       <input class="bo-input" inputmode="numeric" [value]="config().name.maxChars" (input)="set('name.maxChars', num($event))" />
                     </bo-field>
@@ -172,6 +174,12 @@ const KEY_STEP_BIG = 0.05;
                       </select>
                     </bo-field>
                   </div>
+                  @if (nameBackNoPhoto()) {
+                    <p class="warn">
+                      <bo-icon name="alert" [size]="14" />
+                      <span>O nome sai nas <strong>costas</strong>, e a peça não tem foto das costas: o atleta vê o nome num mockup. Para o nome na frente, escolha um Local de frente.</span>
+                    </p>
+                  }
 
                   <div class="label">Fontes oferecidas</div>
                   <div class="list">
@@ -586,6 +594,8 @@ const KEY_STEP_BIG = 0.05;
     fieldset:disabled { opacity: 0.45; }
     .stack { display: flex; flex-direction: column; gap: 14px; }
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    /* O Local carrega o lado ("Frente · barra da toalha"): leva o espaço, o máx. de caracteres é curto. */
+    .two.name-row { grid-template-columns: minmax(84px, 0.6fr) minmax(0, 1.4fr); }
     .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
     .label { font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--nx-text-dim); }
     .field-like { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -646,6 +656,8 @@ const KEY_STEP_BIG = 0.05;
     .summary .total { padding-top: 10px; border-top: 1px solid var(--nx-line); }
     .summary .total dd { font-size: 16px; font-weight: 800; }
     .kind { font-size: 11px; }
+    .warn { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 10px 12px; border-radius: var(--nx-r-2); background: rgba(255, 106, 26, 0.1); color: var(--nx-text); font-size: 12px; line-height: 1.4; }
+    .warn bo-icon { flex: none; margin-top: 1px; color: var(--nx-orange-500); }
     .icon-btn { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: none; border-radius: var(--nx-r-2); background: transparent; color: var(--nx-text-dim); cursor: pointer; }
     .icon-btn:hover { color: var(--nx-text); background: var(--nx-surface-2); }
     .add-area { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px dashed var(--nx-line-strong); border-radius: var(--nx-r-2); background: transparent; color: var(--nx-text-mute); font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; cursor: pointer; }
@@ -677,7 +689,12 @@ export class ProductCustomizationComponent {
   protected readonly saveError = signal('');
   protected readonly notice = signal('');
   protected readonly errors = signal<ReturnType<typeof customizationErrors>>({});
-  protected readonly side = signal<'frente' | 'costas'>('costas');
+  protected readonly side = signal<'frente' | 'costas'>('frente');
+  /** Nome nas costas numa peça sem foto das costas: quase sempre o Local errado (a toalha caiu nisso). */
+  protected readonly nameBackNoPhoto = computed(() => {
+    const c = this.config();
+    return c.name.enabled && nameSideOf(c.name.placement) === 'costas' && this.sides().costas === null;
+  });
 
   protected readonly blocklistOpen = signal(false);
   protected readonly blocklistDraft = signal('');
@@ -770,6 +787,7 @@ export class ProductCustomizationComponent {
       this.basePrice.set(snap.priceCents);
       this.sides.set(snap.sides);
       this.config.set(snap.config);
+      this.side.set(initialPreviewSide(snap.config));
       this.baseline.set(JSON.stringify(snap.config));
       this.blocklist.set(snap.blocklist);
       this.errors.set({});

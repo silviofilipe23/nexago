@@ -1,6 +1,9 @@
 import {
   DEFAULT_CUSTOMIZATION,
   MAX_AREAS,
+  PLACEMENT_LABELS,
+  initialPreviewSide,
+  nameSideOf,
   addOnCents,
   addOnLines,
   areaDraftError,
@@ -140,6 +143,27 @@ describe('customization', () => {
       })).image).toContain('fontes e cores do card Nome');
       expect(addOnLines(config((x) => (x.image.areas = [text]))).map((l) => l.label)).toEqual(['Nome + texto']);
       expect(addOnLines(config((x) => (x.image.areas = [{ ...text, allowImage: true }]))).map((l) => l.label)).toEqual(['Nome + imagem ou texto']);
+    });
+  });
+
+  describe('lado do nome', () => {
+    it('o Local diz o lado; manga e barra saem na frente', () => {
+      expect(nameSideOf('costas_superior')).toBe('costas');
+      expect(nameSideOf('costas_inferior')).toBe('costas');
+      expect(nameSideOf('barra')).toBe('frente');
+      expect(nameSideOf('manga')).toBe('frente');
+      expect(Object.values(PLACEMENT_LABELS).every((l) => /^(Frente|Costas) · /.test(l))).toBeTrue();
+    });
+
+    it('a prévia abre no lado do nome; sem nome, na frente (ou nas costas se só elas estão ligadas)', () => {
+      expect(initialPreviewSide(config())).toBe('costas');
+      expect(initialPreviewSide(config((c) => (c.name.placement = 'barra')))).toBe('frente');
+      expect(initialPreviewSide(config((c) => (c.name.enabled = false)))).toBe('frente');
+      expect(initialPreviewSide(config((c) => {
+        c.name.enabled = false;
+        c.image.enabled = false;
+        c.back.enabled = true;
+      }))).toBe('costas');
     });
   });
 });

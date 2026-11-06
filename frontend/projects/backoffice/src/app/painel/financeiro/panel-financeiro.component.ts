@@ -7,6 +7,7 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent } from '../ui/pill.component';
+import { CompanyFinanceComponent, type CompanyView } from './company/company-finance.component';
 import { FinanceOverviewComponent } from './finance-overview.component';
 import {
   WithdrawalsRepository,
@@ -19,7 +20,25 @@ import {
   type WithdrawalKind,
 } from './data/withdrawals.repository';
 
-type PageTab = 'overview' | 'withdrawals';
+/** As quatro primeiras são do financeiro da empresa (`bo-company-finance`); `costs` é a visão de MRR/custos. */
+type PageTab = CompanyView | 'costs' | 'withdrawals';
+
+const PAGE_TABS: ReadonlyArray<{ id: PageTab; label: string }> = [
+  { id: 'overview', label: 'Visão geral' },
+  { id: 'result', label: 'Resultado' },
+  { id: 'thirdParty', label: 'Terceiros e provisões' },
+  { id: 'statement', label: 'Extrato Asaas' },
+  { id: 'costs', label: 'Custos e assinaturas' },
+  { id: 'withdrawals', label: 'Saques' },
+];
+
+const PAGE_SUBTITLE: Partial<Record<PageTab, string>> = {
+  overview: 'Saldo real da nexaGO e o resultado do mês',
+  result: 'Receitas, deduções e custos mês a mês',
+  thirdParty: 'De quem é cada real na conta do Asaas',
+  statement: 'Cada movimento da conta no mês',
+  costs: 'MRR das arenas, custos cadastrados e break-even',
+};
 
 interface KindTab {
   kind: WithdrawalKind;
@@ -87,7 +106,10 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
   minute: '2-digit',
 });
 
-/** Fila de saques pendentes (organizadores, arenas e professores) com revisão pelo admin da plataforma. */
+/**
+ * Financeiro da plataforma: saldo e resultado da empresa (`bo-company-finance`), custos e MRR
+ * (`bo-finance-overview`) e a fila de saques pendentes (organizadores, arenas e professores).
+ */
 @Component({
   selector: 'bo-panel-financeiro',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -100,10 +122,11 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
     IconComponent,
     ConfirmDialogComponent,
     FinanceOverviewComponent,
+    CompanyFinanceComponent,
   ],
   template: `
     <bo-panel-shell>
-      <bo-page-header title="Financeiro" [subtitle]="page() === 'overview' ? 'Visão do dia a dia — MRR, custos e break-even' : subtitle()">
+      <bo-page-header title="Financeiro" [subtitle]="pageSubtitle[page()] ?? subtitle()">
         @if (page() === 'withdrawals') {
           <button type="button" class="bo-mini-btn" [disabled]="loading()" (click)="load()">
             <bo-icon name="swap" [size]="13" />
@@ -114,17 +137,16 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
 
       <div class="bo-filter-bar">
         <div class="bo-chart-tabs">
-          <button type="button" [class.active]="page() === 'overview'" (click)="page.set('overview')">
-            Visão geral
-          </button>
-          <button type="button" [class.active]="page() === 'withdrawals'" (click)="showWithdrawals()">
-            Saques
-          </button>
+          @for (tab of pageTabs; track tab.id) {
+            <button type="button" [class.active]="page() === tab.id" (click)="openPage(tab.id)">{{ tab.label }}</button>
+          }
         </div>
       </div>
 
       <div class="body">
-        @if (page() === 'overview') {
+        @if (companyView(); as view) {
+          <bo-company-finance [view]="view" (openView)="page.set($event)" (openWithdrawals)="showWithdrawals()" />
+        } @else if (page() === 'costs') {
           <bo-finance-overview />
         } @else {
           @if (feedback(); as message) {
@@ -291,6 +313,11 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', {
     </bo-panel-shell>
   `,
   styles: `
+    /* Seis abas: o rótulo fica numa linha e a faixa rola de lado no celular. */
+    .bo-filter-bar .bo-chart-tabs button {
+      white-space: nowrap;
+    }
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -526,6 +553,13 @@ export class PanelFinanceiroComponent {
   protected readonly kindCollection = KIND_COLLECTION;
 
   protected readonly page = signal<PageTab>('overview');
+  protected readonly pageTabs = PAGE_TABS;
+  protected readonly pageSubtitle = PAGE_SUBTITLE;
+  /** Aba do financeiro da empresa; `null` nas outras (o componente fica montado entre as quatro). */
+  protected readonly companyView = computed<CompanyView | null>(() => {
+    const p = this.page();
+    return p === 'costs' || p === 'withdrawals' ? null : p;
+  });
   protected readonly activeKind = signal<WithdrawalKind>('organizer');
   protected readonly state = signal<LoadState>({ kind: 'loading' });
   protected readonly pending = signal<PendingDecision | null>(null);
@@ -590,6 +624,14 @@ export class PanelFinanceiroComponent {
     this.activeKind.set(kind);
     this.feedback.set(null);
     void this.load();
+  }
+
+  protected openPage(tab: PageTab): void {
+    if (tab === 'withdrawals') {
+      this.showWithdrawals();
+    } else {
+      this.page.set(tab);
+    }
   }
 
   protected showWithdrawals(): void {

@@ -75,7 +75,8 @@ export interface FinanceOverview {
   breakEven: BreakEvenPlan;
 }
 
-async function assertBackofficeAdmin(uid: string): Promise<void> {
+/** Mesma porta do financeiro inteiro (também usada por `backoffice-company-finance.ts`). */
+export async function assertBackofficeAdmin(uid: string): Promise<void> {
   let caller;
   try {
     caller = await getAuth().getUser(uid);

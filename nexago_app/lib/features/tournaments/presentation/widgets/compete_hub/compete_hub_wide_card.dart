@@ -7,7 +7,7 @@ import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
-/// Card de largura inteira do hub Competir, abaixo do grid 2x2. Sem arte de fundo: as quatro
+/// Card de largura inteira do hub Competir, abaixo do grid. Sem arte de fundo: as quatro
 /// artes são do grid, e repetir uma delas aqui confundiria os destinos.
 class CompeteHubWideCard extends StatelessWidget {
   const CompeteHubWideCard({

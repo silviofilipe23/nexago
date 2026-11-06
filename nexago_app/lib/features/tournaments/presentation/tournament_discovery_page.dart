@@ -13,19 +13,18 @@ import '../../athlete/domain/tournament_access_providers.dart';
 import '../../athlete/domain/athlete_shell_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import 'widgets/compete_hub/compete_hub_feature_card.dart';
 import 'widgets/compete_hub/compete_hub_menu_card.dart';
 import 'widgets/compete_hub/compete_hub_shell_app_bar.dart';
 import 'widgets/compete_hub/compete_hub_wide_card.dart';
 import '../../athlete/presentation/widgets/athlete_home/athlete_account_sheet.dart';
 import '../../athlete/presentation/widgets/athlete_home/athlete_home_tour.dart';
 
-/// Respiro entre os cards do grid 2x2, nos dois eixos.
+/// Respiro entre os cards do grid, nos dois eixos.
 const double _gridGap = AppSpacing.md;
 
 /// Aba Competir — menu de navegação no padrão do painel do portal web:
-/// quatro cards (Torneios e ligas, Ranking, Equipes, Atletas), o card largo
-/// com arte de Aulas e treinos e o de Organizadores. O conteúdo
+/// grid de seis cards com arte (Torneios e ligas, Ranking, Equipes, Atletas,
+/// Aulas e treinos, Blog) e o card largo de Organizadores. O conteúdo
 /// em destaque (carrossel de competições, convites) mora na Home.
 class TournamentDiscoveryPage extends ConsumerWidget {
   const TournamentDiscoveryPage({super.key});
@@ -149,22 +148,31 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: _gridGap),
-                    CompeteHubFeatureCard(
-                      key: const Key('compete-hub-classes'),
-                      imageAsset: CompeteHubArt.classes,
-                      badge: 'NOVO',
-                      title: 'Aulas e treinos',
-                      description: 'Arenas, CTs e professores perto de você',
-                      onTap: () =>
-                          context.pushNamed(AppRouteNames.classDirectory),
-                    ),
-                    const SizedBox(height: _gridGap),
-                    CompeteHubFeatureCard(
-                      key: const Key('compete-hub-blog'),
-                      imageAsset: CompeteHubArt.blog,
-                      title: 'Blog',
-                      description: 'Dicas, regras e novidades do nexaGO',
-                      onTap: () => context.pushNamed(AppRouteNames.blog),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: CompeteHubMenuCard(
+                            key: const Key('compete-hub-classes'),
+                            imageAsset: CompeteHubArt.classes,
+                            badge: 'NOVO',
+                            title: 'Aulas e treinos',
+                            description: 'Arenas, CTs e professores',
+                            onTap: () =>
+                                context.pushNamed(AppRouteNames.classDirectory),
+                          ),
+                        ),
+                        const SizedBox(width: _gridGap),
+                        Expanded(
+                          child: CompeteHubMenuCard(
+                            key: const Key('compete-hub-blog'),
+                            imageAsset: CompeteHubArt.blog,
+                            title: 'Blog',
+                            description:
+                                'Notícias, dicas de treino e regras do jogo',
+                            onTap: () => context.pushNamed(AppRouteNames.blog),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: _gridGap),
                     CompeteHubWideCard(

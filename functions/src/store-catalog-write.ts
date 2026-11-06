@@ -21,6 +21,7 @@ import {
   stockDeltas,
   sumStock,
   variantLabelOf,
+  AXIS_KINDS,
   type Axis,
   type ProductBadge,
   type ProductStatus,
@@ -339,7 +340,10 @@ function validateVariationsInput(input: SaveVariationsInput): void {
   const valuesByAxis = new Map<string, Set<string>>();
 
   for (const axis of input.axes ?? []) {
-    if (typeof axis?.id !== "string" || !AXIS_ID_RE.test(axis.id) || axisIds.has(axis.id)) {
+    if (
+      typeof axis?.id !== "string" || !AXIS_ID_RE.test(axis.id) || axisIds.has(axis.id) ||
+      (axis.kind !== undefined && !AXIS_KINDS.includes(axis.kind))
+    ) {
       fields.push("axes");
       continue;
     }

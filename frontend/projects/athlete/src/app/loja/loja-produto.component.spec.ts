@@ -197,6 +197,40 @@ describe('LojaProdutoComponent', () => {
     expect(text(el.querySelector('.lp-detail dd'))).toBe('Poliamida dry com elastano');
   });
 
+  it('estampa: miniatura da foto de cada uma, a 1ª com saldo escolhida, e a galeria troca junto', async () => {
+    const toalha = camiseta({
+      name: 'Toalha nexaGO',
+      slug: 'toalha-nexago',
+      axes: [{ id: 'estampa', label: 'Estampa', kind: 'estampa', values: [{ id: 'coqueiros', label: 'Coqueiros' }, { id: 'listras', label: 'Listras' }, { id: 'lisa', label: 'Lisa' }] }],
+      variants: [
+        { id: 'coqueiros', values: { estampa: 'coqueiros' }, priceCents: 8990, inStock: false },
+        { id: 'listras', values: { estampa: 'listras' }, priceCents: 8990, inStock: true },
+        { id: 'lisa', values: { estampa: 'lisa' }, priceCents: 8990, inStock: true },
+      ],
+      photos: [
+        { url: 'https://cdn/coqueiros.jpg', colorValueId: 'coqueiros' },
+        { url: 'https://cdn/listras.jpg', colorValueId: 'listras' },
+      ],
+    });
+    const harness = await render('/loja/p/toalha-nexago');
+    const el = load(harness, [toalha]);
+    expect(text(el.querySelector('.lp-eyebrow'))).toBe('Estampa · Listras');
+    const chips = [...el.querySelectorAll('.lp-pattern')];
+    expect(chips.map((c) => text(c))).toEqual(['Coqueiros', 'Listras', 'Lisa']);
+    expect(chips.map((c) => c.querySelector('img')?.getAttribute('src') ?? null)).toEqual([
+      'https://cdn/coqueiros.jpg',
+      'https://cdn/listras.jpg',
+      null,
+    ]);
+    expect(chips[0]!.classList).toContain('lp-pattern--out');
+    expect(chips[1]!.classList).toContain('lp-pattern--on');
+    // Esgotada continua clicável: mostra as fotos dela.
+    (chips[0] as HTMLButtonElement).click();
+    harness.detectChanges();
+    expect(text(el.querySelector('.lp-eyebrow'))).toBe('Estampa · Coqueiros');
+    expect(el.querySelector('.lp-swatch')).toBeNull();
+  });
+
   it('o link antigo por id abre a mesma página', async () => {
     const harness = await render('/loja/produto/cam');
     const el = load(harness, [camiseta()]);

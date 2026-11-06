@@ -12,6 +12,9 @@ import {
   galleryPhotos,
   initialSelection,
   isColorAxis,
+  isPatternAxis,
+  isPhotoAxis,
+  patternThumb,
   lowStockCaption,
   maxQuantity,
   missingAxis,
@@ -321,6 +324,20 @@ export class LojaProdutoComponent {
     return isColorAxis(axis);
   }
 
+  protected isPattern(axis: StoreAxis): boolean {
+    return isPatternAxis(axis);
+  }
+
+  protected isPhoto(axis: StoreAxis): boolean {
+    return isPhotoAxis(axis);
+  }
+
+  /** Miniatura da estampa (a 1ª foto ligada a ela); `null` = só o nome. */
+  protected thumb(axis: StoreAxis, valueId: string): string | null {
+    const p = this.product();
+    return p ? patternThumb(p, axis, valueId) : null;
+  }
+
   protected available(axisIndex: number, valueId: string): boolean {
     const p = this.product();
     return p ? axisValueAvailable(p, axisIndex, valueId, this.selected()) : false;
@@ -336,13 +353,13 @@ export class LojaProdutoComponent {
   }
 
   /**
-   * Cor sem saldo continua escolhível (mostra as fotos). Outro eixo sem saldo não é escolhido:
+   * Cor ou estampa sem saldo continua escolhível (mostra as fotos). Outro eixo sem saldo não é escolhido:
    * vira o "Avise-me" daquela combinação.
    */
   protected pick(axis: StoreAxis, axisIndex: number, valueId: string): void {
     const p = this.product();
     if (!p) return;
-    if (!this.isColor(axis) && !this.available(axisIndex, valueId)) {
+    if (!this.isPhoto(axis) && !this.available(axisIndex, valueId)) {
       const sku = p.variants.find((v) =>
         p.axes.every((a) => (a.id === axis.id ? v.values[a.id] === valueId : v.values[a.id] === this.selected()[a.id])),
       );

@@ -13,11 +13,18 @@ export interface StoreAxisValue {
   hex: string | null;
 }
 
+/** `cor` (bolinha do hex) · `estampa` (miniatura da foto ligada ao valor) · `tamanho` · `outro` (texto). */
+export type StoreAxisKind = 'cor' | 'estampa' | 'tamanho' | 'outro';
+
 export interface StoreAxis {
   id: string;
   label: string;
+  /** Ausente no doc antigo: `cor` se algum valor tem hex, senão `outro`. */
+  kind: StoreAxisKind;
   values: StoreAxisValue[];
 }
+
+const AXIS_KINDS: StoreAxisKind[] = ['cor', 'estampa', 'tamanho', 'outro'];
 
 export interface StoreVariant {
   id: string;
@@ -392,17 +399,21 @@ export function storeProductFromDoc(id: string, data: Raw | undefined): StorePro
   const badge = BADGES.includes(data['badge'] as StoreBadge) ? (data['badge'] as StoreBadge) : null;
 
   const axes: StoreAxis[] = Array.isArray(data['axes'])
-    ? (data['axes'] as Raw[]).map((a) => ({
-        id: str(a?.['id']),
-        label: str(a?.['label']),
-        values: Array.isArray(a?.['values'])
+    ? (data['axes'] as Raw[]).map((a) => {
+        const values: StoreAxisValue[] = Array.isArray(a?.['values'])
           ? (a['values'] as Raw[]).map((v) => ({
               id: str(v?.['id']),
               label: str(v?.['label']),
               hex: str(v?.['hex']) || null,
             }))
-          : [],
-      }))
+          : [];
+        const kind = AXIS_KINDS.includes(a?.['kind'] as StoreAxisKind)
+          ? (a['kind'] as StoreAxisKind)
+          : values.some((v) => v.hex !== null)
+            ? 'cor'
+            : 'outro';
+        return { id: str(a?.['id']), label: str(a?.['label']), kind, values };
+      })
     : [];
   const variants: StoreVariant[] = Array.isArray(data['variants'])
     ? (data['variants'] as Raw[]).map((v) => {

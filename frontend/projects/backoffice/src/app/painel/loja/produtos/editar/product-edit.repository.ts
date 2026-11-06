@@ -9,6 +9,7 @@ import {
   formatMoneyInput,
   toSaveInput,
   toVariationsInput,
+  axisKindOf,
   type AxisForm,
   type ProductForm,
   type ProductStatusValue,
@@ -31,11 +32,10 @@ type Raw = Record<string, any>;
 /** Documento → formulário. Tolerante a campo ausente: o doc pode vir de uma versão anterior. */
 export function formFromDocs(data: Raw, skus: Raw[], costCents: number | null): ProductForm {
   const base = emptyForm();
-  const axes: AxisForm[] = (data['axes'] ?? []).map((axis: Raw) => ({
-    id: axis['id'],
-    label: axis['label'] ?? axis['id'],
-    values: (axis['values'] ?? []).map((v: Raw) => ({ id: v['id'], label: v['label'] ?? v['id'], hex: v['hex'] ?? '' })),
-  }));
+  const axes: AxisForm[] = (data['axes'] ?? []).map((axis: Raw) => {
+    const values = (axis['values'] ?? []).map((v: Raw) => ({ id: v['id'], label: v['label'] ?? v['id'], hex: v['hex'] ?? '' }));
+    return { id: axis['id'], label: axis['label'] ?? axis['id'], kind: axisKindOf(axis['kind'], values), values };
+  });
   const skuForms: SkuForm[] = skus.map((sku) => ({
     axisValues: sku['axisValues'] ?? {},
     barcode: sku['barcode'] ?? '',

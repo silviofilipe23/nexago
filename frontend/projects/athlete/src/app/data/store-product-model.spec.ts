@@ -4,6 +4,8 @@ import {
   deliveryPriceCents,
   galleryPhotos,
   initialSelection,
+  isPatternAxis,
+  patternThumb,
   lowStockCaption,
   maxQuantity,
   mergeCartItem,
@@ -20,6 +22,7 @@ import { storeProductFromDoc, type StoreProduct } from './store-showcase-model';
 const COR = {
   id: 'cor',
   label: 'Cor',
+  kind: 'cor' as const,
   values: [
     { id: 'branco', label: 'Branco areia', hex: '#f1ece2' },
     { id: 'laranja', label: 'Laranja', hex: '#ff6a1a' },
@@ -29,6 +32,7 @@ const COR = {
 const TAM = {
   id: 'tam',
   label: 'Tamanho',
+  kind: 'tamanho' as const,
   values: ['p', 'm', 'g'].map((id) => ({ id, label: id.toUpperCase(), hex: null })),
 };
 
@@ -119,7 +123,8 @@ describe('store-product-model', () => {
     it('mensagem do eixo que falta', () => {
       expect(chooseAxisMessage(TAM)).toBe('Escolha um tamanho');
       expect(chooseAxisMessage(COR)).toBe('Escolha uma cor');
-      expect(chooseAxisMessage({ id: 'm', label: 'Modelo', values: [] })).toBe('Escolha modelo');
+      expect(chooseAxisMessage({ id: 'm', label: 'Modelo', kind: 'outro', values: [] })).toBe('Escolha modelo');
+      expect(chooseAxisMessage({ id: 'e', label: 'Estampa', kind: 'estampa', values: [] })).toBe('Escolha uma estampa');
     });
 
     it('rótulo da variação e aviso de estoque que acabou', () => {
@@ -248,6 +253,49 @@ describe('store-product-model', () => {
       expect(deliveryPriceCents(expressa, 12990, 39900)).toBe(3490);
       expect(deliveryPriceCents(expressa, 39900, 39900)).toBe(0);
       expect(deliveryPriceCents({ ...expressa, priceCents: null }, 100, null)).toBeNull();
+    });
+  });
+
+  describe('estampa', () => {
+    const ESTAMPA = {
+      id: 'estampa',
+      label: 'Estampa',
+      kind: 'estampa',
+      values: [
+        { id: 'coqueiros', label: 'Coqueiros' },
+        { id: 'listras', label: 'Listras' },
+      ],
+    };
+    const toalha = (axes: unknown[] = [ESTAMPA]) =>
+      storeProductFromDoc('toalha', {
+        name: 'Toalha nexaGO',
+        priceCents: 8990,
+        axes,
+        variants: [
+          { id: 'coqueiros', values: { estampa: 'coqueiros' }, priceCents: 8990, inStock: false },
+          { id: 'listras', values: { estampa: 'listras' }, priceCents: 8990, inStock: true },
+        ],
+        photos: [
+          { url: 'https://cdn/geral.jpg', colorValueId: null },
+          { url: 'https://cdn/listras.jpg', colorValueId: 'listras' },
+          { url: 'https://cdn/coqueiros.jpg', colorValueId: 'coqueiros' },
+        ],
+      })!;
+
+    it('tipo do eixo: o gravado; doc antigo = cor com hex, senão outro', () => {
+      expect(toalha().axes[0]!.kind).toBe('estampa');
+      expect(isPatternAxis(toalha().axes[0]!)).toBeTrue();
+      const legacy = toalha([{ ...ESTAMPA, kind: undefined, values: [{ id: 'azul', label: 'Azul', hex: '#00f' }] }]);
+      expect(legacy.axes[0]!.kind).toBe('cor');
+      expect(toalha([{ ...ESTAMPA, kind: undefined }]).axes[0]!.kind).toBe('outro');
+    });
+
+    it('vem escolhida a 1ª estampa com saldo; miniatura = 1ª foto da estampa; galeria dela', () => {
+      const p = toalha();
+      expect(initialSelection(p)).toEqual({ estampa: 'listras' });
+      expect(patternThumb(p, p.axes[0]!, 'coqueiros')).toBe('https://cdn/coqueiros.jpg');
+      expect(galleryPhotos(p, { estampa: 'listras' }).map((ph) => ph.url)).toEqual(['https://cdn/listras.jpg', 'https://cdn/geral.jpg']);
+      expect(soldOutMessage(p, p.variants[1]!)).toBe('Acabou o estoque da estampa Listras · escolha outra estampa');
     });
   });
 });

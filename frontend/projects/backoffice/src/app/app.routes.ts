@@ -118,6 +118,20 @@ export const routes: Routes = [
       import('./painel/torneios/taxas/panel-taxas.component').then((m) => m.PanelTaxasComponent),
   },
   {
+    path: 'painel/torneios/arrecadacao',
+    title: 'Arrecadação de torneios — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/torneios/arrecadacao/panel-arrecadacao.component').then((m) => m.PanelArrecadacaoComponent),
+  },
+  {
+    path: 'painel/torneios/arrecadacao/:id',
+    title: 'Arrecadação do torneio — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/torneios/arrecadacao/arrecadacao-detail.component').then((m) => m.ArrecadacaoDetailComponent),
+  },
+  {
     path: 'painel/avaliacoes',
     title: 'Avaliações de torneios — NexaGO Backoffice',
     canActivate: [authGuard],

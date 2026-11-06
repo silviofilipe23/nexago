@@ -36,17 +36,20 @@ class CompeteHubWideCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md + 2),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm + 2,
+          ),
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: AppColors.brand.withValues(alpha: 0.14),
                   borderRadius: AppRadii.mdAll,
                 ),
-                child: Icon(icon, color: colors.brandText, size: 22),
+                child: Icon(icon, color: colors.brandText, size: 19),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -60,10 +63,10 @@ class CompeteHubWideCard extends StatelessWidget {
                         height: 1.15,
                       ),
                     ),
-                    const SizedBox(height: AppSpacing.xs),
+                    const SizedBox(height: 2),
                     Text(
                       description,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.bodyS.copyWith(
                         fontSize: 11,

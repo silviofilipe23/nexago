@@ -71,12 +71,13 @@ void main() {
     expect(taps, 1);
   });
 
-  testWidgets('mantém o card em retrato na largura do grid', (tester) async {
+  testWidgets('card baixo na largura do grid', (tester) async {
     await tester.pumpWidget(wrap(card()));
 
     final size = tester.getSize(find.byType(CompeteHubMenuCard));
     expect(size.width, cardWidth);
-    expect(size.height, greaterThan(size.width));
+    // Mais largo que alto: o menu inteiro cabe na tela sem rolar muito.
+    expect(size.height, lessThan(size.width));
   });
 
   testWidgets('texto fica branco também no tema claro', (tester) async {

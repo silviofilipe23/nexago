@@ -111,30 +111,46 @@ class BlogPill extends StatelessWidget {
     required this.label,
     required this.tone,
     this.solid = false,
+    this.backdrop,
   });
 
   final String label;
   final Color tone;
   final bool solid;
 
+  /// Fundo opaco sob o tom translúcido, para o selo sobre foto: sem ele a
+  /// capa aparece através da pílula.
+  final Color? backdrop;
+
+  Color get _fill {
+    final tint = tone.withValues(alpha: 0.12);
+    if (solid) return tone;
+    final base = backdrop;
+    return base == null ? tint : Color.alphaBlend(tint, base);
+  }
+
   @override
   Widget build(BuildContext context) => Container(
     height: 22,
     padding: const EdgeInsets.symmetric(horizontal: 9),
-    alignment: Alignment.center,
     decoration: BoxDecoration(
-      color: solid ? tone : tone.withValues(alpha: 0.12),
+      color: _fill,
       borderRadius: AppRadii.pillAll,
       border: Border.all(color: solid ? tone : tone.withValues(alpha: 0.35)),
     ),
-    child: Text(
-      label.toUpperCase(),
-      maxLines: 1,
-      style: AppTypography.mono(
-        fontSize: 10,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.2,
-        color: solid ? blogOnBrand : tone,
+    // `Container(alignment:)` ocupa a largura toda que recebe (num Wrap, a
+    // linha inteira); o Center com widthFactor 1 encolhe para o texto.
+    child: Center(
+      widthFactor: 1,
+      child: Text(
+        label.toUpperCase(),
+        maxLines: 1,
+        style: AppTypography.mono(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+          color: solid ? blogOnBrand : tone,
+        ),
       ),
     ),
   );

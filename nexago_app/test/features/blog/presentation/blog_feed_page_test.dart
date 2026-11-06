@@ -11,6 +11,7 @@ import 'package:nexago_app/features/blog/domain/blog_library.dart';
 import 'package:nexago_app/features/blog/domain/blog_post.dart';
 import 'package:nexago_app/features/blog/presentation/blog_feed_page.dart';
 import 'package:nexago_app/features/blog/presentation/blog_library_page.dart';
+import 'package:nexago_app/features/blog/presentation/widgets/blog_parts.dart';
 
 import '../fake_blog_repository.dart';
 
@@ -126,6 +127,25 @@ void main() {
     expect(find.byKey(const Key('blog-featured-liga')), findsNothing);
     expect(find.byKey(const Key('blog-continue-saque')), findsNothing);
     expect(find.byKey(const Key('blog-row-toalha')), findsNothing);
+  });
+
+  testWidgets('selos do destaque ficam lado a lado, do tamanho do texto', (
+    tester,
+  ) async {
+    await _pump(tester, route: AppRoutes.blog);
+
+    final card = tester.getRect(find.byKey(const Key('blog-featured-liga')));
+    final featured = tester.getRect(
+      find.ancestor(of: find.text('DESTAQUE'), matching: find.byType(BlogPill)),
+    );
+    final category = tester.getRect(
+      find.ancestor(of: find.text('TORNEIOS'), matching: find.byType(BlogPill)),
+    );
+    // Container com `alignment` esticava cada selo na largura do card.
+    expect(featured.width, lessThan(card.width / 3));
+    expect(category.width, lessThan(card.width / 3));
+    expect(category.top, featured.top);
+    expect(category.left, greaterThan(featured.right));
   });
 
   testWidgets('busca sem acento filtra a lista', (tester) async {

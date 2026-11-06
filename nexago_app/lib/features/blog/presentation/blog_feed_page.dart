@@ -423,10 +423,13 @@ class _FeaturedCard extends ConsumerWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      stops: const [0.3, 1],
+                      // Escurece já do meio para baixo: capas com texto ou
+                      // cartões desenhados brigavam com os selos e o título.
+                      stops: const [0.1, 0.5, 1],
                       colors: [
                         blogCoverInk.withValues(alpha: 0),
-                        blogCoverInk.withValues(alpha: 0.92),
+                        blogCoverInk.withValues(alpha: 0.78),
+                        blogCoverInk.withValues(alpha: 0.95),
                       ],
                     ),
                   ),
@@ -451,6 +454,7 @@ class _FeaturedCard extends ConsumerWidget {
                           BlogPill(
                             label: category?.label ?? 'Blog',
                             tone: blogCategoryRawTone(category),
+                            backdrop: blogCoverInk,
                           ),
                         ],
                       ),

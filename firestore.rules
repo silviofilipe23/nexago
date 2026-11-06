@@ -1421,9 +1421,9 @@ service cloud.firestore {
         isAdmin() ||
         (resource != null && arenaCanRead(resource.data.arenaId, 'financeiro'))
       );
-      allow create: if false;
-      allow update: if request.auth != null && (isSuperAdmin() || isAdmin());
-      allow delete: if false;
+      // Só as Cloud Functions mudam saque (revisão do backoffice e webhook do Asaas). Nenhum portal
+      // escreve aqui; editar o status por fora deixa a reserva presa no caixa.
+      allow create, update, delete: if false;
     }
     // Notas fiscais — a arena vê as suas, o tomador vê a dele.
     match /fiscalInvoices/{invoiceId} {
@@ -1460,9 +1460,9 @@ service cloud.firestore {
         isAdmin() ||
         (resource != null && resource.data.organizerId == request.auth.uid)
       );
-      allow create: if false;
-      allow update: if request.auth != null && (isSuperAdmin() || isAdmin());
-      allow delete: if false;
+      // Nem o admin edita pelo cliente: em 19/09/2026 um `status` trocado por fora do fluxo deixou
+      // R$ 571,03 reservados no caixa por semanas (a revisão recusa saque que não está `pending`).
+      allow create, update, delete: if false;
     }
     match /arenas/{arenaId}/products/{productId} {
       // Leitura aberta a qualquer usuário autenticado: é o cardápio/catálogo

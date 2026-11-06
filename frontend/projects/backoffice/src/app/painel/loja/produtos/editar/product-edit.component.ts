@@ -50,7 +50,9 @@ import {
   skusLostWithStock,
   stockCell,
   withTotalStock,
+  AXIS_KIND_LABELS,
   type AxisForm,
+  type AxisKind,
   type FormErrors,
   type HeaderStatus,
   type ProductForm,
@@ -177,8 +179,8 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                                 <button type="button" class="icon-btn" title="Definir como capa" aria-label="Definir como capa" [disabled]="locked()" (click)="makeCover(i)"><bo-icon name="star" [size]="13" /></button>
                               }
                               @if (form().axes.length > 0 && !p.error) {
-                                <select class="bo-select mini" aria-label="Associar à cor" [disabled]="locked()" (change)="setPhotoColor(p.id, val($event))">
-                                  <option value="" [selected]="!p.colorValueId">Sem cor</option>
+                                <select class="bo-select mini" [attr.aria-label]="'Associar a ' + photoAxisLabel()" [disabled]="locked()" (change)="setPhotoColor(p.id, val($event))">
+                                  <option value="" [selected]="!p.colorValueId">Sem {{ photoAxisLabel() }}</option>
                                   @for (v of form().axes[0]!.values; track v.id) { <option [value]="v.id" [selected]="p.colorValueId === v.id">{{ v.label }}</option> }
                                 </select>
                               }
@@ -443,18 +445,28 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
       (confirmed)="archive()" (dismissed)="archiveOpen.set(false)" />
 
     <bo-confirm-dialog [open]="axesOpen()" title="Editar opções" size="md" confirmLabel="Aplicar"
-      description="Até 2 eixos de variação (ex.: Cor, Tamanho)." [error]="axesError()"
+      description="Até 2 eixos de variação (ex.: Cor, Estampa, Tamanho). As fotos se ligam ao 1º eixo." [error]="axesError()"
       (confirmed)="applyAxes()" (dismissed)="axesOpen.set(false)">
       @for (axis of axesDraft(); track $index; let ai = $index) {
         <div class="axis">
           <div class="detail-row">
-            <input class="bo-input" placeholder="Nome do eixo (Cor)" [value]="axis.label" (input)="setAxisLabel(ai, val($event))" />
+            <input class="bo-input" placeholder="Nome do eixo (Estampa)" [value]="axis.label" (input)="setAxisLabel(ai, val($event))" />
             <button type="button" class="bo-mini-btn" (click)="removeAxis(ai)" aria-label="Remover eixo"><bo-icon name="trash" [size]="13" /></button>
           </div>
+          <div class="kinds" role="radiogroup" [attr.aria-label]="'Tipo do eixo ' + (axis.label || (ai + 1))">
+            @for (k of axisKinds; track k.id) {
+              <button type="button" role="radio" class="bo-chip" [class.active]="axis.kind === k.id" [attr.aria-checked]="axis.kind === k.id" (click)="setAxisKind(ai, k.id)">{{ k.label }}</button>
+            }
+          </div>
+          @if (axis.kind === 'estampa') {
+            <p class="kind-hint">O atleta vê cada estampa pela foto ligada a ela: depois de salvar, associe as fotos à estampa na galeria.</p>
+          }
           @for (v of axis.values; track $index; let vi = $index) {
             <div class="detail-row">
-              <input class="bo-input" placeholder="Valor" [value]="v.label" (input)="setAxisValue(ai, vi, 'label', val($event))" />
-              <input class="bo-input hex" placeholder="#FF6A1A" [value]="v.hex" (input)="setAxisValue(ai, vi, 'hex', val($event))" />
+              <input class="bo-input" [placeholder]="axis.kind === 'estampa' ? 'Estampa (Coqueiros)' : 'Valor'" [value]="v.label" (input)="setAxisValue(ai, vi, 'label', val($event))" />
+              @if (axis.kind === 'cor') {
+                <input class="bo-input hex" placeholder="#FF6A1A" [value]="v.hex" (input)="setAxisValue(ai, vi, 'hex', val($event))" />
+              }
               <button type="button" class="bo-mini-btn" (click)="removeAxisValue(ai, vi)" aria-label="Remover valor"><bo-icon name="trash" [size]="13" /></button>
             </div>
           }
@@ -596,6 +608,8 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
     .p-was { margin-top: 2px; font-size: 11.5px; color: var(--nx-text-dim); }
     .danger-btn { width: 100%; justify-content: flex-start; background: transparent; border-color: transparent; color: var(--nx-live); padding: 0 11px; }
     .danger-btn:hover:not(:disabled) { background: rgba(255, 59, 48, 0.08); }
+    .kinds { display: flex; gap: 6px; flex-wrap: wrap; }
+    .kind-hint { margin: 0; font-size: 11.5px; color: var(--nx-text-dim); }
     .axis { border: 1px solid var(--nx-line); border-radius: var(--nx-r-3); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
     .add { align-self: flex-start; }
     .bo-spinner.small { width: 13px; height: 13px; border-width: 2px; }
@@ -785,8 +799,18 @@ export class ProductEditComponent {
     this.axesError.set(null);
     this.axesOpen.set(true);
   }
+  protected readonly axisKinds = (Object.keys(AXIS_KIND_LABELS) as AxisKind[]).map((id) => ({ id, label: AXIS_KIND_LABELS[id] }));
+  /** "cor" · "estampa" · "tamanho": o 1º eixo, ao qual as fotos se ligam. */
+  protected readonly photoAxisLabel = computed(() => (this.form().axes[0]?.label ?? 'cor').toLowerCase());
+
   protected addAxis(): void {
-    this.axesDraft.update((a) => [...a, { id: '', label: '', values: [] }]);
+    this.axesDraft.update((a) => [...a, { id: '', label: '', kind: 'outro', values: [] }]);
+  }
+  /** Escolher o tipo dá nome ao eixo ainda sem nome ("Estampa"). */
+  protected setAxisKind(i: number, kind: AxisKind): void {
+    this.axesDraft.update((a) =>
+      a.map((x, idx) => (idx === i ? { ...x, kind, label: x.label.trim() === '' && kind !== 'outro' ? AXIS_KIND_LABELS[kind] : x.label } : x)),
+    );
   }
   protected removeAxis(i: number): void {
     this.axesDraft.update((a) => a.filter((_, idx) => idx !== i));

@@ -139,6 +139,26 @@
                             ></button>
                           }
                         </div>
+                      } @else if (isPattern(axis)) {
+                        <div class="lp-patterns" role="radiogroup" [attr.aria-label]="axis.label">
+                          @for (v of axis.values; track v.id) {
+                            <button
+                              type="button"
+                              role="radio"
+                              class="lp-pattern"
+                              [class.lp-pattern--on]="selected()[axis.id] === v.id"
+                              [class.lp-pattern--out]="!available(i, v.id)"
+                              [attr.aria-checked]="selected()[axis.id] === v.id"
+                              [attr.aria-label]="available(i, v.id) ? v.label : v.label + ', esgotada'"
+                              (click)="pick(axis, i, v.id)"
+                            >
+                              @if (thumb(axis, v.id); as url) {
+                                <img class="lp-pattern-img" [src]="url" alt="" loading="lazy" decoding="async" />
+                              }
+                              <span class="lp-pattern-label">{{ v.label }}</span>
+                            </button>
+                          }
+                        </div>
                       } @else {
                         <div class="lp-sizes" role="radiogroup" [attr.aria-label]="axis.label">
                           @for (v of axis.values; track v.id) {

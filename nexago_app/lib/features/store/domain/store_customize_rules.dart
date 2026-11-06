@@ -212,7 +212,8 @@ bool storePrefersDarkText(String? hex) {
       storeContrastRatio(hex, '#ffffff');
 }
 
-/// `hex` do valor de cor escolhido (o 1º eixo de cor); `null` sem cor.
+/// `hex` do valor de cor escolhido (o 1º eixo de cor — estampa não tem
+/// `hex`); `null` sem cor.
 String? storeSelectedColorHex(StoreProduct p, Map<String, String> selected) {
   for (final axis in p.axes) {
     if (!isStoreColorAxis(axis)) continue;
@@ -520,10 +521,11 @@ StorePreviewPoint storeNameCenter(StoreNamePlacement placement) {
   }
 }
 
-/// Foto do lado na cor escolhida; senão a do lado sem cor; senão a do lado em
-/// OUTRA cor (peça cadastrada só com fotos de uma cor — a tela avisa a cor com
-/// [storeCustomPreviewPhotoNote]); `null` = nenhuma foto do lado, fundo
-/// listrado "MOCKUP · FRENTE/COSTAS" na cor da peça.
+/// Foto do lado no valor escolhido do 1º eixo (cor ou estampa); senão a do
+/// lado sem cor; senão a do lado em OUTRA cor (peça cadastrada só com fotos
+/// de uma cor — a tela avisa a cor com [storeCustomPreviewPhotoNote]); `null`
+/// = nenhuma foto do lado, fundo listrado "MOCKUP · FRENTE/COSTAS" na cor da
+/// peça.
 StorePhoto? storeCustomPreviewPhoto(
   StoreProduct p,
   Map<String, String> selected,

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -9,10 +10,11 @@ import '../../domain/store_models.dart';
 import '../../domain/store_product_rules.dart';
 import 'store_style.dart';
 
-/// Eixos da página do produto: cor em bolinhas, o resto em botões de 50px.
+/// Eixos da página do produto: cor em bolinhas, estampa em miniaturas da foto
+/// ligada ao valor (sem foto, botão), o resto em botões de 50px.
 ///
-/// Disponibilidade em cascata (`storeAxisValueAvailable`). Cor riscada
-/// continua clicável (mostra as fotos); botão indisponível chama
+/// Disponibilidade em cascata (`storeAxisValueAvailable`). Cor ou estampa
+/// riscada continua clicável (mostra as fotos); botão indisponível chama
 /// [onUnavailable] (o "Avise-me", que ainda não existe). O eixo que falta no
 /// "Adicionar" treme a cada [shakeTick] e mostra "Escolha um tamanho".
 class StoreProductOptions extends StatelessWidget {
@@ -117,13 +119,21 @@ class _AxisBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final axis = product.axes[axisIndex];
-    final color = isStoreColorAxis(axis);
+    final kind = storeAxisKind(axis);
+    final color = kind == StoreAxisKind.color;
+    final look = isStoreLookAxis(axis);
     final chosen = storeSelectedValueLabel(axis, selected);
     final title =
-        color && chosen.isNotEmpty ? '${axis.label} · $chosen' : axis.label;
+        look && chosen.isNotEmpty ? '${axis.label} · $chosen' : axis.label;
 
     bool available(StoreAxisValue v) =>
         storeAxisValueAvailable(product, axisIndex, v.id, selected);
+    // Cor/estampa riscada continua clicável: mostra as fotos dela.
+    void tap(StoreAxisValue v) =>
+        look || available(v) ? onSelect(axis, v) : onUnavailable(axis, v);
+    String? photoOf(StoreAxisValue v) => kind == StoreAxisKind.pattern
+        ? storeAxisValuePhotoUrl(product, axis, v.id)
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,8 +159,16 @@ class _AxisBlock extends StatelessWidget {
                     value: value,
                     selected: selected[axis.id] == value.id,
                     available: available(value),
-                    // Cor riscada continua clicável: mostra as fotos dela.
-                    onTap: () => onSelect(axis, value),
+                    onTap: () => tap(value),
+                  )
+                else if (photoOf(value) case final photo?)
+                  _PatternSwatch(
+                    key: ValueKey('store-axis-${axis.id}-${value.id}'),
+                    label: value.label,
+                    photoUrl: photo,
+                    selected: selected[axis.id] == value.id,
+                    available: available(value),
+                    onTap: () => tap(value),
                   )
                 else
                   _AxisButton(
@@ -158,9 +176,7 @@ class _AxisBlock extends StatelessWidget {
                     label: value.label,
                     selected: selected[axis.id] == value.id,
                     available: available(value),
-                    onTap: () => available(value)
-                        ? onSelect(axis, value)
-                        : onUnavailable(axis, value),
+                    onTap: () => tap(value),
                   ),
             ],
           ),
@@ -252,7 +268,111 @@ class _ColorSwatch extends StatelessWidget {
   }
 }
 
-/// Risco diagonal da cor sem saldo em tamanho nenhum.
+/// Estampa: miniatura da 1ª foto ligada ao valor, com o nome embaixo. Mesma
+/// borda de destaque e mesmo esmaecido/risco da bolinha de cor.
+class _PatternSwatch extends StatelessWidget {
+  const _PatternSwatch({
+    super.key,
+    required this.label,
+    required this.photoUrl,
+    required this.selected,
+    required this.available,
+    required this.onTap,
+  });
+
+  static const double _thumb = 64;
+
+  final String label;
+  final String photoUrl;
+  final bool selected;
+  final bool available;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
+          width: _thumb + 10,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: _thumb + 10,
+                height: _thumb + 10,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: selected ? AppColors.brand : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+                child: Opacity(
+                  opacity: available ? 1 : 0.45,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CachedNetworkImage(
+                          imageUrl: photoUrl,
+                          fit: BoxFit.cover,
+                          memCacheHeight: (_thumb * dpr).round(),
+                          placeholder: (_, _) => const StoreStripedBox(),
+                          errorWidget: (_, _, _) => const StoreStripedBox(),
+                        ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: colors.onSurface.withValues(alpha: 0.16),
+                            ),
+                          ),
+                        ),
+                        if (!available)
+                          CustomPaint(
+                            painter: _DiagonalStrike(colors.onSurface),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: AppTypography.soraRegular(
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                  color: available
+                      ? colors.onSurface
+                      : StoreStyle.tertiary(colors).withValues(alpha: 0.6),
+                ).copyWith(
+                  decoration: available ? null : TextDecoration.lineThrough,
+                  decorationColor: StoreStyle.tertiary(colors),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Risco diagonal da cor (ou estampa) sem saldo em tamanho nenhum.
 class _DiagonalStrike extends CustomPainter {
   const _DiagonalStrike(this.color);
 

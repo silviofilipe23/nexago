@@ -65,13 +65,30 @@ export interface CustomizationConfig {
   defectOnlyReturns: boolean;
 }
 
+/** O lado vem primeiro: é o `Local` que decide se o nome sai na frente ou nas costas (o arrasto não troca o lado). */
 export const PLACEMENT_LABELS: Record<NamePlacement, string> = {
-  costas_superior: 'Costas superior',
-  costas_inferior: 'Costas inferior',
-  frente: 'Frente',
-  manga: 'Manga',
-  barra: 'Barra (toalha)',
+  costas_superior: 'Costas · em cima',
+  costas_inferior: 'Costas · embaixo',
+  frente: 'Frente · peito',
+  manga: 'Frente · manga',
+  barra: 'Frente · barra da toalha',
 };
+
+/** Lado da peça em que o nome sai (manga e barra aparecem na frente) — igual ao portal e ao app. */
+export function nameSideOf(placement: NamePlacement): 'frente' | 'costas' {
+  return placement === 'costas_superior' || placement === 'costas_inferior' ? 'costas' : 'frente';
+}
+
+/**
+ * Lado em que a prévia abre: o do nome; sem nome, a frente se há áreas, as costas se só elas estão
+ * ligadas. Abrir nas costas com o nome na frente escondia onde ele estava.
+ */
+export function initialPreviewSide(c: CustomizationConfig): 'frente' | 'costas' {
+  if (c.name.enabled) {
+    return nameSideOf(c.name.placement);
+  }
+  return !c.image.enabled && c.back.enabled ? 'costas' : 'frente';
+}
 
 export const FONT_LABELS: Record<FontId, string> = { bloco: 'Bloco', classica: 'Clássica', mono: 'Mono' };
 export const FORMAT_LABELS: Record<ImageFormat, string> = { png: 'PNG', jpg: 'JPG', svg: 'SVG' };

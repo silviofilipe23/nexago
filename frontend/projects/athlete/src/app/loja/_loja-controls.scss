@@ -79,6 +79,56 @@
   }
 }
 
+// Estampa: a foto ligada ao valor, com o nome embaixo (sem foto, só o nome).
+.lp-patterns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.lp-pattern {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 76px;
+  padding: 4px 4px 8px;
+  border: 1px solid var(--nx-line-strong);
+  border-radius: var(--nx-r-3);
+  background: transparent;
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color var(--nx-d-fast) var(--nx-ease-out);
+
+  &--on {
+    border-color: var(--nx-orange-500);
+    box-shadow: 0 0 0 1px var(--nx-orange-500);
+  }
+
+  // Estampa sem saldo: esmaecida, mas segue clicável (mostra as fotos), como a cor.
+  &--out {
+    opacity: 0.45;
+  }
+}
+
+.lp-pattern-img {
+  width: 66px;
+  height: 66px;
+  border-radius: calc(var(--nx-r-3) - 3px);
+  object-fit: cover;
+}
+
+.lp-pattern-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .lp-sizes {
   display: flex;
   flex-wrap: wrap;
@@ -141,6 +191,7 @@
 }
 
 .lp-shake .lp-sizes,
+.lp-shake .lp-patterns,
 .lp-shake .lp-swatches {
   animation: lp-shake 0.42s var(--nx-ease-out);
 }

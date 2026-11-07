@@ -189,6 +189,7 @@ StoreProduct? storeProductFromMap(String id, Map<String, dynamic>? data) {
       StoreAxis(
         id: _str(a['id']),
         label: _str(a['label']),
+        kind: StoreAxisKind.from(a['kind']),
         values: [
           for (final v in _maps(a['values']))
             StoreAxisValue(

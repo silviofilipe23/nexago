@@ -26,8 +26,34 @@ StoreProduct? findStoreProduct(List<StoreProduct> products, String idOrSlug) {
 
 // ── Eixos ───────────────────────────────────────────────────────────────
 
-/// Eixo com algum valor com `hex` é cor (bolinhas); os outros, botões.
-bool isStoreColorAxis(StoreAxis axis) => axis.values.any((v) => v.hex != null);
+/// Tipo do eixo: o `kind` gravado; sem ele (doc antigo), cor se algum valor
+/// tem `hex`, senão outro — o comportamento de antes do campo.
+StoreAxisKind storeAxisKind(StoreAxis axis) =>
+    axis.kind ??
+    (axis.values.any((v) => v.hex != null)
+        ? StoreAxisKind.color
+        : StoreAxisKind.other);
+
+/// Eixo de cor: bolinhas e o `hex` da peça. Estampa não tem `hex`.
+bool isStoreColorAxis(StoreAxis axis) =>
+    storeAxisKind(axis) == StoreAxisKind.color;
+
+/// Cor ou estampa: o valor muda a foto (o 1º eixo é o das fotos), vem
+/// pré-escolhido e continua tocável sem saldo (para ver as fotos).
+bool isStoreLookAxis(StoreAxis axis) {
+  final kind = storeAxisKind(axis);
+  return kind == StoreAxisKind.color || kind == StoreAxisKind.pattern;
+}
+
+/// Miniatura do valor de estampa: a 1ª foto ligada a ele. Só o 1º eixo tem
+/// fotos (`colorValueId`); `null` = sem foto, vira botão de texto.
+String? storeAxisValuePhotoUrl(StoreProduct p, StoreAxis axis, String valueId) {
+  if (p.axes.isEmpty || p.axes.first.id != axis.id) return null;
+  for (final ph in p.photos) {
+    if (ph.colorValueId == valueId) return ph.url;
+  }
+  return null;
+}
 
 bool _matches(
   StoreVariant v,
@@ -59,15 +85,15 @@ bool storeAxisValueAvailable(
   );
 }
 
-/// 1ª cor com saldo (ou a 1ª, se tudo esgotou — para mostrar as fotos); eixo
-/// de um valor só já vem escolhido; tamanho nunca.
+/// 1ª cor ou estampa com saldo (ou a 1ª, se tudo esgotou — para mostrar as
+/// fotos); eixo de um valor só já vem escolhido; tamanho nunca.
 Map<String, String> storeProductInitialSelection(StoreProduct p) {
   final selected = <String, String>{};
   for (var i = 0; i < p.axes.length; i++) {
     final axis = p.axes[i];
     if (axis.values.length == 1) {
       selected[axis.id] = axis.values.single.id;
-    } else if (i == 0 && isStoreColorAxis(axis) && axis.values.isNotEmpty) {
+    } else if (i == 0 && isStoreLookAxis(axis) && axis.values.isNotEmpty) {
       final first = axis.values.firstWhere(
         (v) => storeAxisValueAvailable(p, 0, v.id, selected),
         orElse: () => axis.values.first,
@@ -105,8 +131,20 @@ StoreAxis? storeMissingAxis(StoreProduct p, Map<String, String> selected) {
   return null;
 }
 
-/// "Escolha um tamanho" / "Escolha uma cor" / "Escolha modelo".
+/// "Escolha um tamanho" / "Escolha uma cor" / "Escolha uma estampa" /
+/// "Escolha modelo". Sem `kind`, vale o rótulo.
 String storeChooseAxisMessage(StoreAxis axis) {
+  switch (axis.kind) {
+    case StoreAxisKind.size:
+      return 'Escolha um tamanho';
+    case StoreAxisKind.color:
+      return 'Escolha uma cor';
+    case StoreAxisKind.pattern:
+      return 'Escolha uma estampa';
+    case StoreAxisKind.other:
+    case null:
+      break;
+  }
   switch (normalizeStoreSearch(axis.label)) {
     case 'tamanho':
       return 'Escolha um tamanho';
@@ -138,14 +176,20 @@ String storeVariantLabel(StoreProduct p, StoreVariant variant) {
       .join(' · ');
 }
 
-/// "no tamanho M" / "na cor Branco" / "em Pro" — a última escolha, que é a
-/// que acaba. `null` = produto sem eixo.
+bool _isSizeAxis(StoreAxis axis) =>
+    storeAxisKind(axis) == StoreAxisKind.size ||
+    normalizeStoreSearch(axis.label) == 'tamanho';
+
+/// "no tamanho M" / "na cor Branco" / "na estampa Folhas" / "em Pro" — a
+/// última escolha, que é a que acaba. `null` = produto sem eixo.
 String? _lastChoicePhrase(StoreProduct p, StoreVariant variant) {
   if (p.axes.isEmpty) return null;
   final axis = p.axes.last;
   final label = _valueLabel(axis, variant.values[axis.id]);
-  if (isStoreColorAxis(axis)) return 'na cor $label';
-  if (normalizeStoreSearch(axis.label) == 'tamanho') return 'no tamanho $label';
+  final kind = storeAxisKind(axis);
+  if (kind == StoreAxisKind.color) return 'na cor $label';
+  if (kind == StoreAxisKind.pattern) return 'na estampa $label';
+  if (_isSizeAxis(axis)) return 'no tamanho $label';
   return 'em $label';
 }
 
@@ -166,9 +210,13 @@ String storeSoldOutMessage(StoreProduct p, StoreVariant variant) {
   final axis = p.axes.last;
   final label = _valueLabel(axis, variant.values[axis.id]);
   final name = axis.label.toLowerCase();
-  return isStoreColorAxis(axis)
-      ? 'Acabou o estoque da cor $label · escolha outra $name'
-      : 'Acabou o estoque do $label · escolha outro $name';
+  return switch (storeAxisKind(axis)) {
+    StoreAxisKind.color =>
+      'Acabou o estoque da cor $label · escolha outra $name',
+    StoreAxisKind.pattern =>
+      'Acabou o estoque da estampa $label · escolha outra estampa',
+    _ => 'Acabou o estoque do $label · escolha outro $name',
+  };
 }
 
 // ── Preço e quantidade ──────────────────────────────────────────────────
@@ -294,8 +342,9 @@ StoreCartAddBlock? storeCartAddBlock(
 
 // ── Galeria e relacionados ──────────────────────────────────────────────
 
-/// Fotos da cor escolhida seguidas das sem cor; cor sem foto própria → as
-/// sem cor; nenhuma → todas. Sem galeria (doc antigo), a capa.
+/// Fotos do valor escolhido no 1º eixo (cor ou estampa) seguidas das sem
+/// valor; valor sem foto própria → as sem valor; nenhuma → todas. Sem
+/// galeria (doc antigo), a capa.
 List<StorePhoto> storeGalleryPhotos(
   StoreProduct p,
   Map<String, String> selected,

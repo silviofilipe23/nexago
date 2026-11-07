@@ -223,7 +223,8 @@ class _StoreProductPageState extends ConsumerState<StoreProductPage> {
     for (final a in product.axes) {
       final chosen = next[a.id];
       if (chosen == null) continue;
-      if (isStoreColorAxis(a)) {
+      // Estampa vai no `color`: é o valor da aparência (o das fotos).
+      if (isStoreLookAxis(a)) {
         color ??= chosen;
       } else {
         size = chosen;

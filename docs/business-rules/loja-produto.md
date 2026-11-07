@@ -33,16 +33,24 @@ vem vazio (sem galeria extra, sem detalhes, sem personalização, sem entrega).
 ## Regras (iguais no web e no app)
 
 ### Eixos e seleção
-- Eixo com algum valor com `hex` é **cor** (bolinhas); os outros são botões (tamanho, modelo…).
+- **Tipo do eixo** (`axes[].kind`, escolhido no backoffice): `cor` · `estampa` · `tamanho` · `outro`.
+  Ausente (doc antigo): `cor` se algum valor tem `hex`, senão `outro` — o comportamento de antes.
+  - `cor`: bolinhas do `hex`.
+  - `estampa`: **miniatura da 1ª foto ligada ao valor** (`photos[].colorValueId` = id do valor) com
+    o nome embaixo; valor sem foto ligada vira o botão de texto. Para a mesma peça em várias
+    estampas (ex.: a toalha numa cor só). Cada estampa é um SKU (estoque e preço próprios).
+  - `tamanho` / `outro`: botões de texto.
+- **As fotos se ligam ao 1º eixo** (o campo continua `colorValueId`, por compatibilidade). O
+  backoffice diz "Associar à {rótulo do 1º eixo}"; com estampa e cor juntas, ponha a estampa primeiro.
 - **Disponibilidade em cascata**: um valor está disponível se existe SKU com saldo que tenha esse
   valor E bata com o que está escolhido nos eixos **anteriores**. A cor (1º eixo) só fica riscada
   sem saldo em nenhum tamanho; o tamanho depende da cor escolhida.
 - Cor riscada continua clicável (para ver as fotos) e deixa todos os tamanhos indisponíveis.
-- Pré-seleção: a primeira cor com saldo (ou a primeira cor, se tudo esgotou); eixo de um valor só
-  já vem escolhido; **tamanho nunca vem escolhido**.
+- Pré-seleção: a primeira cor **ou estampa** do 1º eixo com saldo (ou a primeira, se tudo esgotou);
+  eixo de um valor só já vem escolhido; **tamanho nunca vem escolhido**.
 - Trocar um valor limpa as escolhas dos eixos seguintes que ficaram indisponíveis.
 - "Adicionar" sem todos os eixos escolhidos: o eixo que falta treme e aparece "Escolha um
-  tamanho" (`cor` → "Escolha uma cor"; outro → "Escolha {rótulo}").
+  tamanho" (`cor` → "Escolha uma cor"; `estampa` → "Escolha uma estampa"; outro → "Escolha {rótulo}").
 - Tamanho indisponível: riscado e esmaecido; tocar avisa que o "Avise-me" chega em breve
   (lista de espera ainda não existe) e registra `loja_avise_me`.
 
@@ -64,7 +72,8 @@ vem vazio (sem galeria extra, sem detalhes, sem personalização, sem entrega).
 - Carrinho continua sendo só intenção (`storeCarts/{uid}`, ≤30 linhas): o checkout relê tudo.
 
 ### Galeria
-- Fotos da cor escolhida (`colorValueId`) seguidas das fotos sem cor; se a cor não tem foto
+- Fotos do valor escolhido no 1º eixo — cor ou estampa (`colorValueId`) — seguidas das fotos sem
+  valor; se o valor não tem foto
   própria, as sem cor; se nenhuma, todas. Sem foto nenhuma: fundo listrado com o nome.
 - Web: miniaturas à esquerda, zoom 2× no hover, clique abre tela cheia (setas, `Esc`).
 - App: arrastar troca a foto (bolinhas), toque abre tela cheia com pinça, arrastar pra baixo fecha.

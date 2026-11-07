@@ -26,7 +26,26 @@ export const MAX_CART_LINES = 30;
 
 /** Eixo com cor (algum valor com `hex`) vira bolinha; os outros, botões. */
 export function isColorAxis(axis: StoreAxis): boolean {
-  return axis.values.some((v) => v.hex !== null);
+  return axis.kind === 'cor';
+}
+
+/** Estampa: cada valor aparece pela foto ligada a ele (a mesma peça em várias estampas). */
+export function isPatternAxis(axis: StoreAxis): boolean {
+  return axis.kind === 'estampa';
+}
+
+/** Cor ou estampa: o eixo das fotos — vem escolhido e, sem saldo, continua clicável (mostra as fotos). */
+export function isPhotoAxis(axis: StoreAxis): boolean {
+  return axis.kind === 'cor' || axis.kind === 'estampa';
+}
+
+/**
+ * Miniatura da estampa: a 1ª foto ligada ao valor (as fotos se ligam ao 1º eixo); `null` = o valor
+ * vira botão de texto.
+ */
+export function patternThumb(p: StoreProduct, axis: StoreAxis, valueId: string): string | null {
+  if (!isPatternAxis(axis) || p.axes[0]?.id !== axis.id) return null;
+  return p.photos.find((ph) => ph.colorValueId === valueId)?.url ?? null;
 }
 
 function matches(v: StoreVariant, selected: AxisSelection, axes: readonly StoreAxis[]): boolean {
@@ -44,13 +63,13 @@ export function axisValueAvailable(p: StoreProduct, axisIndex: number, valueId: 
   return p.variants.some((v) => v.inStock && v.values[axis.id] === valueId && matches(v, selected, before));
 }
 
-/** 1ª cor com saldo (ou a 1ª, se tudo esgotou); eixo de um valor só já vem escolhido; tamanho nunca. */
+/** 1ª cor ou estampa com saldo (ou a 1ª, se tudo esgotou); eixo de um valor só já vem escolhido; tamanho nunca. */
 export function initialSelection(p: StoreProduct): Record<string, string> {
   const selected: Record<string, string> = {};
   p.axes.forEach((axis, i) => {
     if (axis.values.length === 1) {
       selected[axis.id] = axis.values[0]!.id;
-    } else if (i === 0 && isColorAxis(axis) && axis.values.length > 0) {
+    } else if (i === 0 && isPhotoAxis(axis) && axis.values.length > 0) {
       const first = axis.values.find((v) => axisValueAvailable(p, 0, v.id, selected)) ?? axis.values[0]!;
       selected[axis.id] = first.id;
     }
@@ -87,6 +106,9 @@ export function missingAxis(p: StoreProduct, selected: AxisSelection): StoreAxis
 
 /** "Escolha um tamanho" / "Escolha uma cor" / "Escolha modelo". */
 export function chooseAxisMessage(axis: StoreAxis): string {
+  if (axis.kind === 'estampa') return 'Escolha uma estampa';
+  if (axis.kind === 'cor') return 'Escolha uma cor';
+  if (axis.kind === 'tamanho') return 'Escolha um tamanho';
   switch (normalizeSearch(axis.label)) {
     case 'tamanho':
       return 'Escolha um tamanho';
@@ -115,7 +137,8 @@ function lastChoicePhrase(p: StoreProduct, variant: StoreVariant): string | null
   if (!axis) return null;
   const label = valueLabel(axis, variant.values[axis.id]);
   if (isColorAxis(axis)) return `na cor ${label}`;
-  if (normalizeSearch(axis.label) === 'tamanho') return `no tamanho ${label}`;
+  if (isPatternAxis(axis)) return `na estampa ${label}`;
+  if (axis.kind === 'tamanho' || normalizeSearch(axis.label) === 'tamanho') return `no tamanho ${label}`;
   return `em ${label}`;
 }
 
@@ -133,9 +156,9 @@ export function soldOutMessage(p: StoreProduct, variant: StoreVariant): string {
   if (!axis) return 'Esse produto acabou de esgotar';
   const label = valueLabel(axis, variant.values[axis.id]);
   const name = axis.label.toLowerCase();
-  return isColorAxis(axis)
-    ? `Acabou o estoque da cor ${label} · escolha outra ${name}`
-    : `Acabou o estoque do ${label} · escolha outro ${name}`;
+  if (isColorAxis(axis)) return `Acabou o estoque da cor ${label} · escolha outra ${name}`;
+  if (isPatternAxis(axis)) return `Acabou o estoque da estampa ${label} · escolha outra ${name}`;
+  return `Acabou o estoque do ${label} · escolha outro ${name}`;
 }
 
 // ── Preço e quantidade ─────────────────────────────────────────────

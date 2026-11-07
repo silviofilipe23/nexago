@@ -21,10 +21,32 @@ export interface AxisValueForm {
   hex: string;
 }
 
+/**
+ * Como o atleta vê os valores: `cor` (bolinha do hex), `estampa` (miniatura da foto ligada ao
+ * valor), `tamanho` e `outro` (texto). Mesmo `AxisKind` de functions/src/store-catalog.ts.
+ */
+export type AxisKind = 'cor' | 'estampa' | 'tamanho' | 'outro';
+
+export const AXIS_KIND_LABELS: Record<AxisKind, string> = {
+  cor: 'Cor',
+  estampa: 'Estampa',
+  tamanho: 'Tamanho',
+  outro: 'Outro',
+};
+
 export interface AxisForm {
   id: string;
   label: string;
+  kind: AxisKind;
   values: AxisValueForm[];
+}
+
+/** Tipo do eixo no doc; ausente (doc antigo) = `cor` se algum valor tem hex, senão `outro`. */
+export function axisKindOf(raw: unknown, values: readonly { hex?: string | null }[]): AxisKind {
+  if (raw === 'cor' || raw === 'estampa' || raw === 'tamanho' || raw === 'outro') {
+    return raw;
+  }
+  return values.some((v) => !!v.hex) ? 'cor' : 'outro';
 }
 
 export interface SkuForm {
@@ -351,10 +373,12 @@ export function toVariationsInput(form: ProductForm, productId: string, version:
     axes: form.axes.map((axis) => ({
       id: axis.id,
       label: axis.label,
+      kind: axis.kind,
       values: axis.values.map((v) => ({
         id: v.id,
         label: v.label,
-        ...(v.hex ? { hex: v.hex } : {}),
+        // Hex só vale para cor: em estampa ele faria o cliente antigo desenhar bolinhas.
+        ...(axis.kind === 'cor' && v.hex ? { hex: v.hex } : {}),
       })),
     })),
     skus: form.skus.map((sku) => ({

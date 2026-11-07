@@ -156,7 +156,7 @@ Upload pede login.
   (`0,62 − 0,075 − 0,03 − h/2`); sem nome nas costas, 0,45. Sempre dentro do quadro.
 
 ### Prévia (ilustrativa)
-- Foto do produto no lado (`view`): a da cor escolhida; senão a do lado sem cor; senão a do lado
+- Foto do produto no lado (`view`): a do valor escolhido no 1º eixo (cor ou estampa); senão a do lado sem cor; senão a do lado
   em **outra cor**, com o aviso "Foto em Preto · a sua sai em Branco areia" sob a prévia (peça
   cadastrada só com fotos de uma cor não pode virar tela vazia). Sem nenhuma foto do lado, fundo
   listrado "MOCKUP · FRENTE/COSTAS" **na cor da peça** (o `hex` da cor do SKU; sem hex, o escuro #0F1214) —

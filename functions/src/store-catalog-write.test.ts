@@ -428,6 +428,28 @@ describe("fix pass — invariantes que a revisão final achou", () => {
     assert.deepEqual(axes.map((a) => a.id), ids);
   }
 
+  it("tipo do eixo (estampa) é gravado; tipo desconhecido é recusado", async () => {
+    const {fake, db} = makeDb();
+    const {productId} = await saveStoreProductCore(db, input(), ACTOR, NOW);
+    const estampa = {id: "estampa", label: "Estampa", kind: "estampa" as const, values: [
+      {id: "coqueiros", label: "Coqueiros"}, {id: "listras", label: "Listras"},
+    ]};
+    await saveVariationsCore(db, {
+      productId, version: 1, axes: [estampa],
+      skus: [{axisValues: {estampa: "coqueiros"}, stockByLocation: {cd: 3}, priceCents: null, barcode: null},
+        {axisValues: {estampa: "listras"}, stockByLocation: {cd: 0}, priceCents: null, barcode: null}],
+    }, ACTOR, NOW);
+    const axes = fake.store.get(`storeProducts/${productId}`)!["axes"] as {kind?: string}[];
+    assert.equal(axes[0]!.kind, "estampa");
+    await assert.rejects(
+      () => saveVariationsCore(db, {
+        productId, version: 2, axes: [{...estampa, kind: "padrao" as never}],
+        skus: [{axisValues: {estampa: "coqueiros"}, stockByLocation: {cd: 3}, priceCents: null, barcode: null}],
+      }, ACTOR, NOW),
+      (err: Error & {code?: string}) => err.code === "invalid-argument",
+    );
+  });
+
   it("dois SKUs na mesma combinação são recusados, em vez de virar estoque fantasma", async () => {
     const {db, productId} = await withGrid();
     await assert.rejects(

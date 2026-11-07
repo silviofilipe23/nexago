@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -5,13 +6,14 @@ import '../../../../core/theme/app_radii.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/store_models.dart';
+import '../../domain/store_product_rules.dart';
 import '../../domain/store_rules.dart';
 import '../store_copy.dart';
 import 'store_filter_sheet.dart';
 import 'store_style.dart';
 
-/// "+" de produto com variação: escolhe os eixos (cor com bolinha, tamanho)
-/// e devolve o SKU escolhido, ou `null` se fechar. Combinação sem saldo fica
+/// "+" de produto com variação: escolhe os eixos (cor com bolinha, estampa
+/// com a miniatura da foto, tamanho) e devolve o SKU escolhido, ou `null` se fechar. Combinação sem saldo fica
 /// desabilitada.
 Future<String?> showStoreVariantSheet({
   required BuildContext context,
@@ -120,7 +122,7 @@ class _StoreVariantSheetState extends State<StoreVariantSheet> {
                             valueId: value.id,
                             selected: _selected,
                           ),
-                          leading: _swatch(value.hex),
+                          leading: _leading(product, axis, value),
                           onTap: () => _toggle(axis.id, value.id),
                         ),
                     ],
@@ -163,6 +165,32 @@ class _StoreVariantSheetState extends State<StoreVariantSheet> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget? _leading(StoreProduct product, StoreAxis axis, StoreAxisValue value) {
+    if (storeAxisKind(axis) == StoreAxisKind.pattern) {
+      final url = storeAxisValuePhotoUrl(product, axis, value.id);
+      return url == null ? null : _photo(url);
+    }
+    return _swatch(value.hex);
+  }
+
+  /// Miniatura redonda da estampa (a 1ª foto ligada ao valor).
+  Widget _photo(String url) {
+    const size = 22.0;
+    return SizedBox.square(
+      dimension: size,
+      child: ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: url,
+          fit: BoxFit.cover,
+          memCacheHeight:
+              (size * MediaQuery.devicePixelRatioOf(context)).round(),
+          placeholder: (_, _) => const StoreStripedBox(),
+          errorWidget: (_, _, _) => const StoreStripedBox(),
+        ),
+      ),
     );
   }
 

@@ -12,13 +12,15 @@ import {
   skusLostWithStock,
   toSaveInput,
   withTotalStock,
+  axisKindOf,
+  toVariationsInput,
   type AxisForm,
   type ProductForm,
 } from './product-form';
 
 const axes: AxisForm[] = [
-  { id: 'cor', label: 'Cor', values: [{ id: 'azul', label: 'Azul', hex: '' }, { id: 'preto', label: 'Preto', hex: '' }] },
-  { id: 'tam', label: 'Tamanho', values: [{ id: 'p', label: 'P', hex: '' }, { id: 'm', label: 'M', hex: '' }] },
+  { id: 'cor', label: 'Cor', kind: 'cor', values: [{ id: 'azul', label: 'Azul', hex: '' }, { id: 'preto', label: 'Preto', hex: '' }] },
+  { id: 'tam', label: 'Tamanho', kind: 'tamanho', values: [{ id: 'p', label: 'P', hex: '' }, { id: 'm', label: 'M', hex: '' }] },
 ];
 
 function valid(): ProductForm {
@@ -96,5 +98,19 @@ describe('product-form', () => {
     expect(parseDimensions('30x22')).toEqual({ length: '30', width: '22', height: '' });
     expect(formatDimensions('30', '22', '3')).toBe('30×22×3');
     expect(formatDimensions('', '', '')).toBe('');
+  });
+
+  it('tipo do eixo: o gravado manda; doc antigo = cor com hex, senão outro; hex só vai em eixo de cor', () => {
+    expect(axisKindOf('estampa', [])).toBe('estampa');
+    expect(axisKindOf(undefined, [{ hex: '#ff6a1a' }])).toBe('cor');
+    expect(axisKindOf(undefined, [{ hex: '' }])).toBe('outro');
+    expect(axisKindOf('padrao', [{ hex: '' }])).toBe('outro');
+    const form: ProductForm = {
+      ...emptyForm(),
+      axes: [{ id: 'estampa', label: 'Estampa', kind: 'estampa', values: [{ id: 'coqueiros', label: 'Coqueiros', hex: '#123456' }] }],
+    };
+    expect(toVariationsInput(form, 'p1', 1).axes).toEqual([
+      { id: 'estampa', label: 'Estampa', kind: 'estampa', values: [{ id: 'coqueiros', label: 'Coqueiros' }] },
+    ]);
   });
 });

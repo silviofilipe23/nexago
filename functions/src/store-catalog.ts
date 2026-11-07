@@ -23,9 +23,18 @@ export interface AxisValue {
   hex?: string;
 }
 
+/**
+ * Tipo do eixo, que diz como o cliente mostra os valores: `cor` (bolinha do `hex`), `estampa`
+ * (miniatura da 1ª foto ligada ao valor), `tamanho` e `outro` (texto). Ausente (doc antigo) = `cor`
+ * se algum valor tem `hex`, senão `outro`.
+ */
+export type AxisKind = "cor" | "estampa" | "tamanho" | "outro";
+export const AXIS_KINDS: AxisKind[] = ["cor", "estampa", "tamanho", "outro"];
+
 export interface Axis {
   id: string;
   label: string;
+  kind?: AxisKind;
   values: AxisValue[];
 }
 

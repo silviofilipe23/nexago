@@ -52,6 +52,9 @@ import {
   chooseAxisMessage,
   initialSelection,
   isColorAxis,
+  isPatternAxis,
+  isPhotoAxis,
+  patternThumb,
   maxQuantity,
   missingAxis,
   selectAxisValue,
@@ -305,14 +308,19 @@ export class LojaPersonalizarComponent {
     };
   });
   protected readonly garmentHex = computed(() => this.colorValue()?.hex ?? null);
+  /** Valor do 1º eixo (cor ou estampa): é a ele que as fotos se ligam. */
+  private readonly photoValueId = computed(() => {
+    const axis = this.product()?.axes[0];
+    return axis ? (this.selected()[axis.id] ?? null) : null;
+  });
   protected photoFor(side: StorePhotoView): string | null {
     const p = this.product();
-    return p ? (previewPhoto(p, this.colorValue()?.id ?? null, side)?.url ?? null) : null;
+    return p ? (previewPhoto(p, this.photoValueId(), side)?.url ?? null) : null;
   }
   /** A cor sem foto usa a de outra cor: a prévia diz qual. */
   protected readonly photoNote = computed(() => {
     const p = this.product();
-    return p ? previewPhotoNote(p, this.colorValue()?.id ?? null, this.side()) : null;
+    return p ? previewPhotoNote(p, this.photoValueId(), this.side()) : null;
   });
 
   // ── Preço ───────────────────────────────────────────────────────
@@ -406,6 +414,20 @@ export class LojaPersonalizarComponent {
     return isColorAxis(axis);
   }
 
+  protected isPattern(axis: StoreAxis): boolean {
+    return isPatternAxis(axis);
+  }
+
+  protected isPhoto(axis: StoreAxis): boolean {
+    return isPhotoAxis(axis);
+  }
+
+  /** Miniatura da estampa (a 1ª foto ligada a ela); `null` = só o nome. */
+  protected thumb(axis: StoreAxis, valueId: string): string | null {
+    const p = this.product();
+    return p ? patternThumb(p, axis, valueId) : null;
+  }
+
   protected available(axisIndex: number, valueId: string): boolean {
     const p = this.product();
     return p ? axisValueAvailable(p, axisIndex, valueId, this.selected()) : false;
@@ -415,7 +437,7 @@ export class LojaPersonalizarComponent {
     const p = this.product();
     if (!p || this.selected()[axis.id] === valueId) return;
     // Tamanho sem saldo não é escolhido aqui: o "Avise-me" fica na página do produto.
-    if (!this.isColor(axis) && !this.available(axisIndex, valueId)) return;
+    if (!this.isPhoto(axis) && !this.available(axisIndex, valueId)) return;
     const next = selectAxisValue(p, this.selected(), axis.id, valueId);
     this.selected.set(next);
     if (this.attention() === axis.id) this.attention.set(null);

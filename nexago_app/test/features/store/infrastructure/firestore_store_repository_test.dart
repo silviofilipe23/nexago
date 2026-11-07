@@ -62,12 +62,43 @@ void main() {
       expect(p.maxPriceCents, 14990);
       expect(p.pickup, isTrue);
       expect(p.axes.single.values.single.hex, '#FFFFFF');
+      // Doc anterior ao `kind`: o tipo sai dos valores (storeAxisKind).
+      expect(p.axes.single.kind, isNull);
       expect(p.variants.map((v) => v.id), ['branco_m', 'branco_g']);
       expect(p.variants.first.values, {'cor': 'branco', 'tam': 'm'});
       expect(p.variants.last.inStock, isFalse);
       expect(p.ratingAvg, isNull);
       expect(p.soldLast30, 42);
       expect(p.publishedAt?.toUtc(), DateTime.utc(2026, 10, 16));
+    });
+
+    test('lê o tipo do eixo; tipo desconhecido vira null (regra legada)', () {
+      final p = storeProductFromMap('toalha', {
+        'name': 'Toalha',
+        'priceCents': 8990,
+        'axes': [
+          {
+            'id': 'est',
+            'label': 'Estampa',
+            'kind': 'estampa',
+            'values': [
+              {'id': 'folhas', 'label': 'Folhas'},
+            ],
+          },
+          {'id': 'cor', 'label': 'Cor', 'kind': 'cor'},
+          {'id': 'tam', 'label': 'Tamanho', 'kind': 'tamanho'},
+          {'id': 'mod', 'label': 'Modelo', 'kind': 'outro'},
+          {'id': 'x', 'label': 'X', 'kind': 'listrado'},
+        ],
+      })!;
+      expect(p.axes.map((a) => a.kind), [
+        StoreAxisKind.pattern,
+        StoreAxisKind.color,
+        StoreAxisKind.size,
+        StoreAxisKind.other,
+        null,
+      ]);
+      expect(p.axes.first.values.single.hex, isNull);
     });
 
     test('lê galeria, descrição, detalhes, saldo e personalização (tela 02)',

@@ -34,12 +34,48 @@ class StoreAxisValue {
   final String? hex;
 }
 
+/// Tipo do eixo (`axes[].kind`, escolhido no backoffice): diz como o seletor
+/// mostra os valores. O id é o gravado no espelho.
+enum StoreAxisKind {
+  /// Bolinhas do `hex`.
+  color('cor'),
+
+  /// Miniatura da 1ª foto ligada ao valor (`photos[].colorValueId`).
+  pattern('estampa'),
+
+  /// Botões de texto; nunca vem pré-escolhido.
+  size('tamanho'),
+
+  /// Botões de texto.
+  other('outro');
+
+  const StoreAxisKind(this.id);
+
+  final String id;
+
+  static StoreAxisKind? from(Object? raw) {
+    for (final kind in values) {
+      if (kind.id == raw) return kind;
+    }
+    return null;
+  }
+}
+
 class StoreAxis {
-  const StoreAxis({required this.id, required this.label, this.values = const []});
+  const StoreAxis({
+    required this.id,
+    required this.label,
+    this.values = const [],
+    this.kind,
+  });
 
   final String id;
   final String label;
   final List<StoreAxisValue> values;
+
+  /// `null` = doc anterior ao campo: o tipo sai dos valores
+  /// (`storeAxisKind`).
+  final StoreAxisKind? kind;
 }
 
 class StoreVariant {
@@ -95,8 +131,8 @@ class StorePhoto {
 
   final String url;
 
-  /// Valor do primeiro eixo (cor) a que a foto pertence; `null` = vale para
-  /// todas.
+  /// Valor do primeiro eixo (cor ou estampa) a que a foto pertence; `null` =
+  /// vale para todas.
   final String? colorValueId;
 
   /// Frente/costas da peça; `null` = não marcado no backoffice.

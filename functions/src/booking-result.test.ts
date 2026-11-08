@@ -264,6 +264,19 @@ describe("saveBookingResultCore", () => {
     }
   });
 
+  it("reserva de plano de horário libera pela mensalidade do mês paga pelo app", async () => {
+    for (const [charge, ok] of [[{paidVia: "asaas"}, true], [{paidVia: "manual"}, false]] as const) {
+      const fake = new FakeFirestore();
+      seed(fake, {amountPaidOnlineReais: 0, status: "active", scheduleSubscriptionId: "sub1", coveredByPlan: true});
+      fake.seedDoc("arenaScheduleCharges/sub1_2026-10_0", {
+        subscriptionId: "sub1", period: "2026-10", amountReais: 300, status: "paid", ...charge,
+      });
+      const save = saveBookingResultCore(db(fake), "maria", payload(), NOW);
+      if (ok) await save;
+      else await rejects(save, "failed-precondition", /metade da reserva/);
+    }
+  });
+
   it("quem lança tem de estar num time; atleta inexistente e avulso são recusados", async () => {
     const fake = new FakeFirestore();
     seed(fake);

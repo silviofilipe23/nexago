@@ -32,7 +32,10 @@ import {processArenaScheduleAsaasNotification} from "./asaas-arena-schedule-webh
 import {SCHEDULE_PAYMENT_REF_PREFIX} from "./arena-schedule-plan-constants";
 import {ARENA_CLUB_SESSION_PAYMENT_REF_PREFIX} from "./arena-club-constants";
 import {reverseCashbackForPayment} from "./cashback-reversal";
-import {recordArenaBookingAppPaymentReversal} from "./booking-app-payment";
+import {
+  recordArenaBookingAppPaymentReversal,
+  recordSchedulePlanAppPaymentReversal,
+} from "./booking-app-payment";
 import {getFirebaseProjectId} from "./firebase-paths";
 import {WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
@@ -225,9 +228,11 @@ export const asaasWebhook = onRequest({
     } catch (e) {
       logger.error(`asaasWebhook: estorno do cashback falhou paymentId=${paymentId}`, e);
     }
-    // Reserva de quadra: o estorno sai do "pago pelo app" e tira placar/story/arte liberados.
+    // Reserva de quadra (ou mensalidade de plano): o estorno sai do "pago pelo app" e tira
+    // placar/story/arte liberados.
     try {
       await recordArenaBookingAppPaymentReversal(db, paymentId, refundRef);
+      await recordSchedulePlanAppPaymentReversal(db, paymentId, refundRef);
     } catch (e) {
       logger.error(`asaasWebhook: estorno da reserva não registrado paymentId=${paymentId}`, e);
     }

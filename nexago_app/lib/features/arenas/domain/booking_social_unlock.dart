@@ -29,6 +29,7 @@ class BookingSocialUnlock {
     required this.unlocked,
     required this.appPaidReais,
     required this.totalReais,
+    this.isPlan = false,
   });
 
   /// Sem reserva (story avulso) ou doc inexistente: nada pago pelo app.
@@ -38,6 +39,10 @@ class BookingSocialUnlock {
   final bool unlocked;
   final double appPaidReais;
   final double totalReais;
+
+  /// Reserva de plano de horário: quem libera é a mensalidade do mês paga
+  /// pelo app (o servidor soma o rateio e grava `socialUnlocked`).
+  final bool isPlan;
 
   /// Quanto ainda faltaria pagar pelo app para chegar à metade.
   double get missingReais {
@@ -52,11 +57,23 @@ class BookingSocialUnlock {
   factory BookingSocialUnlock.fromBooking(Map<String, dynamic>? data) {
     if (data == null) return none;
     final total = _num(data['amountReais']);
+    final isPlan = '${data['scheduleSubscriptionId'] ?? ''}'.trim().isNotEmpty;
     if (data['socialUnlocked'] is bool) {
       return BookingSocialUnlock(
         unlocked: data['socialUnlocked'] as bool,
         appPaidReais: _num(data['appPaidReais']),
         totalReais: total,
+        isPlan: isPlan,
+      );
+    }
+    // Plano sem o campo: só o servidor lê as mensalidades; até ele gravar,
+    // fica bloqueado (a callable decide o placar pelas mensalidades).
+    if (isPlan) {
+      return BookingSocialUnlock(
+        unlocked: false,
+        appPaidReais: 0,
+        totalReais: total,
+        isPlan: true,
       );
     }
     final status = '${data['status'] ?? ''}'.trim().toLowerCase();
@@ -86,6 +103,15 @@ String bookingSocialLockedMessage(
   BookingSocialUnlock unlock, {
   required bool isOwner,
 }) {
+  if (unlock.isPlan) {
+    return isOwner
+        ? 'Pague pelo app a mensalidade do plano deste mês (Pix ou cartão) '
+            'para registrar o placar, postar o resultado no story e gerar as '
+            'artes da partida. No rateio, vale quando pelo menos metade da '
+            'mensalidade foi paga pelo app.'
+        : 'O placar, o story e as artes do resultado liberam quando pelo '
+            'menos metade da mensalidade do plano deste mês é paga pelo app.';
+  }
   final head = isOwner
       ? 'Pague pelo app pelo menos metade da reserva (Pix ou cartão) para '
           'registrar o placar, postar o resultado no story e gerar as artes '

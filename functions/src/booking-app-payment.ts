@@ -6,7 +6,10 @@
  * - o limite do dono ({@link SOCIAL_UNLOCK_MIN_APP_PAID_SHARE} do valor da reserva);
  * - o gatilho que grava `appPaidReais`/`appPaidShare`/`socialUnlocked` na reserva sozinho;
  * - o estorno (`PAYMENT_REFUNDED`), que desconta o valor de `amountPaidOnlineReais` para a regra
- *   única refletir o dinheiro que voltou.
+ *   única refletir o dinheiro que voltou;
+ * - a reserva de PLANO DE HORÁRIO (`scheduleSubscriptionId`), que nasce com 0 pago porque quem paga
+ *   é a mensalidade: vale a fração da mensalidade do mês paga pelo app (`paidVia: "asaas"`, sem
+ *   estorno), somando os pagadores do rateio. Mensalidade baixada à mão pela arena não conta.
  */
 import {
   FieldValue,
@@ -16,9 +19,11 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {onDocumentWritten} from "firebase-functions/v2/firestore";
-import {arenaBookingAppPayment} from "./arena-booking-app-payment";
+import {arenaBookingAppPayment, isArenaBookingInactive} from "./arena-booking-app-payment";
 import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
 import {parseArenaBookingShareExternalReference} from "./arena-booking-split";
+import {ARENA_SCHEDULE_ASAAS_PAYMENTS, ARENA_SCHEDULE_CHARGES} from "./arena-schedule-plan-constants";
+import {parseSchedulePaymentRef} from "./asaas-arena-schedule-webhook";
 
 type Data = Record<string, unknown>;
 
@@ -64,6 +69,64 @@ export function bookingSocialUnlock(booking: Data): BookingSocialUnlock {
   };
 }
 
+function str(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+/** Plano da reserva, ou `""` (avulsa). */
+export function bookingSchedulePlanId(booking: Data): string {
+  return str(booking["scheduleSubscriptionId"]);
+}
+
+/**
+ * Fração da mensalidade do mês paga pelo app: soma do rateio pago online (`paidVia: "asaas"`, sem
+ * `appPaymentRefundedAt`) sobre a soma das mensalidades não canceladas do mês.
+ */
+export function schedulePlanAppPaidShare(charges: readonly Data[]): number {
+  let total = 0;
+  let paid = 0;
+  for (const c of charges) {
+    if (c["status"] === "canceled") continue;
+    const amount = Math.max(0, num(c["amountReais"]));
+    total += amount;
+    if (c["status"] === "paid" && c["paidVia"] === "asaas" && c["appPaymentRefundedAt"] == null) paid += amount;
+  }
+  return total > 0 ? Math.min(1, paid / total) : 0;
+}
+
+/** Reserva de plano: a fração da mensalidade vale como fração da reserva. */
+export function bookingSocialUnlockFromPlan(booking: Data, planShare: number): BookingSocialUnlock {
+  const totalReais = money(Math.max(0, num(booking["amountReais"])));
+  const share = isArenaBookingInactive(booking) ? 0 : planShare;
+  const appPaidShare = Math.round(share * 10_000) / 10_000;
+  return {
+    appPaidReais: money(totalReais * share),
+    totalReais,
+    appPaidShare,
+    socialUnlocked: share > 0 && appPaidShare >= SOCIAL_UNLOCK_MIN_APP_PAID_SHARE,
+  };
+}
+
+/** Mensalidades do plano no mês da reserva (`period` = AAAA-MM do `date`). */
+async function readPlanMonthCharges(db: Firestore, booking: Data): Promise<Data[]> {
+  const planId = bookingSchedulePlanId(booking);
+  const month = (str(booking["date"]) || str(booking["dateKey"])).slice(0, 7);
+  if (!planId || !/^\d{4}-\d{2}$/.test(month)) return [];
+  const snap = await db.collection(ARENA_SCHEDULE_CHARGES).where("subscriptionId", "==", planId).get();
+  return snap.docs.map((d) => d.data() as Data).filter((c) => c["period"] === month);
+}
+
+/**
+ * Liberação de qualquer reserva: avulsa pela regra única; de plano, também pela mensalidade do mês
+ * (vale a maior das duas).
+ */
+export async function resolveBookingSocialUnlock(db: Firestore, booking: Data): Promise<BookingSocialUnlock> {
+  const direct = bookingSocialUnlock(booking);
+  if (!bookingSchedulePlanId(booking)) return direct;
+  const plan = bookingSocialUnlockFromPlan(booking, schedulePlanAppPaidShare(await readPlanMonthCharges(db, booking)));
+  return plan.appPaidShare > direct.appPaidShare ? plan : direct;
+}
+
 /**
  * Campos derivados a regravar no doc, ou `null` quando já batem. Campo ausente vale como
  * `{appPaidReais: 0, socialUnlocked: false}`: reserva que nunca recebeu nada não ganha escrita.
@@ -97,11 +160,20 @@ export function bookingSocialInputsChanged(before: Data | undefined, after: Data
  */
 export async function syncBookingSocialUnlock(db: Firestore, bookingId: string): Promise<Data | null> {
   const bookingRef = db.collection(ARENA_BOOKINGS).doc(bookingId);
+  // Mensalidades do plano lidas antes: plano e data da reserva não mudam.
+  const first = (await bookingRef.get()).data() as Data | undefined;
+  if (!first) return null;
+  const planShare = bookingSchedulePlanId(first) ?
+    schedulePlanAppPaidShare(await readPlanMonthCharges(db, first)) :
+    null;
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(bookingRef);
     if (!snap.exists) return null;
     const booking = snap.data() as Data;
-    const patch = bookingSocialUnlockPatch(booking, bookingSocialUnlock(booking));
+    const direct = bookingSocialUnlock(booking);
+    const plan = planShare == null ? null : bookingSocialUnlockFromPlan(booking, planShare);
+    const computed = plan && plan.appPaidShare > direct.appPaidShare ? plan : direct;
+    const patch = bookingSocialUnlockPatch(booking, computed);
     if (patch) tx.update(bookingRef, patch);
     return patch;
   });
@@ -172,6 +244,76 @@ export async function recordArenaBookingAppPaymentReversal(
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
     logger.warn("arenaBooking: estorno sai do pago pelo app", {bookingId, paymentId, amountReais});
+    return true;
+  });
+}
+
+/** Campos da mensalidade que mudam a liberação das reservas do mês. */
+const CHARGE_INPUT_FIELDS = ["status", "paidVia", "amountReais", "appPaymentRefundedAt"] as const;
+
+export function scheduleChargeSocialInputsChanged(before: Data | undefined, after: Data | undefined): boolean {
+  if (!after) return before != null;
+  if (!before) return true;
+  return CHARGE_INPUT_FIELDS.some((f) => JSON.stringify(before[f] ?? null) !== JSON.stringify(after[f] ?? null));
+}
+
+/** Recalcula as reservas do plano no mês da mensalidade. Devolve quantas mudaram. */
+export async function syncSchedulePlanMonthBookings(db: Firestore, planId: string, month: string): Promise<number> {
+  if (!planId || !/^\d{4}-\d{2}$/.test(month)) return 0;
+  const snap = await db.collection(ARENA_BOOKINGS).where("scheduleSubscriptionId", "==", planId).get();
+  let changed = 0;
+  for (const doc of snap.docs) {
+    const date = str((doc.data() as Data)["date"]) || str((doc.data() as Data)["dateKey"]);
+    if (!date.startsWith(month)) continue;
+    if (await syncBookingSocialUnlock(db, doc.id)) changed++;
+  }
+  return changed;
+}
+
+/**
+ * Plano pago pelo app (mensalidade confirmada pelo Asaas, uma fatia do rateio, estorno): libera ou
+ * tira a liberação das reservas daquele mês sozinho.
+ */
+export const syncScheduleChargeSocialUnlock = onDocumentWritten(
+  {document: `${ARENA_SCHEDULE_CHARGES}/{chargeId}`},
+  async (event) => {
+    const before = event.data?.before.data() as Data | undefined;
+    const after = event.data?.after.data() as Data | undefined;
+    if (!scheduleChargeSocialInputsChanged(before, after)) return;
+    const charge = after ?? before ?? {};
+    const changed = await syncSchedulePlanMonthBookings(
+      getFirestore(),
+      str(charge["subscriptionId"]),
+      str(charge["period"]),
+    );
+    if (changed > 0) {
+      logger.info("plano de horário: liberação social recalculada", {chargeId: event.params.chargeId, changed});
+    }
+  },
+);
+
+/**
+ * Estorno de uma mensalidade de plano paga pelo app: marca `appPaymentRefundedAt` nela (idempotente).
+ * A mensalidade segue `paid` (o webhook do plano deixa o estorno para resolver à mão), mas deixa
+ * de contar para liberar as reservas do mês. Devolve se registrou.
+ */
+export async function recordSchedulePlanAppPaymentReversal(
+  db: Firestore,
+  paymentId: string,
+  externalReference: string,
+): Promise<boolean> {
+  const groupId = parseSchedulePaymentRef(externalReference.trim());
+  if (!paymentId || !groupId) return false;
+  const group = (await db.collection(ARENA_SCHEDULE_ASAAS_PAYMENTS).doc(groupId).get()).data() as Data | undefined;
+  const chargeId = str(group?.["chargeId"]);
+  if (!chargeId || chargeId.includes("/")) return false;
+  const chargeRef = db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId);
+  return db.runTransaction(async (tx) => {
+    const charge = (await tx.get(chargeRef)).data() as Data | undefined;
+    if (!charge || charge["asaasPaymentId"] !== paymentId || charge["paidVia"] !== "asaas") return false;
+    if (charge["appPaymentRefundedAt"] != null) return false;
+    tx.set(chargeRef, {appPaymentRefundedAt: FieldValue.serverTimestamp()}, {merge: true});
+    logger.warn("plano de horário: estorno sai do pago pelo app", {chargeId, paymentId});
     return true;
   });
 }

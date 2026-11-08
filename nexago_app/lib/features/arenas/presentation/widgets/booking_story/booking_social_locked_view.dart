@@ -87,9 +87,12 @@ class BookingSocialLockedView extends StatelessWidget {
                 if (isOwner) ...[
                   const SizedBox(height: 14),
                   Text(
-                    'Na próxima reserva, escolha "Pagar online — Pix ou '
-                    'cartão" (o sinal de 50% já libera). A liberação é '
-                    'automática assim que o pagamento confirma.',
+                    unlock.isPlan
+                        ? 'A liberação é automática assim que a mensalidade '
+                            'paga pelo app confirma.'
+                        : 'Na próxima reserva, escolha "Pagar online — Pix ou '
+                            'cartão" (o sinal de 50% já libera). A liberação é '
+                            'automática assim que o pagamento confirma.',
                     textAlign: TextAlign.center,
                     style: AppTypography.soraRegular(
                       fontSize: 12.5,

@@ -13,6 +13,7 @@ import '../domain/arena_booking_success_actions.dart';
 import '../domain/booking_result.dart';
 import '../domain/booking_result_record.dart';
 import '../domain/booking_result_record_providers.dart';
+import '../domain/booking_social_unlock.dart';
 import '../domain/booking_story_providers.dart';
 import '../domain/pelada.dart';
 import 'booking_result_page.dart';
@@ -83,6 +84,15 @@ class _PeladaDetailPageState extends ConsumerState<PeladaDetailPage> {
   /// "Editar placar" / "Revisar placar": abre o Editar placar com o salvo; ao
   /// salvar, todo mundo recebe para confirmar de novo.
   Future<void> _edit(SavedBookingResult saved) async {
+    // Editar grava de novo: pede a reserva liberada (a callable também recusa).
+    final unlock = ref.read(bookingSocialUnlockProvider(saved.bookingId));
+    if (unlock != null && !unlock.unlocked) {
+      showAppSnackBar(
+        context,
+        bookingSocialLockedMessage(unlock, isOwner: true),
+      );
+      return;
+    }
     final profile = ref.read(athleteProfileProvider).valueOrNull;
     final source = ref.read(bookingStorySourceProvider(saved.bookingId));
     final crew = bookingResultCrew(
@@ -154,6 +164,8 @@ class _PeladaDetailPageState extends ConsumerState<PeladaDetailPage> {
     final colors = context.themeColors;
     final uid = ref.watch(bookingResultUidProvider);
     final async = ref.watch(peladaProvider(widget.bookingId));
+    // Mantém a liberação da reserva escutada para o "Editar placar" ler na hora.
+    ref.watch(bookingSocialUnlockProvider(widget.bookingId));
     final saved = async.valueOrNull;
 
     return Scaffold(

@@ -6,6 +6,7 @@ import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record_providers.dart';
+import 'package:nexago_app/features/arenas/domain/booking_social_unlock.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story_providers.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_page.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_score_page.dart';
@@ -20,6 +21,11 @@ Future<FakeBookingResultRepository> abrir(
   WidgetTester tester, {
   required String uid,
   List<SavedBookingResult> salvos = const [],
+  BookingSocialUnlock? unlock = const BookingSocialUnlock(
+    unlocked: true,
+    appPaidReais: 120,
+    totalReais: 120,
+  ),
 }) async {
   final repo = FakeBookingResultRepository(salvos);
   tester.view.physicalSize = const Size(400, 1600);
@@ -32,6 +38,7 @@ Future<FakeBookingResultRepository> abrir(
         bookingResultUidProvider.overrideWithValue(uid),
         athleteProfileProvider.overrideWith((ref) => Stream.value(null)),
         bookingStorySourceProvider('b1').overrideWith((ref) => null),
+        bookingSocialUnlockProvider('b1').overrideWith((ref) => unlock),
       ],
       child: MaterialApp(
         theme: AppTheme.dark,
@@ -164,6 +171,34 @@ void main() {
     await tester.tap(find.byKey(const Key('pelada-review')));
     await tester.pumpAndSettle();
     expect(find.byType(BookingResultScorePage), findsOneWidget);
+  });
+
+  testWidgets(
+      'reserva sem metade paga pelo app: revisar o placar explica e não abre', (
+    tester,
+  ) async {
+    await abrir(
+      tester,
+      uid: 'u1',
+      unlock: const BookingSocialUnlock(
+        unlocked: false,
+        appPaidReais: 0,
+        totalReais: 120,
+      ),
+      salvos: [
+        savedResult(
+          status: BookingResultStatus.disputed,
+          disputedBy: 'u3',
+          disputeReason: 'Placar errado',
+        ),
+      ],
+    );
+
+    await tester.tap(find.byKey(const Key('pelada-review')));
+    await tester.pumpAndSettle();
+    expect(find.byType(BookingResultScorePage), findsNothing);
+    expect(find.textContaining('Pague pelo app pelo menos metade'),
+        findsOneWidget);
   });
 
   testWidgets('quem não jogou vê a confirmada sem reserva nem ação', (

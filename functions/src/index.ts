@@ -1059,6 +1059,7 @@ export {moderateStoreReview, onStoreOrderReviewWrittenSyncPublic, submitStoreOrd
 
 // Placar do pós-jogo do aluguel: o dono salva, os adversários com conta confirmam ou contestam.
 export {respondBookingResult, saveBookingResult, sweepBookingResults} from "./booking-result-write";
+export {syncArenaBookingAppPayment} from "./booking-app-payment";
 
 // Prévia de link (OG/Twitter Card) das rotas dinâmicas do site público — a SPA Angular não
 // tem SSR, então bots de rede social são redirecionados aqui pelo .htaccess (por User-Agent).

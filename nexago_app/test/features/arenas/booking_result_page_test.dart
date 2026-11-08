@@ -7,6 +7,7 @@ import 'package:nexago_app/features/arenas/domain/booking_result.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record_providers.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story.dart';
+import 'package:nexago_app/features/arenas/domain/booking_social_unlock.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story_providers.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_confirmed_athlete.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_page.dart';
@@ -46,6 +47,12 @@ const galera = BookingStorySource(
   ],
 );
 
+const liberada = BookingSocialUnlock(
+  unlocked: true,
+  appPaidReais: 120,
+  totalReais: 120,
+);
+
 Finder rich(String text) => find.textContaining(text, findRichText: true);
 
 Finder inCard(Finder f) =>
@@ -60,6 +67,7 @@ Future<FakeBookingResultRepository> abrir(
   List<ResultPlayer> busca = const [],
   List<SavedBookingResult> salvos = const [],
   String uid = 'u1',
+  BookingSocialUnlock? unlock = liberada,
 }) async {
   final repo = FakeBookingResultRepository(salvos);
   tester.view.physicalSize = const Size(400, 1400);
@@ -71,6 +79,7 @@ Future<FakeBookingResultRepository> abrir(
       overrides: [
         athleteProfileProvider.overrideWith((ref) => Stream.value(maria)),
         bookingStorySourceProvider('b1').overrideWith((ref) => source),
+        bookingSocialUnlockProvider('b1').overrideWith((ref) => unlock),
         bookingResultPlayerSearchProvider.overrideWith(
           (ref, query) async => busca,
         ),
@@ -94,6 +103,42 @@ Future<void> navegar(WidgetTester tester) => tester.pumpAndSettle();
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('pt_BR');
+  });
+
+  group('reserva sem metade paga pelo app', () {
+    const naArena = BookingSocialUnlock(
+      unlocked: false,
+      appPaidReais: 0,
+      totalReais: 120,
+    );
+
+    testWidgets('dono vê como liberar, sem editor nem arte', (tester) async {
+      await abrir(tester, unlock: naArena);
+
+      expect(find.byKey(const Key('booking-social-locked')), findsOneWidget);
+      expect(
+          find.text('Pague pelo app para registrar o placar'), findsOneWidget);
+      expect(
+        find.textContaining(RegExp(r'0,00 de R\$.120,00 foram pagos pelo app')),
+        findsOneWidget,
+      );
+      expect(find.byType(BookingResultCard), findsNothing);
+      expect(find.byKey(const Key('booking-result-edit')), findsNothing);
+    });
+
+    testWidgets('convidado sabe que depende de quem reservou', (tester) async {
+      await abrir(tester, unlock: naArena, uid: 'u2');
+
+      expect(find.text('Resultado ainda não liberado'), findsOneWidget);
+      expect(find.textContaining('quem reservou paga'), findsOneWidget);
+    });
+
+    testWidgets('carregando a reserva não mostra o editor', (tester) async {
+      await abrir(tester, unlock: null);
+
+      expect(find.byType(BookingResultCard), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
   });
 
   testWidgets('abre com a galera da reserva dividida em duas duplas', (

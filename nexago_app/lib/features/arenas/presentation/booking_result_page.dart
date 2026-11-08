@@ -9,11 +9,13 @@ import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/booking_result.dart';
 import '../domain/booking_result_record.dart';
 import '../domain/booking_result_record_providers.dart';
+import '../domain/booking_social_unlock.dart';
 import '../domain/booking_story.dart';
 import '../domain/booking_story_providers.dart';
 import 'pelada_detail_page.dart';
 import 'booking_result_score_page.dart';
 import 'widgets/booking_story/booking_result_card.dart';
+import 'widgets/booking_story/booking_social_locked_view.dart';
 import 'widgets/booking_story/booking_story_editor.dart';
 
 /// Abre o pós-jogo por cima de tudo (fora do shell com a barra).
@@ -106,6 +108,24 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
       confirmed: source?.confirmed ?? const [],
     );
     final uid = ref.watch(bookingResultUidProvider);
+    // Placar, story e arte do resultado pedem metade da reserva paga pelo app
+    // (a callable recusa o placar do mesmo jeito). Ao vivo: o doc da reserva
+    // muda quando o pagamento confirma e a tela troca sozinha.
+    final unlock = ref.watch(bookingSocialUnlockProvider(args.bookingId));
+    if (unlock == null) {
+      return Scaffold(
+        backgroundColor: context.themeColors.canvas,
+        body: const Center(
+          child: CircularProgressIndicator(color: AppColors.brand),
+        ),
+      );
+    }
+    if (!unlock.unlocked) {
+      return BookingSocialLockedView(
+        unlock: unlock,
+        isOwner: source?.ownerUid == null || source!.ownerUid == uid,
+      );
+    }
     // Convidado também abre o pós-jogo pela Agenda; sem o doc da reserva
     // (carregando, sem acesso) a callable decide.
     final canSave = args.bookingId.trim().isNotEmpty &&
@@ -364,10 +384,7 @@ class BookingResultStatusBadge extends StatelessWidget {
           Icons.report_gmailerrorred_rounded,
           colors.live
         ),
-      BookingResultStatus.pending => (
-          Icons.schedule_rounded,
-          colors.pending
-        ),
+      BookingResultStatus.pending => (Icons.schedule_rounded, colors.pending),
     };
     return Row(
       key: Key('booking-result-status-${saved.status.name}'),

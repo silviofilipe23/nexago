@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import { IconComponent } from '../ui/icon.component';
 import { KpiCardComponent } from '../ui/kpi-card.component';
@@ -7,29 +8,25 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
-import { StatusDotComponent, type StatusTone } from '../ui/status-dot.component';
+import { DashboardRepository, type DashboardData } from './data/dashboard.repository';
 
 interface PendingItem {
-  icon: 'arena' | 'cash' | 'flag' | 'mail';
+  icon: 'arena' | 'cash' | 'users';
   label: string;
   meta: string;
   count: string;
   tone: PillTone;
+  link: string;
+  query?: Record<string, string>;
 }
 
-interface SystemStatusItem {
-  name: string;
-  state: string;
-  tone: StatusTone;
-  uptime: string;
+interface BaseLine {
+  label: string;
+  value: number;
+  hint: string;
 }
 
-interface ActivityItem {
-  initials: string;
-  sys: boolean;
-  text: string;
-  time: string;
-}
+const MONTH_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 function greetingFor(hour: number): string {
   if (hour < 12) {
@@ -41,32 +38,33 @@ function greetingFor(hour: number): string {
   return 'Boa noite';
 }
 
-/** Home do painel (protótipo BoHomeScreen): KPIs, crescimento, pendências, status e atividade. */
+const int = new Intl.NumberFormat('pt-BR');
+const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+/**
+ * Home do painel com os números reais da plataforma: atletas ativos (cadastro completo + já
+ * entrou), arenas, torneios, base de atletas e o que está pendente de ação.
+ */
 @Component({
   selector: 'bo-panel-home',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    RouterLink,
     PanelShellComponent,
     PageHeaderComponent,
     PanelCardComponent,
     KpiCardComponent,
     LineChartComponent,
     PillComponent,
-    StatusDotComponent,
     IconComponent,
   ],
   template: `
     <bo-panel-shell>
       <bo-page-header [title]="greetingTitle()" [subtitle]="todayLabel()">
         <div class="header-actions">
-          <div class="bo-search-box">
-            <bo-icon name="search" [size]="15" />
-            <span>Buscar…</span>
-            <span class="kbd">⌘K</span>
-          </div>
-          <button type="button" class="bo-bell-btn" aria-label="Notificações">
-            <bo-icon name="bell" [size]="17" />
-            <span class="dot" aria-hidden="true"></span>
+          <button type="button" class="bo-mini-btn" [disabled]="loading()" (click)="reload()">
+            <bo-icon name="swap" [size]="13" />
+            {{ loading() ? 'Atualizando…' : 'Atualizar' }}
           </button>
           <div class="bo-avatar" style="width: 38px; height: 38px; font-size: 13px;" aria-hidden="true">
             {{ initials() }}
@@ -76,32 +74,52 @@ function greetingFor(hour: number): string {
 
       <div class="body">
         <div class="kpi-row">
-          <bo-kpi-card label="Atletas ativos" value="12.482" delta="8,4%" />
-          <bo-kpi-card label="Arenas na base" value="317" delta="4,1%" />
-          <bo-kpi-card label="Torneios ativos" value="58" delta="12,0%" />
-          <bo-kpi-card label="Receita · Jul" value="R$ 214k" delta="2,3%" deltaTone="red" />
+          <bo-kpi-card
+            label="Atletas ativos"
+            [value]="fmt(data()?.athletes?.active)"
+            [delta]="athleteDelta().text"
+            [deltaTone]="athleteDelta().tone"
+            note="cadastro completo + já entrou"
+          />
+          <bo-kpi-card label="Arenas cadastradas" [value]="fmt(data()?.arenas?.registered)" [note]="arenaNote()" />
+          <bo-kpi-card label="Torneios" [value]="fmt(data()?.tournaments?.total)" [note]="tournamentNote()" />
+          <bo-kpi-card
+            label="Ativos · últimos 30 dias"
+            [value]="fmt(data()?.athletes?.activeSeenLast30d)"
+            note="abriram o app ou o portal"
+          />
         </div>
+
+        @if (failedSources().length > 0 && !loading()) {
+          <div class="bo-alert">
+            <bo-icon name="alert" [size]="16" />
+            <span>Não foi possível ler: {{ failedSources().join(', ') }}. Os cards com “—” não têm número.</span>
+          </div>
+        }
 
         <div class="main-grid">
           <div class="col-left">
-            <bo-panel-card kicker="Últimos 12 meses" title="Crescimento de atletas" class="chart-card">
-              <div class="bo-chart-tabs" card-actions>
-                <button type="button" class="active">Atletas</button>
-                <button type="button">Reservas</button>
-                <button type="button">Receita</button>
-              </div>
-              <bo-line-chart [height]="126" [data]="growthData" [months]="growthMonths" ariaLabel="Crescimento de atletas nos últimos 12 meses" />
+            <bo-panel-card kicker="Últimos 12 meses · pela data do cadastro" title="Crescimento de atletas ativos" class="chart-card">
+              @if (growth(); as g) {
+                <bo-line-chart [height]="126" [data]="g.data" [months]="g.months" ariaLabel="Atletas ativos acumulados nos últimos 12 meses" />
+              } @else {
+                <p class="status">{{ loading() ? 'Carregando…' : 'Sem dados de atletas.' }}</p>
+              }
             </bo-panel-card>
 
-            <bo-panel-card title="Atividade recente" class="activity-card">
-              <button type="button" class="bo-ghost-btn" card-actions>Ver tudo</button>
+            <bo-panel-card title="Base de atletas" kicker="contas de atleta">
+              <a class="bo-ghost-btn" routerLink="/painel/atletas" card-actions>Ver a base</a>
               <div class="list">
-                @for (item of activity; track item.time) {
-                  <div class="bo-row activity-row">
-                    <div class="bo-activity-avatar" [class.sys]="item.sys" aria-hidden="true">{{ item.initials }}</div>
-                    <div class="bo-log-text" [innerHTML]="item.text"></div>
-                    <span class="bo-log-time">{{ item.time }}</span>
+                @for (line of baseLines(); track line.label) {
+                  <div class="bo-row">
+                    <div class="bo-row-body">
+                      <div class="bo-row-title">{{ line.label }}</div>
+                      <div class="bo-row-meta">{{ line.hint }}</div>
+                    </div>
+                    <span class="num">{{ fmt(line.value) }}</span>
                   </div>
+                } @empty {
+                  <p class="status">{{ loading() ? 'Carregando…' : 'Sem dados de atletas.' }}</p>
                 }
               </div>
             </bo-panel-card>
@@ -109,10 +127,9 @@ function greetingFor(hour: number): string {
 
           <div class="col-right">
             <bo-panel-card pad="sm" title="Pendente de ação">
-              <bo-pill tone="orange" card-actions>{{ totalPending() }}</bo-pill>
               <div class="list">
-                @for (item of pending; track item.label) {
-                  <div class="bo-row">
+                @for (item of pending(); track item.label) {
+                  <a class="bo-row link-row" [routerLink]="item.link" [queryParams]="item.query">
                     <div class="bo-row-icon">
                       <bo-icon [name]="item.icon" [size]="16" />
                     </div>
@@ -122,34 +139,17 @@ function greetingFor(hour: number): string {
                     </div>
                     <bo-pill [tone]="item.tone">{{ item.count }}</bo-pill>
                     <bo-icon name="chevron-right" [size]="14" />
-                  </div>
-                }
-              </div>
-            </bo-panel-card>
-
-            <bo-panel-card pad="sm" title="Status do sistema">
-              <span class="status-summary" card-actions>
-                <bo-status-dot tone="yellow" [size]="7" />
-                Degradado
-              </span>
-              <div class="list">
-                @for (item of systemStatus; track item.name) {
-                  <div class="bo-status-row">
-                    <bo-status-dot [tone]="item.tone" />
-                    <span class="name">{{ item.name }}</span>
-                    <span class="state" [class.warn]="item.tone !== 'green'">{{ item.state }}</span>
-                    <span class="uptime">{{ item.uptime }}</span>
-                  </div>
+                  </a>
                 }
               </div>
             </bo-panel-card>
 
             <bo-panel-card pad="sm" title="Atalhos" class="shortcuts-card">
               <div class="shortcuts-grid">
-                <div class="bo-shortcut"><bo-icon name="plus" [size]="16" /><span>Nova arena</span></div>
-                <div class="bo-shortcut"><bo-icon name="trophy" [size]="16" /><span>Criar torneio</span></div>
-                <div class="bo-shortcut"><bo-icon name="mail" [size]="16" /><span>Convidar admin</span></div>
-                <div class="bo-shortcut"><bo-icon name="download" [size]="16" /><span>Exportar</span></div>
+                <a class="bo-shortcut" routerLink="/painel/arenas/pre-cadastro"><bo-icon name="plus" [size]="16" /><span>Pré-cadastro de arena</span></a>
+                <a class="bo-shortcut" routerLink="/painel/torneios"><bo-icon name="trophy" [size]="16" /><span>Torneios</span></a>
+                <a class="bo-shortcut" routerLink="/painel/atletas"><bo-icon name="users" [size]="16" /><span>Atletas</span></a>
+                <a class="bo-shortcut" routerLink="/painel/financeiro"><bo-icon name="cash" [size]="16" /><span>Financeiro</span></a>
               </div>
             </bo-panel-card>
           </div>
@@ -158,111 +158,139 @@ function greetingFor(hour: number): string {
     </bo-panel-shell>
   `,
   styles: `
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .body {
-      flex: 1;
-      padding: 22px 32px 28px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      overflow: auto;
-    }
-
-    .kpi-row {
-      display: flex;
-      gap: 16px;
-      flex: none;
-    }
-
-    .main-grid {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 372px;
-      gap: 16px;
-      min-height: 0;
-      align-items: start;
-    }
-
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    .body { flex: 1; padding: 22px 32px 28px; display: flex; flex-direction: column; gap: 16px; overflow: auto; }
+    .kpi-row { display: flex; gap: 16px; flex: none; }
+    .main-grid { flex: 1; display: grid; grid-template-columns: 1fr 372px; gap: 16px; min-height: 0; align-items: start; }
     .col-left,
-    .col-right {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      min-width: 0;
-    }
-
-    .list {
-      display: flex;
-      flex-direction: column;
-      margin-top: -6px;
-    }
-
-    .status-summary {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      font-family: var(--nx-font-mono);
-      font-size: 9.5px;
-      font-weight: 600;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--nx-pending);
-    }
-
-    .shortcuts-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-
-    @media (max-width: 1180px) {
-      .main-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 720px) {
-      .kpi-row {
-        flex-wrap: wrap;
-      }
-    }
+    .col-right { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    .list { display: flex; flex-direction: column; margin-top: -6px; }
+    .status { margin: 8px 0; font-size: 12.5px; color: var(--nx-text-dim); }
+    .num { font-family: var(--nx-font-mono); font-size: 14px; font-weight: 600; color: var(--nx-text); }
+    a.bo-ghost-btn,
+    a.bo-shortcut,
+    .link-row { text-decoration: none; color: inherit; }
+    .link-row { cursor: pointer; }
+    .link-row:hover .bo-row-title { color: var(--nx-orange-500); }
+    .shortcuts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 1180px) { .main-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 720px) { .kpi-row { flex-wrap: wrap; } .body { padding: 16px; } }
   `,
 })
 export class PanelHomeComponent {
   private readonly auth = inject(AuthService);
+  private readonly repository = inject(DashboardRepository);
 
-  protected readonly growthData = [4200, 4650, 5100, 5480, 6120, 6900, 7350, 8200, 9100, 10300, 11500, 12482];
-  protected readonly growthMonths = ['Ago', 'Set', 'Out', 'Nov', 'Dez', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul'];
+  protected readonly data = signal<DashboardData | null>(null);
+  protected readonly loading = signal(true);
 
-  protected readonly pending: PendingItem[] = [
-    { icon: 'arena', label: 'Arenas aguardando aprovação', meta: 'mais antiga há 2 dias', count: '4', tone: 'orange' },
-    { icon: 'cash', label: 'Saques pra revisar', meta: 'R$ 12.400 no total', count: '7', tone: 'orange' },
-    { icon: 'flag', label: 'Denúncias abertas', meta: '1 marcada urgente', count: '3', tone: 'red' },
-    { icon: 'mail', label: 'Convites de equipe pendentes', meta: 'expiram em 5 dias', count: '2', tone: 'dim' },
-  ];
+  constructor() {
+    void this.reload();
+  }
 
-  protected readonly systemStatus: SystemStatusItem[] = [
-    { name: 'API core', state: 'Operacional', tone: 'green', uptime: '99,98%' },
-    { name: 'App mobile', state: 'Operacional', tone: 'green', uptime: '99,95%' },
-    { name: 'Pagamentos', state: 'Lentidão no PSP', tone: 'yellow', uptime: '98,71%' },
-    { name: 'Notificações', state: 'Operacional', tone: 'green', uptime: '99,99%' },
-  ];
+  protected async reload(): Promise<void> {
+    this.loading.set(true);
+    try {
+      this.data.set(await this.repository.load());
+    } finally {
+      this.loading.set(false);
+    }
+  }
 
-  protected readonly activity: ActivityItem[] = [
-    { initials: 'RM', sys: false, text: '<strong>Rafa Martins</strong> aprovou a arena <strong>Society 10</strong> · Recife', time: '14:32' },
-    { initials: 'SYS', sys: true, text: 'Repasse de <strong>R$ 8.940</strong> processado pra 12 arenas', time: '13:05' },
-    { initials: 'CN', sys: false, text: '<strong>Carla Nunes</strong> suspendeu o atleta <strong>&#64;pedrao.beach</strong> por denúncia', time: '11:48' },
-    { initials: 'SYS', sys: true, text: 'Novo torneio publicado: <strong>Copa Verão</strong> — Arena Ipanema', time: '10:22' },
-  ];
+  protected fmt(value: number | null | undefined): string {
+    return value == null ? '—' : int.format(value);
+  }
 
-  protected readonly totalPending = computed(() =>
-    this.pending.reduce((sum, item) => sum + Number(item.count), 0),
-  );
+  protected readonly failedSources = computed(() => {
+    const d = this.data();
+    if (!d) return [];
+    const out: string[] = [];
+    if (!d.athletes) out.push('atletas');
+    if (!d.arenas) out.push('arenas');
+    if (!d.tournaments) out.push('torneios');
+    if (!d.pendingWithdrawals) out.push('saques');
+    return out;
+  });
+
+  /** Variação real: ativos ao fim deste mês vs ao fim do anterior (pela data do cadastro). */
+  protected readonly athleteDelta = computed<{ text: string; tone: 'green' | 'red' }>(() => {
+    const months = this.data()?.athletes?.activeByMonth ?? [];
+    const cur = months[months.length - 1]?.count;
+    const prev = months[months.length - 2]?.count;
+    if (cur == null || prev == null || prev === 0) return { text: '', tone: 'green' };
+    const pct = ((cur - prev) / prev) * 100;
+    return {
+      text: `${pct.toFixed(1).replace('.', ',')}%`,
+      tone: pct < 0 ? 'red' : 'green',
+    };
+  });
+
+  protected readonly arenaNote = computed(() => {
+    const a = this.data()?.arenas;
+    return a ? `+${int.format(a.preRegistered)} em pré-cadastro · ${int.format(a.total)} na base` : '';
+  });
+
+  protected readonly tournamentNote = computed(() => {
+    const t = this.data()?.tournaments;
+    return t ? `${int.format(t.active)} ativos · ${int.format(t.completed)} concluídos` : '';
+  });
+
+  protected readonly growth = computed(() => {
+    const months = this.data()?.athletes?.activeByMonth ?? [];
+    if (months.length === 0) return null;
+    return {
+      data: months.map((m) => m.count),
+      months: months.map((m) => MONTH_SHORT[Number(m.month.slice(5, 7)) - 1] ?? m.month),
+    };
+  });
+
+  protected readonly baseLines = computed<BaseLine[]>(() => {
+    const s = this.data()?.athletes;
+    if (!s) return [];
+    return [
+      { label: 'Contas na plataforma', value: s.accounts, hint: 'todas as contas do login, inclusive equipe e organizadores' },
+      { label: 'Contas de atleta', value: s.athletes, hint: 'papel atleta (ou sem papel)' },
+      { label: 'Ativos', value: s.active, hint: 'cadastro completo e já entraram' },
+      { label: 'Cadastro incompleto', value: s.incomplete, hint: 'entraram mas não concluíram o cadastro' },
+      { label: 'Nunca entraram', value: s.neverSignedIn, hint: 'conta criada sem nenhum login' },
+      { label: 'Marcadas inativas', value: s.inactive, hint: 'marcação manual do backoffice' },
+      { label: 'Desativadas', value: s.disabled, hint: 'login bloqueado no Firebase Auth' },
+    ];
+  });
+
+  protected readonly pending = computed<PendingItem[]>(() => {
+    const d = this.data();
+    const w = d?.pendingWithdrawals;
+    const s = d?.athletes;
+    const a = d?.arenas;
+    return [
+      {
+        icon: 'cash',
+        label: 'Saques pra revisar',
+        meta: w ? (w.count > 0 ? `${brl.format(w.totalReais)} no total` : 'nenhum na fila') : 'não foi possível ler',
+        count: w ? String(w.count) : '—',
+        tone: w && w.count > 0 ? 'orange' : 'dim',
+        link: '/painel/financeiro',
+      },
+      {
+        icon: 'users',
+        label: 'Cadastros incompletos',
+        meta: 'atletas que ainda não são usuários de fato',
+        count: s ? String(s.incomplete + s.neverSignedIn) : '—',
+        tone: s && s.incomplete + s.neverSignedIn > 0 ? 'yellow' : 'dim',
+        link: '/painel/atletas',
+        query: { situacao: 'incomplete' },
+      },
+      {
+        icon: 'arena',
+        label: 'Arenas em pré-cadastro',
+        meta: 'prospecção do comercial — status na tela de Arenas',
+        count: a ? String(a.preRegistered) : '—',
+        tone: 'dim',
+        link: '/painel/arenas',
+      },
+    ];
+  });
 
   protected readonly greetingTitle = computed(() => {
     const source = this.auth.displayName() || this.auth.user()?.email || '';

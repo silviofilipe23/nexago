@@ -1,17 +1,16 @@
 import { Injectable } from '@angular/core';
 import {
+  Timestamp,
   collection,
-  endAt,
+  doc,
   getDocs,
-  limit,
-  orderBy,
-  query,
-  startAfter,
-  startAt,
+  serverTimestamp,
+  setDoc,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { backofficeDb } from '../../data/firebase';
+import { isCrmStatus, type ArenaCrmEntry, type ArenaCrmStatus } from './arena-crm';
 
 export type ArenaPlanTier = 'starter' | 'pro' | 'elite';
 
@@ -27,16 +26,10 @@ export interface ArenaRow {
   reviewsCount: number;
   onlinePaymentEnabled: boolean;
   managerUserId: string | null;
+  /** Pré-cadastro do comercial: a arena ainda não tem conta na plataforma. */
+  unclaimed: boolean;
 }
 
-export interface ArenaPage {
-  rows: ArenaRow[];
-  /** Último doc da página, usado como cursor do "carregar mais". */
-  cursor: QueryDocumentSnapshot<DocumentData> | null;
-  hasMore: boolean;
-}
-
-const PAGE_SIZE = 40;
 const TIERS: readonly ArenaPlanTier[] = ['starter', 'pro', 'elite'];
 
 function str(value: unknown): string | null {
@@ -52,13 +45,13 @@ function planTier(value: unknown): ArenaPlanTier | null {
   return raw && (TIERS as readonly string[]).includes(raw) ? (raw as ArenaPlanTier) : null;
 }
 
-function toRow(doc: QueryDocumentSnapshot<DocumentData>): ArenaRow {
-  const data = doc.data();
+function toRow(snap: QueryDocumentSnapshot<DocumentData>): ArenaRow {
+  const data = snap.data();
   const city = str(data['city']);
   const state = str(data['state']);
   return {
-    id: doc.id,
-    name: str(data['name']) ?? `Arena ${doc.id}`,
+    id: snap.id,
+    name: str(data['name']) ?? `Arena ${snap.id}`,
     city: city && state ? `${city} · ${state}` : (city ?? state),
     planTier: planTier(data['planTier']),
     planStatus: str(data['planStatus']),
@@ -67,36 +60,61 @@ function toRow(doc: QueryDocumentSnapshot<DocumentData>): ArenaRow {
     reviewsCount: num(data['reviewsCount']),
     onlinePaymentEnabled: data['onlinePaymentEnabled'] === true,
     managerUserId: str(data['managerUserId']),
+    unclaimed: data['unclaimed'] === true,
+  };
+}
+
+function toCrm(snap: QueryDocumentSnapshot<DocumentData>): ArenaCrmEntry | null {
+  const data = snap.data();
+  if (!isCrmStatus(data['status'])) {
+    return null;
+  }
+  const at = data['updatedAt'];
+  return {
+    status: data['status'],
+    note: str(data['note']),
+    updatedAtMs: at instanceof Timestamp ? at.toMillis() : null,
+    updatedByName: str(data['updatedByName']),
   };
 }
 
 /**
- * Arenas cadastradas. Leitura direta do Firestore — `arenas` é público nas
- * rules e o doc não tem campo de aprovação/suspensão, então a tela só mostra o
- * que existe de fato (plano, quadras, avaliação, pagamento online).
+ * Arenas da base — cadastradas e pré-cadastro. Leitura direta do Firestore (`arenas` é público
+ * nas rules) e de uma vez só: são dezenas de docs, então a tela mostra o total real e filtra no
+ * cliente, sem "Carregar mais". Ordenação por nome no cliente para não exigir índice.
+ *
+ * O status comercial vive em `arenaCrm/{arenaId}` (só a equipe da plataforma lê/grava), fora do
+ * doc público da arena.
  */
 @Injectable({ providedIn: 'root' })
 export class ArenasRepository {
-  /**
-   * Página ordenada por nome. Com `term`, faz busca por **prefixo do nome**
-   * (é o que dá para fazer sem índice novo — não há campo de keywords em arenas).
-   */
-  async listArenas(term: string, cursor: QueryDocumentSnapshot<DocumentData> | null): Promise<ArenaPage> {
-    const arenas = collection(backofficeDb(), 'arenas');
-    const trimmed = term.trim();
+  async listAll(): Promise<ArenaRow[]> {
+    const snap = await getDocs(collection(backofficeDb(), 'arenas'));
+    return snap.docs.map(toRow).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }
 
-    // \uf8ff é o último caractere da faixa de uso privado: fecha o intervalo do prefixo.
-    const constraints = trimmed
-      ? [orderBy('name'), startAt(trimmed), endAt(`${trimmed}\uf8ff`), limit(PAGE_SIZE)]
-      : cursor
-        ? [orderBy('name'), startAfter(cursor), limit(PAGE_SIZE)]
-        : [orderBy('name'), limit(PAGE_SIZE)];
+  async crmEntries(): Promise<Map<string, ArenaCrmEntry>> {
+    const snap = await getDocs(collection(backofficeDb(), 'arenaCrm'));
+    const out = new Map<string, ArenaCrmEntry>();
+    for (const d of snap.docs) {
+      const entry = toCrm(d);
+      if (entry) out.set(d.id, entry);
+    }
+    return out;
+  }
 
-    const snap = await getDocs(query(arenas, ...constraints));
-    return {
-      rows: snap.docs.map(toRow),
-      cursor: snap.docs.length > 0 ? (snap.docs[snap.docs.length - 1] ?? null) : null,
-      hasMore: !trimmed && snap.docs.length === PAGE_SIZE,
-    };
+  async setCrmStatus(
+    arenaId: string,
+    status: ArenaCrmStatus,
+    note: string | null,
+    actor: { uid: string; name: string },
+  ): Promise<void> {
+    await setDoc(doc(backofficeDb(), 'arenaCrm', arenaId), {
+      status,
+      note: note?.trim() ? note.trim().slice(0, 500) : null,
+      updatedAt: serverTimestamp(),
+      updatedBy: actor.uid,
+      updatedByName: actor.name.slice(0, 120),
+    });
   }
 }

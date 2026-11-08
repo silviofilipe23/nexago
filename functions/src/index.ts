@@ -879,6 +879,8 @@ export {
   deletePlatformCost,
 } from "./backoffice-finance";
 export {getCompanyFinance} from "./backoffice-company-finance";
+// Backoffice — base de atletas: números reais (ativos = cadastro completo + já entrou) e marca de inativa.
+export {getBackofficeAthleteBase, setAthleteInactive} from "./backoffice-athlete-base";
 // Backoffice — Centros de Treinamento (ativar/suspender, recebimento, assinatura).
 export {
   approveTrainingCenterReceiving,

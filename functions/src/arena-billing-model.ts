@@ -2,7 +2,8 @@
  * Modelo comercial das arenas para depois do período gratuito de implantação (2027).
  *
  * Regra do dono (08/11/2026):
- *  - existe um mínimo de reservas pagas pela NexaGO (app ou site) por mês;
+ *  - existe um mínimo de reservas pagas pela NexaGO (app ou site) por mês — só conta reserva com
+ *    pagamento confirmado pelo app (`arena-booking-app-payment.ts`);
  *  - abaixo dele, a arena paga uma mensalidade;
  *  - a NexaGO fica com uma comissão sobre os pagamentos feitos pela plataforma;
  *  - quanto mais reservas pagas, menor a comissão.
@@ -13,10 +14,11 @@
  * (`arenaBillingConfig/model`, só pela callable `saveArenaBillingModel`) e versionados.
  *
  * Este arquivo é só a regra pura: validação, normalização, cálculo do mês de uma arena e o
- * resumo do extrato da carteira. Nada aqui cobra ninguém — a cobrança automática (Asaas) fica
+ * resumo do mês (reservas + extrato da carteira). Nada aqui cobra ninguém — a cobrança automática (Asaas) fica
  * para uma etapa futura. Espelho no backoffice: `painel/arenas/modelo-comercial/data/billing-model.ts`.
  */
 import {dateOf, monthKeyOf, isMonthKey, shiftMonth} from "./company-finance";
+import {arenaBookingAppPayment} from "./arena-booking-app-payment";
 
 export const ARENA_BILLING_CONFIG = "arenaBillingConfig";
 export const ARENA_BILLING_MODEL_DOC = "model";
@@ -168,9 +170,9 @@ export function arenaBillingModelChanges(prev: ArenaBillingModel, next: ArenaBil
 
 /** O que a arena movimentou pela plataforma num mês (vem do extrato da carteira). */
 export interface ArenaMonthActivity {
-  /** Reservas avulsas distintas pagas pela plataforma (rateio entre jogadores conta 1). */
+  /** Reservas do mês com pagamento confirmado pelo app (rateio entre jogadores conta 1). */
   paidBookings: number;
-  /** Valor bruto pago nas reservas avulsas (centavos). */
+  /** Quanto o app recebeu nessas reservas (centavos). */
   bookingVolumeCents: number;
   /** Valor bruto pago nos planos de horário (centavos). Entra na comissão, não na contagem. */
   schedulePlanVolumeCents: number;
@@ -270,7 +272,7 @@ export function computeArenaMonthBilling(
   };
 }
 
-// ── extrato da carteira → atividade do mês ──────────────────────────────────
+// ── reservas + extrato → atividade do mês ───────────────────────────────────
 
 function reaisToCents(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? Math.round(v * 100) : 0;
@@ -281,55 +283,60 @@ function text(v: unknown): string | null {
 }
 
 /**
- * Soma as linhas de `arenaWallets/{id}/ledger` de um mês (pelo `createdAt`, mês civil de SP).
- * Conta só aluguel de quadra pago pela plataforma:
- *  - crédito sem `source` = reserva avulsa (conta 1 por `bookingId`, mesmo com rateio);
- *  - `source: "schedule_plan"` = plano de horário (entra no valor, não na contagem);
- *  - estorno sem `source` desconta o valor (a contagem fica: a reserva foi paga).
- * Aulas, clubinho e repasses a professor ficam fora — têm regra própria.
+ * Atividade de uma arena num mês.
+ *
+ * Faixas (regra do dono, 08/11/2026): **só reserva com pagamento confirmado pelo app conta**. A
+ * contagem e o valor vêm das reservas do mês (`date` do jogo) que passam em
+ * `isArenaBookingPaidByApp` — presencial, pendente, cancelada, expirada ou estornada fica fora.
+ * Sinal de 50% pago pelo app conta como reserva paga; o valor é só o que o app recebeu.
+ *
+ * Do extrato da carteira (`arenaWallets/{id}/ledger`) vêm:
+ *  - planos de horário (`source: "schedule_plan"`, pelo `createdAt` no mês): entram na base da
+ *    comissão, não na contagem;
+ *  - a taxa que o modelo de hoje já cobrou nessas mesmas reservas e planos (comparação).
+ * Aulas e clubinho ficam fora — têm regra própria.
+ *
+ * `bookings` traz o id do doc em `id`.
  */
-export function summarizeArenaLedger(lines: readonly Raw[], month: string): ArenaMonthActivity {
-  const bookings = new Set<string>();
+export function summarizeArenaMonth(
+  bookings: readonly Raw[],
+  ledger: readonly Raw[],
+  month: string,
+): ArenaMonthActivity {
+  const counted = new Set<string>();
   let bookingVolumeCents = 0;
+  for (const b of bookings) {
+    const date = text(b["date"]);
+    if (!date || date.slice(0, 7) !== month) continue;
+    const {confirmedReais} = arenaBookingAppPayment(b);
+    if (confirmedReais <= 0) continue;
+    const id = text(b["id"]) ?? `#${counted.size}`;
+    if (counted.has(id)) continue;
+    counted.add(id);
+    bookingVolumeCents += Math.round(confirmedReais * 100);
+  }
+
   let schedulePlanVolumeCents = 0;
   let currentFeeCents = 0;
-  let anonymous = 0;
-
-  for (const raw of lines) {
-    const date = dateOf(raw["createdAt"]);
-    if (!date || monthKeyOf(date) !== month) continue;
+  for (const raw of ledger) {
     const type = raw["type"];
     const source = text(raw["source"]);
-    const gross = reaisToCents(raw["grossReais"]);
     const fee = reaisToCents(raw["platformFeeReais"]);
-
-    if (type === "credit" && source === null) {
+    if (source === null && (type === "credit" || type === "refund")) {
       const id = text(raw["bookingId"]);
-      if (id) bookings.add(id);
-      else anonymous++;
-      bookingVolumeCents += gross;
-      currentFeeCents += fee;
+      if (id && counted.has(id)) currentFeeCents += fee;
     } else if (type === "credit" && source === "schedule_plan") {
-      schedulePlanVolumeCents += gross;
-      currentFeeCents += fee;
-    } else if (type === "refund" && source === null) {
-      bookingVolumeCents += gross; // estorno grava bruto negativo
+      const date = dateOf(raw["createdAt"]);
+      if (!date || monthKeyOf(date) !== month) continue;
+      schedulePlanVolumeCents += reaisToCents(raw["grossReais"]);
       currentFeeCents += fee;
     }
   }
 
   return {
-    paidBookings: bookings.size + anonymous,
-    bookingVolumeCents: Math.max(0, bookingVolumeCents),
+    paidBookings: counted.size,
+    bookingVolumeCents,
     schedulePlanVolumeCents: Math.max(0, schedulePlanVolumeCents),
     currentFeeCents: Math.max(0, currentFeeCents),
-  };
-}
-
-/** Janela `[início, fim)` do mês civil de São Paulo (sem horário de verão desde 2019). */
-export function monthBounds(month: string): {start: Date; end: Date} {
-  return {
-    start: new Date(`${month}-01T00:00:00-03:00`),
-    end: new Date(`${shiftMonth(month, 1)}-01T00:00:00-03:00`),
   };
 }

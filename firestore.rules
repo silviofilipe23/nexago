@@ -1120,6 +1120,23 @@ service cloud.firestore {
       );
       allow write: if false;
     }
+    // CRM comercial das arenas (backoffice). Fica FORA de `arenas/{id}` de propósito:
+    // o doc da arena é público e o gestor o reescreve pelo app/portal — "sem interesse"
+    // não pode vazar nem ser apagado por um save do perfil. Só a equipe da plataforma
+    // lê e grava; quem gravou e quando saem do token e do relógio do servidor.
+    match /arenaCrm/{arenaId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow create, update: if (isAdmin() || isSuperAdmin()) &&
+        request.resource.data.keys().hasOnly(['status', 'note', 'updatedAt', 'updatedBy', 'updatedByName']) &&
+        request.resource.data.status in ['not_contacted', 'contacted', 'negotiating', 'not_interested', 'registered'] &&
+        request.resource.data.updatedAt == request.time &&
+        request.resource.data.updatedBy == request.auth.uid &&
+        (!('note' in request.resource.data) || request.resource.data.note == null ||
+          (request.resource.data.note is string && request.resource.data.note.size() <= 500)) &&
+        (!('updatedByName' in request.resource.data) ||
+          (request.resource.data.updatedByName is string && request.resource.data.updatedByName.size() <= 120));
+      allow delete: if false;
+    }
     // Equipe da arena. Escrita SEMPRE via Cloud Function: criar vínculo exige
     // contar assentos e conferir plano, coisas que rules não fazem.
     match /arenas/{arenaId}/staff/{staffUserId} {

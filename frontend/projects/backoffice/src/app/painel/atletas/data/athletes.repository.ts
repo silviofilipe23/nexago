@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { collection, documentId, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { backofficeDb, backofficeFunctions } from '../../data/firebase';
 import type { BackofficeUser } from '../../organizadores/data/organizers.repository';
@@ -62,21 +62,40 @@ export interface AthleteRowSummary {
   nickname: string | null;
 }
 
-/** Limite do operador `in` do Firestore — a página da lista tem 25 linhas. */
-const IN_QUERY_LIMIT = 30;
+/** Situação da conta na base — espelho de `functions/src/athlete-base-model.ts`. */
+export type AthleteBaseStatus = 'active' | 'incomplete' | 'never_signed_in' | 'inactive' | 'disabled';
 
-function levelsBySportOf(raw: unknown): Record<string, string> {
-  const onboarding = raw as { levelsBySport?: unknown; primarySportId?: unknown } | undefined;
-  const bySport = onboarding?.levelsBySport;
-  const out: Record<string, string> = {};
-  if (bySport && typeof bySport === 'object') {
-    for (const [sport, level] of Object.entries(bySport as Record<string, unknown>)) {
-      if (typeof level === 'string' && level.trim()) {
-        out[sport] = level.trim();
-      }
-    }
-  }
-  return out;
+export interface AthleteBaseRow extends BackofficeUser {
+  nickname: string | null;
+  photoUrl: string | null;
+  createdAtMs: number | null;
+  lastSignInMs: number | null;
+  lastSeenMs: number | null;
+  profileComplete: boolean;
+  isAthlete: boolean;
+  inactive: { reason: string | null; markedAtMs: number | null; markedByName: string | null } | null;
+  sportCode: string | null;
+  level: string | null;
+  status: AthleteBaseStatus;
+}
+
+export interface AthleteBaseSummary {
+  accounts: number;
+  athletes: number;
+  /** Cadastro completo + já entrou + não marcado inativo. */
+  active: number;
+  incomplete: number;
+  neverSignedIn: number;
+  inactive: number;
+  disabled: number;
+  activeSeenLast30d: number;
+  activeByMonth: { month: string; count: number }[];
+}
+
+export interface AthleteBase {
+  generatedAtMs: number;
+  summary: AthleteBaseSummary;
+  rows: AthleteBaseRow[];
 }
 
 function str(value: unknown): string | null {
@@ -132,6 +151,37 @@ export class AthletesRepository {
     };
   }
 
+  /**
+   * A base inteira numa chamada (Auth + `users` + marcas de inativa), já com a situação de cada
+   * conta. Sem `includeRows` volta só o resumo — é o que o dashboard usa.
+   */
+  async athleteBase(includeRows: boolean): Promise<AthleteBase> {
+    const callable = httpsCallable<{ includeRows: boolean }, AthleteBase>(
+      backofficeFunctions(),
+      'getBackofficeAthleteBase',
+    );
+    const result = await callable({ includeRows });
+    return {
+      generatedAtMs: result.data.generatedAtMs,
+      summary: result.data.summary,
+      rows: Array.isArray(result.data.rows) ? result.data.rows : [],
+    };
+  }
+
+  /** Marca/desmarca a conta como inativa — não bloqueia login nem apaga dado. */
+  async setInactive(
+    uid: string,
+    inactive: boolean,
+    reason: string | null,
+  ): Promise<{ inactive: boolean; reason: string | null; byName: string }> {
+    const callable = httpsCallable<
+      Record<string, unknown>,
+      { inactive: boolean; reason: string | null; byName: string }
+    >(backofficeFunctions(), 'setAthleteInactive');
+    const result = await callable({ uid, inactive, ...(reason?.trim() ? { reason: reason.trim() } : {}) });
+    return result.data;
+  }
+
   /** UIDs com PRO ativo — uma leitura só, usada para marcar as linhas. */
   async proUids(): Promise<Set<string>> {
     const snap = await getDocs(
@@ -150,48 +200,6 @@ export class AthletesRepository {
       'setAthletePro',
     );
     await callable({ uid, isPro, ...(isPro && expiresAt ? { expiresAt } : {}) });
-  }
-
-  /**
-   * Foto, apelido e nível do esporte principal de cada linha da lista.
-   *
-   * Lê o espelho `public_profiles` (sem PII, legível por qualquer autenticado)
-   * em vez de `users` — são poucas leituras por página e não depende do claim
-   * `admin`. O espelho tem alguns segundos de atraso: depois de uma troca de
-   * nível, a linha é atualizada com a resposta do callable, não por releitura.
-   */
-  async rowSummaries(uids: readonly string[]): Promise<Map<string, AthleteRowSummary>> {
-    const out = new Map<string, AthleteRowSummary>();
-    for (let i = 0; i < uids.length; i += IN_QUERY_LIMIT) {
-      const chunk = uids.slice(i, i + IN_QUERY_LIMIT);
-      if (chunk.length === 0) {
-        continue;
-      }
-      const snap = await getDocs(
-        query(collection(backofficeDb(), 'public_profiles'), where(documentId(), 'in', [...chunk])),
-      );
-      for (const doc of snap.docs) {
-        const onboarding = doc.get('sportOnboarding') as
-          | { primarySportId?: unknown }
-          | undefined;
-        const bySport = levelsBySportOf(onboarding);
-        const primary =
-          typeof onboarding?.primarySportId === 'string' ? onboarding.primarySportId : '';
-        // Sem esporte principal, o único esporte declarado ainda diz algo;
-        // com vários, a coluna fica vazia e o diálogo mostra a lista completa.
-        const sports = Object.keys(bySport);
-        const sportCode = bySport[primary] ? primary : sports.length === 1 ? sports[0]! : null;
-        out.set(doc.id, {
-          sportCode,
-          level: sportCode ? (bySport[sportCode] ?? null) : null,
-          // Mesma ordem do app: o login social só deixa `photoURL`.
-          photoUrl:
-            str(doc.get('profilePhotoUrl')) ?? str(doc.get('avatarUrl')) ?? str(doc.get('photoURL')),
-          nickname: str(doc.get('nickname'))?.trim() ?? null,
-        });
-      }
-    }
-    return out;
   }
 
   /** Níveis declarados + histórico recente, do doc canônico (`users/{uid}`). */

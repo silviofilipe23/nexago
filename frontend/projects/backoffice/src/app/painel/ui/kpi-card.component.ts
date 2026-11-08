@@ -12,6 +12,8 @@ import { PanelCardComponent } from './panel-card.component';
       <div class="value" [class.empty]="empty()">{{ value() }}</div>
       @if (empty()) {
         <div class="empty-hint">sem dados ainda</div>
+      } @else if (!delta()) {
+        <div class="delta-label">{{ note() }}</div>
       } @else {
         <div class="delta">
           <span class="delta-value" [class.down]="deltaTone() === 'red'">
@@ -93,4 +95,6 @@ export class KpiCardComponent {
   readonly delta = input('');
   readonly deltaTone = input<'green' | 'red'>('green');
   readonly empty = input(false);
+  /** Linha de apoio quando não há variação real para mostrar (sem `delta`). */
+  readonly note = input('');
 }

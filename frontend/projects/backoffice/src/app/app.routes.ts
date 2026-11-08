@@ -55,6 +55,16 @@ export const routes: Routes = [
       import('./painel/arenas/panel-arenas.component').then((m) => m.PanelArenasComponent),
   },
   {
+    path: 'painel/arenas/modelo-comercial',
+    title: 'Modelo comercial das arenas — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/arenas/modelo-comercial/panel-modelo-comercial.component').then(
+        (m) => m.PanelModeloComercialComponent,
+      ),
+  },
+  {
     path: 'painel/arenas/pre-cadastro',
     title: 'Arenas pré-cadastradas — NexaGO Backoffice',
     canActivate: [authGuard],

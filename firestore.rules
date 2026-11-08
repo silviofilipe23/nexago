@@ -3955,6 +3955,17 @@ service cloud.firestore {
 
     // NexaSquad: regras do programa (vigente + histórico de versões). Só a callable
     // `saveSquadRules` grava; contrato assinado guarda o número da versão.
+    // Modelo comercial das arenas (2027): só admin lê; grava só a callable saveArenaBillingModel.
+    match /arenaBillingConfig/{configId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+
+      match /versions/{versionId} {
+        allow read: if isAdmin() || isSuperAdmin();
+        allow write: if false;
+      }
+    }
+
     match /squadConfig/{configId} {
       allow read: if isAdmin() || isSuperAdmin();
       allow write: if false;

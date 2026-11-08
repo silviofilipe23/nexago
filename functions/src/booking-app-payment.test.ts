@@ -6,7 +6,12 @@ import {
   bookingSocialUnlock,
   bookingSocialUnlockPatch,
   recordArenaBookingAppPaymentReversal,
+  recordSchedulePlanAppPaymentReversal,
+  resolveBookingSocialUnlock,
+  scheduleChargeSocialInputsChanged,
+  schedulePlanAppPaidShare,
   syncBookingSocialUnlock,
+  syncSchedulePlanMonthBookings,
 } from "./booking-app-payment";
 import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
 
@@ -125,5 +130,92 @@ describe("recordArenaBookingAppPaymentReversal", () => {
   it("referência de outra coisa é ignorada", async () => {
     const fake = new FakeFirestore();
     assert.equal(await recordArenaBookingAppPaymentReversal(db(fake), "pay_x", "storeOrder:abc"), false);
+  });
+});
+
+describe("reserva de plano de horário (mensalidade paga pelo app)", () => {
+  function seedPlan(fake: FakeFirestore, charges: DocData[], booking: DocData = {}): void {
+    fake.seedDoc("arenaBookings/bk1", {
+      status: "active", amountReais: 80, amountPaidOnlineReais: 0, paymentChannel: "onsite",
+      scheduleSubscriptionId: "sub1", coveredByPlan: true, date: "2026-11-12", ...booking,
+    });
+    charges.forEach((c, k) => fake.seedDoc(`arenaScheduleCharges/sub1_2026-11_${k}`, {
+      subscriptionId: "sub1", period: "2026-11", payerIndex: k, amountReais: 100, status: "open", ...c,
+    }));
+    // Mensalidade de outro mês não entra na conta.
+    fake.seedDoc("arenaScheduleCharges/sub1_2026-10_0", {
+      subscriptionId: "sub1", period: "2026-10", amountReais: 100, status: "paid", paidVia: "asaas",
+    });
+  }
+
+  it("schedulePlanAppPaidShare: soma o rateio pago online; manual, aberto e cancelado não", () => {
+    assert.equal(schedulePlanAppPaidShare([
+      {status: "paid", paidVia: "asaas", amountReais: 50},
+      {status: "paid", paidVia: "manual", amountReais: 50},
+    ]), 0.5);
+    assert.equal(schedulePlanAppPaidShare([
+      {status: "paid", paidVia: "asaas", amountReais: 50},
+      {status: "open", amountReais: 100},
+      {status: "canceled", amountReais: 999},
+    ]), 1 / 3);
+    assert.equal(schedulePlanAppPaidShare([
+      {status: "paid", paidVia: "asaas", amountReais: 100, appPaymentRefundedAt: new Date()},
+    ]), 0);
+    assert.equal(schedulePlanAppPaidShare([]), 0);
+  });
+
+  it("mensalidade do mês paga pelo app libera a reserva do plano; baixa manual não", async () => {
+    const pagaNoApp = new FakeFirestore();
+    seedPlan(pagaNoApp, [{status: "paid", paidVia: "asaas"}]);
+    await syncBookingSocialUnlock(db(pagaNoApp), "bk1");
+    const doc = pagaNoApp.store.get("arenaBookings/bk1")!;
+    assert.equal(doc["socialUnlocked"], true);
+    assert.equal(doc["appPaidReais"], 80);
+
+    const manual = new FakeFirestore();
+    seedPlan(manual, [{status: "paid", paidVia: "manual"}]);
+    assert.equal((await resolveBookingSocialUnlock(db(manual), manual.store.get("arenaBookings/bk1")!)).socialUnlocked,
+      false);
+  });
+
+  it("rateio: libera quando metade dos pagadores do mês pagou pelo app, pelo gatilho da mensalidade", async () => {
+    const fake = new FakeFirestore();
+    seedPlan(fake, [{status: "paid", paidVia: "asaas"}, {status: "open"}, {status: "open"}]);
+    await syncBookingSocialUnlock(db(fake), "bk1");
+    assert.equal(fake.store.get("arenaBookings/bk1")!["socialUnlocked"], false);
+
+    fake.seedDoc("arenaScheduleCharges/sub1_2026-11_1", {
+      ...fake.store.get("arenaScheduleCharges/sub1_2026-11_1")!, status: "paid", paidVia: "asaas",
+    });
+    assert.equal(await syncSchedulePlanMonthBookings(db(fake), "sub1", "2026-11"), 1);
+    assert.equal(fake.store.get("arenaBookings/bk1")!["socialUnlocked"], true);
+    // Reserva de outro mês do mesmo plano não é tocada.
+    assert.equal(await syncSchedulePlanMonthBookings(db(fake), "sub1", "2026-12"), 0);
+  });
+
+  it("reserva de plano cancelada fica bloqueada mesmo com a mensalidade paga", async () => {
+    const fake = new FakeFirestore();
+    seedPlan(fake, [{status: "paid", paidVia: "asaas"}], {status: "canceled"});
+    const r = await resolveBookingSocialUnlock(db(fake), fake.store.get("arenaBookings/bk1")!);
+    assert.equal(r.socialUnlocked, false);
+  });
+
+  it("estorno da mensalidade marca a cobrança uma vez e tira a liberação", async () => {
+    const fake = new FakeFirestore();
+    seedPlan(fake, [{status: "paid", paidVia: "asaas", asaasPaymentId: "pay_m"}]);
+    fake.seedDoc("arenaScheduleAsaasPayments/g1", {chargeId: "sub1_2026-11_0", state: "paid"});
+    assert.equal(await recordSchedulePlanAppPaymentReversal(db(fake), "pay_m", "arenaSchedulePayment:g1"), true);
+    assert.equal(await recordSchedulePlanAppPaymentReversal(db(fake), "pay_m", "arenaSchedulePayment:g1"), false);
+    assert.equal(await recordSchedulePlanAppPaymentReversal(db(fake), "pay_outro", "arenaSchedulePayment:g1"), false);
+    assert.notEqual(fake.store.get("arenaScheduleCharges/sub1_2026-11_0")!["appPaymentRefundedAt"], undefined);
+    await syncSchedulePlanMonthBookings(db(fake), "sub1", "2026-11");
+    assert.notEqual(fake.store.get("arenaBookings/bk1")!["socialUnlocked"], true);
+  });
+
+  it("gatilho da mensalidade só reage ao que muda a conta", () => {
+    const c = {status: "open", amountReais: 100, billingMode: null};
+    assert.equal(scheduleChargeSocialInputsChanged(c, {...c, billingMode: "asaas"}), false);
+    assert.equal(scheduleChargeSocialInputsChanged(c, {...c, status: "paid", paidVia: "asaas"}), true);
+    assert.equal(scheduleChargeSocialInputsChanged(undefined, c), true);
   });
 });

@@ -52,6 +52,30 @@ void main() {
       }
     });
 
+    test('plano de horário: vale o que o servidor gravou pela mensalidade', () {
+      final plan = {
+        'status': 'active',
+        'amountReais': 80,
+        'amountPaidOnlineReais': 0,
+        'scheduleSubscriptionId': 'sub1',
+      };
+      final semCampo = BookingSocialUnlock.fromBooking(plan);
+      expect(semCampo.unlocked, isFalse);
+      expect(semCampo.isPlan, isTrue);
+      expect(
+        BookingSocialUnlock.fromBooking({
+          ...plan,
+          'socialUnlocked': true,
+          'appPaidReais': 80,
+        }).unlocked,
+        isTrue,
+      );
+      expect(
+        bookingSocialLockedMessage(semCampo, isOwner: true),
+        contains('mensalidade do plano'),
+      );
+    });
+
     test('sem doc: bloqueada', () {
       expect(BookingSocialUnlock.fromBooking(null).unlocked, isFalse);
     });

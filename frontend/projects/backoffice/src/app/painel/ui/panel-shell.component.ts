@@ -172,6 +172,13 @@ const NAV_ITEMS: readonly PanelNavItem[] = [
     icon: 'arena',
     route: '/painel/arenas/pre-cadastro',
   },
+  {
+    kind: 'link',
+    id: 'arenas-modelo-comercial',
+    label: 'Modelo comercial',
+    icon: 'percent',
+    route: '/painel/arenas/modelo-comercial',
+  },
   TORNEIOS_GROUP,
   { kind: 'link', id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes' },
   {
@@ -703,6 +710,9 @@ export class PanelShellComponent {
     // Antes de '/painel/arenas': o prefixo do pré-cadastro é mais específico.
     if (path.startsWith('/painel/arenas/pre-cadastro')) {
       return 'arenas-pre-cadastro';
+    }
+    if (path.startsWith('/painel/arenas/modelo-comercial')) {
+      return 'arenas-modelo-comercial';
     }
     if (path.startsWith('/painel/arenas')) {
       return 'arenas';

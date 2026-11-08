@@ -25,8 +25,7 @@ void main() {
       expect(BookingSocialUnlock.fromBooking(b(40)).unlocked, isFalse);
     });
 
-    test('pago na arena, cancelada, Pix pendente e estornada ficam bloqueadas',
-        () {
+    test('pago na arena, cancelada e estornada ficam bloqueadas', () {
       expect(
         BookingSocialUnlock.fromBooking({
           'status': 'active',
@@ -35,40 +34,22 @@ void main() {
         }).unlocked,
         isFalse,
       );
-      for (final status in ['canceled', 'pending_payment']) {
+      for (final extra in <Map<String, dynamic>>[
+        {'status': 'canceled'},
+        {'status': 'expired'},
+        {'status': 'confirmed', 'paymentStatus': 'refunded'},
+      ]) {
         expect(
           BookingSocialUnlock.fromBooking({
-            'status': status,
+            'status': 'confirmed',
             'amountReais': 120,
             'amountPaidOnlineReais': 120,
+            ...extra,
           }).unlocked,
           isFalse,
-          reason: status,
+          reason: '$extra',
         );
       }
-      expect(
-        BookingSocialUnlock.fromBooking({
-          'status': 'confirmed',
-          'amountReais': 120,
-          'amountPaidOnlineReais': 120,
-          'appPaymentReversals': {
-            'pay_1': {'amountReais': 120},
-          },
-        }).unlocked,
-        isFalse,
-      );
-    });
-
-    test('crédito de chuva conta como pago pelo app', () {
-      expect(
-        BookingSocialUnlock.fromBooking({
-          'status': 'active',
-          'amountReais': 120,
-          'amountPaidOnlineReais': 0,
-          'weatherCreditReais': 60,
-        }).unlocked,
-        isTrue,
-      );
     });
 
     test('sem doc: bloqueada', () {

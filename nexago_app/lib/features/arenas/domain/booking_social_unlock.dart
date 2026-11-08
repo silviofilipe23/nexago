@@ -5,18 +5,18 @@ import '../../../core/formatting/app_currency_format.dart';
 import 'booking_providers.dart';
 
 /// Regra do dono: metade da reserva paga pelo app libera placar, story e arte
-/// do resultado. A mesma de `functions/src/booking-app-payment.ts`.
+/// do resultado. "Pago pelo app" é a regra única de
+/// `functions/src/arena-booking-app-payment.ts` (a mesma do modelo comercial).
 const double socialUnlockMinAppPaidShare = 0.5;
 
 const double _toleranceReais = 0.02;
 
-const Set<String> _notLiveStatuses = {
+/// Reserva que não vale mais: cancelada, Pix vencido, estornada.
+const Set<String> _inactiveStatuses = {
   'canceled',
   'cancelled',
-  'pending',
-  'processing',
-  'pending_payment',
   'expired',
+  'refunded',
   'rejected',
 };
 
@@ -46,9 +46,9 @@ class BookingSocialUnlock {
   }
 
   /// Lê os derivados gravados pelo servidor (`socialUnlocked`, `appPaidReais`).
-  /// Reserva de antes do gatilho (sem os campos) cai na mesma conta feita com
-  /// o pago online, o crédito de chuva e os estornos do próprio doc. Quem
-  /// decide de verdade é a callable do placar.
+  /// Reserva de antes do gatilho (sem os campos) cai na mesma conta da regra
+  /// única: `amountPaidOnlineReais` (o estorno já sai dele), zero se cancelada
+  /// ou estornada. Quem decide de verdade é a callable do placar.
   factory BookingSocialUnlock.fromBooking(Map<String, dynamic>? data) {
     if (data == null) return none;
     final total = _num(data['amountReais']);
@@ -60,13 +60,11 @@ class BookingSocialUnlock {
       );
     }
     final status = '${data['status'] ?? ''}'.trim().toLowerCase();
-    var paid = 0.0;
-    if (!_notLiveStatuses.contains(status)) {
-      paid = _num(data['amountPaidOnlineReais']) +
-          _num(data['weatherCreditReais']) -
-          _reversed(data['appPaymentReversals']);
-      if (paid < 0) paid = 0;
-    }
+    final paymentStatus = '${data['paymentStatus'] ?? ''}'.trim().toLowerCase();
+    final inactive = _inactiveStatuses.contains(status) ||
+        paymentStatus == 'refunded' ||
+        data['refundedAt'] != null;
+    final paid = inactive ? 0.0 : _num(data['amountPaidOnlineReais']);
     return BookingSocialUnlock(
       unlocked: total > 0 &&
           paid > 0 &&
@@ -79,15 +77,6 @@ class BookingSocialUnlock {
   static double _num(Object? v) {
     final n = v is num ? v.toDouble() : double.tryParse('${v ?? ''}');
     return n == null || !n.isFinite || n < 0 ? 0 : n;
-  }
-
-  static double _reversed(Object? raw) {
-    if (raw is! Map) return 0;
-    var total = 0.0;
-    for (final entry in raw.values) {
-      if (entry is Map) total += _num(entry['amountReais']);
-    }
-    return total;
   }
 }
 

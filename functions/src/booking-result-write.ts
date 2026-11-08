@@ -9,7 +9,7 @@ import {FieldValue, Timestamp, getFirestore, type Firestore} from "firebase-admi
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
-import {SOCIAL_LOCKED_MESSAGE, readBookingAppPayment} from "./booking-app-payment";
+import {SOCIAL_LOCKED_MESSAGE, bookingSocialUnlock} from "./booking-app-payment";
 import {EVENT_TIME_ZONE} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {
@@ -85,9 +85,9 @@ export async function saveBookingResultCore(
   }
   const closed = bookingResultOpenError(booking, now);
   if (closed) throw new HttpsError("failed-precondition", closed);
-  // Placar (e a arte do resultado) só em reserva com metade paga pelo app: a mesma conta que
-  // libera a tela (`socialUnlocked`), relida aqui do servidor e não do campo derivado.
-  const appPayment = await readBookingAppPayment(db, input.bookingId, booking);
+  // Placar (e a arte do resultado) só em reserva com metade paga pelo app: a regra única
+  // (`arena-booking-app-payment.ts`) sobre o doc relido agora, não o campo derivado.
+  const appPayment = bookingSocialUnlock(booking);
   if (!appPayment.socialUnlocked) {
     throw new HttpsError("failed-precondition", SOCIAL_LOCKED_MESSAGE, {
       reason: "social_locked",

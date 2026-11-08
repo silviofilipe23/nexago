@@ -249,12 +249,11 @@ describe("saveBookingResultCore", () => {
     for (const [booking, ok] of [
       [{amountPaidOnlineReais: 0, paymentChannel: "onsite", status: "active"}, false],
       [{amountPaidOnlineReais: 40}, false],
-      [{amountPaidOnlineReais: 120, appPaymentReversals: {pay_1: {amountReais: 120}}}, false],
+      [{amountPaidOnlineReais: 120, paymentStatus: "refunded"}, false],
       [{amountPaidOnlineReais: 60}, true],
     ] as const) {
       const fake = new FakeFirestore();
       seed(fake, booking);
-      fake.seedDoc("arenaBookingPricing/bk1", {amountReais: 120});
       const save = saveBookingResultCore(db(fake), "maria", payload(), NOW);
       if (ok) {
         await save;

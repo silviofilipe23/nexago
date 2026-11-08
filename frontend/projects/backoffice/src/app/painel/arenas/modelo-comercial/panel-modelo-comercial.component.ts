@@ -140,7 +140,7 @@ const PLAN_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', eli
 
               <div class="kpis">
                 <bo-squad-kpi label="Arenas com conta" [value]="String(o.arenas.length)" [hint]="activeCount() + ' com reserva paga em ' + monthLabel(month())" />
-                <bo-squad-kpi label="Reservas pagas" [value]="String(totals().bookings)" [hint]="'Avulsas pagas pela NexaGO · ' + monthLabel(month())" />
+                <bo-squad-kpi label="Reservas pagas" [value]="String(totals().bookings)" [hint]="'Pagamento confirmado pelo app · ' + monthLabel(month())" />
                 <bo-squad-kpi label="Pelo modelo" [value]="brl(totals().model)" [hint]="totals().billable ? 'Seria cobrado no mês' : 'Simulação: mês de implantação'" />
                 <bo-squad-kpi label="Cobrado hoje" [value]="brl(totals().current)" hint="Taxa por reserva atual (8/6/5%)" />
               </div>
@@ -189,10 +189,11 @@ const PLAN_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', eli
                   <div class="bo-alert" role="alert"><bo-icon name="alert" [size]="16" /><span>{{ e }}</span></div>
                 }
                 <p class="legend">
-                  Reservas = aluguéis avulsos pagos pela NexaGO (app ou site) creditados na carteira da arena no mês; rateio
-                  entre jogadores conta uma reserva. O valor pago inclui os planos de horário, que entram na comissão mas não na
-                  contagem. Aulas e clubinho ficam fora (têm taxa própria). Pré-cadastros não aparecem: não têm carteira.
-                  “Cobrado hoje” é a taxa por reserva do modelo atual nas mesmas linhas.
+                  Só conta reserva com pagamento confirmado pelo app (ou site): presencial, pendente, cancelada, expirada
+                  ou estornada fica fora. O mês é o do dia do jogo; sinal de 50% pago pelo app conta, com o valor que o app
+                  recebeu, e o rateio entre jogadores conta uma reserva. Os planos de horário entram na comissão, mas não na
+                  contagem. Aulas e clubinho ficam fora (têm taxa própria). Pré-cadastros não aparecem.
+                  “Cobrado hoje” é a taxa por reserva do modelo atual já descontada nessas mesmas reservas.
                 </p>
               </bo-panel-card>
 

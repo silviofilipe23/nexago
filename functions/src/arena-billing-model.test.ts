@@ -10,8 +10,7 @@ import {
   arenaBillingModelFromDoc,
   computeArenaMonthBilling,
   firstBilledMonth,
-  monthBounds,
-  summarizeArenaLedger,
+  summarizeArenaMonth,
   tierIndexFor,
   type ArenaBillingModel,
 } from "./arena-billing-model";
@@ -120,51 +119,52 @@ describe("computeArenaMonthBilling", () => {
   });
 });
 
-describe("summarizeArenaLedger", () => {
+describe("summarizeArenaMonth (só pagamento confirmado pelo app)", () => {
   const at = (iso: string) => Timestamp.fromDate(new Date(iso));
+  const paid = (id: string, date: string, extra: Record<string, unknown> = {}) => ({
+    id, date, status: "confirmed", paymentStatus: "paid", amountReais: 120, amountPaidOnlineReais: 120, ...extra,
+  });
 
-  it("conta reservas avulsas distintas e soma o bruto e a taxa de hoje", () => {
-    const lines = [
-      {type: "credit", bookingId: "b1", grossReais: 60, platformFeeReais: 4.8, createdAt: at("2027-03-02T15:00:00Z")},
-      // rateio: a mesma reserva paga em duas partes conta 1
-      {type: "credit", bookingId: "b2", grossReais: 30, platformFeeReais: 2.4, createdAt: at("2027-03-05T15:00:00Z")},
-      {type: "credit", bookingId: "b2", grossReais: 30, platformFeeReais: 2.4, createdAt: at("2027-03-05T16:00:00Z")},
-      {type: "credit", source: "schedule_plan", grossReais: 400, platformFeeReais: 32, createdAt: at("2027-03-10T12:00:00Z")},
-      // fora do escopo: aula, clubinho, repasse a professor
-      {type: "credit", source: "class", grossReais: 200, platformFeeReais: 10, createdAt: at("2027-03-10T12:00:00Z")},
-      {type: "credit", source: "club", bookingId: "s1", grossReais: 15, platformFeeReais: 0.75, createdAt: at("2027-03-10T12:00:00Z")},
-      {type: "class_payout", grossReais: 100, netReais: -100, createdAt: at("2027-03-11T12:00:00Z")},
+  it("conta só reserva do mês com pagamento confirmado pelo app", () => {
+    const bookings = [
+      paid("b1", "2027-03-02"),
+      // sinal de 50% pelo app: conta, com o valor que o app recebeu
+      paid("b2", "2027-03-05", {paymentStatus: "partial", amountPaidOnlineReais: 60, amountDueOnsiteReais: 60}),
+      // rateio: as fatias pagas somam no mesmo doc — conta 1
+      paid("b3", "2027-03-07", {paymentStatus: "split_pending", amountPaidOnlineReais: 40, hasSplitShares: true}),
+      // fora: presencial, pendente, cancelada depois de paga, expirada, estornada, outro mês
+      {id: "p1", date: "2027-03-08", status: "active", paymentStatus: "none", amountReais: 120, amountPaidOnlineReais: 0},
+      {id: "p2", date: "2027-03-08", status: "pending_payment", paymentStatus: "pending", amountReais: 120},
+      paid("c1", "2027-03-09", {status: "canceled"}),
+      paid("c2", "2027-03-09", {status: "cancelled"}),
+      paid("e1", "2027-03-09", {status: "expired"}),
+      paid("r1", "2027-03-09", {paymentStatus: "refunded"}),
+      paid("o1", "2027-04-01"),
     ];
-    assert.deepEqual(summarizeArenaLedger(lines, "2027-03"), {
-      paidBookings: 2,
-      bookingVolumeCents: 12000,
+    const ledger = [
+      {type: "credit", bookingId: "b1", grossReais: 120, platformFeeReais: 9.6, createdAt: at("2027-03-02T15:00:00Z")},
+      // a taxa da reserva cancelada não entra na comparação
+      {type: "credit", bookingId: "c1", grossReais: 120, platformFeeReais: 9.6, createdAt: at("2027-03-02T15:00:00Z")},
+      // cartão liquidado no mês seguinte ainda é desta reserva de março
+      {type: "credit", bookingId: "b2", grossReais: 60, platformFeeReais: 4.8, createdAt: at("2027-04-04T15:00:00Z")},
+      {type: "credit", source: "schedule_plan", grossReais: 400, platformFeeReais: 32, createdAt: at("2027-03-10T12:00:00Z")},
+      {type: "credit", source: "schedule_plan", grossReais: 400, platformFeeReais: 32, createdAt: at("2027-02-10T12:00:00Z")},
+      {type: "credit", source: "class", grossReais: 200, platformFeeReais: 10, createdAt: at("2027-03-10T12:00:00Z")},
+    ];
+    assert.deepEqual(summarizeArenaMonth(bookings, ledger, "2027-03"), {
+      paidBookings: 3,
+      bookingVolumeCents: 22000,
       schedulePlanVolumeCents: 40000,
-      currentFeeCents: 4160,
+      currentFeeCents: 960 + 480 + 3200,
     });
   });
 
-  it("o mês é o civil de São Paulo", () => {
-    const lines = [
-      // 31/03 23:30 em SP = 01/04 02:30 UTC → ainda é março
-      {type: "credit", bookingId: "b1", grossReais: 50, platformFeeReais: 4, createdAt: at("2027-04-01T02:30:00Z")},
-      // 01/03 00:30 em SP
-      {type: "credit", bookingId: "b2", grossReais: 50, platformFeeReais: 4, createdAt: at("2027-03-01T03:30:00Z")},
-      {type: "credit", bookingId: "b3", grossReais: 50, platformFeeReais: 4, createdAt: at("2027-04-01T03:30:00Z")},
+  it("reserva só presencial ou com crédito de chuva não conta", () => {
+    const bookings = [
+      {id: "w1", date: "2027-03-02", status: "active", paymentStatus: "paid", paymentChannel: "weather_credit", amountReais: 100, amountPaidOnlineReais: 0},
+      {id: "m1", date: "2027-03-02", status: "confirmed", paymentStatus: "paid", amountReais: 100},
     ];
-    assert.equal(summarizeArenaLedger(lines, "2027-03").paidBookings, 2);
-    const {start, end} = monthBounds("2027-03");
-    assert.equal(start.toISOString(), "2027-03-01T03:00:00.000Z");
-    assert.equal(end.toISOString(), "2027-04-01T03:00:00.000Z");
-  });
-
-  it("estorno de quadra desconta o valor", () => {
-    const lines = [
-      {type: "credit", bookingId: "b1", grossReais: 80, platformFeeReais: 6.4, createdAt: at("2027-03-02T15:00:00Z")},
-      {type: "refund", bookingId: "b1", grossReais: -80, platformFeeReais: 0, createdAt: at("2027-03-03T15:00:00Z")},
-    ];
-    const r = summarizeArenaLedger(lines, "2027-03");
-    assert.equal(r.bookingVolumeCents, 0);
-    assert.equal(r.paidBookings, 1);
+    assert.equal(summarizeArenaMonth(bookings, [], "2027-03").paidBookings, 0);
   });
 });
 
@@ -272,12 +272,17 @@ describe("saveArenaBillingModelCore", () => {
 });
 
 describe("loadArenaBillingOverview", () => {
-  it("só arenas cadastradas, com o extrato do mês", async () => {
+  it("só arenas cadastradas, com as reservas pagas pelo app no mês", async () => {
     const fake = new FakeFirestore();
     const at = (iso: string) => Timestamp.fromDate(new Date(iso));
     fake.seedDoc("arenas/a1", {name: "Arena Sol", city: "Goiânia", state: "GO", createdAt: at("2026-05-10T12:00:00Z"), planTier: "pro", planStatus: "active"});
     fake.seedDoc("arenas/a2", {name: "Arena Mar", createdAt: at("2026-08-10T12:00:00Z")});
     fake.seedDoc("arenas/pre", {name: "Pré-cadastro", unclaimed: true});
+    const booking = {arenaId: "a1", status: "confirmed", paymentStatus: "paid", amountReais: 100, amountPaidOnlineReais: 100};
+    fake.seedDoc("arenaBookings/b1", {...booking, date: "2026-11-03"});
+    fake.seedDoc("arenaBookings/b2", {...booking, date: "2026-10-03"});
+    fake.seedDoc("arenaBookings/b3", {...booking, date: "2026-11-04", status: "canceled"});
+    fake.seedDoc("arenaBookings/b4", {...booking, arenaId: "a2", date: "2026-11-05", amountPaidOnlineReais: 0, paymentStatus: "none"});
     fake.seedDoc("arenaWallets/a1/ledger/l1", {type: "credit", bookingId: "b1", grossReais: 100, platformFeeReais: 6, createdAt: at("2026-11-03T12:00:00Z")});
     fake.seedDoc("arenaWallets/a1/ledger/l2", {type: "credit", bookingId: "b2", grossReais: 100, platformFeeReais: 6, createdAt: at("2026-10-03T12:00:00Z")});
 

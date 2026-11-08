@@ -13,7 +13,7 @@ import {getAuth} from "firebase-admin/auth";
 import {getFirestore, type Firestore} from "firebase-admin/firestore";
 import {callerCanAccessBackoffice} from "./auth-roles";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
-import {dateOf, isMonthKey, monthKeyOf} from "./company-finance";
+import {dateOf, isMonthKey, monthKeyOf, shiftMonth} from "./company-finance";
 import {
   ARENA_BILLING_CONFIG,
   ARENA_BILLING_MODEL_DOC,
@@ -23,9 +23,8 @@ import {
   arenaBillingModelChanges,
   arenaBillingModelErrors,
   arenaBillingModelFromDoc,
-  monthBounds,
   normalizeArenaBillingModel,
-  summarizeArenaLedger,
+  summarizeArenaMonth,
   type ArenaBillingModel,
   type ArenaMonthActivity,
 } from "./arena-billing-model";
@@ -78,10 +77,10 @@ function modelRef(db: Firestore) {
 
 /**
  * Modelo + atividade do mês das arenas cadastradas (sem `unclaimed`: pré-cadastro não tem
- * carteira). O extrato é lido por arena e pelo intervalo do mês — são poucas arenas com conta.
+ * reserva paga). Reservas do mês e extrato lidos por arena — são poucas arenas com conta.
  */
 export async function loadArenaBillingOverview(db: Firestore, month: string): Promise<ArenaBillingOverview> {
-  const {start, end} = monthBounds(month);
+  const nextMonth = shiftMonth(month, 1);
   const [configSnap, arenasSnap] = await Promise.all([
     modelRef(db).get(),
     db.collection("arenas").get(),
@@ -92,10 +91,16 @@ export async function loadArenaBillingOverview(db: Firestore, month: string): Pr
   const registered = arenasSnap.docs.filter((d) => d.data()["unclaimed"] !== true);
   const arenas = await Promise.all(registered.map(async (d): Promise<ArenaBillingPreviewRow> => {
     const data = d.data();
-    const ledger = await db.collection("arenaWallets").doc(d.id).collection("ledger")
-      .where("createdAt", ">=", start)
-      .where("createdAt", "<", end)
-      .get();
+    // Reservas do mês pelo dia do jogo (índice arenaId+date já existe). O extrato vem inteiro:
+    // a taxa de hoje de uma reserva do mês pode ter sido creditada antes ou depois dele.
+    const [bookings, ledger] = await Promise.all([
+      db.collection("arenaBookings")
+        .where("arenaId", "==", d.id)
+        .where("date", ">=", `${month}-01`)
+        .where("date", "<", `${nextMonth}-01`)
+        .get(),
+      db.collection("arenaWallets").doc(d.id).collection("ledger").get(),
+    ]);
     const created = dateOf(data["createdAt"]);
     const city = str(data["city"]);
     const state = str(data["state"]);
@@ -106,7 +111,11 @@ export async function loadArenaBillingOverview(db: Firestore, month: string): Pr
       startMonth: created ? monthKeyOf(created) : null,
       planTier: str(data["planTier"]),
       planStatus: str(data["planStatus"]),
-      activity: summarizeArenaLedger(ledger.docs.map((l) => l.data()), month),
+      activity: summarizeArenaMonth(
+        bookings.docs.map((b) => ({...b.data(), id: b.id})),
+        ledger.docs.map((l) => l.data()),
+        month,
+      ),
     };
   }));
   arenas.sort((a, b) => b.activity.paidBookings - a.activity.paidBookings || a.name.localeCompare(b.name, "pt-BR"));

@@ -9,6 +9,7 @@ import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/features/arenas/data/arena_clubs_repository.dart';
 import 'package:nexago_app/features/arenas/domain/arena_booking_waitlist_entry.dart';
+import 'package:nexago_app/features/arenas/domain/booking_social_unlock.dart';
 import 'package:nexago_app/features/arenas/domain/arena_club_providers.dart';
 import 'package:nexago_app/features/arenas/domain/arena_club_session.dart';
 import 'package:nexago_app/features/arenas/domain/arena_court.dart';
@@ -266,6 +267,13 @@ List<Override> _resultOverrides() => [
             level: '',
             city: '',
           ),
+        ),
+      ),
+      bookingSocialUnlockProvider('b1').overrideWith(
+        (ref) => const BookingSocialUnlock(
+          unlocked: true,
+          appPaidReais: 120,
+          totalReais: 120,
         ),
       ),
       bookingStorySourceProvider('b1').overrideWith(

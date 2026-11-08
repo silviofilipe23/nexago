@@ -59,6 +59,7 @@ function seed(fake: FakeFirestore, booking: DocData = {}): void {
     endTime: "21:30",
     status: "confirmed",
     amountReais: 120,
+    amountPaidOnlineReais: 120,
     ...booking,
   });
   fake.seedDoc("users/maria", {nickname: "Maria Souza", profilePhotoUrl: "https://x/m.jpg"});
@@ -242,6 +243,25 @@ describe("saveBookingResultCore", () => {
     await rejects(saveBookingResultCore(db(fake), "rafael", payload(), NOW), "not-found");
     await rejects(saveBookingResultCore(db(fake), "maria", payload(),
       new Date("2026-10-19T19:00:00-03:00")), "failed-precondition", /começar/);
+  });
+
+  it("só com metade da reserva paga pelo app (sinal, divisão); pago na arena ou estornado não", async () => {
+    for (const [booking, ok] of [
+      [{amountPaidOnlineReais: 0, paymentChannel: "onsite", status: "active"}, false],
+      [{amountPaidOnlineReais: 40}, false],
+      [{amountPaidOnlineReais: 120, paymentStatus: "refunded"}, false],
+      [{amountPaidOnlineReais: 60}, true],
+    ] as const) {
+      const fake = new FakeFirestore();
+      seed(fake, booking);
+      const save = saveBookingResultCore(db(fake), "maria", payload(), NOW);
+      if (ok) {
+        await save;
+      } else {
+        await rejects(save, "failed-precondition", /metade da reserva/);
+        assert.equal(fake.store.get("bookingResults/bk1"), undefined);
+      }
+    }
   });
 
   it("quem lança tem de estar num time; atleta inexistente e avulso são recusados", async () => {

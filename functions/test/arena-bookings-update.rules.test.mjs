@@ -170,6 +170,16 @@ test('dono NÃO confirma a própria reserva nem mexe no status de pagamento', as
   await assertDeniedByRule(updateDoc(ref, { hasSplitShares: true }));
 });
 
+test('dono e equipe NÃO liberam placar/story/arte nem apagam estorno (só o servidor)', async () => {
+  await seedBooking({ ...confirmed, amountPaidOnlineReais: 0, paymentChannel: 'onsite', status: 'active' });
+  for (const uid of [ATLETA, RECEPCAO]) {
+    const ref = bookingAs(uid);
+    await assertDeniedByRule(updateDoc(ref, { socialUnlocked: true }));
+    await assertDeniedByRule(updateDoc(ref, { appPaidReais: 120, appPaidShare: 1 }));
+    await assertDeniedByRule(updateDoc(ref, { appPaymentReversals: {} }));
+  }
+});
+
 test('dono NÃO troca ids do Asaas, arena, titular nem data/horário/quadra', async () => {
   await seedBooking(pendingPix);
   const ref = bookingAs(ATLETA);

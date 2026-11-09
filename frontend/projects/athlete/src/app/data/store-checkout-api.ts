@@ -12,6 +12,7 @@ import {
   quoteFromData,
   type CheckoutQuote,
   type CheckoutRequest,
+  type PaymentMethod,
   type StoreAddress,
   type StoreOrderView,
 } from './store-checkout-model';
@@ -26,7 +27,12 @@ export interface CreateOrderResult {
   orderId: string;
   number: string;
   totalCents: number;
-  pix: { copyPaste: string; expiresAt: string };
+  /** Ausente = Pix (functions anteriores ao cartão). */
+  paymentMethod?: PaymentMethod;
+  /** Só no Pix. */
+  pix: { copyPaste: string; expiresAt: string } | null;
+  /** Só no cartão: o checkout hospedado do Asaas. */
+  card?: { invoiceUrl: string; expiresAt: string } | null;
 }
 
 /**
@@ -125,7 +131,7 @@ export function checkoutErrorOf(e: unknown): CheckoutError {
     case 'aborted':
       return { kind: 'changed', message: message || 'Os valores do carrinho mudaram. Confira o novo total.', quote };
     case 'failed-precondition':
-      if (details?.['reason'] === 'cpf_required') return { kind: 'cpf', message: message || 'Informe seu CPF para pagar com Pix.', quote: null };
+      if (details?.['reason'] === 'cpf_required') return { kind: 'cpf', message: message || 'Informe seu CPF para pagar.', quote: null };
       return { kind: 'blocked', message: message || 'Revise o carrinho antes de pagar.', quote };
     case 'invalid-argument':
     case 'permission-denied':

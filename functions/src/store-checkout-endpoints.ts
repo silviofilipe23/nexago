@@ -1,6 +1,6 @@
 /**
  * Loja · checkout: as portas do mundo real (callables do atleta, webhook do Asaas, varredura do
- * Pix vencido e o espelho do pedido para o atleta). As regras estão em `store-checkout.ts`.
+ * Pix/cartão vencido e o espelho do pedido para o atleta). As regras estão em `store-checkout.ts`.
  */
 import {randomUUID} from "node:crypto";
 import {getAuth} from "firebase-admin/auth";
@@ -12,8 +12,10 @@ import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {asaasArenaSecrets} from "./asaas-client";
 import {
+  createAsaasCardCharge,
   createAsaasPixCharge,
   deleteAsaasPaymentIfOpen,
+  deleteAsaasPaymentOrThrow,
   getAsaasPayment,
   refundAsaasPayment,
   type AsaasPaymentDetails,
@@ -25,6 +27,7 @@ import {
   STORE_ORDER_PAYMENT_REF_PREFIX,
   confirmStoreOrderPaymentCore,
   createStoreOrderCore,
+  expireStoreCardCore,
   expireStorePixCore,
   isPaidStatus,
   quoteCheckoutCore,
@@ -55,7 +58,7 @@ function realPayments(): CheckoutPayments {
       try {
         cpfCnpj = await resolveAthleteCpfCnpj(uid, cpf ?? undefined);
       } catch {
-        throw new HttpsError("failed-precondition", "Informe seu CPF para pagar com Pix.", {reason: "cpf_required"});
+        throw new HttpsError("failed-precondition", "Informe seu CPF para pagar.", {reason: "cpf_required"});
       }
       const user = await getAuth().getUser(uid);
       const email = user.email?.trim() ?? "";
@@ -76,6 +79,17 @@ function realPayments(): CheckoutPayments {
       });
       return {paymentId: charge.paymentId, copyPaste: charge.qrCode};
     },
+    async createCard({orderId, customerId, totalCents, description, expiresAt}) {
+      // Checkout hospedado do Asaas, à vista: o cartão é digitado no domínio deles.
+      return createAsaasCardCharge({
+        customerId,
+        valueReais: totalCents / 100,
+        dueDate: expiresAt,
+        description,
+        externalReference: `${STORE_ORDER_PAYMENT_REF_PREFIX}${orderId}`,
+        idempotencyKey: `store-order-card-${orderId}`,
+      });
+    },
     cancelCharge: (paymentId) => deleteAsaasPaymentIfOpen(paymentId),
   };
 }
@@ -86,7 +100,7 @@ export const quoteStoreCheckout = onCall(CLIENT_CALLABLE, async (request) => {
   return quoteCheckoutCore(getFirestore(), uid, request.data, new Date());
 });
 
-/** Fecha o pedido: recalcula, cobra o Pix, reserva e devolve o copia-e-cola. */
+/** Fecha o pedido: recalcula, cobra (Pix ou cartão), reserva e devolve o copia-e-cola ou o checkout. */
 export const createStoreOrder = onCall({...CLIENT_CALLABLE, secrets: asaasArenaSecrets}, async (request) => {
   const uid = requireUid(request.auth?.uid);
   return createStoreOrderCore(
@@ -130,7 +144,7 @@ async function attachArtUrls(db: Firestore, itemIds: string[]): Promise<void> {
 }
 
 /**
- * Estorno do Pix pago com o pedido já cancelado. Falhou (sem saldo no Asaas, fora do ar): fica
+ * Estorno do Pix/cartão pago com o pedido já cancelado. Falhou (sem saldo no Asaas, fora do ar): fica
  * `refund_failed` e a varredura tenta de novo; deu certo: entra no pedido.
  */
 async function refundLatePix(
@@ -140,7 +154,7 @@ async function refundLatePix(
   try {
     await refundAsaasPayment(paymentId);
   } catch (e) {
-    logger.error("Loja: estorno do Pix pago depois do cancelamento falhou", {orderId, paymentId, error: String(e)});
+    logger.error("Loja: estorno do pagamento feito depois do cancelamento falhou", {orderId, paymentId, error: String(e)});
     await processedRef.set({...base, valueCents, outcome: "refund_failed", error: String(e)}, {merge: true});
     return false;
   }
@@ -150,8 +164,8 @@ async function refundLatePix(
 }
 
 /**
- * Ramo do `asaasWebhook` para `storeOrder:{orderId}`. Pago → confirma; pago depois de cancelado
- * (Pix vencido) → estorna. O doc de processados torna a notificação repetida inofensiva (menos o
+ * Ramo do `asaasWebhook` para `storeOrder:{orderId}`. Pago (Pix `RECEIVED`, cartão `CONFIRMED` ou
+ * `RECEIVED` se o CONFIRMED se perder) → confirma; pago depois de cancelado (prazo vencido) → estorna. O doc de processados torna a notificação repetida inofensiva (menos o
  * estorno que falhou, que a notificação repetida tenta de novo).
  */
 export async function processStoreOrderAsaasNotification(
@@ -176,8 +190,8 @@ export async function processStoreOrderAsaasNotification(
     await attachArtUrls(db, r.customItemIds);
     return;
   case "not_pending":
-    // Pix pago depois do pedido cancelar (vencido): o dinheiro volta.
-    logger.error("Loja: Pix pago com o pedido já cancelado — estornando", {orderId, paymentId});
+    // Pago depois do pedido cancelar (prazo vencido): o dinheiro volta.
+    logger.error("Loja: pagamento com o pedido já cancelado — estornando", {orderId, paymentId});
     await refundLatePix(db, orderId, paymentId, toCents(payment.value), processedRef, base);
     return;
   default:
@@ -187,22 +201,35 @@ export async function processStoreOrderAsaasNotification(
 }
 
 /**
- * Pix vencido (30 min): confirma o que pagou sem webhook (e gera o link da arte); cancela o resto
- * e libera o estoque. Também tenta de novo o estorno que falhou no webhook.
+ * Pix vencido (30 min) e cartão vencido (15 min): confirma o que pagou sem webhook (e gera o link
+ * da arte); cartão em análise espera mais 10 min; cancela o resto e libera o estoque. Também tenta
+ * de novo o estorno que falhou no webhook. (Nome mantido: já é a function deployada.)
  */
 export const expireStoreOrderPix = onSchedule(
   {schedule: "every 5 minutes", timeZone: "America/Sao_Paulo", secrets: asaasArenaSecrets},
   async () => {
     const db = getFirestore();
+    const getPayment = async (id: string) => {
+      const p = await getAsaasPayment(id);
+      return {status: p.status ?? "", valueCents: toCents(p.value)};
+    };
     const r = await expireStorePixCore(db, new Date(), {
-      getPayment: async (id) => {
-        const p = await getAsaasPayment(id);
-        return {status: p.status ?? "", valueCents: toCents(p.value)};
-      },
+      getPayment,
       deleteCharge: (id) => deleteAsaasPaymentIfOpen(id),
     });
     await attachArtUrls(db, r.customItemIds);
     if (r.canceled.length + r.confirmed.length + r.failed.length > 0) logger.info("Loja: Pix vencidos", r);
+
+    // Cartão: apagar TEM de dar certo antes de cancelar, senão o checkout segue aceitando o cartão
+    // de um pedido sem estoque (falhou → o pedido fica e a próxima rodada tenta de novo).
+    const c = await expireStoreCardCore(db, new Date(), {
+      getPayment,
+      deleteCharge: (id) => deleteAsaasPaymentOrThrow(id),
+    });
+    await attachArtUrls(db, c.customItemIds);
+    if (c.canceled.length + c.confirmed.length + c.postponed.length + c.failed.length > 0) {
+      logger.info("Loja: cartões vencidos", c);
+    }
 
     const pending = await db.collection(`artifacts/${getFirebaseProjectId()}/public/data/asaas_processed_payments`)
       .where("kind", "==", "storeOrder")

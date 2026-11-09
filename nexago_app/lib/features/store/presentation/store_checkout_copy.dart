@@ -63,6 +63,10 @@ abstract final class StoreCheckoutCopy {
   static const pix = 'Pix';
   static String pixOff(int pct) => ' · $pct% off';
   static const pixInstant = 'Aprovação na hora';
+  static const card = 'Cartão de crédito';
+  static const cardHosted = 'À vista, no ambiente seguro do Asaas';
+  static String pixCheaper(int cents) =>
+      '${price(cents)} a menos que no cartão';
   static const couponHint = 'Cupom de desconto';
   static const couponApply = 'Aplicar';
   static const couponRemove = 'Remover';
@@ -82,6 +86,8 @@ abstract final class StoreCheckoutCopy {
   static const quoteRetry = 'Tentar de novo';
   static const pay = 'Pagar com Pix';
   static const paying = 'Gerando o Pix…';
+  static const payCard = 'Pagar com cartão';
+  static const payingCard = 'Abrindo o pagamento…';
   static const totalChanged =
       'O total mudou · confira o novo valor antes de pagar.';
   static String safe(int exchangeDays) =>
@@ -90,7 +96,7 @@ abstract final class StoreCheckoutCopy {
   // CPF
   static const cpfLabel = 'CPF DE QUEM PAGA';
   static const cpfHint = '000.000.000-00';
-  static const cpfHelp = 'Sai no comprovante do Pix. Só pedimos uma vez.';
+  static const cpfHelp = 'Sai no comprovante do pagamento. Só pedimos uma vez.';
   static const cpfInvalid = 'CPF com 11 números.';
 
   // 05 Novo endereço
@@ -146,6 +152,22 @@ abstract final class StoreCheckoutCopy {
       'Se você já pagou, a gente confirma em instantes. Se não, o pedido é '
       'cancelado e as peças voltam pra loja.';
   static const rebuildCart = 'Montar o carrinho de novo';
+  // 06 Cartão
+  static const payWithCard = 'Pague com o cartão';
+  static const openCardCheckout = 'Abrir pagamento com cartão';
+  static const cardWillNotify =
+      'Assim que o cartão for aprovado, a gente avisa por aqui.';
+  static const cardStepsTitle = 'COMO PAGAR';
+  static const cardSteps = [
+    'Toque em Abrir pagamento com cartão.',
+    'Digite os dados do cartão no ambiente seguro do Asaas (à vista).',
+    'Volte pra cá: esta tela muda sozinha quando o pagamento for aprovado.',
+  ];
+  static const cardExpiredKicker = 'PRAZO ENCERRADO';
+  static const cardExpiredTitle = 'O prazo do pagamento acabou';
+  static const cardExpiredBody =
+      'Se o cartão foi aprovado, a gente confirma em instantes. Se não, o '
+      'pedido é cancelado e as peças voltam pra loja.';
   static const paidTitle = 'Pagamento aprovado!';
   static const paidArena = 'Avisamos quando estiver pronto pra retirar.';
   static const paidHome = 'Avisamos quando sair pra entrega.';
@@ -181,13 +203,14 @@ abstract final class StoreCheckoutCopy {
   static const ordersLoadError = 'Não deu pra carregar seus pedidos';
   static const ordersEmptyTitle = 'Você ainda não fez pedidos';
   static const ordersEmptyBody =
-      'Quando comprar na Loja, o pedido aparece aqui — com o Pix, o código de '
-      'retirada e a entrega.';
+      'Quando comprar na Loja, o pedido aparece aqui — com o pagamento, o '
+      'código de retirada e a entrega.';
   static const searchHint = 'Buscar pedido ou produto';
   static const sectionActive = 'EM ANDAMENTO';
   static const sectionPast = 'ANTERIORES';
   static const noneWithFilter = 'Nenhum pedido com esse filtro.';
   static const payPix = 'Pagar Pix';
+  static const payCardShort = 'Pagar cartão';
   static const seeCode = 'Ver código';
   static const trackShort = 'Rastrear';
   static const rebuyNothing =

@@ -94,6 +94,7 @@ StoreCheckoutQuote? storeQuoteFromMap(Object? raw) {
   if (d == null || d['lines'] is! List) return null;
   final coupon = _map(d['coupon']);
   return StoreCheckoutQuote(
+    paymentMethod: StorePaymentMethod.from(d['paymentMethod']),
     lines: [
       for (final item in d['lines'] as List)
         if (_map(item) case final l?)
@@ -127,6 +128,10 @@ StoreCheckoutQuote? storeQuoteFromMap(Object? raw) {
     shippingCents: _int(d['shippingCents']),
     freeShipping: d['freeShipping'] == true,
     totalCents: _int(d['totalCents']),
+    cardFeeCents: _int(d['cardFeeCents']),
+    pixTotalCents: d['pixTotalCents'] is num ? _int(d['pixTotalCents']) : null,
+    cardTotalCents:
+        d['cardTotalCents'] is num ? _int(d['cardTotalCents']) : null,
     problems: [
       if (d['problems'] is List)
         for (final p in d['problems'] as List)

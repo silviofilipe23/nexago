@@ -129,6 +129,9 @@ class FakeStoreRepository implements StoreRepository {
   Future<void> setFavorite(String uid, String productId, bool on) async {}
 }
 
+/// Checkout hospedado do cartão nos testes.
+const kCardInvoiceUrl = 'https://sandbox.asaas.com/i/ord_pedido_1';
+
 /// Cotação do servidor para o pedido (o mesmo cenário do spec do portal).
 StoreCheckoutQuote quoteFor(
   StoreCheckoutRequest req, {
@@ -136,7 +139,11 @@ StoreCheckoutQuote quoteFor(
   int qty = 1,
 }) {
   final casa = req.delivery is StoreHomeDelivery;
+  final card = req.paymentMethod == StorePaymentMethod.card;
+  final pixTotal = casa ? 21530 : 18040;
+  final cardTotal = casa ? 22480 : 18990;
   return storeQuoteFromMap({
+    'paymentMethod': req.paymentMethod.id,
     'lines': [
       {
         'key': 'bola/unico',
@@ -153,10 +160,13 @@ StoreCheckoutQuote quoteFor(
     'subtotalCents': 18990 * qty,
     'coupon': null,
     'pixDiscountPct': 5,
-    'pixDiscountCents': 950,
+    'pixDiscountCents': card ? 0 : 950,
+    'cardFeeCents': 0,
     'shippingCents': casa ? 3490 : 0,
     'freeShipping': false,
-    'totalCents': casa ? 21530 : 18040,
+    'totalCents': card ? cardTotal : (casa ? 21530 : 18040),
+    'pixTotalCents': pixTotal,
+    'cardTotalCents': cardTotal,
     'problems': req.delivery != null ? const [] : const ['entrega_faltando'],
     ...over,
   })!;
@@ -172,15 +182,27 @@ class FakeCheckoutService implements StoreCheckoutService {
     StoreCheckoutRequest req,
     int expected,
     String? cpf,
-  ) createImpl = (req, expected, cpf) async => StoreCreatedOrder(
-        orderId: 'ord_pedido_1',
-        number: 'NX-0001',
-        totalCents: expected,
-        pix: StoreOrderPix(
-          copyPaste: 'x' * 40,
-          expiresAt: kTestNow.add(const Duration(minutes: 30)),
-        ),
-      );
+  ) createImpl =
+      (req, expected, cpf) async => req.paymentMethod == StorePaymentMethod.card
+          ? StoreCreatedOrder(
+              orderId: 'ord_pedido_1',
+              number: 'NX-0001',
+              totalCents: expected,
+              paymentMethod: StorePaymentMethod.card,
+              card: StoreOrderCardCheckout(
+                invoiceUrl: kCardInvoiceUrl,
+                expiresAt: kTestNow.add(const Duration(minutes: 15)),
+              ),
+            )
+          : StoreCreatedOrder(
+              orderId: 'ord_pedido_1',
+              number: 'NX-0001',
+              totalCents: expected,
+              pix: StoreOrderPix(
+                copyPaste: 'x' * 40,
+                expiresAt: kTestNow.add(const Duration(minutes: 30)),
+              ),
+            );
 
   @override
   Future<StoreCheckoutQuote> quote(StoreCheckoutRequest request) async {
@@ -298,6 +320,10 @@ class CheckoutHarness {
   final FakeReviewPhotoPicker photoPicker = FakeReviewPhotoPicker();
   final RecordingAnalytics analytics = RecordingAnalytics();
   final List<Uri> opened = [];
+
+  /// Checkouts de cartão abertos e quantas vezes o navegador foi fechado.
+  final List<String> cardOpened = [];
+  int cardClosed = 0;
   late final GoRouter router;
 
   Future<void> pump(
@@ -375,6 +401,12 @@ class CheckoutHarness {
             opened.add(uri);
             return true;
           }),
+          storeCardCheckoutProvider.overrideWithValue(
+            StoreCardCheckout(
+              open: (url) async => cardOpened.add(url),
+              close: () async => cardClosed++,
+            ),
+          ),
           analyticsServiceProvider.overrideWithValue(analytics),
           storeReviewRepositoryProvider.overrideWithValue(reviews),
           storeReviewServiceProvider.overrideWithValue(reviewService),

@@ -122,11 +122,14 @@ export interface TotalsInput {
   pixDiscountCents: number;
   walletCents: number;
   shippingCents: number;
+  /** Acréscimo do cartão (ausente = 0, todo o acervo). */
+  cardFeeCents?: number;
 }
 
-/** Total cobrado nos meios externos (Pix/cartão): subtotal − cupom − Pix − saldo + frete. */
+/** Total cobrado nos meios externos (Pix/cartão): subtotal − cupom − Pix − saldo + frete + acréscimo do cartão. */
 export function orderTotalCents(t: TotalsInput): number {
-  return t.subtotalCents - t.couponDiscountCents - t.pixDiscountCents - t.walletCents + t.shippingCents;
+  return t.subtotalCents - t.couponDiscountCents - t.pixDiscountCents - t.walletCents + t.shippingCents +
+    (t.cardFeeCents ?? 0);
 }
 
 /** Pagamentos precisam fechar com o total: externos = total, saldo = `walletCents`. */

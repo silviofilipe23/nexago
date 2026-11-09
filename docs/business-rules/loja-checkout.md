@@ -1,12 +1,21 @@
 # Loja · Checkout (web 03–06 · app 03–08)
 
 Do carrinho ao pedido pago. O cliente nunca manda preço: manda **o que quer** (canal, entrega,
-cupom) e o servidor relê carrinho, catálogo, personalização, ponto de retirada, frete, cupom e
-desconto do Pix. O total que o cliente mostrou volta como `expectedTotalCents`, e se não bater
-o pedido não nasce.
+cupom, forma de pagamento) e o servidor relê carrinho, catálogo, personalização, ponto de retirada,
+frete, cupom e desconto do Pix. O total que o cliente mostrou volta como `expectedTotalCents`, e se
+não bater o pedido não nasce.
 
-v1: **só Pix** (30 min). Cartão, saldo (cashback desligado) e "reembolso como saldo" ficam
-para depois. Parcelamento do desenho não existe.
+Formas: **Pix** (30 min) ou **cartão de crédito** (15 min, à vista, checkout hospedado do Asaas —
+nenhum dado de cartão passa por nós). Saldo (cashback desligado) e "reembolso como saldo" ficam para
+depois. Parcelamento não existe.
+
+Decisões do cartão (09/11/2026):
+- **Só à vista; a Loja absorve a taxa do cartão** (o atleta paga o mesmo que sem desconto). O
+  acréscimo existe no código desligado: `STORE_CARD_FEE_TERMS = NO_CARD_FEE` em
+  `functions/src/store-checkout.ts`; trocar por `await loadCardFeeTerms()` repassa processamento +
+  antecipação como na inscrição, e a cotação/o pedido já somam `cardFeeCents` no total do cartão.
+- **Desconto Pix só no Pix.** No cartão: subtotal − cupom + frete (+ acréscimo, hoje 0).
+- **Estoque e cupom ficam reservados desde a criação**, como no Pix, pelos 15 min do cartão.
 
 ## Dados
 
@@ -26,8 +35,9 @@ uid, orderId, number ('NX-0001'), status, channel,
 items: [{ productId, skuId, name, variantLabel, imageUrl, qty, unitCents, totalCents,
           personalized, customizationLabel }],
 units, subtotalCents, couponCode, couponDiscountCents, pixDiscountCents, shippingCents, totalCents,
-paymentMethods,
+paymentMethods, paymentMethod ('pix' | 'cartao'; acervo sem = 'pix'), cardFeeCents,
 pix: { copyPaste, expiresAt } | null,            // só enquanto status == 'pag'
+card: { invoiceUrl, expiresAt } | null,          // só enquanto status == 'pag'
 delivery: { type: 'arena', placeName, counter, address, pickupCode, pickupDeadline }
         | { type: 'casa', modeName, address, city, uf, zip, carrier, tracking, trackingUrl, eta },
 createdAt, paidAt, separatedAt, arrivedAt, shippedAt, completedAt, canceledAt,   // ISO
@@ -43,7 +53,7 @@ cancelReason, refundedCents, updatedAt
 ### Status
 | status | atleta vê |
 |---|---|
-| `pag` | Aguardando pagamento (Pix com prazo) |
+| `pag` | Aguardando pagamento (Pix ou cartão, com prazo) |
 | `sep` / `sepd` | Em separação |
 | `ret` | Pronto pra retirar (código + prazo) |
 | `tra` | A caminho |
@@ -53,25 +63,34 @@ cancelReason, refundedCents, updatedAt
 
 ## Callables (região do cliente)
 
-### `quoteStoreCheckout({channel, delivery, couponCode})` → `Quote`
+### `quoteStoreCheckout({channel, delivery, couponCode, paymentMethod})` → `Quote`
 Só leitura. `channel ∈ web|app_ios|app_android`. `delivery`:
 `{type:'arena', arenaId}` · `{type:'casa', addressId, modeId}` · `null` (ainda não escolheu).
+`paymentMethod ∈ pix|cartao`; ausente = `pix` (app/portal anteriores ao cartão).
 ```
-Quote = { lines: [{ key, productId, skuId, qty, name, variantLabel, imageUrl, category, collection,
+Quote = { paymentMethod,
+          lines: [{ key, productId, skuId, qty, name, variantLabel, imageUrl, category, collection,
                     baseCents, extraCents, unitCents, totalCents, personalized, customizationLabel,
                     problem }],
           units, subtotalCents,
           coupon: { id, code, discountCents, stacksWithPix, problem, message } | null,
-          pixDiscountPct, pixDiscountCents, shippingCents, freeShipping, totalCents, problems }
+          pixDiscountPct, pixDiscountCents, cardFeeCents, shippingCents, freeShipping, totalCents,
+          pixTotalCents, cardTotalCents, problems }
 ```
+- `totalCents` é o da forma pedida; `pixDiscountCents` é 0 no cartão e `cardFeeCents` é 0 no Pix.
+- `pixTotalCents`/`cardTotalCents` vêm sempre: a tela mostra os dois e "R$ X a menos que no
+  cartão" no Pix. Cotação sem eles (servidor antigo) = a tela não oferece cartão.
 - `line.problem ∈ indisponivel|esgotado|sem_retirada|sem_entrega|personalizacao_off|null`.
 - Código de cupom fora do formato (traço, espaço, longo) não derruba a cotação: volta `nao_existe`.
 - `problems ∈ carrinho_vazio|entrega_faltando|arena_indisponivel|endereco_faltando|
   modalidade_indisponivel|linha_com_problema`. Com qualquer problema não se paga.
 - `coupon.message` já vem pronta em português para mostrar sob o campo.
 
-### `createStoreOrder({channel, delivery, couponCode, expectedTotalCents, cpf})`
-→ `{orderId, number, totalCents, pix: {copyPaste, expiresAt}}`
+### `createStoreOrder({channel, delivery, couponCode, paymentMethod, expectedTotalCents, cpf})`
+→ `{orderId, number, totalCents, paymentMethod, pix: {copyPaste, expiresAt} | null,
+   card: {invoiceUrl, expiresAt} | null}`
+
+`expectedTotalCents` é o total **da forma escolhida** (mandar o do Pix pedindo cartão = `aborted`).
 
 Erros (`HttpsError`, mensagem pronta):
 - `failed-precondition` com `details.problems` + `details.quote`: carrinho com problema.
@@ -80,7 +99,8 @@ Erros (`HttpsError`, mensagem pronta):
 - `failed-precondition` com `details.reason == 'cpf_required'`: pedir o CPF e reenviar com `cpf`.
 - `aborted` com `details.quote`: o total mudou; mostrar o novo e pedir confirmação.
 
-Ao criar: segura o cupom, cobra o Pix no Asaas, reserva o estoque e tira do carrinho **só as linhas
+Ao criar: segura o cupom, cobra no Asaas (Pix, ou cartão com `billingType: CREDIT_CARD` e o
+`invoiceUrl` do checkout hospedado), reserva o estoque e tira do carrinho **só as linhas
 compradas**. Se a reserva falhar (estoque acabou no meio), a cobrança é cancelada e o cupom volta.
 Falhar só na limpeza do carrinho não é erro (o pedido já existe; repetir duplicaria).
 
@@ -109,10 +129,17 @@ Falhar só na limpeza do carrinho não é erro (o pedido já existe; repetir dup
 - `externalReference = storeOrder:{orderId}`. O webhook do Asaas confirma: `pag → sep`, `paidAt`,
   Pix limpo, uso do cupom +1 e, para cada linha personalizada, um item na fila de arte
   (`storeCustomItems/{orderId}-{n}`, status `aprovar`, SLA 4h) com o link da arte.
+- **Cartão:** confirma no `PAYMENT_CONFIRMED` (ou no `RECEIVED`, se o CONFIRMED se perder); o
+  `RECEIVED` de ~30 dias depois cai como já processado. Mesmo ciclo do Pix a partir daí (`sep`…).
+  A Loja não tem carteira, então não há a "fase de crédito" da inscrição.
 - Notificação repetida é inofensiva (`asaas_processed_payments/{paymentId}`).
 - **Pix vencido** (varredura a cada 5 min): se pagou sem webhook, confirma; senão apaga a cobrança e
   cancela o pedido ("Pix expirou sem pagamento"), liberando o estoque.
-- Pix pago **depois** de cancelado: estorno automático, registrado no pedido (`refunds`,
+- **Cartão vencido** (mesma varredura, `card.expiresAt`, índice `status + card.expiresAt`): pergunta
+  ao Asaas antes de soltar o estoque. Pago → confirma; `AWAITING_RISK_ANALYSIS` → adia 10 min;
+  senão apaga a cobrança (`deleteAsaasPaymentOrThrow`: falhou = o pedido fica e a próxima rodada tenta)
+  e cancela ("Pagamento com cartão não concluído no prazo"), devolvendo estoque e cupom.
+- Pix/cartão pago **depois** de cancelado: estorno automático, registrado no pedido (`refunds`,
   `refundedCents`, histórico). Estorno que falha fica `refund_failed` e a varredura tenta de novo.
 - A varredura nunca cancela pedido que o Asaas diz que foi pago (valor que não fecha vai pra
   conferência manual). Confirmado pela varredura também gera o link da arte.
@@ -124,5 +151,7 @@ Falhar só na limpeza do carrinho não é erro (o pedido já existe; repetir dup
 - **Novo endereço** (web 05, app 05): CEP → ViaCEP preenche rua, bairro, cidade e UF.
 - **Pix** (app 06; web no fim do checkout): QR gerado no cliente a partir do copia-e-cola,
   contagem regressiva até `expiresAt`, e a tela acompanha a visão do pedido — virou `sep` → pago.
+- **Cartão** (mesma tela): valor, contagem e o botão que abre o `invoiceUrl` (app: navegador do app,
+  aberto sozinho ao sair do checkout e fechado quando aprova; web: nova aba). Só abre link `https`.
 - **Pronto pra retirar** (app 07): código grande + arena + prazo, a partir da visão.
 - **Meus pedidos** (web 06, app 08): lista da visão, mais recentes primeiro.

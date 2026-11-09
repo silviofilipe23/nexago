@@ -15,6 +15,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../arenas/data/payment_service.dart';
 import '../application/store_checkout_providers.dart';
 import '../application/store_providers.dart';
 import '../application/store_review_providers.dart';
@@ -100,7 +101,11 @@ class _StoreOrderPageState extends ConsumerState<StoreOrderPage> {
       fireImmediately: true,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _analytics.logStoreOrderView(orderId: widget.orderId);
+      if (!mounted) return;
+      _analytics.logStoreOrderView(orderId: widget.orderId);
+      // Recém-saído do checkout com cartão: já abre o pagamento.
+      final card = _handoff?.card;
+      if (card != null) _openCardCheckout(card);
     });
   }
 
@@ -136,6 +141,10 @@ class _StoreOrderPageState extends ConsumerState<StoreOrderPage> {
       _notFound = false;
       if (justPaid) _justPaid = true;
     });
+    // Aprovou com o checkout do cartão ainda na frente: fecha o navegador.
+    if (justPaid && o.paymentMethod == StorePaymentMethod.card) {
+      ref.read(storeCardCheckoutProvider).close();
+    }
   }
 
   // ── Ações ─────────────────────────────────────────────────────────────
@@ -158,6 +167,21 @@ class _StoreOrderPageState extends ConsumerState<StoreOrderPage> {
     });
   }
 
+  /// Abre (ou reabre) o checkout do Asaas no navegador do app. A cobrança
+  /// segue viva se o atleta fechar sem pagar: o botão reabre até o prazo.
+  Future<void> _openCardCheckout(StoreOrderCardCheckout card) async {
+    try {
+      await ref.read(storeCardCheckoutProvider).open(card.invoiceUrl);
+    } on PaymentException catch (e) {
+      if (mounted) showAppSnackBar(context, e.message, isError: true);
+    } catch (_) {
+      if (mounted) {
+        showAppSnackBar(context, StoreCheckoutCopy.openLinkError,
+            isError: true);
+      }
+    }
+  }
+
   Future<void> _rebuy(StoreOrderView order) async {
     if (_rebuying) return;
     setState(() => _rebuying = true);
@@ -178,10 +202,14 @@ class _StoreOrderPageState extends ConsumerState<StoreOrderPage> {
     final handoff = _handoff;
 
     final StoreOrderPix? pix;
+    final StoreOrderCardCheckout? card;
     if (order != null) {
-      pix = order.status == StoreOrderStatus.pag ? order.pix : null;
+      final waiting = order.status == StoreOrderStatus.pag;
+      pix = waiting ? order.pix : null;
+      card = waiting ? order.card : null;
     } else {
       pix = handoff?.pix;
+      card = handoff?.card;
     }
     final number = order?.number ?? handoff?.number ?? '';
     final units = order == null
@@ -191,7 +219,7 @@ class _StoreOrderPageState extends ConsumerState<StoreOrderPage> {
             : order.items.fold<int>(0, (n, i) => n + i.qty));
 
     final Widget body;
-    if (order == null && pix == null) {
+    if (order == null && pix == null && card == null) {
       body = _notFound
           ? _notFoundView(colors)
           : const Center(child: CircularProgressIndicator());
@@ -206,6 +234,8 @@ class _StoreOrderPageState extends ConsumerState<StoreOrderPage> {
         children: [
           if (pix != null)
             ..._pixSection(colors, pix, order, handoff)
+          else if (card != null)
+            ..._cardSection(colors, card, order, handoff)
           else if (order != null)
             ..._trackingSection(colors, order),
           if (order != null) ...[
@@ -233,7 +263,7 @@ class _StoreOrderPageState extends ConsumerState<StoreOrderPage> {
       );
     }
 
-    final pending = pix != null;
+    final pending = pix != null || card != null;
     return Scaffold(
       backgroundColor: colors.canvas,
       body: NexaPageHeader(
@@ -308,38 +338,13 @@ class _StoreOrderPageState extends ConsumerState<StoreOrderPage> {
     final total = order?.totalCents ?? handoff?.totalCents ?? 0;
     if (countdown == null) {
       return [
-        Container(
+        _expiredBox(
+          colors,
           key: const ValueKey('store-pix-expired'),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: StoreCheckoutStyle.card(colors),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: StoreCheckoutStyle.line(colors)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const StoreSectionLabel(StoreCheckoutCopy.pixExpiredKicker),
-              const SizedBox(height: 8),
-              Text(
-                StoreCheckoutCopy.pixExpiredTitle,
-                style: AppTypography.titleM.copyWith(color: colors.onSurface),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                StoreCheckoutCopy.pixExpiredBody,
-                style: AppTypography.bodyS.copyWith(
-                  color: StoreStyle.secondary(colors),
-                ),
-              ),
-              const SizedBox(height: 16),
-              StoreSoftButton(
-                label: StoreCheckoutCopy.rebuildCart,
-                onPressed:
-                    order == null || _rebuying ? null : () => _rebuy(order),
-              ),
-            ],
-          ),
+          kicker: StoreCheckoutCopy.pixExpiredKicker,
+          title: StoreCheckoutCopy.pixExpiredTitle,
+          body: StoreCheckoutCopy.pixExpiredBody,
+          order: order,
         ),
       ];
     }
@@ -437,71 +442,227 @@ class _StoreOrderPageState extends ConsumerState<StoreOrderPage> {
         ),
       ),
       const SizedBox(height: 22),
-      Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: StoreCheckoutStyle.card(colors),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: StoreCheckoutStyle.line(colors)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const StoreSectionLabel(StoreCheckoutCopy.bankStepsTitle),
-            const SizedBox(height: 12),
-            for (var i = 0; i < StoreCheckoutCopy.bankSteps.length; i++) ...[
-              if (i > 0) const SizedBox(height: 10),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      color: StoreCheckoutStyle.tint,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '${i + 1}',
-                      style: AppTypography.mono(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.brand,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      StoreCheckoutCopy.bankSteps[i],
-                      style: AppTypography.bodyS.copyWith(
-                        color: StoreStyle.secondary(colors),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 16),
+      _waitingSteps(
+        colors,
+        StoreCheckoutCopy.bankStepsTitle,
+        StoreCheckoutCopy.bankSteps,
+      ),
+      if (progress != null && order != null) ...[
+        const SizedBox(height: 14),
+        _timelineCard(colors, order, progress),
+      ],
+    ];
+  }
+
+  /// Prazo do pagamento acabou (Pix ou cartão): o servidor confirma ou
+  /// cancela; o atleta pode remontar o carrinho.
+  Widget _expiredBox(
+    AppThemeColors colors, {
+    required Key key,
+    required String kicker,
+    required String title,
+    required String body,
+    required StoreOrderView? order,
+  }) {
+    return Container(
+      key: key,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: StoreCheckoutStyle.card(colors),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: StoreCheckoutStyle.line(colors)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          StoreSectionLabel(kicker),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: AppTypography.titleM.copyWith(color: colors.onSurface),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            body,
+            style: AppTypography.bodyS.copyWith(
+              color: StoreStyle.secondary(colors),
+            ),
+          ),
+          const SizedBox(height: 16),
+          StoreSoftButton(
+            label: StoreCheckoutCopy.rebuildCart,
+            onPressed: order == null || _rebuying ? null : () => _rebuy(order),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// "Como pagar" com o ponto pulsando: o Pix e o cartão usam o mesmo cartão.
+  Widget _waitingSteps(
+    AppThemeColors colors,
+    String title,
+    List<String> steps,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: StoreCheckoutStyle.card(colors),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: StoreCheckoutStyle.line(colors)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          StoreSectionLabel(title),
+          const SizedBox(height: 12),
+          for (var i = 0; i < steps.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _PulsingDot(),
-                const SizedBox(width: 10),
+                Container(
+                  width: 22,
+                  height: 22,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    color: StoreCheckoutStyle.tint,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '${i + 1}',
+                    style: AppTypography.mono(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.brand,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    StoreCheckoutCopy.waitingPayment,
-                    style: AppTypography.soraRegular(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: colors.onSurface,
+                    steps[i],
+                    style: AppTypography.bodyS.copyWith(
+                      color: StoreStyle.secondary(colors),
                     ),
                   ),
                 ),
               ],
             ),
           ],
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const _PulsingDot(),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  StoreCheckoutCopy.waitingPayment,
+                  style: AppTypography.soraRegular(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: colors.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 06 Cartão ─────────────────────────────────────────────────────────
+
+  List<Widget> _cardSection(
+    AppThemeColors colors,
+    StoreOrderCardCheckout card,
+    StoreOrderView? order,
+    StoreCreatedOrder? handoff,
+  ) {
+    final countdown = storePixCountdown(card.expiresAt, _now);
+    final total = order?.totalCents ?? handoff?.totalCents ?? 0;
+    if (countdown == null) {
+      return [
+        _expiredBox(
+          colors,
+          key: const ValueKey('store-card-expired'),
+          kicker: StoreCheckoutCopy.cardExpiredKicker,
+          title: StoreCheckoutCopy.cardExpiredTitle,
+          body: StoreCheckoutCopy.cardExpiredBody,
+          order: order,
         ),
+      ];
+    }
+    final progress = order != null ? storeOrderProgress(order) : null;
+    return [
+      Center(
+        child: Text(
+          StoreCheckoutCopy.payWithCard,
+          style: AppTypography.soraRegular(
+            fontSize: 13,
+            fontWeight: FontWeight.w400,
+            color: StoreStyle.secondary(colors),
+          ),
+        ),
+      ),
+      const SizedBox(height: 4),
+      Center(
+        child: Text(
+          StoreCheckoutCopy.price(total),
+          key: const ValueKey('store-card-amount'),
+          style: AppTypography.soraRegular(
+            fontSize: 40,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -1.6,
+            color: colors.onSurface,
+          ),
+        ),
+      ),
+      const SizedBox(height: 6),
+      Center(
+        child: Container(
+          height: 28,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: StoreCheckoutStyle.tint,
+            borderRadius: BorderRadius.circular(99),
+          ),
+          child: Text(
+            StoreCheckoutCopy.expiresIn(countdown),
+            key: const ValueKey('store-card-countdown'),
+            style: AppTypography.mono(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.brand,
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: 22),
+      StorePrimaryButton(
+        key: const ValueKey('store-card-open'),
+        height: 56,
+        label: StoreCheckoutCopy.openCardCheckout,
+        icon: Icons.credit_card,
+        onPressed: () => _openCardCheckout(card),
+      ),
+      const SizedBox(height: 12),
+      Text(
+        StoreCheckoutCopy.cardWillNotify,
+        textAlign: TextAlign.center,
+        style: AppTypography.soraRegular(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w400,
+          color: StoreStyle.tertiary(colors),
+        ),
+      ),
+      const SizedBox(height: 22),
+      _waitingSteps(
+        colors,
+        StoreCheckoutCopy.cardStepsTitle,
+        StoreCheckoutCopy.cardSteps,
       ),
       if (progress != null && order != null) ...[
         const SizedBox(height: 14),

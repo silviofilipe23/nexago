@@ -52,6 +52,7 @@ void main() {
       'channel': 'app_ios',
       'delivery': {'type': 'arena', 'arenaId': 'a1'},
       'couponCode': null,
+      'paymentMethod': 'pix',
     });
     expect(find.text('Bola Pro Beach'), findsOneWidget);
     expect(find.text('Arena Errejota'), findsOneWidget);
@@ -218,6 +219,7 @@ void main() {
       'channel': 'app_ios',
       'delivery': {'type': 'arena', 'arenaId': 'a1'},
       'couponCode': null,
+      'paymentMethod': 'pix',
     });
     expect(expected, 18040);
     expect(cpf, isNull);
@@ -240,6 +242,84 @@ void main() {
       brl(18040),
     );
     expect(find.byKey(const ValueKey('store-cart-pay')), findsNothing);
+  });
+
+  testWidgets('cartão: re-cota sem o desconto Pix e mostra os dois totais', (
+    tester,
+  ) async {
+    final h = CheckoutHarness();
+    await h.pump(tester);
+    await CheckoutHarness.settleQuote(tester);
+
+    // Pix escolhido: o tile do Pix já compara com o cartão.
+    expect(_total(tester), brl(18040));
+    expect(find.text(StoreCheckoutCopy.pixCheaper(950)), findsOneWidget);
+    expect(find.byKey(const ValueKey('store-cart-card')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('store-cart-card')));
+    await CheckoutHarness.settleQuote(tester);
+
+    expect(h.service.quotes.last.paymentMethod, StorePaymentMethod.card);
+    expect(_total(tester), brl(18990));
+    expect(find.text(StoreCheckoutCopy.pixDiscount), findsNothing);
+    expect(find.text(StoreCheckoutCopy.payCard), findsOneWidget);
+    expect(_payEnabled(tester), isTrue);
+
+    // Volta pro Pix: o desconto volta.
+    await tester.tap(find.byKey(const ValueKey('store-cart-pix')));
+    await CheckoutHarness.settleQuote(tester);
+    expect(_total(tester), brl(18040));
+    expect(find.text(StoreCheckoutCopy.pay), findsOneWidget);
+  });
+
+  testWidgets('pagar com cartão manda o total do cartão e abre o checkout', (
+    tester,
+  ) async {
+    final h = CheckoutHarness();
+    await h.pump(tester);
+    await CheckoutHarness.settleQuote(tester);
+    await tester.tap(find.byKey(const ValueKey('store-cart-card')));
+    await CheckoutHarness.settleQuote(tester);
+
+    await tester.tap(_pay());
+    await tester.pump();
+    await tester.pump();
+
+    final (req, expected, _) = h.service.creates.single;
+    expect(req.toMap()['paymentMethod'], 'cartao');
+    expect(expected, 18990);
+    expect(
+      h.router.routerDelegate.currentConfiguration.uri.path,
+      '/loja/pedidos/ord_pedido_1',
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    // O checkout do Asaas abre sozinho; a tela segura o valor e o prazo.
+    expect(h.cardOpened, [kCardInvoiceUrl]);
+    expect(find.text(StoreCheckoutCopy.payWithCard), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const ValueKey('store-card-amount'))).data,
+      brl(18990),
+    );
+    expect(find.byKey(const ValueKey('store-pix-qr')), findsNothing);
+
+    // Fechou sem pagar: o botão reabre.
+    await tester.tap(find.byKey(const ValueKey('store-card-open')));
+    await tester.pump();
+    expect(h.cardOpened, [kCardInvoiceUrl, kCardInvoiceUrl]);
+  });
+
+  testWidgets('servidor anterior ao cartão: só o Pix aparece', (tester) async {
+    final h = CheckoutHarness();
+    h.service.quoteImpl = (req) => quoteFor(
+          req,
+          over: const {'pixTotalCents': null, 'cardTotalCents': null},
+        );
+    await h.pump(tester);
+    await CheckoutHarness.settleQuote(tester);
+
+    expect(find.byKey(const ValueKey('store-cart-pix')), findsOneWidget);
+    expect(find.byKey(const ValueKey('store-cart-card')), findsNothing);
+    expect(_payEnabled(tester), isTrue);
   });
 
   testWidgets('sem CPF no cadastro: pede o CPF e reenvia com ele', (

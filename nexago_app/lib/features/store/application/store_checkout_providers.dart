@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../arenas/domain/payment_providers.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/store_checkout_models.dart';
 import '../domain/store_models.dart';
@@ -60,6 +61,25 @@ final storeOrderProvider =
 /// Abre um link fora do app (Maps, rastreio). Trocado nos testes.
 final storeOpenUrlProvider = Provider<Future<bool> Function(Uri uri)>((ref) {
   return (uri) => launchUrl(uri, mode: LaunchMode.externalApplication);
+});
+
+/// Checkout hospedado do cartão (Asaas) no navegador do app — o mesmo da
+/// inscrição e da reserva. Os testes trocam por um que só anota.
+class StoreCardCheckout {
+  const StoreCardCheckout({required this.open, required this.close});
+
+  final Future<void> Function(String url) open;
+
+  /// Fecha o navegador do app se ainda estiver aberto (o cartão aprovou).
+  final Future<void> Function() close;
+}
+
+final storeCardCheckoutProvider = Provider<StoreCardCheckout>((ref) {
+  final payments = ref.watch(paymentServiceProvider);
+  return StoreCardCheckout(
+    open: payments.openHostedCheckout,
+    close: payments.closeHostedCheckout,
+  );
 });
 
 /// Resultado do "Comprar de novo".

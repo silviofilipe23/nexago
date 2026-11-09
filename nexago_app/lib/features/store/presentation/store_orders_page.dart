@@ -119,7 +119,11 @@ class _StoreOrdersPageState extends ConsumerState<StoreOrdersPage> {
     switch (o.status) {
       case StoreOrderStatus.pag:
         return [
-          StoreOrderAction(StoreCheckoutCopy.payPix, () => _open(o),
+          StoreOrderAction(
+              o.paymentMethod == StorePaymentMethod.card
+                  ? StoreCheckoutCopy.payCardShort
+                  : StoreCheckoutCopy.payPix,
+              () => _open(o),
               primary: true),
         ];
       case StoreOrderStatus.ret:

@@ -3,13 +3,11 @@ import { SPORT_CATALOG } from '@nexago/sports';
 import { callableErrorMessage } from '../../../data/callable-error';
 import { FieldComponent } from '../../../ui/field.component';
 import { IconComponent } from '../../../ui/icon.component';
-import { ToggleComponent } from '../../../ui/toggle.component';
 import { normalizeSearch } from '../data/blog-list';
 import { BLOG_PUSH_CITY_MAX, reachLabel, type BlogCategory, type BlogPushReach } from '../data/blog-post';
 import { BlogPostsRepository } from '../data/blog-posts.repository';
 
 export interface BlogPushChange {
-  pushEnabled?: boolean;
   pushCity?: string;
   pushSport?: string;
 }
@@ -35,30 +33,39 @@ function reachError(error: unknown): string {
 }
 
 /**
- * "Notificação push" do card Onde aparece: liga/desliga, público (cidade e esporte) e o alcance
- * estimado pela callable `estimateBlogPushReach`. Depois do envio vira só o resumo.
+ * "Aviso aos atletas" do card Onde aparece: todo post que vai ao ar no app avisa os atletas (push
+ * no celular e item na lista de notificações do app). Aqui fica o público opcional (cidade e
+ * esporte, padrão todos) e o alcance estimado pela callable `estimateBlogPushReach`. Depois do
+ * envio vira só o resumo.
  */
 @Component({
   selector: 'bo-blog-push-settings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FieldComponent, IconComponent, ToggleComponent],
+  imports: [FieldComponent, IconComponent],
   template: `
-    <div class="push" [class.on]="enabled() && !summary()">
+    <div class="push" [class.on]="app() && !summary()">
       @if (summary(); as text) {
         <div class="row">
-          <span><strong>Notificação push</strong><span class="dim sent">{{ text }}</span></span>
+          <span><strong>Aviso aos atletas</strong><span class="dim sent">{{ text }}</span></span>
           <bo-icon class="bell" name="bell" [size]="16" />
         </div>
-        <p class="note">Cada post envia o push uma vez só.</p>
+        <p class="note">Cada post avisa uma vez só.</p>
+      } @else if (!app()) {
+        <div class="row">
+          <span><strong>Aviso aos atletas</strong><span class="dim">Sai só com “Blog no app” ligado: o aviso abre o post no app.</span></span>
+          <bo-icon class="bell off" name="bell" [size]="16" />
+        </div>
       } @else {
         <div class="row">
-          <span><strong>Notificação push</strong><span class="dim">Enviada no horário da publicação.</span></span>
-          <bo-toggle ariaLabel="Notificação push" [checked]="enabled()" [disabled]="disabled()" (checkedChange)="changed.emit({ pushEnabled: $event })" />
+          <span
+            ><strong>Aviso aos atletas</strong
+            ><span class="dim">Sai no horário da publicação para todos os atletas do público abaixo: push no celular e aviso no app.</span></span
+          >
+          <bo-icon class="bell" name="bell" [size]="16" />
         </div>
         @if (live()) {
-          <p class="note">Este post já está no ar: ligar agora não envia. O push só sai quando o post passa a publicado.</p>
-        }
-        @if (enabled()) {
+          <p class="note">Este post já está no ar: o aviso só sai quando um post passa a publicado.</p>
+        } @else {
           <div class="audience">
             <bo-field label="Cidade">
               <select class="bo-select" [disabled]="disabled()" (change)="setCityChoice(value($event))">
@@ -106,6 +113,7 @@ function reachError(error: unknown): string {
     .dim { font-size: 11.5px; color: var(--nx-text-dim); }
     .sent { color: var(--nx-win); }
     .bell { display: grid; color: var(--nx-win); }
+    .bell.off { color: var(--nx-text-mute); }
     .note { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--nx-text-mute); }
     .audience { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     @media (max-width: 480px) { .audience { grid-template-columns: 1fr; } }
@@ -116,7 +124,8 @@ function reachError(error: unknown): string {
 export class BlogPushSettingsComponent {
   private readonly repository = inject(BlogPostsRepository);
 
-  readonly enabled = input.required<boolean>();
+  /** "Blog no app" ligado: sem ele o aviso não sai (abre o post no app). */
+  readonly app = input.required<boolean>();
   /** Vazio = todas as cidades. */
   readonly city = input.required<string>();
   readonly sport = input.required<string>();
@@ -124,7 +133,7 @@ export class BlogPushSettingsComponent {
   readonly disabled = input(false);
   /** Resumo do push já disparado (`pushSentLabel`); preenchido = só leitura. */
   readonly summary = input<string | null>(null);
-  /** O post já está publicado: ligar agora não dispara. */
+  /** O post já está publicado: o aviso só sai na passagem para publicado. */
   readonly live = input(false);
 
   readonly changed = output<BlogPushChange>();
@@ -143,7 +152,7 @@ export class BlogPushSettingsComponent {
 
   /** O que o alcance precisa, em texto: o efeito só roda quando cidade, esporte ou categoria mudam. */
   private readonly query = computed(() => {
-    if (!this.enabled() || this.summary()) {
+    if (!this.app() || this.summary() || this.live()) {
       return null;
     }
     const city = this.city().replace(/\s+/g, ' ').trim() || null;

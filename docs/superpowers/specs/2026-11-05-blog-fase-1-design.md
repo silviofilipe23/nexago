@@ -130,16 +130,19 @@ pushSentAt: Timestamp | null   // só servidor
 pushResult: {state: "sending" | "sent"; recipients: number; sent: number; finishedAt?} | null
 ```
 
-- Validação: push ligado exige `channels.app == true`.
-- `onBlogPostPublishedPush` (gatilho em `blogPosts/{id}`): quando o post vira `published` com push ligado e
-  sem `pushSentAt`, marca `pushSentAt` e envia uma vez (`type: "blog_post"`, `data: {url:
-  "/athlete/blog/<id>", postId, category}`, FCM + inbox, sem web push).
-- Destinatários: atleta (sem seed/QA) no filtro de cidade (sem acento/caixa) e esporte (`sportOnboarding.
-  levelsBySport`), com push ligado nas Configurações, sem a categoria em `blogNotifyPrefs/{uid}.muted`, e
-  com ao menos um token `users/{uid}/tokens` com `buildNumber >= appConfig/blog.pushMinBuild` (padrão 118,
-  o 1º build com o blog). Sem esse corte, o toque abriria rota inexistente em build antigo.
-- Callable `estimateBlogPushReach({city, sport, category})` → `{reachable, athletes, minBuild, cities:
-  [{city, count}]}` (admin).
+- **Desde 09/11/2026 o aviso é sempre:** todo post que vai ao ar no app avisa os atletas; o editor não tem
+  mais liga/desliga e `push.enabled` só acompanha `channels.app` (o servidor não olha a chave).
+- `onBlogPostPublishedPush` (gatilho em `blogPosts/{id}`): quando o post vira `published` com
+  `channels.app == true` e sem `pushSentAt`, marca `pushSentAt` e envia uma vez (`type: "blog_post"`,
+  `data: {url: "/athlete/blog/<id>", postId, category}`, inbox + FCM, sem web push).
+- Destinatários: todo atleta (sem seed/QA) no filtro de cidade (sem acento/caixa) e esporte
+  (`sportOnboarding.levelsBySport`; padrão todos), fora quem tem a categoria em `blogNotifyPrefs/{uid}.muted`.
+  Todos ganham o item no inbox, com ou sem aparelho; quem tem push ligado nas Configurações recebe também o
+  push (`skipPush` para quem desligou). Sem corte por build: a atualização obrigatória (119, a 1ª versão com o
+  blog) fica acima do router, então build antigo toca e cai na tela de atualizar. `appConfig/blog.pushMinBuild`
+  saiu.
+- Callable `estimateBlogPushReach({city, sport, category})` → `{reachable, athletes, cities: [{city,
+  count}]}` (admin): `athletes` = avisados no app; `reachable` = desses, com push ligado e aparelho.
 
 ## `blogNotifyPrefs/{uid}` → `{muted: BlogCategory[], updatedAt: serverTimestamp}`
 

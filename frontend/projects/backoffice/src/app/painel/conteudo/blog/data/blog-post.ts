@@ -75,7 +75,10 @@ export type BlogBlock =
   | { type: 'ranking'; sport: string; mode: BlogRankingMode; gender: BlogRankingGender };
 export type BlogBlockType = BlogBlock['type'];
 
-/** Push no horário da publicação. `city` `null` = todas; `sport` "all" = todos. */
+/**
+ * Aviso aos atletas no horário da publicação (sai sempre que o post vai ao ar no app). `city`
+ * `null` = todas; `sport` "all" = todos. `enabled` só acompanha o canal do app.
+ */
 export interface BlogPushSettings {
   enabled: boolean;
   city: string | null;
@@ -93,11 +96,10 @@ export interface BlogPushResult {
 
 /** Retorno da callable `estimateBlogPushReach`. */
 export interface BlogPushReach {
-  /** Recebem o push hoje (filtro + preferências + app atualizado). */
+  /** Recebem também o push no celular: push ligado e algum aparelho registrado. */
   reachable: number;
-  /** Atletas no filtro de cidade e esporte, com ou sem o app atualizado. */
+  /** Avisados na lista de notificações do app (o filtro, fora quem silenciou a categoria). */
   athletes: number;
-  minBuild: number;
   /** Cidades dos atletas no filtro de esporte, mais frequentes primeiro (até 30). */
   cities: Array<{ city: string; count: number }>;
 }
@@ -430,8 +432,8 @@ export function formatCount(n: number): string {
 export function reachLabel(reach: Pick<BlogPushReach, 'reachable' | 'athletes'>): string {
   const n = (v: number, one: string, many: string) => `${formatCount(v)} ${v === 1 ? one : many}`;
   return (
-    `Alcance estimado: ${n(reach.reachable, 'atleta', 'atletas')} com o app atualizado · ` +
-    `de ${formatCount(reach.athletes)} no público · respeita quem desligou avisos do blog`
+    `Alcance: ${n(reach.athletes, 'atleta avisado', 'atletas avisados')} no app · ` +
+    `${formatCount(reach.reachable)} com push no celular · fora quem silenciou este assunto`
   );
 }
 
@@ -441,11 +443,14 @@ export function pushSentLabel(post: Pick<BlogPost, 'pushSentAt' | 'pushResult'>,
     return null;
   }
   if (!post.pushResult || post.pushResult.state === 'sending') {
-    return 'Enviando push…';
+    return 'Enviando aviso…';
   }
   const n = post.pushResult.recipients;
   const at = post.pushSentAt ? ` em ${dayMonthLabel(post.pushSentAt, now)} · ${saoPauloParts(post.pushSentAt).time}` : '';
-  return `Push enviado${at} para ${formatCount(n)} ${n === 1 ? 'atleta' : 'atletas'}`;
+  return (
+    `Aviso enviado${at} para ${formatCount(n)} ${n === 1 ? 'atleta' : 'atletas'} · ` +
+    `${formatCount(post.pushResult.sent)} com push no celular`
+  );
 }
 
 // ---------- ranking ----------

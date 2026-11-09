@@ -80,19 +80,17 @@ describe('blog · lista', () => {
     expect(upcomingPosts(POSTS, NOW, 2).length).toBe(2);
   });
 
-  it('indicador de push: enviado com quantos, enviando, ou ligado para sair ao publicar', () => {
-    const on = { enabled: true, city: null, sport: 'all' };
+  it('indicador do aviso: enviado com quantos, enviando, ou sai ao publicar (com o blog no app)', () => {
     expect(pushBadge(post('x', { pushSentAt: NOW, pushResult: { state: 'sent', recipients: 1240, sent: 1200 } }))).toEqual({
-      text: 'push para 1.240',
+      text: 'aviso para 1.240',
       sent: true,
     });
     expect(pushBadge(post('x', { pushSentAt: NOW, pushResult: { state: 'sending', recipients: 0, sent: 0 } }))).toEqual({
-      text: 'enviando push',
+      text: 'enviando aviso',
       sent: true,
     });
-    expect(pushBadge(post('x', { status: 'scheduled', push: on }))).toEqual({ text: 'push ao publicar', sent: false });
-    // Publicado com push ligado e nunca enviado: não vai sair, então nada aparece.
-    expect(pushBadge(post('x', { status: 'published', push: on }))).toBeNull();
-    expect(pushBadge(post('x'))).toBeNull();
+    expect(pushBadge(post('x', { status: 'scheduled' }))).toEqual({ text: 'avisa ao publicar', sent: false });
+    expect(pushBadge(post('x', { status: 'scheduled', channels: { app: false, site: true } }))).toBeNull();
+    // Publicado e nunca avisado (foi ao ar antes do aviso automático): não vai sair, nada aparece.
   });
 });

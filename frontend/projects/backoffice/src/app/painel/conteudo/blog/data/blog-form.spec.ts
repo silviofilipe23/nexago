@@ -171,19 +171,17 @@ describe('blog · formulário', () => {
     expect(saveLabel('published', 'published')).toBe('Salvar alterações');
   });
 
-  it('push vai no post: cidade vazia = todas; já enviado com app desligado não trava o save', () => {
-    const d = filled({ pushEnabled: true, pushCity: '  Goiânia ', pushSport: 'beachTennis' });
+  it('aviso vai no post acompanhando o canal do app: cidade vazia = todas; app desligado não trava o save', () => {
+    const d = filled({ pushCity: '  Goiânia ', pushSport: 'beachTennis' });
     expect(payloadFromDraft(d).push).toEqual({ enabled: true, city: 'Goiânia', sport: 'beachTennis' });
-    expect(payloadFromDraft(filled({ pushEnabled: true })).push).toEqual({ enabled: true, city: null, sport: 'all' });
-    expect(payloadFromDraft(filled()).push).toEqual({ enabled: false, city: null, sport: 'all' });
-    expect(payloadFromDraft(filled({ pushEnabled: true, pushSent: true, app: false })).push.enabled).toBeFalse();
+    expect(payloadFromDraft(filled()).push).toEqual({ enabled: true, city: null, sport: 'all' });
+    expect(payloadFromDraft(filled({ app: false })).push.enabled).toBeFalse();
+    expect(payloadFromDraft(filled({ pushSent: true, app: false })).push.enabled).toBeFalse();
   });
 
-  it('push ligado exige o blog no app; esporte do push precisa existir', () => {
-    expect(payloadIssues(payloadFromDraft(filled({ pushEnabled: true, app: false })), NOW)).toEqual([
-      'A notificação abre o post no app: ligue "Blog no app".',
-    ]);
-    expect(payloadIssues(payloadFromDraft(filled({ pushEnabled: true, pushSport: 'xadrez' })), NOW)).toEqual([
+  it('sem o blog no app o aviso só não sai (não trava); esporte do aviso precisa existir', () => {
+    expect(payloadIssues(payloadFromDraft(filled({ app: false })), NOW)).toEqual([]);
+    expect(payloadIssues(payloadFromDraft(filled({ pushSport: 'xadrez' })), NOW)).toEqual([
       'Esporte da notificação desconhecido.',
     ]);
   });
@@ -236,7 +234,7 @@ describe('blog · formulário', () => {
       version: 1,
       commentCount: 0,
     });
-    expect([base.pushEnabled, base.pushCity, base.pushSent]).toEqual([true, 'Goiânia', true]);
+    expect([base.pushCity, base.pushSent]).toEqual(['Goiânia', true]);
   });
 
   it('arena e ranking vão no post e dividem o teto de 10 com torneio e produto', () => {

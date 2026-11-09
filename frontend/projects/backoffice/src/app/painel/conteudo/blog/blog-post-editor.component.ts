@@ -336,7 +336,7 @@ function isConflict(error: unknown): boolean {
                     <bo-toggle ariaLabel="Destaque no topo" [checked]="d.featured" [disabled]="saving()" (checkedChange)="patch({ featured: $event })" />
                   </div>
                   <bo-blog-push-settings
-                    [enabled]="d.pushEnabled"
+                    [app]="d.app"
                     [city]="d.pushCity"
                     [sport]="d.pushSport"
                     [category]="d.category"
@@ -932,7 +932,7 @@ export class BlogPostEditorComponent {
     try {
       const result = await this.repository.save({ id: this.postId(), version: this.version(), post });
       const wasNew = this.isNew();
-      const pushGoesOut = result.status === 'published' && this.savedStatus() !== 'published' && post.push.enabled && !this.pushSummary();
+      const pushGoesOut = result.status === 'published' && this.savedStatus() !== 'published' && post.channels.app && !this.pushSummary();
       this.version.set(result.version);
       this.savedStatus.set(result.status);
       this.savedPublishAt.set(result.publishAt ? new Date(result.publishAt) : null);
@@ -945,7 +945,7 @@ export class BlogPostEditorComponent {
       this.savedCounts.update((c) => ({ ...c, hasCta: post.cta !== null }));
       this.postId.set(result.id);
       this.confirming.set(null);
-      this.showNotice(pushGoesOut ? 'Post publicado. O push sai em instantes.' : this.savedMessage(result.status));
+      this.showNotice(pushGoesOut ? 'Post publicado. O aviso aos atletas sai em instantes.' : this.savedMessage(result.status));
       if (wasNew) {
         await this.router.navigate(['/painel/conteudo/blog', result.id], { replaceUrl: true });
       }

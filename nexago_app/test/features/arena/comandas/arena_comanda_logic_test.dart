@@ -380,6 +380,24 @@ void main() {
     });
   });
 
+  test('allows reversing a zero-value item (brinde)', () {
+    final item = const ArenaComandaItem(
+      id: 'i1',
+      productId: 'p1',
+      productName: 'Agua',
+      quantity: 1,
+      unitPriceCents: 0,
+      lineTotalCents: 0,
+      source: ArenaComandaItemSource.counter,
+      addedByName: 'Gestor',
+      addedByUid: 'u1',
+    );
+    expect(
+      comandaItemReverseBlockReason(comanda(itemsTotalCents: 0), item),
+      isNull,
+    );
+  });
+
   group('canCloseEmptyComanda', () {
     test('allows closing an open comanda with no consumption', () {
       expect(canCloseEmptyComanda(comanda(rentalCents: 0)), isTrue);

@@ -124,7 +124,8 @@ export function comandaItemReverseBlockReason(
   if (!comandaStatusIsActive(comanda.status)) {
     return 'Comanda não está aberta para estorno.';
   }
-  if (item.quantity <= 0 || item.lineTotalCents <= 0) {
+  // Item de R$ 0,00 (brinde, produto sem preço) é estornável: só devolve o estoque.
+  if (item.quantity <= 0 || item.lineTotalCents < 0) {
     return 'Item inválido para estorno.';
   }
   const newItemsTotal = comanda.itemsTotalCents - item.lineTotalCents;

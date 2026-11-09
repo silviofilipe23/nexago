@@ -558,8 +558,100 @@ void main() {
       }),
       isTrue,
     );
-    // Volta para a página do produto avisando que entrou no carrinho.
-    expect(h.popped, isTrue);
+    // Fica na personalização e confirma na folha.
+    expect(h.popped, isNull);
+    expect(find.text(StoreCopy.customizeAddedTitle), findsOneWidget);
+  });
+
+  group('folha "Adicionado ao carrinho"', () {
+    Future<_Harness> addAntunes(WidgetTester tester) async {
+      final h = await _open(tester);
+      await tester.enterText(_nameField(), 'antunes');
+      await tester.pump();
+      await tester.tap(_addButton());
+      await _settle(tester);
+      return h;
+    }
+
+    testWidgets('mostra a peça, o que foi personalizado e o preço', (
+      tester,
+    ) async {
+      await addAntunes(tester);
+
+      final sheet = find.byKey(const ValueKey('store-customize-added-sheet'));
+      expect(sheet, findsOneWidget);
+      expect(
+        find.descendant(
+          of: sheet,
+          matching: find.text('Camiseta Dry UV50 · Preta M'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Nome ANTUNES'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: sheet,
+          matching: find.text(formatBRLFromCents(14480)),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text(StoreCopy.customizeAddedAnotherHint), findsOneWidget);
+    });
+
+    testWidgets('Continuar na loja volta pro produto avisando que entrou', (
+      tester,
+    ) async {
+      final h = await addAntunes(tester);
+
+      await tester.tap(
+        find.byKey(const ValueKey('store-customize-added-keep-shopping')),
+      );
+      await _settle(tester);
+
+      expect(h.popped, isTrue);
+      expect(find.text('abrir'), findsOneWidget);
+    });
+
+    testWidgets('Personalizar outra limpa o nome e fica na tela', (
+      tester,
+    ) async {
+      final h = await addAntunes(tester);
+
+      await tester
+          .tap(find.byKey(const ValueKey('store-customize-added-another')));
+      await _settle(tester);
+
+      expect(h.popped, isNull);
+      expect(find.text(StoreCopy.customizeAddedTitle), findsNothing);
+      expect(tester.widget<TextField>(_nameField()).controller!.text, '');
+
+      // A 2ª peça entra como outra linha.
+      await tester.enterText(_nameField(), 'silva');
+      await tester.pump();
+      await tester.tap(_addButton());
+      await _settle(tester);
+      expect(
+        h.service.added.map((r) => r.name?.text),
+        ['ANTUNES', 'SILVA'],
+      );
+    });
+
+    testWidgets('fechar a folha e voltar não pergunta: a peça já foi', (
+      tester,
+    ) async {
+      final h = await addAntunes(tester);
+
+      // Toca fora da folha (fecha sem escolher).
+      await tester.tapAt(const Offset(195, 40));
+      await _settle(tester);
+      expect(find.text(StoreCopy.customizeAddedTitle), findsNothing);
+      expect(h.popped, isNull);
+
+      await tester.tap(find.byTooltip(StoreCopy.back));
+      await _settle(tester);
+      expect(find.text(StoreCopy.customizeDiscardTitle), findsNothing);
+      expect(h.popped, isFalse);
+    });
   });
 
   testWidgets('erro da callable vai direto pro snackbar', (tester) async {
@@ -680,8 +772,7 @@ void main() {
   });
 
   group('aba Costas', () {
-    Finder backTab() =>
-        find.byKey(const ValueKey('store-customize-tab-back'));
+    Finder backTab() => find.byKey(const ValueKey('store-customize-tab-back'));
     Finder numberField() =>
         find.byKey(const ValueKey('store-customize-back-number-field'));
     String numberText(WidgetTester tester) =>
@@ -711,8 +802,7 @@ void main() {
             matching: find.byType(Text),
           );
       final sizes = {
-        for (final tab in tabs)
-          tester.widget<Text>(label(tab)).style!.fontSize,
+        for (final tab in tabs) tester.widget<Text>(label(tab)).style!.fontSize,
       };
       expect(sizes, hasLength(1));
       expect(sizes.single, lessThan(14.5));
@@ -752,7 +842,8 @@ void main() {
       );
       expect(find.text('Até 2 dígitos · 0 a 99'), findsOneWidget);
       // Vazia: "Pular" e a caixa das costas reservada na prévia.
-      expect(find.byKey(const ValueKey('store-customize-skip')), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('store-customize-skip')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('store-customize-preview-back')),
         findsOneWidget,
@@ -827,7 +918,8 @@ void main() {
       expect(request.toMap()['back'], {'type': 'numero', 'number': '10'});
       expect(request.name?.text, 'ANTUNES');
       expect(request.image, isNull);
-      expect(h.popped, isTrue);
+      expect(h.popped, isNull);
+      expect(find.text('Nome ANTUNES · Nº 10 nas costas'), findsOneWidget);
     });
 
     testWidgets('seletor Número · Imagem: imagem pelo mesmo fluxo da frente', (
@@ -873,7 +965,8 @@ void main() {
       // A imagem das costas não é a da frente.
       await tester.tap(find.byKey(const ValueKey('store-customize-tab-image')));
       await tester.pump();
-      expect(find.byKey(const ValueKey('store-customize-upload')), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('store-customize-upload')), findsOneWidget);
 
       // Voltar pro Número: a imagem não conta; vazio não habilita.
       await tester.tap(backTab());
@@ -994,8 +1087,8 @@ void main() {
         )
         .data!;
 
-    testWidgets(
-        'área só de texto: campo, prévia, preço da imagem e o areaText', (
+    testWidgets('área só de texto: campo, prévia, preço da imagem e o areaText',
+        (
       tester,
     ) async {
       final h = await _open(tester, product: productWith(const [textOnly]));
@@ -1008,7 +1101,8 @@ void main() {
         find.byKey(const ValueKey('store-customize-area-content-image')),
         findsNothing,
       );
-      expect(find.byKey(const ValueKey('store-customize-upload')), findsNothing);
+      expect(
+          find.byKey(const ValueKey('store-customize-upload')), findsNothing);
       expect(textHint(tester), '0 de 8 · letras, números e espaço');
       // Aba aberta e vazia: "SEU TEXTO" apagado na área.
       expect(

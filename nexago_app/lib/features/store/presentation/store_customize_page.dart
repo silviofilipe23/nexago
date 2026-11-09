@@ -113,6 +113,10 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
 
   bool _adding = false;
   bool _leaving = false;
+
+  /// Como a tela estava quando a última peça entrou no carrinho: o que já
+  /// foi pro carrinho não conta como alteração a descartar.
+  Object? _addedSnapshot;
   bool _openLogged = false;
 
   AnalyticsService get _analytics => ref.read(analyticsServiceProvider);
@@ -205,11 +209,20 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
 
   /// Alteração que o "voltar" perguntaria antes de descartar.
   bool get _hasChanges =>
-      _hasName ||
-      _image != null ||
-      _areaText.isNotEmpty ||
-      _backNumber.isNotEmpty ||
-      _backImage != null;
+      (_hasName ||
+          _image != null ||
+          _areaText.isNotEmpty ||
+          _backNumber.isNotEmpty ||
+          _backImage != null) &&
+      _snapshot != _addedSnapshot;
+
+  Object get _snapshot => (
+        _nameController.text,
+        _image,
+        _areaTextController.text,
+        _backNumberController.text,
+        _backImage,
+      );
 
   List<StoreCustomizeTab> _tabs(StoreProduct product) {
     final c = product.customization!;
@@ -805,12 +818,12 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
       hasImage: image != null || areaText != null,
       hasBack: hasBack,
     );
-    final messenger = ScaffoldMessenger.maybeOf(context);
     final router = GoRouter.maybeOf(context);
 
+    StoreCustomCartResult? result;
     setState(() => _adding = true);
     try {
-      final result = await _service.addToCart(
+      result = await _service.addToCart(
         StoreCustomCartRequest(
           productId: product.id,
           skuId: variant.id,
@@ -844,38 +857,6 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
             : variant.priceCents + extra,
         customized: true,
       );
-      if (!mounted) return;
-      final navigator = Navigator.of(context);
-      if (navigator.canPop()) {
-        // A página do produto mostra o "Adicionado" e pulsa a sacola.
-        _leave(added: true);
-        return;
-      }
-      // Aberta por link, sem página do produto embaixo.
-      _leave();
-      messenger
-        ?..clearSnackBars()
-        ..showSnackBar(
-          SnackBar(
-            content: const Text(
-              StoreCopy.addedToCart,
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            action: SnackBarAction(
-              label: StoreCopy.see,
-              textColor: AppColors.brand,
-              onPressed: () => router?.pushNamed(AppRouteNames.storeCart),
-            ),
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            shape: const RoundedRectangleBorder(borderRadius: AppRadii.mdAll),
-            backgroundColor: AppColors.black.withValues(alpha: 0.88),
-            duration: const Duration(seconds: 4),
-            // Com ação o SnackBar fica até ser fechado (`persist` padrão) e
-            // ignora o `duration` — seguia até por cima da tela seguinte.
-            persist: false,
-          ),
-        );
     } on StoreCustomizeException catch (e) {
       if (!mounted) return;
       showAppSnackBar(
@@ -892,6 +873,64 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
     } finally {
       if (mounted) setState(() => _adding = false);
     }
+    if (result == null || !mounted) return;
+
+    // Fica na personalização e diz com clareza que entrou: voltar sozinho
+    // pro produto parecia que nada tinha acontecido.
+    _addedSnapshot = _snapshot;
+    final backNumber = hasBack &&
+            storeBackTypeOf(customization.back, _backType) ==
+                StoreBackType.number
+        ? _backNumber
+        : null;
+    final action = await showStoreCustomAddedSheet(
+      context,
+      title: storeCustomizeSubtitle(product, selected),
+      details: StoreCopy.customizeAddedDetails(
+        name: hasName ? nameText : null,
+        areaText: areaText?.text,
+        image: image != null,
+        backNumber: backNumber,
+        backImage: hasBack && backNumber == null,
+      ),
+      priceCents: result.unitPriceCents > 0
+          ? result.unitPriceCents
+          : variant.priceCents + extra,
+      anotherHint: customization.name.enabled || customization.back.enabled
+          ? StoreCopy.customizeAddedAnotherHint
+          : null,
+    );
+    if (!mounted) return;
+    switch (action) {
+      case StoreCustomAddedAction.cart:
+        if (router == null) {
+          _leave(added: true);
+        } else {
+          // O carrinho ocupa o lugar da personalização: voltar dele leva ao
+          // produto, sem reabrir a peça que já foi.
+          _leaving = true;
+          unawaited(router.pushReplacementNamed(AppRouteNames.storeCart));
+        }
+      case StoreCustomAddedAction.another:
+        _startAnother(product);
+      case StoreCustomAddedAction.keepShopping:
+        _leave(added: true);
+      case null:
+        break;
+    }
+  }
+
+  /// "Personalizar outra": mesma peça, arte, fonte e cor; limpa o que muda
+  /// de uma pessoa pra outra (nome e número) e volta à 1ª aba.
+  void _startAnother(StoreProduct product) {
+    _nameController.clear();
+    _backNumberController.clear();
+    setState(() {
+      _nameProblem = null;
+      _nameInvalidChar = false;
+      _tab = _tabs(product).first;
+    });
+    _addedSnapshot = _snapshot;
   }
 
   // ── Build ─────────────────────────────────────────────────────────────
@@ -1297,10 +1336,10 @@ class _StoreCustomizePageState extends ConsumerState<StoreCustomizePage> {
                                   backImage.status !=
                                       StoreImageDraftStatus.invalid &&
                                   backImage.bytes != null,
-                              imageBytes: backImage == null ||
-                                      backImage.isVector
-                                  ? null
-                                  : backImage.bytes,
+                              imageBytes:
+                                  backImage == null || backImage.isVector
+                                      ? null
+                                      : backImage.bytes,
                               active: tab == StoreCustomizeTab.back,
                             )
                           : null,

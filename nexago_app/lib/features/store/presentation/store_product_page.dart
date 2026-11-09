@@ -240,7 +240,8 @@ class _StoreProductPageState extends ConsumerState<StoreProductPage> {
   }
 
   /// "Personalizar" exige o SKU completo (sem tamanho: o mesmo tremor do
-  /// "Adicionar"). Volta `true` = a linha personalizada entrou no carrinho.
+  /// "Adicionar"). Volta `true` = a linha entrou e o atleta escolheu
+  /// "Continuar na loja".
   Future<void> _customize(
     StoreProduct product,
     Map<String, String> selected,
@@ -253,8 +254,9 @@ class _StoreProductPageState extends ConsumerState<StoreProductPage> {
       queryParameters: {'sku': variant.id},
     );
     if (added != true || !mounted) return;
+    // A personalização já confirmou na folha "Adicionado ao carrinho": aqui
+    // só a sacola pulsa.
     setState(() => _bagPulse++);
-    _showAddedSnackBar();
   }
 
   /// SKU da escolha, pronto para comprar. Eixo faltando treme (e rola até

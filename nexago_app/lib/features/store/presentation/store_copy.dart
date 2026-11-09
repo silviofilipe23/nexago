@@ -202,6 +202,30 @@ abstract final class StoreCopy {
       'O nome e a imagem que você escolheu não ficam salvos.';
   static const customizeDiscard = 'Descartar';
   static const customizeKeepEditing = 'Continuar editando';
+
+  // Folha "Adicionado ao carrinho" da personalização
+  static const customizeAddedTitle = 'Adicionado ao carrinho';
+  static const customizeAddedGoCart = 'Ir para o carrinho';
+  static const customizeAddedAnother = 'Personalizar outra';
+  static const customizeAddedAnotherHint =
+      'Mesma arte, outro nome e número: dá pra montar o time.';
+  static const customizeAddedKeepShopping = 'Continuar na loja';
+
+  /// "Nome ANTUNES · Nº 10 nas costas": o que foi na peça.
+  static String customizeAddedDetails({
+    String? name,
+    String? areaText,
+    bool image = false,
+    String? backNumber,
+    bool backImage = false,
+  }) =>
+      [
+        if (name != null) 'Nome $name',
+        if (areaText != null) 'Texto $areaText',
+        if (image) 'Imagem',
+        if (backNumber != null) 'Nº $backNumber nas costas',
+        if (backImage) 'Imagem nas costas',
+      ].join(' · ');
   static const customizeUnavailableTitle =
       'Esse produto não está mais personalizável';
   static const customizeUnavailableHint =

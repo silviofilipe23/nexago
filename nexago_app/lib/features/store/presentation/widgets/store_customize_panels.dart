@@ -1221,9 +1221,8 @@ class StoreCustomizeBackPanel extends StatelessWidget {
       children: [
         StoreCustomizeEyebrow(
           title,
-          trailing: priceCents > 0
-              ? StoreCopy.customizeBackPrice(priceCents)
-              : null,
+          trailing:
+              priceCents > 0 ? StoreCopy.customizeBackPrice(priceCents) : null,
         ),
         const SizedBox(height: 12),
         if (both) ...[
@@ -1854,6 +1853,155 @@ Future<StoreImageSheetResult?> showStoreImageSourceSheet({
               color: kStoreErrorColor,
             ),
         ],
+      );
+    },
+  );
+}
+
+/// Saídas da folha "Adicionado ao carrinho" da personalização.
+enum StoreCustomAddedAction { cart, another, keepShopping }
+
+/// Confirma que a peça personalizada entrou no carrinho e pergunta o próximo
+/// passo. `null` = fechou a folha (fica na personalização como estava).
+Future<StoreCustomAddedAction?> showStoreCustomAddedSheet(
+  BuildContext context, {
+  required String title,
+  required String details,
+  required int priceCents,
+  String? anotherHint,
+}) {
+  return _showStoreSheet<StoreCustomAddedAction>(
+    context: context,
+    builder: (sheetContext) {
+      final colors = sheetContext.themeColors;
+      final secondary = StoreStyle.secondary(colors);
+      void choose(StoreCustomAddedAction action) =>
+          Navigator.pop(sheetContext, action);
+      return Padding(
+        key: const ValueKey('store-customize-added-sheet'),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: const BoxDecoration(
+                    color: AppColors.brand,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: AppColors.white,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    StoreCopy.customizeAddedTitle,
+                    style:
+                        AppTypography.titleL.copyWith(color: colors.onSurface),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: AppTypography.bodyM.copyWith(
+                          color: colors.onSurface,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (details.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          details,
+                          key: const ValueKey('store-customize-added-details'),
+                          style: AppTypography.bodyM.copyWith(color: secondary),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  StoreCopy.price(priceCents),
+                  style: AppTypography.bodyM.copyWith(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            FilledButton(
+              key: const ValueKey('store-customize-added-cart'),
+              onPressed: () => choose(StoreCustomAddedAction.cart),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.white,
+                minimumSize: const Size.fromHeight(52),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: AppRadii.pillAll,
+                ),
+              ),
+              child: const Text(
+                StoreCopy.customizeAddedGoCart,
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              key: const ValueKey('store-customize-added-another'),
+              onPressed: () => choose(StoreCustomAddedAction.another),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colors.onSurface,
+                minimumSize: const Size.fromHeight(52),
+                side: BorderSide(color: secondary.withValues(alpha: 0.4)),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: AppRadii.pillAll,
+                ),
+              ),
+              child: const Text(
+                StoreCopy.customizeAddedAnother,
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            if (anotherHint != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                anotherHint,
+                textAlign: TextAlign.center,
+                style: AppTypography.bodyS.copyWith(color: secondary),
+              ),
+            ],
+            const SizedBox(height: 4),
+            TextButton(
+              key: const ValueKey('store-customize-added-keep-shopping'),
+              onPressed: () => choose(StoreCustomAddedAction.keepShopping),
+              style: TextButton.styleFrom(
+                foregroundColor: colors.onSurface,
+                minimumSize: const Size.fromHeight(48),
+              ),
+              child: const Text(
+                StoreCopy.customizeAddedKeepShopping,
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
       );
     },
   );

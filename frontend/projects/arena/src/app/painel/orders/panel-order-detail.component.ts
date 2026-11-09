@@ -9,7 +9,15 @@ import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
-import { formatCentsInputValue, formatMovementDate, parseBRLInputToCents, type ArenaProduct } from '../stock/product.model';
+import {
+  buildProductCatalogChips,
+  filterCatalogProducts,
+  formatCentsInputValue,
+  formatMovementDate,
+  parseBRLInputToCents,
+  type ArenaProduct,
+  type ProductCatalogFilter,
+} from '../stock/product.model';
 import { fetchProducts } from '../stock/products-repository';
 import {
   ARENA_COMANDA_PAYMENT_METHOD_LABEL,
@@ -114,14 +122,44 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                     <ar-icon name="search" [size]="15" style="color: var(--nx-text-dim)" />
                     <input
                       type="text"
-                      placeholder="Filtrar produtos…"
+                      placeholder="Buscar produto…"
+                      aria-label="Buscar produto"
                       [value]="addQuery()"
                       [disabled]="cargoReadOnly()"
                       (input)="onAddQueryInput($any($event.target).value)"
+                      (keydown.enter)="addSingleMatch(c)"
+                      (keydown.escape)="addQuery.set('')"
                     />
+                    @if (addQuery()) {
+                      <button type="button" class="search-clear" aria-label="Limpar busca" (click)="addQuery.set('')">
+                        <ar-icon name="x" [size]="14" />
+                      </button>
+                    }
                   </div>
+                  @if (catalogChips().length > 0) {
+                    <div class="catalog-chips" role="group" aria-label="Filtrar produtos por tipo">
+                      @for (chip of catalogChips(); track chip.key) {
+                        <button
+                          type="button"
+                          class="ar-chip"
+                          [class.active]="catalogFilter() === chip.key"
+                          [class.empty]="chip.count === 0"
+                          [attr.aria-pressed]="catalogFilter() === chip.key"
+                          (click)="catalogFilterChoice.set(chip.key)"
+                        >
+                          {{ chip.label }}<span class="chip-count">{{ chip.count }}</span>
+                        </button>
+                      }
+                    </div>
+                  }
                   @if (addSuggestions().length > 0) {
-                    <p class="add-hint">Toque no produto para lançar 1 unidade. Lançou errado? Use "Remover" no item.</p>
+                    <p class="add-hint">
+                      @if (addSuggestions().length === 1 && addQuery().trim()) {
+                        Enter lança 1 {{ addSuggestions()[0].name }}.
+                      } @else {
+                        Toque no produto para lançar 1 unidade. Lançou errado? Use "Remover" no item.
+                      }
+                    </p>
                     <div class="product-grid" aria-label="Produtos">
                       @for (p of addSuggestions(); track p.id) {
                         <button
@@ -155,6 +193,13 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                         </button>
                       }
                     </div>
+                  } @else if (catalogFilter() !== 'todos' && (catalogChips()[0]?.count ?? 0) > 0) {
+                    <p class="state-text">
+                      Nenhum produto desse tipo{{ addQuery().trim() ? ' com "' + addQuery().trim() + '"' : '' }}.
+                      <button type="button" class="link-btn" (click)="catalogFilterChoice.set('todos')">
+                        Ver em todos ({{ catalogChips()[0].count }})
+                      </button>
+                    </p>
                   } @else if (addQuery().trim()) {
                     <p class="state-text">Nenhum produto encontrado.</p>
                   }
@@ -465,6 +510,66 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       color: var(--nx-text);
       font-family: var(--nx-font-ui);
       font-size: 13.5px;
+    }
+
+    .search-clear {
+      flex: none;
+      width: 28px;
+      height: 28px;
+      margin-right: -6px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--nx-text-dim);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+
+    .search-clear:hover {
+      background: var(--nx-surface-1);
+      color: var(--nx-text);
+    }
+
+    .catalog-chips {
+      margin-top: 10px;
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .catalog-chips::-webkit-scrollbar {
+      display: none;
+    }
+
+    .catalog-chips .ar-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 36px;
+    }
+
+    .catalog-chips .ar-chip.empty:not(.active) {
+      opacity: 0.5;
+    }
+
+    .chip-count {
+      font-family: var(--nx-font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      opacity: 0.75;
+    }
+
+    .link-btn {
+      border: none;
+      background: none;
+      padding: 0;
+      color: var(--nx-orange-500);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
     }
 
     .product-grid {
@@ -851,6 +956,8 @@ export class PanelOrderDetailComponent {
   protected readonly cargoReadOnly = computed(() => !this.access.canWrite('comandas'));
 
   protected readonly addQuery = signal('');
+  /** Tipo escolhido nos chips. Vale enquanto o tipo existir no catálogo (ver `catalogFilter`). */
+  protected readonly catalogFilterChoice = signal<ProductCatalogFilter>('todos');
   /** Toques ainda na fila, por produto — o badge "+N" no card enquanto a gravação não volta. */
   protected readonly pendingByProduct = signal<ReadonlyMap<string, number>>(new Map());
   /** Lançamentos em série: cada toque espera o anterior, então a recarga nunca volta fora de
@@ -914,11 +1021,17 @@ export class PanelOrderDetailComponent {
     return map;
   });
 
-  protected readonly addSuggestions = computed(() => {
-    const q = this.addQuery().trim().toLowerCase();
-    const all = this.products();
-    return q ? all.filter((p) => p.name.toLowerCase().includes(q)) : all;
+  protected readonly catalogChips = computed(() => buildProductCatalogChips(this.products(), this.addQuery()));
+
+  /** O tipo escolhido some (ex.: arena ficou com um tipo só) → volta pra "Todos". */
+  protected readonly catalogFilter = computed<ProductCatalogFilter>(() => {
+    const choice = this.catalogFilterChoice();
+    return this.catalogChips().some((c) => c.key === choice) ? choice : 'todos';
   });
+
+  protected readonly addSuggestions = computed(() =>
+    filterCatalogProducts(this.products(), this.catalogFilter(), this.addQuery()),
+  );
 
   constructor() {
     effect(() => {
@@ -953,6 +1066,16 @@ export class PanelOrderDetailComponent {
 
   protected onAddQueryInput(value: string): void {
     this.addQuery.set(value);
+  }
+
+  /** Enter na busca com um único produto na tela = lança ele e limpa a busca pro próximo. */
+  protected addSingleMatch(comanda: ArenaComanda): void {
+    const matches = this.addSuggestions();
+    if (!this.addQuery().trim() || matches.length !== 1) return;
+    const [product] = matches;
+    if (product.stockQuantity <= 0) return;
+    this.addProduct(comanda, product);
+    this.addQuery.set('');
   }
 
   /** Toque no card = lança 1 unidade na hora. Toques seguidos no mesmo produto viram

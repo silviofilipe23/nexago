@@ -1,5 +1,7 @@
 import {
+  buildProductCatalogChips,
   buildProductSummary,
+  filterCatalogProducts,
   formatMarginPercent,
   parseOptionalBRLInputToCents,
   productMarginRatio,
@@ -119,5 +121,39 @@ describe('parseOptionalBRLInputToCents', () => {
 
   it('lê valor no formato brasileiro', () => {
     expect(parseOptionalBRLInputToCents('1.234,56')).toBe(123456);
+  });
+});
+
+describe('catálogo da comanda (filtro por tipo + busca)', () => {
+  const catalog = [
+    product({ id: 'agua', name: 'Água mineral', category: 'bebidas' }),
+    product({ id: 'coca', name: 'Coca-Cola lata', category: 'bebidas' }),
+    product({ id: 'acai', name: 'Açaí 300ml', category: 'alimentacao' }),
+    product({ id: 'bola', name: 'Bola de beach tennis', category: 'equipamentos' }),
+  ];
+
+  it('busca ignora acento e caixa', () => {
+    expect(filterCatalogProducts(catalog, 'todos', 'ACAI').map((p) => p.id)).toEqual(['acai']);
+    expect(filterCatalogProducts(catalog, 'todos', ' agua ').map((p) => p.id)).toEqual(['agua']);
+  });
+
+  it('combina tipo e busca', () => {
+    expect(filterCatalogProducts(catalog, 'bebidas', '').map((p) => p.id)).toEqual(['agua', 'coca']);
+    expect(filterCatalogProducts(catalog, 'bebidas', 'bola')).toEqual([]);
+    expect(filterCatalogProducts(catalog, 'todos', 'bola').map((p) => p.id)).toEqual(['bola']);
+  });
+
+  it('chips mostram só os tipos cadastrados, com contagem da busca', () => {
+    expect(buildProductCatalogChips(catalog, '')).toEqual([
+      { key: 'todos', label: 'Todos', count: 4 },
+      { key: 'bebidas', label: 'Bebidas', count: 2 },
+      { key: 'alimentacao', label: 'Alimentação', count: 1 },
+      { key: 'equipamentos', label: 'Equipamentos', count: 1 },
+    ]);
+    expect(buildProductCatalogChips(catalog, 'co').map((c) => c.count)).toEqual([1, 1, 0, 0]);
+  });
+
+  it('sem chips quando a arena só tem um tipo', () => {
+    expect(buildProductCatalogChips(catalog.slice(0, 2), '')).toEqual([]);
   });
 });

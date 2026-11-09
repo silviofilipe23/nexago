@@ -75,7 +75,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                           {{ it.emoji }}
                         }
                       </div>
-                      <div>
+                      <div class="item-text">
                         <div class="item-name">{{ it.productName }}</div>
                         <div class="item-category">{{ it.source === 'app' ? 'App' : 'Balcão' }} · {{ it.addedByName }}</div>
                       </div>
@@ -245,7 +245,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
               </ar-panel-card>
             } @else if (canCloseEmpty()) {
               <ar-panel-card title="Fechar comanda">
-                <p class="state-text">Nenhum item foi lançado nesta comanda.</p>
+                <p class="state-text">{{ items().length ? 'Nada a receber nesta comanda (itens sem valor).' : 'Nenhum item foi lançado nesta comanda.' }}</p>
                 <button type="button" class="ar-mini-btn close-empty-btn" [disabled]="closingEmpty() || cargoReadOnly()" (click)="showCloseConfirm.set(true)">
                   Fechar comanda
                 </button>
@@ -363,6 +363,17 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       width: 100%;
       height: 100%;
       object-fit: cover;
+    }
+
+    .item-text {
+      min-width: 0;
+    }
+
+    .item-name,
+    .item-category {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .item-name {

@@ -1,0 +1,21 @@
+{
+  "images": {
+    "focus.webp": "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/blog%2F102c958b-e9e4-4546-98c3-33a968920e45.webp?alt=media&token=965a91a7-90ef-4eea-8510-7580ecd3996e",
+    "chuva.webp": "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/blog%2F9b27ebd7-3641-4bb3-9fef-e721589dc3d6.webp?alt=media&token=df150a06-7205-4b10-ac19-19f799bd036e",
+    "inscricao.webp": "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/blog%2F202080a5-432f-4bd4-b51d-506286a8838a.webp?alt=media&token=c9bf7d3c-ad58-4c25-ad62-da7bee43bfbe",
+    "galera.webp": "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/blog%2F8fe58fb7-81dd-41b9-a19f-901fdf08e990.webp?alt=media&token=68fda9e7-1c4c-423d-abeb-55b22082d5c4",
+    "ranking.webp": "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/blog%2F47c4d6a0-dc81-470a-b530-4938ccbd98ab.webp?alt=media&token=7cb2652c-5083-4c60-bd59-cd04de1dda7d",
+    "capas/capa-guia-modo-focus.jpg": "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/blog%2Fac6e61bf-2d38-406d-87b3-01f84def1934.jpg?alt=media&token=aac1a783-7775-46b8-805a-d3d8395939fd",
+    "capas/capa-guia-chuva.jpg": "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/blog%2F698343b3-3f24-4c95-b301-139921a4213a.jpg?alt=media&token=a4d9ba09-49e9-4f4d-8b29-73fb2b326227",
+    "capas/capa-guia-inscricao-torneio.jpg": "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/blog%2F27f2c251-17d4-4b0c-b09a-97c2270f90c3.jpg?alt=media&token=3f5ab2d1-3383-49ea-9fa3-3f2dbcc562d6",
+    "capas/capa-guia-jogo-com-a-galera.jpg": "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/blog%2F43b6a184-77a0-4312-810d-efb2641c2617.jpg?alt=media&token=2648b5bd-07bd-431b-9589-d041a3c9f085",
+    "capas/capa-guia-ranking-nivel-elo.jpg": "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/blog%2F73826cb8-62bf-4096-8068-2a668ba42593.jpg?alt=media&token=ec199ab3-5f41-4ced-b607-d73231a929bd"
+  },
+  "posts": {
+    "focus": "X3vowkgrnf3oyq17BtFX",
+    "chuva": "XMINrFlBzQcahA84YSfA",
+    "inscricao": "gKR1j4nlwKKm2m4y9RaR",
+    "galera": "AVw84bM0YI7bByilx9ju",
+    "ranking": "VocNFUcvhT0JoKlaAQ82"
+  }
+}

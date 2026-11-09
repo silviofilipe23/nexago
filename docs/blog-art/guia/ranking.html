@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="wide.css">
+<style>
+  /* As três réguas do atleta: Ranking (torneios), pontos por fase × peso da categoria, Elo (XP). */
+  .c { top: 96px; width: 214px; }
+  .c1 { left: 46px; } .c2 { left: 293px; } .c3 { left: 540px; }
+  .podium { display: flex; align-items: flex-end; justify-content: center; gap: 8px; margin-top: 10px; height: 92px; }
+  .pd { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 54px; }
+  .pd .av { width: 30px; height: 30px; font-size: 11px; }
+  .pd .bl { width: 100%; border-radius: 8px 8px 3px 3px; display: grid; place-items: center; font-family: JB; font-weight: 700; font-size: 11px; color: #0A0A0A; }
+  .rk { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 6px; height: 28px; font-size: 9.5px; border-bottom: 1px solid var(--line); }
+  .rk .p { font-family: JB; font-weight: 700; color: var(--dim2); font-size: 9px; }
+  .rk .v { font-family: JB; font-weight: 700; font-size: 9px; color: var(--dim); }
+  .rk.me { background: rgba(255,106,26,.10); border: 1px solid rgba(255,106,26,.35); border-radius: 9px; padding: 0 7px; margin: 4px -7px 0; }
+  .rk.me .p, .rk.me .v { color: var(--or); }
+  .up { color: var(--win); font-family: JB; font-weight: 700; font-size: 8px; margin-left: 4px; }
+  .pt { display: flex; justify-content: space-between; align-items: center; height: 24px; font-size: 9.5px; border-bottom: 1px solid var(--line); }
+  .pt b { font-family: JB; font-weight: 700; font-size: 10px; }
+  .pt:first-of-type b { color: var(--or); }
+  .weights { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+  .weights .chip { height: 20px; font-size: 8px; padding: 0 7px; }
+  .weights .chip b { font-family: JB; color: var(--fg); margin-left: 2px; }
+  .weights .chip.on b { color: #0A0A0A; }
+  .elo { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .er { display: flex; align-items: center; gap: 9px; height: 26px; }
+  .er .badge { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 15px; background: var(--surf2); border: 1px solid var(--line); color: var(--dim2); }
+  .er .nm { font-size: 10px; font-weight: 600; color: var(--dim); }
+  .er .xp { margin-left: auto; font-family: JB; font-weight: 700; font-size: 8.5px; color: var(--dim2); }
+  .er.done .badge { color: var(--or); border-color: rgba(255,106,26,.35); background: rgba(255,106,26,.10); }
+  .er.done .nm { color: var(--fg); }
+  .er.now { background: rgba(255,106,26,.10); border: 1px solid rgba(255,106,26,.35); border-radius: 10px; padding: 0 7px; margin: 0 -7px; height: 34px; }
+  .er.now .badge { background: var(--or); color: #0A0A0A; border-color: var(--or); }
+  .er.now .nm { color: var(--fg); font-weight: 700; }
+  .er.now .xp { color: var(--or); }
+  .xpbar { height: 5px; border-radius: 9px; background: rgba(255,106,26,.16); margin-top: 10px; }
+  .xpbar span { display: block; width: 58%; height: 100%; border-radius: 9px; background: linear-gradient(90deg, var(--or), var(--or2)); }
+</style></head>
+<body><div class="art">
+  <div class="step" style="left:46px;top:60px"><span class="n">1</span><span class="t">Ranking · torneios</span></div>
+  <div class="card c c1">
+    <div class="row" style="justify-content:space-between"><span class="title" style="font-size:12px">Vôlei de praia</span><span class="chip" style="height:20px;font-size:8px">Temporada 2026</span></div>
+    <div class="podium">
+      <div class="pd"><div class="av" style="background:#C9D3E0">L</div><div class="bl" style="height:34px;background:#C9D3E0">2</div></div>
+      <div class="pd"><div class="av" style="background:#FFC94A">M</div><div class="bl" style="height:48px;background:#FFC94A">1</div></div>
+      <div class="pd"><div class="av" style="background:#E0A06A">D</div><div class="bl" style="height:24px;background:#E0A06A">3</div></div>
+    </div>
+    <div class="rk" style="margin-top:10px"><span class="p">12</span><span>Gui Andrade</span><span class="v">1.240</span></div>
+    <div class="rk"><span class="p">13</span><span>Téo Farias</span><span class="v">1.205</span></div>
+    <div class="rk me" style="border-bottom:1px solid rgba(255,106,26,.35)"><span class="p">14</span><span style="font-weight:700">Você<span class="up">▲ 3</span></span><span class="v">1.180</span></div>
+    <div class="rk" style="border-bottom:0"><span class="p">15</span><span>Rafa Lima</span><span class="v">1.150</span></div>
+  </div>
+  <div class="arrow" style="left:265px;top:222px"><span class="i">&#xe15f;</span></div>
+
+  <div class="step" style="left:293px;top:60px"><span class="n">2</span><span class="t">Pontos por fase</span></div>
+  <div class="card c c2">
+    <div class="kicker" style="margin-bottom:6px">Categoria Open · peso ×1</div>
+    <div class="pt"><span>Título</span><b>1000</b></div>
+    <div class="pt"><span>Vice</span><b>800</b></div>
+    <div class="pt"><span>3º lugar</span><b>600</b></div>
+    <div class="pt"><span>4º lugar</span><b>500</b></div>
+    <div class="pt"><span>Quartas de final</span><b>330</b></div>
+    <div class="pt"><span>Oitavas de final</span><b>200</b></div>
+    <div class="pt" style="border-bottom:0"><span>Participação</span><b>100</b></div>
+    <div class="weights">
+      <span class="chip">Inic.<b>×0,125</b></span><span class="chip">Interm.<b>×0,25</b></span><span class="chip">Avanç.<b>×0,5</b></span>
+      <span class="chip on">Open<b>×1</b></span><span class="chip">Elite<b>×1,2</b></span>
+    </div>
+  </div>
+  <div class="arrow" style="left:512px;top:222px"><span class="i">&#xe15f;</span></div>
+
+  <div class="step" style="left:540px;top:60px"><span class="n">3</span><span class="t">Elo · o quanto você joga</span></div>
+  <div class="card c c3">
+    <div class="row" style="justify-content:space-between"><span class="title" style="font-size:12px">Trilha de elos</span><span class="mono" style="font-size:10px;color:var(--or)">1.960 XP</span></div>
+    <div class="elo">
+      <div class="er done"><span class="badge"><span class="i">&#xe5f4;</span></span><span class="nm">Iniciante</span><span class="xp">0</span></div>
+      <div class="er done"><span class="badge"><span class="i">&#xe3e7;</span></span><span class="nm">Competidor</span><span class="xp">450</span></div>
+      <div class="er now"><span class="badge"><span class="i">&#xe0ee;</span></span><span class="nm">Desafiante II</span><span class="xp">1.900</span></div>
+      <div class="er"><span class="badge"><span class="i">&#xe22c;</span></span><span class="nm">Elite</span><span class="xp">3.300</span></div>
+      <div class="er"><span class="badge"><span class="i">&#xf05ae;</span></span><span class="nm">Mestre</span><span class="xp">6.600</span></div>
+      <div class="er"><span class="badge"><span class="i">&#xe5f9;</span></span><span class="nm">Lenda</span><span class="xp">12.500</span></div>
+    </div>
+    <div class="xpbar"><span style="width:10%"></span></div>
+    <div class="sub" style="margin-top:5px;font-size:8.5px">Faltam 540 XP para Desafiante I</div>
+  </div>
+  <div class="brand" style="left:46px"><b>nexa</b>GO · GUIA DO APP</div>
+</div></body></html>

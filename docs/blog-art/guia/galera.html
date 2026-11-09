@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="wide.css">
+<style>
+  /* O ciclo do jogo com a galera: reservar → chamar quem falta → placar confirmado e story. */
+  .c { top: 96px; width: 214px; }
+  .c1 { left: 46px; } .c2 { left: 293px; } .c3 { left: 540px; }
+  .days { display: flex; gap: 5px; margin-top: 10px; }
+  .day { flex: 1; height: 40px; border-radius: 10px; background: var(--surf2); border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .day .w { font-family: JB; font-weight: 700; font-size: 6.5px; letter-spacing: .12em; color: var(--dim2); }
+  .day .d { font-size: 12px; font-weight: 700; margin-top: 2px; }
+  .day.on { background: var(--or); border-color: var(--or); color: #0A0A0A; } .day.on .w { color: rgba(0,0,0,.6); }
+  .slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 10px; }
+  .slot { height: 26px; border-radius: 8px; border: 1px solid var(--line); background: var(--surf2); font-family: JB; font-weight: 700; font-size: 8.5px; display: grid; place-items: center; color: var(--fg); }
+  .slot.off { color: var(--dim2); text-decoration: line-through; background: transparent; }
+  .slot.on { border-color: var(--or); background: rgba(255,106,26,.14); color: var(--or); }
+  .team { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+  .seat { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 8px; color: var(--dim); }
+  .seat .av { width: 38px; height: 38px; font-size: 13px; }
+  .seat .free { width: 38px; height: 38px; border-radius: 99px; border: 1.5px dashed rgba(255,106,26,.55); display: grid; place-items: center; color: var(--or); font-size: 18px; }
+  .seat b { color: var(--fg); font-weight: 600; }
+  .linkbox { margin-top: 12px; height: 32px; border-radius: 10px; background: var(--surf2); border: 1px solid var(--line); display: flex; align-items: center; gap: 7px; padding: 0 10px; font-family: JB; font-weight: 700; font-size: 8px; color: var(--dim); }
+  .linkbox .i { color: var(--or); font-size: 14px; }
+  .score { margin-top: 10px; border-radius: 12px; background: var(--surf2); border: 1px solid var(--line); padding: 4px 10px; }
+  .sr { display: grid; grid-template-columns: 1fr 22px 22px 22px; align-items: center; height: 30px; font-size: 10px; }
+  .sr + .sr { border-top: 1px solid var(--line); }
+  .sr .s { font-family: JB; font-weight: 700; text-align: center; font-size: 12px; color: var(--dim); }
+  .sr.w .s.won { color: var(--or); }
+  .sr .s.won { color: var(--fg); }
+  .sr .nm { display: flex; align-items: center; gap: 6px; }
+  .sr .nm .av { width: 18px; height: 18px; font-size: 8px; }
+  .conf { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 9px; color: var(--win); }
+  .conf .i { font-size: 15px; }
+</style></head>
+<body><div class="art">
+  <div class="step" style="left:46px;top:60px"><span class="n">1</span><span class="t">Reserve a quadra</span></div>
+  <div class="card c c1">
+    <div class="title">Arena Sol Nascente</div>
+    <div class="sub">Beach tennis · Quadra 2</div>
+    <div class="days">
+      <div class="day"><span class="w">QUA</span><span class="d">12</span></div>
+      <div class="day on"><span class="w">QUI</span><span class="d">13</span></div>
+      <div class="day"><span class="w">SEX</span><span class="d">14</span></div>
+      <div class="day"><span class="w">SÁB</span><span class="d">15</span></div>
+    </div>
+    <div class="slots">
+      <div class="slot off">17:00</div><div class="slot">18:00</div><div class="slot on">19:00</div>
+      <div class="slot off">20:00</div><div class="slot">21:00</div><div class="slot">22:00</div>
+    </div>
+    <div class="row" style="justify-content:space-between;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
+      <span class="sub">19:00–20:00</span><span class="mono" style="font-size:12px">R$ 90,00</span></div>
+    <div class="btn" style="margin-top:9px">Continuar</div>
+  </div>
+  <div class="arrow" style="left:265px;top:222px"><span class="i">&#xe15f;</span></div>
+
+  <div class="step" style="left:293px;top:60px"><span class="n">2</span><span class="t">Chame a galera</span></div>
+  <div class="card c c2">
+    <div class="kicker">Sua equipe · 3 de 4</div>
+    <div class="team">
+      <div class="seat"><div class="av" style="background:#FFB27A">V</div><b>Você</b></div>
+      <div class="seat"><div class="av" style="background:#8AB4FF">C</div><b>Caio</b></div>
+      <div class="seat"><div class="av" style="background:#F4A3C0">B</div><b>Bia</b></div>
+      <div class="seat"><div class="free"><span class="i">&#xe047;</span></div>Vaga livre</div>
+    </div>
+    <div class="linkbox"><span class="i">&#xe380;</span>Quem aceitar primeiro ocupa a vaga</div>
+    <div class="btn" style="margin-top:9px"><span class="i">&#xe593;</span>Compartilhar link do jogo</div>
+    <div class="btn ghost" style="margin-top:6px"><span class="i">&#xe492;</span>Convidar jogadores</div>
+  </div>
+  <div class="arrow" style="left:512px;top:222px"><span class="i">&#xe15f;</span></div>
+
+  <div class="step" style="left:540px;top:60px"><span class="n">3</span><span class="t">Placar e story</span></div>
+  <div class="card c c3">
+    <div class="kicker">Pós-jogo · Qui 13</div>
+    <div class="title" style="margin-top:5px">Placar do jogo</div>
+    <div class="score">
+      <div class="sr w"><span class="nm"><span class="av" style="background:#FFB27A">V</span>Você &amp; Caio</span><span class="s won">6</span><span class="s">4</span><span class="s won">10</span></div>
+      <div class="sr"><span class="nm"><span class="av" style="background:#F4A3C0">B</span>Bia &amp; Léo</span><span class="s">3</span><span class="s won">6</span><span class="s">7</span></div>
+    </div>
+    <div class="conf"><span class="i">&#xe159;</span>3 de 4 confirmaram o placar</div>
+    <div class="row" style="gap:6px;margin-top:10px">
+      <div class="btn" style="flex:1;padding:0 8px;font-size:9.5px">Confirmar placar</div><div class="btn ghost" style="padding:0 9px;font-size:9.5px">Contestar</div>
+    </div>
+    <div class="btn ghost" style="margin-top:6px"><span class="i">&#xe593;</span>Postar resultado</div>
+  </div>
+  <div class="brand" style="left:46px"><b>nexa</b>GO · GUIA DO APP</div>
+</div></body></html>

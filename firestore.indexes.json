@@ -1694,6 +1694,20 @@
       ]
     },
     {
+      "collectionGroup": "storeOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "card.expiresAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "storeOrderViews",
       "queryScope": "COLLECTION",
       "fields": [

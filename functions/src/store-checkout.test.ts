@@ -7,13 +7,16 @@ import {
   buildOrderView,
   confirmStoreOrderPaymentCore,
   createStoreOrderCore,
+  expireStoreCardCore,
   expireStorePixCore,
   quoteCheckoutCore,
   recordLatePixRefundCore,
   releaseCouponOnCancelCore,
+  STORE_CARD_FEE_TERMS,
+  storeCardFeeOf,
   type CheckoutPayments,
 } from "./store-checkout";
-import {pixDiscountOf, priceCoupon, shippingFor, type QuoteLine} from "./store-checkout-price";
+import {pixDiscountOf, priceCheckout, priceCoupon, shippingFor, type QuoteLine} from "./store-checkout-price";
 import {DEFAULT_SHIPPING_CONFIG} from "./store-pickup";
 
 const ACTOR = {uid: "admin1", name: "Lucas M."};
@@ -65,6 +68,12 @@ class FakePay implements CheckoutPayments {
     this.created.push({orderId: p.orderId, totalCents: p.totalCents});
     this.onCreate?.();
     return {paymentId: `pay_${this.created.length}`, copyPaste: "00020126580014br.gov.bcb.pix0136pix-da-loja"};
+  }
+  cards: Array<{orderId: string; totalCents: number; expiresAt: Date}> = [];
+  async createCard(p: {orderId: string; totalCents: number; expiresAt: Date}) {
+    this.cards.push({orderId: p.orderId, totalCents: p.totalCents, expiresAt: p.expiresAt});
+    this.onCreate?.();
+    return {paymentId: `card_${this.cards.length}`, invoiceUrl: `https://sandbox.asaas.com/i/${p.orderId}`};
   }
   async cancelCharge(id: string) {
     this.canceled.push(id);
@@ -268,6 +277,198 @@ describe("checkout · cotação e pedido", () => {
     });
     assert.deepEqual(pay.canceled, ["pay_1"]);
     assert.equal(fake.store.has("storeOrders/ord_pedido_y"), false);
+  });
+});
+
+describe("checkout · cartão", () => {
+  async function cardSetup(withCoupon = false) {
+    const s = await setup();
+    if (withCoupon) {
+      s.fake.seedDoc("storeCouponCodes/AREIA10", {couponId: "cp1"});
+      s.fake.seedDoc("storeCoupons/cp1", {code: "AREIA10", type: "percent", value: 10, maxDiscountCents: null,
+        scope: {type: "store", ids: [], labels: []}, minOrderCents: null, usageLimit: null, uses: 4, onePerAthlete: true,
+        stacksWithPix: true, appOnly: false, startDate: "2026-10-01", endDate: null, paused: false});
+    }
+    s.cart([{productId: s.productId, skuId: "m", qty: 2}]);
+    const pay = new FakePay();
+    const input = {channel: "app_android" as const, delivery: ARENA, couponCode: withCoupon ? "areia10" : null,
+      paymentMethod: "cartao" as const};
+    const quote = await quoteCheckoutCore(s.db, "ana", input, NOW);
+    return {...s, pay, input, quote};
+  }
+
+  it("cotação no cartão: sem desconto Pix, sem acréscimo, e devolve os dois totais", async () => {
+    const {db, quote} = await cardSetup();
+    const pix = await quoteCheckoutCore(db, "ana", {channel: "web", delivery: ARENA, couponCode: null}, NOW);
+    assert.equal(quote.paymentMethod, "cartao");
+    assert.equal(quote.pixDiscountCents, 0);
+    assert.equal(quote.cardFeeCents, 0, "a Loja absorve a taxa do cartão");
+    assert.equal(quote.totalCents, 25980);
+    assert.equal(quote.cardTotalCents, 25980);
+    assert.equal(quote.pixTotalCents, 25980 - pixDiscountOf(25980, 5));
+    assert.equal(pix.paymentMethod, "pix", "sem paymentMethod = Pix (clientes antigos)");
+    assert.equal(pix.totalCents, quote.pixTotalCents);
+    assert.equal(pix.cardTotalCents, quote.cardTotalCents);
+  });
+
+  it("cupom continua valendo no cartão (só o desconto Pix sai)", async () => {
+    const {quote} = await cardSetup(true);
+    assert.equal(quote.coupon?.discountCents, 2598);
+    assert.equal(quote.totalCents, 25980 - 2598);
+    assert.equal(quote.pixTotalCents, 25980 - 2598 - pixDiscountOf(25980 - 2598, 5));
+  });
+
+  it("acréscimo do cartão, se religado, entra só no total do cartão", () => {
+    const s = {uid: "ana", blockedTerms: [], cart: [], catalog: new Map(), discounts: [], shipping: DEFAULT_SHIPPING_CONFIG,
+      pickupPoint: null, address: null, coupon: null};
+    const q = priceCheckout(s as never, {channel: "web", delivery: null, couponCode: null, paymentMethod: "cartao"}, NOW,
+      storeCardFeeOf({anticipationPercent: 0, processingPercent: 0, fixedReais: 1}));
+    assert.equal(q.cardFeeCents, 0, "carrinho vazio não cobra acréscimo");
+    assert.equal(storeCardFeeOf({anticipationPercent: 0, processingPercent: 0, fixedReais: 1})(10000), 100);
+    assert.equal(storeCardFeeOf(STORE_CARD_FEE_TERMS)(10000), 0, "hoje desligado");
+  });
+
+  it("pedido no cartão: cobra o checkout hospedado (15 min), reserva e não guarda Pix", async () => {
+    const {fake, db, pay, input, quote} = await cardSetup();
+    const r = await createStoreOrderCore(db, "ana", {...input, expectedTotalCents: quote.totalCents, cpf: null},
+      pay, NOW, () => "ord_cartao_1");
+    assert.equal(r.paymentMethod, "cartao");
+    assert.equal(r.pix, null);
+    assert.equal(r.card?.invoiceUrl, "https://sandbox.asaas.com/i/ord_cartao_1");
+    assert.equal(r.card?.expiresAt, new Date(NOW.getTime() + 15 * 60_000).toISOString());
+    assert.equal(pay.created.length, 0, "não cria Pix");
+    assert.deepEqual(pay.cards.map((c) => c.totalCents), [25980]);
+    const o = fake.store.get("storeOrders/ord_cartao_1")!;
+    assert.equal(o["status"], "pag");
+    assert.equal(o["pix"], null);
+    assert.equal(o["pixDiscountCents"], 0);
+    assert.equal(o["totalCents"], 25980);
+    assert.deepEqual(o["charge"], {provider: "asaas", paymentId: "card_1", method: "cartao"});
+    assert.deepEqual(o["paymentMethods"], ["cartao"]);
+    assert.equal((o["reservation"] as Record<string, unknown>)["active"], true);
+    assert.deepEqual(fake.store.get("storeCarts/ana")!["items"], []);
+  });
+
+  it("total do Pix enviado com o cartão escolhido: recusa (o atleta vê o total do cartão)", async () => {
+    const {db, pay, input, quote} = await cardSetup();
+    await assert.rejects(createStoreOrderCore(db, "ana", {...input, expectedTotalCents: quote.pixTotalCents, cpf: null},
+      pay, NOW, () => "ord_cartao_x"), /mudaram/);
+    assert.equal(pay.cards.length, 0);
+  });
+
+  it("forma de pagamento fora do contrato é recusada", async () => {
+    const {db} = await cardSetup();
+    await assert.rejects(quoteCheckoutCore(db, "ana",
+      {channel: "web", delivery: ARENA, couponCode: null, paymentMethod: "boleto" as never}, NOW), /inválidos/);
+  });
+
+  it("confirmado (CONFIRMED): pag → sep, txid no pagamento de cartão e histórico 'Cartão'", async () => {
+    const {fake, db, pay, input, quote} = await cardSetup();
+    await createStoreOrderCore(db, "ana", {...input, expectedTotalCents: quote.totalCents, cpf: null}, pay, NOW, () => "ord_cartao_1");
+    const r = await confirmStoreOrderPaymentCore(db, "ord_cartao_1", {paymentId: "card_1", valueCents: quote.totalCents}, NOW);
+    assert.equal(r.outcome, "confirmed");
+    const o = fake.store.get("storeOrders/ord_cartao_1")!;
+    assert.equal(o["status"], "sep");
+    assert.equal(o["card"], null, "o link do checkout sai depois de pago");
+    assert.equal((o["payments"] as Array<Record<string, unknown>>)[0]!["txid"], "card_1");
+    const history = o["history"] as Array<Record<string, unknown>>;
+    const last = history[history.length - 1]!;
+    assert.equal(last["detail"], "Cartão");
+    // RECEIVED dias depois: inofensivo.
+    assert.equal((await confirmStoreOrderPaymentCore(db, "ord_cartao_1", {paymentId: "card_1", valueCents: quote.totalCents}, NOW))
+      .outcome, "already_paid");
+  });
+
+  async function placed() {
+    const s = await cardSetup(true);
+    await createStoreOrderCore(s.db, "ana", {...s.input, expectedTotalCents: s.quote.totalCents, cpf: null}, s.pay, NOW,
+      () => "ord_cartao_1");
+    return s;
+  }
+  const after16 = new Date(NOW.getTime() + 16 * 60_000);
+
+  it("cartão vencido sem pagamento: apaga a cobrança, cancela, solta estoque e cupom", async () => {
+    const {fake, db, productId} = await placed();
+    const deleted: string[] = [];
+    const r = await expireStoreCardCore(db, after16, {
+      getPayment: async () => ({status: "PENDING", valueCents: 0}),
+      deleteCharge: async (id) => void deleted.push(id),
+    });
+    assert.deepEqual(r.canceled, ["ord_cartao_1"]);
+    assert.deepEqual(deleted, ["card_1"]);
+    const o = fake.store.get("storeOrders/ord_cartao_1")!;
+    assert.equal(o["status"], "can");
+    assert.equal(o["cancelReason"], "Pagamento com cartão não concluído no prazo");
+    const sku = fake.store.get(`storeProducts/${productId}/skus/m`)!;
+    assert.equal(((sku["reservedByLocation"] ?? {}) as Record<string, number>)["arena-errejota"] ?? 0, 0);
+    assert.equal(await releaseCouponOnCancelCore(db, "ord_cartao_1", after16), true, "o cupom reservado volta");
+  });
+
+  it("cartão vencido em análise de risco: adia 10 min e não cancela", async () => {
+    const {fake, db} = await placed();
+    const r = await expireStoreCardCore(db, after16, {
+      getPayment: async () => ({status: "AWAITING_RISK_ANALYSIS", valueCents: 0}),
+      deleteCharge: async () => assert.fail("não apaga cartão em análise"),
+    });
+    assert.deepEqual(r.postponed, ["ord_cartao_1"]);
+    const o = fake.store.get("storeOrders/ord_cartao_1")!;
+    assert.equal(o["status"], "pag");
+    assert.equal(((o["card"] as Record<string, unknown>)["expiresAt"] as Date).getTime(), after16.getTime() + 10 * 60_000);
+    const again = await expireStoreCardCore(db, after16, {
+      getPayment: async () => assert.fail("só olha de novo depois do adiamento"), deleteCharge: async () => {},
+    });
+    assert.deepEqual(again.postponed, []);
+  });
+
+  it("cartão vencido mas confirmado (webhook perdido): confirma em vez de cancelar", async () => {
+    const {fake, db, quote} = await placed();
+    const r = await expireStoreCardCore(db, after16, {
+      getPayment: async () => ({status: "CONFIRMED", valueCents: quote.totalCents}),
+      deleteCharge: async () => assert.fail("não apaga cobrança paga"),
+    });
+    assert.deepEqual(r.confirmed, ["ord_cartao_1"]);
+    assert.equal(fake.store.get("storeOrders/ord_cartao_1")!["status"], "sep");
+  });
+
+  it("apagar a cobrança falhou: o pedido não cancela (a próxima rodada tenta de novo)", async () => {
+    const {fake, db} = await placed();
+    const r = await expireStoreCardCore(db, after16, {
+      getPayment: async () => ({status: "PENDING", valueCents: 0}),
+      deleteCharge: async () => { throw new Error("Asaas fora"); },
+    });
+    assert.deepEqual(r.failed, ["ord_cartao_1"]);
+    assert.equal(fake.store.get("storeOrders/ord_cartao_1")!["status"], "pag");
+  });
+
+  it("varreduras não se misturam: a do Pix não pega cartão e a do cartão não pega Pix", async () => {
+    const {db} = await placed();
+    const later = new Date(NOW.getTime() + 31 * 60_000);
+    const pix = await expireStorePixCore(db, later, {
+      getPayment: async () => assert.fail("não consulta cartão"), deleteCharge: async () => assert.fail("não apaga"),
+    });
+    assert.deepEqual(pix.canceled, []);
+  });
+
+  it("cartão pago depois do cancelamento: estorno registrado como cartão", async () => {
+    const {fake, db, quote} = await placed();
+    await expireStoreCardCore(db, after16, {getPayment: async () => ({status: "PENDING", valueCents: 0}), deleteCharge: async () => {}});
+    await recordLatePixRefundCore(db, "ord_cartao_1", "card_1", quote.totalCents, after16);
+    const o = fake.store.get("storeOrders/ord_cartao_1")!;
+    assert.equal(o["refundedCents"], quote.totalCents);
+    assert.equal((o["refunds"] as Array<Record<string, unknown>>)[0]!["reason"], "Cartão pago depois do cancelamento");
+  });
+
+  it("visão do atleta: link do checkout só enquanto espera o pagamento", () => {
+    const o = {
+      number: "NX-0002", status: "pag", customer: {uid: "ana", cpf: "1"}, items: [], delivery: {type: "arena"},
+      charge: {method: "cartao", paymentId: "card_1"}, pix: null,
+      card: {invoiceUrl: "https://sandbox.asaas.com/i/x", expiresAt: NOW},
+    };
+    const v = buildOrderView("o", o)!;
+    assert.equal(v["paymentMethod"], "cartao");
+    assert.deepEqual(v["card"], {invoiceUrl: "https://sandbox.asaas.com/i/x", expiresAt: NOW.toISOString()});
+    assert.equal(buildOrderView("o", {...o, status: "sep"})!["card"], null);
+    assert.equal(buildOrderView("o", {...o, charge: {}})!["paymentMethod"], "pix", "acervo sem método = Pix");
   });
 });
 

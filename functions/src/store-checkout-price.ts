@@ -140,17 +140,29 @@ export interface QuoteCoupon {
 export type QuoteProblem = "carrinho_vazio" | "entrega_faltando" | "arena_indisponivel" | "endereco_faltando" |
   "modalidade_indisponivel" | "linha_com_problema";
 
+/** Forma de pagamento do checkout. Ausente = Pix (clientes anteriores ao cartão). */
+export type CheckoutPaymentMethod = "pix" | "cartao";
+export const CHECKOUT_PAYMENT_METHODS: CheckoutPaymentMethod[] = ["pix", "cartao"];
+
 export interface Quote {
+  /** A forma que este total cobra. */
+  paymentMethod: CheckoutPaymentMethod;
   lines: QuoteLine[];
   units: number;
   subtotalCents: number;
   coupon: QuoteCoupon | null;
   pixDiscountPct: number | null;
+  /** Desconto Pix aplicado NESTE total (0 no cartão). */
   pixDiscountCents: number;
+  /** Acréscimo do cartão aplicado neste total (0 no Pix; hoje a Loja absorve a taxa). */
+  cardFeeCents: number;
   shippingCents: number;
   /** Frete grátis alcançado (casa). */
   freeShipping: boolean;
   totalCents: number;
+  /** Os dois totais, para a tela comparar as formas sem cotar de novo. */
+  pixTotalCents: number;
+  cardTotalCents: number;
   problems: QuoteProblem[];
 }
 
@@ -465,13 +477,19 @@ export function shippingFor(
 
 /**
  * O preço do checkout. Pagamento em Pix: o desconto Pix vale sobre (produtos − cupom), a não ser
- * que o cupom não acumule com Pix. Frete por último, fora de qualquer desconto.
+ * que o cupom não acumule com Pix. Cartão: sem desconto Pix, mais o acréscimo `cardFeeOf` sobre
+ * (produtos − cupom + frete) — hoje zero, a Loja absorve a taxa. Frete fora de qualquer desconto.
  */
 export function priceCheckout(
   snap: CheckoutSnapshot,
-  input: {channel: CheckoutChannel; delivery: CheckoutDelivery | null; couponCode: string | null},
+  input: {
+    channel: CheckoutChannel; delivery: CheckoutDelivery | null; couponCode: string | null;
+    paymentMethod?: CheckoutPaymentMethod | null;
+  },
   now: Date,
+  cardFeeOf: (baseCents: number) => number = () => 0,
 ): Quote {
+  const paymentMethod: CheckoutPaymentMethod = input.paymentMethod === "cartao" ? "cartao" : "pix";
   const problems: QuoteProblem[] = [];
   const delivery = input.delivery;
   const arenaLocation = delivery?.type === "arena" && snap.pickupPoint?.active ? snap.pickupPoint.locationId : null;
@@ -512,16 +530,26 @@ export function priceCheckout(
     }
   }
 
+  const pixTotalCents = Math.max(0, subtotalCents - couponCents - pixDiscountCents + shippingCents);
+  const cardBaseCents = Math.max(0, subtotalCents - couponCents + shippingCents);
+  const cardFeeCents = cardBaseCents > 0 ? Math.max(0, Math.round(cardFeeOf(cardBaseCents))) : 0;
+  const cardTotalCents = cardBaseCents + cardFeeCents;
+  const card = paymentMethod === "cartao";
+
   return {
+    paymentMethod,
     lines,
     units,
     subtotalCents,
     coupon,
     pixDiscountPct: pct,
-    pixDiscountCents,
+    pixDiscountCents: card ? 0 : pixDiscountCents,
+    cardFeeCents: card ? cardFeeCents : 0,
     shippingCents,
     freeShipping,
-    totalCents: Math.max(0, subtotalCents - couponCents - pixDiscountCents + shippingCents),
+    totalCents: card ? cardTotalCents : pixTotalCents,
+    pixTotalCents,
+    cardTotalCents,
     problems,
   };
 }

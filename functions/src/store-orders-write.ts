@@ -135,6 +135,8 @@ export interface CreateOrderInput {
   pixDiscountCents: number;
   walletCents: number;
   shippingCents: number;
+  /** Acréscimo do cartão cobrado do atleta (hoje sempre 0: a Loja absorve a taxa). */
+  cardFeeCents?: number;
   payments: {method: PaymentMethod; amountCents: number; installments?: number | null;
     txid?: string | null; feeCents?: number}[];
   /** Pago na criação (`sep`) ou esperando o Pix/cartão (`pag`). */
@@ -164,6 +166,7 @@ function createErrors(input: CreateOrderInput): string[] {
   for (const f of ["couponDiscountCents", "pixDiscountCents", "walletCents", "shippingCents"] as const) {
     if (!isCents(input[f])) fields.push(f);
   }
+  if (input.cardFeeCents != null && !isCents(input.cardFeeCents)) fields.push("cardFeeCents");
   const payments = Array.isArray(input.payments) ? input.payments : [];
   if (payments.length === 0 || payments.some((p) => !PAYMENT_METHODS.includes(p?.method) || !isCents(p.amountCents))) {
     fields.push("payments");
@@ -271,7 +274,8 @@ export async function createOrderCore(
       items, productIds: [...new Set(items.map((i) => i.productId))], units: items.reduce((n, i) => n + i.qty, 0),
       subtotalCents, couponId: input.couponId ?? null, couponCode: input.couponCode ?? null,
       couponDiscountCents: input.couponDiscountCents, pixDiscountCents: input.pixDiscountCents,
-      walletCents: input.walletCents, shippingCents: input.shippingCents, totalCents,
+      walletCents: input.walletCents, shippingCents: input.shippingCents,
+      cardFeeCents: isCents(input.cardFeeCents) ? input.cardFeeCents : 0, totalCents,
       payments, paymentMethods: [...new Set(payments.map((p) => p.method))],
       pix: input.paid ? null : input.pix ?? null,
       delivery, reservation: {locationId: reserveAt, active: true},

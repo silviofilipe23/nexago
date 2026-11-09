@@ -10,12 +10,15 @@
  *   storeCouponUses/{couponId}  — `reserved`: pedidos esperando o Pix com o cupom (entra no limite)
  *
  * O preço sai de `store-checkout-price.ts`; o pedido nasce em `createOrderCore` (reserva o
- * estoque) só DEPOIS da cobrança Pix existir. Contrato em `docs/business-rules/loja-checkout.md`.
+ * estoque) só DEPOIS da cobrança (Pix ou cartão) existir. Contrato em
+ * `docs/business-rules/loja-checkout.md`.
  */
 import {type Firestore} from "firebase-admin/firestore";
 import {logger} from "firebase-functions/v2";
 import {HttpsError} from "firebase-functions/v2/https";
+import {NO_CARD_FEE, cardSurcharge, type CardFeeTerms} from "./card-anticipation-fee";
 import {
+  CHECKOUT_PAYMENT_METHODS,
   addressLine,
   priceCheckout,
   type CartLine,
@@ -23,6 +26,7 @@ import {
   type CheckoutAddress,
   type CheckoutChannel,
   type CheckoutDelivery,
+  type CheckoutPaymentMethod,
   type CheckoutSnapshot,
   type CouponDoc,
   type PickupPoint,
@@ -48,6 +52,22 @@ const PICKUP_POINTS = "storePickupPoints";
 
 /** Janela do Pix da Loja: depois disso o pedido cancela e o estoque volta. */
 export const STORE_PIX_WINDOW_MS = 30 * 60 * 1000;
+/** Janela do cartão (checkout hospedado do Asaas): mesma da reserva de quadra. */
+export const STORE_CARD_WINDOW_MS = 15 * 60 * 1000;
+/** Cartão em análise de risco no prazo: a varredura espera mais isto antes de olhar de novo. */
+export const STORE_CARD_REVIEW_DELAY_MS = 10 * 60 * 1000;
+
+/**
+ * Taxa do cartão repassada ao atleta. Decisão de 09/11/2026: a Loja absorve (nada de acréscimo).
+ * Para repassar como na inscrição, troque por `await loadCardFeeTerms()` nas callables e passe
+ * aqui — a cotação e o pedido já somam `cardFeeCents` no total do cartão.
+ */
+export const STORE_CARD_FEE_TERMS: CardFeeTerms = NO_CARD_FEE;
+
+/** Acréscimo do cartão em centavos sobre a base (produtos − cupom + frete). */
+export function storeCardFeeOf(terms: CardFeeTerms): (baseCents: number) => number {
+  return (baseCents) => cardSurcharge(baseCents / 100, terms).totalCents;
+}
 /** Prefixo do `externalReference` no Asaas — o webhook despacha por ele. */
 export const STORE_ORDER_PAYMENT_REF_PREFIX = "storeOrder:";
 
@@ -58,6 +78,8 @@ export interface CheckoutInput {
   channel: CheckoutChannel;
   delivery: CheckoutDelivery | null;
   couponCode: string | null;
+  /** Ausente = Pix (app/portal anteriores ao cartão). */
+  paymentMethod?: CheckoutPaymentMethod | null;
 }
 
 export interface CreateCheckoutInput extends CheckoutInput {
@@ -75,6 +97,10 @@ export interface CheckoutPayments {
   createPix(p: {
     orderId: string; customerId: string; totalCents: number; description: string; expiresAt: Date;
   }): Promise<{paymentId: string; copyPaste: string}>;
+  /** Cobrança de cartão com checkout hospedado (nenhum dado de cartão passa por nós). */
+  createCard(p: {
+    orderId: string; customerId: string; totalCents: number; description: string; expiresAt: Date;
+  }): Promise<{paymentId: string; invoiceUrl: string}>;
   cancelCharge(paymentId: string): Promise<void>;
 }
 
@@ -103,6 +129,9 @@ export function checkoutInputErrors(input: Partial<CheckoutInput> | null | undef
   // Código fora do formato não derruba a cotação: vira "Cupom não encontrado" (o atleta remove).
   if (input?.couponCode != null && (typeof input.couponCode !== "string" || input.couponCode.length > 60)) {
     fields.push("couponCode");
+  }
+  if (input?.paymentMethod != null && !CHECKOUT_PAYMENT_METHODS.includes(input.paymentMethod)) {
+    fields.push("paymentMethod");
   }
   return fields;
 }
@@ -257,7 +286,7 @@ async function reserveCoupon(
     const onePerAthlete = data["onePerAthlete"] === true;
     if (onePerAthlete && marker.exists) {
       throw new HttpsError("failed-precondition", marker.data()?.["status"] === "reservado" ?
-        "Esse cupom está num pedido seu esperando o Pix." : "Você já usou esse cupom.", {reason: "coupon"});
+        "Esse cupom está num pedido seu esperando o pagamento." : "Você já usou esse cupom.", {reason: "coupon"});
     }
     tx.set(countRef, {reserved: reserved + 1, updatedAt: now}, {merge: true});
     if (onePerAthlete) tx.set(markerRef, {couponId, uid, orderId, status: "reservado", at: now});
@@ -306,18 +335,22 @@ export async function quoteCheckoutCore(db: Firestore, uid: string, input: Check
   const fields = checkoutInputErrors(input);
   if (fields.length > 0) throw invalid(fields);
   const snap = await loadCheckoutSnapshot(db, uid, input);
-  return priceCheckout(snap, input, now);
+  return priceCheckout(snap, input, now, storeCardFeeOf(STORE_CARD_FEE_TERMS));
 }
 
 // ---------------------------------------------------------------------------
-// Pedido com Pix
+// Pedido com Pix ou cartão
 // ---------------------------------------------------------------------------
 
 export interface CreateCheckoutResult {
   orderId: string;
   number: string;
   totalCents: number;
-  pix: {copyPaste: string; expiresAt: string};
+  paymentMethod: CheckoutPaymentMethod;
+  /** Só no Pix. */
+  pix: {copyPaste: string; expiresAt: string} | null;
+  /** Só no cartão: o checkout hospedado do Asaas. */
+  card: {invoiceUrl: string; expiresAt: string} | null;
 }
 
 export async function createStoreOrderCore(
@@ -332,8 +365,10 @@ export async function createStoreOrderCore(
   if (!Number.isInteger(input?.expectedTotalCents) || input.expectedTotalCents < 0) fields.push("expectedTotalCents");
   if (fields.length > 0) throw invalid(fields);
 
+  const feeOf = storeCardFeeOf(STORE_CARD_FEE_TERMS);
   const snap = await loadCheckoutSnapshot(db, uid, input);
-  const quote = priceCheckout(snap, input, now);
+  const quote = priceCheckout(snap, input, now, feeOf);
+  const method = quote.paymentMethod;
   if (quote.problems.length > 0) {
     throw new HttpsError("failed-precondition", "Revise o carrinho antes de pagar.", {problems: quote.problems, quote});
   }
@@ -353,7 +388,7 @@ export async function createStoreOrderCore(
   // marca a linha/o cupom em vez de deixar o "Pagar" liberado repetindo o mesmo erro.
   const withFreshQuote = async (e: unknown): Promise<unknown> => {
     if (!(e instanceof HttpsError) || e.code !== "failed-precondition") return e;
-    const fresh = priceCheckout(await loadCheckoutSnapshot(db, uid, input), input, now);
+    const fresh = priceCheckout(await loadCheckoutSnapshot(db, uid, input), input, now, feeOf);
     return new HttpsError(e.code, e.message, {...((e.details ?? {}) as Data), quote: fresh});
   };
 
@@ -371,13 +406,16 @@ export async function createStoreOrderCore(
       logger.error("Loja: reserva do cupom não voltou", {orderId, couponId, error: String(err)})) :
     Promise.resolve();
 
-  const expiresAt = new Date(now.getTime() + STORE_PIX_WINDOW_MS);
-  let charge: {paymentId: string; copyPaste: string};
+  const expiresAt = new Date(now.getTime() + (method === "cartao" ? STORE_CARD_WINDOW_MS : STORE_PIX_WINDOW_MS));
+  const chargeInput = {
+    orderId, customerId: buyer.asaasCustomerId, totalCents: quote.totalCents,
+    description: `Loja NexaGO · ${quote.units} ${quote.units === 1 ? "item" : "itens"}`, expiresAt,
+  };
+  let charge: {paymentId: string; copyPaste: string | null; invoiceUrl: string | null};
   try {
-    charge = await pay.createPix({
-      orderId, customerId: buyer.asaasCustomerId, totalCents: quote.totalCents,
-      description: `Loja NexaGO · ${quote.units} ${quote.units === 1 ? "item" : "itens"}`, expiresAt,
-    });
+    charge = method === "cartao" ?
+      {...await pay.createCard(chargeInput), copyPaste: null} :
+      {...await pay.createPix(chargeInput), invoiceUrl: null};
   } catch (e) {
     await release();
     throw e;
@@ -411,9 +449,12 @@ export async function createStoreOrderCore(
       pixDiscountCents: quote.pixDiscountCents,
       walletCents: 0,
       shippingCents: quote.shippingCents,
-      payments: [{method: "pix", amountCents: quote.totalCents}],
+      cardFeeCents: quote.cardFeeCents,
+      payments: [method === "cartao" ?
+        {method: "cartao", amountCents: quote.totalCents, installments: 1} :
+        {method: "pix", amountCents: quote.totalCents}],
       paid: false,
-      pix: {copyPaste: charge.copyPaste, expiresAt},
+      pix: charge.copyPaste !== null ? {copyPaste: charge.copyPaste, expiresAt} : null,
       delivery: d.type === "arena" ?
         {type: "arena", locationId: point!.locationId!, pickupPointId: point!.arenaId} :
         {
@@ -421,7 +462,8 @@ export async function createStoreOrderCore(
           city: address!.city, uf: address!.uf, zip: address!.zip,
         },
       extra: {
-        charge: {provider: "asaas", paymentId: charge.paymentId, method: "pix"},
+        charge: {provider: "asaas", paymentId: charge.paymentId, method},
+        card: charge.invoiceUrl !== null ? {invoiceUrl: charge.invoiceUrl, expiresAt} : null,
         customLines,
         recipient: d.type === "casa" ? {name: address!.recipient, phone: address!.phone} : null,
         couponReservation: reservation,
@@ -434,8 +476,8 @@ export async function createStoreOrderCore(
     throw await withFreshQuote(e);
   }
 
-  // Tira do carrinho só o que virou pedido (o atleta pode ter mexido em outra aba). O pedido e o
-  // Pix já existem: falhar aqui não pode virar erro, senão o "tentar de novo" duplica o pedido.
+  // Tira do carrinho só o que virou pedido (o atleta pode ter mexido em outra aba). O pedido e a
+  // cobrança já existem: falhar aqui não pode virar erro, senão o "tentar de novo" duplica o pedido.
   const bought = new Set(quote.lines.map((l) => l.key));
   const cartRef = db.collection(CARTS).doc(uid);
   try {
@@ -450,14 +492,22 @@ export async function createStoreOrderCore(
   }
 
   return {
-    orderId: created.orderId, number: created.number, totalCents: quote.totalCents,
-    pix: {copyPaste: charge.copyPaste, expiresAt: expiresAt.toISOString()},
+    orderId: created.orderId, number: created.number, totalCents: quote.totalCents, paymentMethod: method,
+    pix: charge.copyPaste !== null ? {copyPaste: charge.copyPaste, expiresAt: expiresAt.toISOString()} : null,
+    card: charge.invoiceUrl !== null ? {invoiceUrl: charge.invoiceUrl, expiresAt: expiresAt.toISOString()} : null,
   };
 }
 
 // ---------------------------------------------------------------------------
 // Pagamento confirmado (webhook / varredura)
 // ---------------------------------------------------------------------------
+
+/** Forma da cobrança do pedido (ausente = Pix, todo o acervo anterior ao cartão). */
+export function chargeMethodOf(o: Data): CheckoutPaymentMethod {
+  return (o["charge"] as Data | undefined)?.["method"] === "cartao" ? "cartao" : "pix";
+}
+
+const METHOD_LABEL: Record<CheckoutPaymentMethod, string> = {pix: "Pix", cartao: "Cartão"};
 
 export type ConfirmOutcome = "confirmed" | "already_paid" | "not_pending" | "value_mismatch" | "unknown_order";
 
@@ -498,12 +548,14 @@ export async function confirmStoreOrderPaymentCore(
     const countSnap = countRef ? await tx.get(countRef) : null;
 
     // ---------- escritas ----------
+    const method = chargeMethodOf(o);
     const payments = ((o["payments"] ?? []) as Data[]).map((p) =>
-      p["method"] === "pix" ? {...p, txid: payment.paymentId} : p);
+      p["method"] === method ? {...p, txid: payment.paymentId} : p);
     tx.update(ref, {
-      status: "sep", paidAt: now, pix: null, payments,
+      status: "sep", paidAt: now, pix: null, card: null, payments,
       ...(reservation?.status === "reservado" ? {couponReservation: {...reservation, status: "usado"}} : {}),
-      history: [...((o["history"] ?? []) as unknown[]), historyEntry("pago", "Pagamento aprovado", "Pix", null, now)],
+      history: [...((o["history"] ?? []) as unknown[]),
+        historyEntry("pago", "Pagamento aprovado", METHOD_LABEL[method], null, now)],
       version: ((o["version"] as number) ?? 0) + 1, updatedAt: now, updatedBy: SYSTEM_ACTOR,
     });
     // `uses` só conta pedido pago; a reserva desse pedido sai do `reserved` e o marcador vira `usado`.
@@ -557,8 +609,8 @@ export async function confirmStoreOrderPaymentCore(
 }
 
 /**
- * Pix pago depois do pedido cancelar (vencido): o estorno feito no Asaas entra no pedido, para o
- * backoffice e o atleta verem que o dinheiro entrou e voltou. Idempotente pelo `paymentId`.
+ * Pix/cartão pago depois do pedido cancelar (vencido): o estorno feito no Asaas entra no pedido,
+ * para o backoffice e o atleta verem que o dinheiro entrou e voltou. Idempotente pelo `paymentId`.
  */
 export async function recordLatePixRefundCore(
   db: Firestore, orderId: string, paymentId: string, valueCents: number, now: Date,
@@ -570,13 +622,14 @@ export async function recordLatePixRefundCore(
     const o = snap.data()!;
     const refunds = (o["refunds"] ?? []) as Data[];
     if (refunds.some((r) => r["paymentId"] === paymentId)) return;
+    const label = METHOD_LABEL[chargeMethodOf(o)];
     tx.update(ref, {
       refunds: [...refunds, {
-        amountCents: valueCents, destination: "original", items: null, reason: "Pix pago depois do cancelamento",
+        amountCents: valueCents, destination: "original", items: null, reason: `${label} pago depois do cancelamento`,
         status: "concluido", paymentId, actor: SYSTEM_ACTOR, at: now,
       }],
       refundedCents: ((o["refundedCents"] ?? 0) as number) + valueCents,
-      history: [...((o["history"] ?? []) as unknown[]), historyEntry("reembolso", "Pix estornado",
+      history: [...((o["history"] ?? []) as unknown[]), historyEntry("reembolso", `${label} estornado`,
         `${(valueCents / 100).toFixed(2).replace(".", ",")} · pago depois do cancelamento`, null, now)],
       version: ((o["version"] as number) ?? 0) + 1, updatedAt: now, updatedBy: SYSTEM_ACTOR,
     });
@@ -659,6 +712,71 @@ export async function expireStorePixCore(
 }
 
 // ---------------------------------------------------------------------------
+// Cartão vencido
+// ---------------------------------------------------------------------------
+
+/** Cartão ainda em análise de risco no Asaas: nem pago, nem recusado. */
+const CARD_REVIEW_STATUSES = new Set(["AWAITING_RISK_ANALYSIS"]);
+
+/**
+ * Pedidos em `pag` com o prazo do cartão vencido. Antes de soltar o estoque pergunta ao Asaas:
+ * pago (webhook perdido) → confirma; em análise → adia `STORE_CARD_REVIEW_DELAY_MS`; senão apaga
+ * a cobrança (o checkout hospedado para de aceitar) e cancela, liberando reserva e cupom.
+ */
+export async function expireStoreCardCore(
+  db: Firestore,
+  now: Date,
+  deps: ExpiryDeps,
+  limit = 50,
+): Promise<{confirmed: string[]; canceled: string[]; postponed: string[]; failed: string[]; customItemIds: string[]}> {
+  const snap = await db.collection(ORDERS)
+    .where("status", "==", "pag")
+    .where("card.expiresAt", "<", now)
+    .limit(limit)
+    .get();
+  const out = {
+    confirmed: [] as string[], canceled: [] as string[], postponed: [] as string[], failed: [] as string[],
+    customItemIds: [] as string[],
+  };
+  for (const doc of snap.docs) {
+    const o = doc.data();
+    const paymentId = str((o["charge"] as Data | undefined)?.["paymentId"], 128);
+    try {
+      if (paymentId) {
+        const p = await deps.getPayment(paymentId);
+        if (isPaidStatus(p.status)) {
+          const r = await confirmStoreOrderPaymentCore(db, doc.id, {paymentId, valueCents: p.valueCents}, now);
+          if (r.outcome === "confirmed" || r.outcome === "already_paid") {
+            out.confirmed.push(doc.id);
+            out.customItemIds.push(...r.customItemIds);
+          } else {
+            logger.error("Loja: cartão pago que não confirma, ficou pra conferência", {orderId: doc.id, outcome: r.outcome});
+            out.failed.push(doc.id);
+          }
+          continue;
+        }
+        if (CARD_REVIEW_STATUSES.has(p.status)) {
+          // Adiar tira o pedido da frente da fila (`limit`) até a próxima olhada.
+          const card = (o["card"] ?? {}) as Data;
+          await doc.ref.update({card: {...card, expiresAt: new Date(now.getTime() + STORE_CARD_REVIEW_DELAY_MS)}});
+          out.postponed.push(doc.id);
+          continue;
+        }
+        await deps.deleteCharge(paymentId);
+      }
+      await orderActionCore(db, {
+        orderId: doc.id, version: o["version"] as number, action: "cancelar",
+        reason: "Pagamento com cartão não concluído no prazo",
+      }, SYSTEM_ACTOR, now);
+      out.canceled.push(doc.id);
+    } catch {
+      out.failed.push(doc.id);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Visão do pedido para o atleta (espelho saneado)
 // ---------------------------------------------------------------------------
 
@@ -679,6 +797,7 @@ export function buildOrderView(orderId: string, o: Data): Data | null {
   const status = str(o["status"], 8);
   const d = (o["delivery"] ?? {}) as Data;
   const pix = o["pix"] as Data | null | undefined;
+  const card = o["card"] as Data | null | undefined;
   return {
     uid,
     orderId,
@@ -705,7 +824,10 @@ export function buildOrderView(orderId: string, o: Data): Data | null {
     shippingCents: o["shippingCents"] ?? 0,
     totalCents: o["totalCents"] ?? 0,
     paymentMethods: o["paymentMethods"] ?? [],
+    paymentMethod: chargeMethodOf(o),
+    cardFeeCents: o["cardFeeCents"] ?? 0,
     pix: status === "pag" && pix ? {copyPaste: str(pix["copyPaste"], 600), expiresAt: iso(pix["expiresAt"])} : null,
+    card: status === "pag" && card ? {invoiceUrl: str(card["invoiceUrl"], 600), expiresAt: iso(card["expiresAt"])} : null,
     delivery: d["type"] === "arena" ? {
       type: "arena",
       placeName: d["placeName"] ?? null,

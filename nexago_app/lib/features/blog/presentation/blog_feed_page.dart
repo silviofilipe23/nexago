@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/friendly_error_message.dart';
 import '../../../core/theme/app_colors.dart';
@@ -14,6 +13,7 @@ import '../application/blog_providers.dart';
 import '../domain/blog_library.dart';
 import '../domain/blog_logic.dart';
 import '../domain/blog_post.dart';
+import '../../../core/router/routes.dart';
 import 'blog_navigation.dart';
 import 'widgets/blog_parts.dart';
 
@@ -56,7 +56,10 @@ class _BlogFeedPageState extends ConsumerState<BlogFeedPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      BlogBackScope(fallback: AppRoutes.home, child: _page(context));
+
+  Widget _page(BuildContext context) {
     final colors = context.themeColors;
     final feed = ref.watch(blogFeedProvider);
     final library =
@@ -219,7 +222,7 @@ class _Header extends StatelessWidget {
             icon: Icons.arrow_back_rounded,
             size: 42,
             tooltip: 'Voltar',
-            onTap: () => context.pop(),
+            onTap: () => blogBack(context, AppRoutes.home),
           ),
           const SizedBox(width: 14),
           Expanded(

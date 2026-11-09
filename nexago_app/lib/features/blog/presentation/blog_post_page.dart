@@ -4,7 +4,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/deep_link/app_domains.dart';
 import '../../../core/errors/friendly_error_message.dart';
@@ -24,6 +23,7 @@ import '../domain/blog_library.dart';
 import '../domain/blog_logic.dart';
 import '../domain/blog_post.dart';
 import '../domain/blog_read_session.dart';
+import '../../../core/router/routes.dart';
 import 'blog_navigation.dart';
 import 'widgets/blog_comments_section.dart';
 import 'widgets/blog_embeds.dart';
@@ -280,7 +280,10 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
       body = const _Unavailable(text: 'Este post não está mais disponível.');
     }
 
-    return Scaffold(backgroundColor: colors.canvas, body: body);
+    return BlogBackScope(
+      fallback: AppRoutes.blog,
+      child: Scaffold(backgroundColor: colors.canvas, body: body),
+    );
   }
 
   Widget _content(BlogPost post) {
@@ -422,7 +425,7 @@ class _BlogPostPageState extends ConsumerState<BlogPostPage> {
               AppNewsGlassButton(
                 icon: Icons.arrow_back_rounded,
                 label: 'Voltar',
-                onTap: () => context.pop(),
+                onTap: () => blogBack(context, AppRoutes.blog),
               ),
               const Spacer(),
               AppNewsGlassButton(
@@ -868,7 +871,7 @@ class _Unavailable extends StatelessWidget {
             icon: Icons.arrow_back_rounded,
             size: 42,
             tooltip: 'Voltar',
-            onTap: () => context.pop(),
+            onTap: () => blogBack(context, AppRoutes.blog),
           ),
           const SizedBox(height: 40),
           BlogMessage(

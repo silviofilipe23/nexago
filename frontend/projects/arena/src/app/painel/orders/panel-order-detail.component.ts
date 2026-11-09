@@ -68,7 +68,13 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                 @for (it of items(); track it.id) {
                   <div class="table-row">
                     <div class="item-cell">
-                      <div class="thumb" aria-hidden="true">{{ it.emoji }}</div>
+                      <div class="thumb" aria-hidden="true">
+                        @if (productImageById().get(it.productId); as img) {
+                          <img [src]="img" alt="" loading="lazy" />
+                        } @else {
+                          {{ it.emoji }}
+                        }
+                      </div>
                       <div>
                         <div class="item-name">{{ it.productName }}</div>
                         <div class="item-category">{{ it.source === 'app' ? 'App' : 'Balcão' }} · {{ it.addedByName }}</div>
@@ -81,11 +87,16 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                       type="button"
                       class="remove-btn"
                       [disabled]="reversingId() === it.id || !!reverseBlockReason(c, it) || cargoReadOnly()"
-                      [title]="reverseBlockReason(c, it) ?? 'Estornar item'"
+                      [title]="reverseBlockReason(c, it) ?? 'Remover da comanda e devolver ao estoque'"
                       (click)="reverseItem(c, it)"
-                      aria-label="Estornar item"
+                      [attr.aria-label]="'Remover ' + it.productName + ' da comanda'"
                     >
-                      ×
+                      @if (reversingId() === it.id) {
+                        Removendo…
+                      } @else {
+                        <ar-icon name="x" [size]="13" />
+                        Remover
+                      }
                     </button>
                   </div>
                 } @empty {
@@ -110,18 +121,30 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                     />
                   </div>
                   @if (addSuggestions().length > 0) {
-                    <div class="product-grid" role="listbox" aria-label="Produtos">
+                    <p class="add-hint">Toque no produto para lançar 1 unidade. Lançou errado? Use "Remover" no item.</p>
+                    <div class="product-grid" aria-label="Produtos">
                       @for (p of addSuggestions(); track p.id) {
                         <button
                           type="button"
                           class="product-card"
-                          role="option"
-                          [class.selected]="selectedProduct()?.id === p.id"
-                          [attr.aria-selected]="selectedProduct()?.id === p.id"
-                          [disabled]="cargoReadOnly()"
-                          (click)="selectProduct(p)"
+                          [class.in-comanda]="(quantityByProduct().get(p.id) ?? 0) > 0"
+                          [disabled]="cargoReadOnly() || p.stockQuantity <= 0"
+                          [attr.aria-label]="'Adicionar ' + p.name + ' à comanda'"
+                          (click)="addProduct(c, p)"
                         >
-                          <span class="product-emoji" aria-hidden="true">{{ p.emoji || '🛒' }}</span>
+                          @if (quantityByProduct().get(p.id); as qty) {
+                            <span class="product-badge" [attr.aria-label]="qty + ' na comanda'">{{ qty }}</span>
+                          }
+                          @if (pendingByProduct().get(p.id); as pending) {
+                            <span class="product-pending" aria-hidden="true">+{{ pending }}</span>
+                          }
+                          <span class="product-media" aria-hidden="true">
+                            @if (p.imageUrl) {
+                              <img [src]="p.imageUrl" alt="" loading="lazy" />
+                            } @else {
+                              <span class="product-emoji">{{ p.emoji || '🛒' }}</span>
+                            }
+                          </span>
                           <span class="product-name">{{ p.name }}</span>
                           <span class="product-price">{{ formatBRL(p.priceCents) }}</span>
                           @if (p.stockQuantity <= 0) {
@@ -134,24 +157,6 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                     </div>
                   } @else if (addQuery().trim()) {
                     <p class="state-text">Nenhum produto encontrado.</p>
-                  }
-                  @if (selectedProduct(); as sp) {
-                    <div class="selected-row">
-                      <span class="selected-name">{{ sp.name }}</span>
-                      <button type="button" class="qty-step" aria-label="Diminuir quantidade" [disabled]="addQuantity() <= 1" (click)="addQuantity.set(Math.max(1, addQuantity() - 1))">−</button>
-                      <input
-                        type="number"
-                        min="1"
-                        class="qty-input-sm"
-                        [value]="addQuantity()"
-                        (input)="addQuantity.set(Math.max(1, $any($event.target).valueAsNumber || 1))"
-                      />
-                      <button type="button" class="qty-step" aria-label="Aumentar quantidade" (click)="addQuantity.set(addQuantity() + 1)">+</button>
-                      <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="adding() || cargoReadOnly()" (click)="confirmAddItem(c)">
-                        {{ adding() ? 'Adicionando…' : 'Adicionar' }}
-                      </button>
-                      <button type="button" class="ar-ghost-btn" (click)="selectedProduct.set(null)">Cancelar</button>
-                    </div>
                   }
                 </div>
               } @else if (readOnly()) {
@@ -310,7 +315,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
     .table-head,
     .table-row {
       display: grid;
-      grid-template-columns: 1.8fr 60px 90px 100px 28px;
+      grid-template-columns: 1.8fr 60px 90px 100px 96px;
       gap: 12px;
       align-items: center;
     }
@@ -351,6 +356,13 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       display: grid;
       place-items: center;
       font-size: 16px;
+      overflow: hidden;
+    }
+
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
 
     .item-name {
@@ -385,17 +397,21 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
     }
 
     .remove-btn {
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
+      justify-self: end;
+      height: 30px;
+      padding: 0 10px;
+      border-radius: var(--nx-r-2);
       background: transparent;
-      border: none;
+      border: 1px solid rgba(255, 59, 48, 0.35);
       cursor: pointer;
       color: var(--nx-live);
-      font-size: 16px;
-      line-height: 1;
-      display: grid;
-      place-items: center;
+      font-family: var(--nx-font-ui);
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
     }
 
     .remove-btn:hover:not(:disabled) {
@@ -404,7 +420,14 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
 
     .remove-btn:disabled {
       color: var(--nx-text-dim);
+      border-color: var(--nx-line);
       cursor: not-allowed;
+    }
+
+    .add-hint {
+      margin: 10px 0 0;
+      font-size: 12px;
+      color: var(--nx-text-dim);
     }
 
     .add-block {
@@ -443,6 +466,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
     }
 
     .product-card {
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -463,10 +487,60 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       border-color: var(--nx-line-strong);
     }
 
-    .product-card:focus-visible,
-    .product-card.selected {
-      outline: 2px solid var(--nx-primary, currentColor);
+    .product-card:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+
+    .product-card:focus-visible {
+      outline: 2px solid var(--nx-orange-500);
       outline-offset: -2px;
+    }
+
+    .product-card.in-comanda {
+      border-color: var(--nx-orange-500);
+    }
+
+    .product-badge,
+    .product-pending {
+      position: absolute;
+      top: 6px;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 6px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      font-family: var(--nx-font-mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      box-sizing: border-box;
+    }
+
+    .product-badge {
+      right: 6px;
+      background: var(--nx-orange-500);
+      color: var(--nx-text-on-orange);
+    }
+
+    .product-pending {
+      left: 6px;
+      background: var(--nx-surface-2);
+      color: var(--nx-text-mute);
+    }
+
+    .product-media {
+      width: 56px;
+      height: 56px;
+      border-radius: var(--nx-r-2);
+      overflow: hidden;
+      display: grid;
+      place-items: center;
+    }
+
+    .product-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
 
     .product-card:disabled {
@@ -475,7 +549,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
     }
 
     .product-emoji {
-      font-size: 24px;
+      font-size: 28px;
       line-height: 1;
     }
 
@@ -500,48 +574,6 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
 
     .product-stock.low {
       color: var(--nx-text-dim);
-    }
-
-    .qty-step {
-      width: 40px;
-      height: 40px;
-      border-radius: var(--nx-r-2);
-      background: var(--nx-surface-1);
-      border: 1px solid var(--nx-line);
-      color: var(--nx-text);
-      font-size: 18px;
-      cursor: pointer;
-    }
-
-    .qty-step:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .selected-row {
-      margin-top: 10px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .selected-name {
-      flex: 1;
-      min-width: 0;
-      font-size: 13.5px;
-      color: var(--nx-text);
-    }
-
-    .qty-input-sm {
-      width: 64px;
-      height: 40px;
-      border-radius: var(--nx-r-2);
-      background: var(--nx-surface-1);
-      border: 1px solid var(--nx-line);
-      color: var(--nx-text);
-      text-align: center;
-      font-family: var(--nx-font-ui);
-      font-size: 14px;
     }
 
     .client-row {
@@ -784,7 +816,6 @@ export class PanelOrderDetailComponent {
 
   readonly id = input.required<string>();
 
-  protected readonly Math = Math;
   protected readonly formatBRL = formatCentsBRL;
   protected readonly formatComandaNumber = formatComandaNumber;
   protected readonly formatMovementDate = formatMovementDate;
@@ -809,9 +840,11 @@ export class PanelOrderDetailComponent {
   protected readonly cargoReadOnly = computed(() => !this.access.canWrite('comandas'));
 
   protected readonly addQuery = signal('');
-  protected readonly selectedProduct = signal<ArenaProduct | null>(null);
-  protected readonly addQuantity = signal(1);
-  protected readonly adding = signal(false);
+  /** Toques ainda na fila, por produto — o badge "+N" no card enquanto a gravação não volta. */
+  protected readonly pendingByProduct = signal<ReadonlyMap<string, number>>(new Map());
+  /** Lançamentos em série: cada toque espera o anterior, então a recarga nunca volta fora de
+   *  ordem e o estoque é checado na sequência real (a transaction já serializa no servidor). */
+  private addQueue: Promise<void> = Promise.resolve();
   protected readonly itemError = signal<string | null>(null);
   protected readonly reversingId = signal<string | null>(null);
 
@@ -852,6 +885,24 @@ export class PanelOrderDetailComponent {
     return !!c && !comandaCloseEmptyBlockReason(c);
   });
 
+  /** Unidades já lançadas de cada produto — badge no card do catálogo. */
+  protected readonly quantityByProduct = computed(() => {
+    const map = new Map<string, number>();
+    for (const it of this.items()) {
+      map.set(it.productId, (map.get(it.productId) ?? 0) + it.quantity);
+    }
+    return map;
+  });
+
+  /** Os itens não guardam a foto (só o emoji): vem do catálogo carregado junto. */
+  protected readonly productImageById = computed(() => {
+    const map = new Map<string, string>();
+    for (const p of this.products()) {
+      if (p.imageUrl) map.set(p.id, p.imageUrl);
+    }
+    return map;
+  });
+
   protected readonly addSuggestions = computed(() => {
     const q = this.addQuery().trim().toLowerCase();
     const all = this.products();
@@ -867,8 +918,8 @@ export class PanelOrderDetailComponent {
     });
   }
 
-  private async loadAll(arenaId: string, comandaId: string): Promise<void> {
-    this.loading.set(true);
+  private async loadAll(arenaId: string, comandaId: string, silent = false): Promise<void> {
+    if (!silent) this.loading.set(true);
     this.loadError.set(null);
     try {
       const db = arenaFirestore();
@@ -891,41 +942,38 @@ export class PanelOrderDetailComponent {
 
   protected onAddQueryInput(value: string): void {
     this.addQuery.set(value);
-    this.selectedProduct.set(null);
   }
 
-  protected selectProduct(product: ArenaProduct): void {
-    this.selectedProduct.set(product);
-    this.addQuantity.set(1);
-  }
-
-  protected async confirmAddItem(comanda: ArenaComanda): Promise<void> {
-    const product = this.selectedProduct();
+  /** Toque no card = lança 1 unidade na hora. Toques seguidos no mesmo produto viram
+   *  lançamentos de 1 em fila; o erro (ex.: estoque acabou) aparece no banner dos itens. */
+  protected addProduct(comanda: ArenaComanda, product: ArenaProduct): void {
     const arenaId = this.arenaContext.arenaId();
     const uid = this.auth.user()?.uid;
+    if (!arenaId || !uid || this.cargoReadOnly()) return;
     const addedByName = this.auth.displayName() ?? 'Gestor';
-    if (!product || !arenaId || !uid || this.cargoReadOnly()) return;
 
-    this.adding.set(true);
     this.itemError.set(null);
-    try {
-      await addItemsBatch(
-        arenaFirestore(),
-        arenaId,
-        comanda.id,
-        [{ productId: product.id, quantity: Math.max(1, Math.round(this.addQuantity())) }],
-        uid,
-        addedByName,
-      );
-      this.selectedProduct.set(null);
-      this.addQuery.set('');
-      this.addQuantity.set(1);
-      await this.loadAll(arenaId, comanda.id);
-    } catch (err) {
-      this.itemError.set(err instanceof Error ? err.message : 'Não foi possível adicionar o item.');
-    } finally {
-      this.adding.set(false);
-    }
+    this.bumpPending(product.id, 1);
+    this.addQueue = this.addQueue.then(async () => {
+      try {
+        await addItemsBatch(arenaFirestore(), arenaId, comanda.id, [{ productId: product.id, quantity: 1 }], uid, addedByName);
+        await this.loadAll(arenaId, comanda.id, true);
+      } catch (err) {
+        this.itemError.set(err instanceof Error ? err.message : 'Não foi possível adicionar o item.');
+      } finally {
+        this.bumpPending(product.id, -1);
+      }
+    });
+  }
+
+  private bumpPending(productId: string, delta: number): void {
+    this.pendingByProduct.update((current) => {
+      const next = new Map(current);
+      const value = (next.get(productId) ?? 0) + delta;
+      if (value > 0) next.set(productId, value);
+      else next.delete(productId);
+      return next;
+    });
   }
 
   protected async reverseItem(comanda: ArenaComanda, item: ArenaComandaItem): Promise<void> {
@@ -942,7 +990,7 @@ export class PanelOrderDetailComponent {
     this.itemError.set(null);
     try {
       await reverseComandaItem(arenaFirestore(), arenaId, comanda.id, item.id, uid);
-      await this.loadAll(arenaId, comanda.id);
+      await this.loadAll(arenaId, comanda.id, true);
     } catch (err) {
       this.itemError.set(err instanceof Error ? err.message : 'Não foi possível estornar o item.');
     } finally {

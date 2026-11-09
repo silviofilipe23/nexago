@@ -7,7 +7,8 @@
  * sand_rank_catalog.dart, athlete_home_focus_card.dart, focus_section.dart, seed-app-guide.js). Mudou a regra,
  * revise o post.
  */
-const AUTHOR = {id: null, name: "Redação nexaGO", role: "Equipe nexaGO"};
+// Autor "nexaGO" (blogAuthors, criado por ../autor/save-author.js): o save copia nome, função e foto do cadastro.
+const AUTHOR = {id: "3AApFYt4luE9r09mIVsN", name: "nexaGO", role: "Equipe nexaGO"};
 const BASE = {
   category: "guia",
   sport: "all",

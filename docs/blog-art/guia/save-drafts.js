@@ -9,7 +9,8 @@
  * ids.json guarda as URLs já enviadas e o id de cada post: rodar de novo regrava o mesmo post.
  */
 const fs = require("fs"), path = require("path"), crypto = require("crypto");
-const admin = require("firebase-admin");
+// O mesmo firebase-admin que o functions compilado usa (o do NODE_PATH), senão o Timestamp não bate.
+const admin = require(require("path").join(process.env.NODE_PATH, "firebase-admin"));
 const PROJECT = "volley-track-dev-4596c", BUCKET = "volley-track-dev-4596c.firebasestorage.app";
 const ART = process.env.ART, LIB = process.env.LIB, IDS = path.join(ART, "ids.json");
 const WRITE = process.argv.includes("--write");

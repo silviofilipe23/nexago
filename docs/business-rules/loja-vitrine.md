@@ -74,6 +74,13 @@ frequente nas reservas ativas dos últimos 60 dias que seja ponto de retirada (e
 → a mais próxima pela localização já concedida (o app não pede permissão aqui) → nenhuma
 ("Escolha uma arena pra retirar grátis · Escolher"). Trocar grava `pickupArenaId`.
 
+**Ponto só vale com local de estoque.** O pedido de retirada fica no local de estoque da arena
+(`storeLocations` com o `arenaId`; reserva o saldo da arena se tiver, senão o do CD). Sem ele o
+checkout recusa com `arena_indisponivel`. Por isso salvar o ponto (`savePickupPoint`) ou ligá-lo
+(`setPickupPointActive`) cria `storeLocations/arena-{arenaId}` quando a arena ainda não tem local, e
+grava o `locationId` no ponto. A vitrine (`storePublic/showcase.pickupArenas`) só publica ponto ativo
+**com** `locationId`: o app nunca oferece uma retirada que o checkout recusa.
+
 ## Gestão dos banners (backoffice › Loja › Campanhas)
 
 Rota `/painel/loja/campanhas`. Fonte `storeConfig/campaigns` = `{banners[], version, updatedAt, updatedBy}`;

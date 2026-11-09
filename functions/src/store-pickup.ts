@@ -14,6 +14,7 @@ import {assertCatalogAdmin, type Actor} from "./store-catalog-write";
 const BACKOFFICE_CALLABLE = {region: CLIENT_FACING_REGIONS, invoker: "public" as const};
 
 export const PICKUP_POINTS = "storePickupPoints";
+const LOCATIONS = "storeLocations";
 export const STORE_CONFIG = "storeConfig";
 export const SHIPPING_CONFIG_ID = "shipping";
 
@@ -163,15 +164,15 @@ export async function savePickupPointCore(
     throw new HttpsError("failed-precondition", "Arena pré-cadastrada não pode ser ponto de retirada.");
   }
 
-  // O local de estoque da arena, se já existir: é onde a retirada reserva saldo.
-  const locations = await db.collection("storeLocations").where("arenaId", "==", input.arenaId).limit(1).get();
+  const name = typeof data["name"] === "string" ? data["name"] : input.arenaId;
+  const locationId = await ensureArenaLocation(db, input.arenaId, name);
 
   const ref = db.collection(PICKUP_POINTS).doc(input.arenaId);
   const existing = await ref.get();
   await ref.set(
     {
       arenaId: input.arenaId,
-      name: typeof data["name"] === "string" ? data["name"] : input.arenaId,
+      name,
       address: typeof data["address"] === "string" ? data["address"] : "",
       city: typeof data["city"] === "string" ? data["city"] : "",
       state: typeof data["state"] === "string" ? data["state"] : "",
@@ -181,7 +182,7 @@ export async function savePickupPointCore(
       restockHours: input.restockHours,
       commissionPct: input.commissionPct,
       active: input.active,
-      locationId: locations.docs[0]?.id ?? null,
+      locationId,
       ...(existing.exists ? {} : {createdAt: now}),
       updatedAt: now,
       updatedBy: actor,
@@ -189,6 +190,25 @@ export async function savePickupPointCore(
     {merge: true},
   );
   return {arenaId: input.arenaId};
+}
+
+/**
+ * O local de estoque da arena (`storeLocations` com o `arenaId`): o pedido de retirada fica nele
+ * (e reserva o saldo da arena, se tiver; senão o do CD). Sem local o checkout recusa a retirada
+ * (`arena_indisponivel`), e só o seed criava locais — então o ponto cria `arena-{arenaId}`.
+ */
+export async function ensureArenaLocation(db: Firestore, arenaId: string, name: string): Promise<string> {
+  const found = await db.collection(LOCATIONS).where("arenaId", "==", arenaId).limit(1).get();
+  if (!found.empty) return found.docs[0].id;
+  // A tela de estoque ordena por `order`: o novo vai pro fim.
+  const all = await db.collection(LOCATIONS).get();
+  const last = all.docs.reduce((max, d) => {
+    const order = d.data()["order"];
+    return typeof order === "number" && order > max ? order : max;
+  }, 0);
+  const id = `arena-${arenaId}`;
+  await db.collection(LOCATIONS).doc(id).set({name, type: "arena", arenaId, order: last + 1, active: true}, {merge: true});
+  return id;
 }
 
 /** O toggle da tabela: só liga/desliga um ponto que já existe. */
@@ -206,7 +226,15 @@ export async function setPickupPointActiveCore(
   if (!snap.exists) {
     throw new HttpsError("failed-precondition", "Configure o ponto de retirada antes de ativá-lo.");
   }
-  await ref.set({active: input.active, updatedAt: now, updatedBy: actor}, {merge: true});
+  // Ponto salvo antes do local nascer junto: ligar já cria o que falta.
+  const data = snap.data()!;
+  const locationId = input.active && !data["locationId"] ?
+    await ensureArenaLocation(db, input.arenaId, typeof data["name"] === "string" ? data["name"] : input.arenaId) :
+    null;
+  await ref.set(
+    {active: input.active, ...(locationId ? {locationId} : {}), updatedAt: now, updatedBy: actor},
+    {merge: true},
+  );
   return {arenaId: input.arenaId, active: input.active};
 }
 

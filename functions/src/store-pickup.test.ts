@@ -51,6 +51,24 @@ describe("savePickupPointCore", () => {
     assert.deepEqual(doc["updatedBy"], ACTOR);
   });
 
+  it("arena sem local de estoque: cria arena-{id} no fim da lista e liga o ponto", async () => {
+    const {fake, db} = makeDb();
+    fake.store.set("arenas/a2", {name: "Vegeton Beach Club"});
+    fake.store.set("storeLocations/cd", {name: "CD Goiânia", type: "cd", arenaId: null, order: 0});
+    fake.store.set("storeLocations/arena-cfc", {name: "Arena CFC", type: "arena", arenaId: null, order: 2});
+    await savePickupPointCore(db, point({arenaId: "a2"}), ACTOR, NOW);
+
+    assert.equal(fake.store.get("storePickupPoints/a2")!["locationId"], "arena-a2");
+    assert.deepEqual(fake.store.get("storeLocations/arena-a2"), {
+      name: "Vegeton Beach Club", type: "arena", arenaId: "a2", order: 3, active: true,
+    });
+
+    // Salvar de novo reaproveita o local (não cria outro).
+    await savePickupPointCore(db, point({arenaId: "a2", counter: "Bar"}), ACTOR, NOW);
+    const locations = [...fake.store.keys()].filter((k) => k.startsWith("storeLocations/"));
+    assert.equal(locations.length, 4);
+  });
+
   it("não reescreve o createdAt ao editar", async () => {
     const {fake, db} = makeDb();
     await savePickupPointCore(db, point(), ACTOR, NOW);
@@ -91,6 +109,18 @@ describe("setPickupPointActiveCore", () => {
     await setPickupPointActiveCore(db, {arenaId: "a1", active: true}, ACTOR, NOW);
     assert.equal(fake.store.get("storePickupPoints/a1")!["active"], true);
     assert.equal(fake.store.get("storePickupPoints/a1")!["counter"], "Recepção");
+  });
+
+  it("ligar ponto antigo sem local cria o local que faltava", async () => {
+    const {fake, db} = makeDb();
+    // Como o ponto da Vegeton ficou: salvo quando não existia local pra arena.
+    fake.store.set("storePickupPoints/a9", {arenaId: "a9", name: "Vegeton Beach Club", active: false, locationId: null});
+    await setPickupPointActiveCore(db, {arenaId: "a9", active: true}, ACTOR, NOW);
+
+    const doc = fake.store.get("storePickupPoints/a9")!;
+    assert.equal(doc["active"], true);
+    assert.equal(doc["locationId"], "arena-a9");
+    assert.equal(fake.store.get("storeLocations/arena-a9")!["arenaId"], "a9");
   });
 });
 

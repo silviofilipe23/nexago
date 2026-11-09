@@ -176,8 +176,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/mapbox/mapbox-common-ios.git",
       "state" : {
-        "revision" : "a8721e47dbe3d0c31099eadea782aa48b73f7fe1",
-        "version" : "24.28.3"
+        "revision" : "c00b5eef6a2ec81930d915730c6dbd92c83d874c",
+        "version" : "24.31.1"
       }
     },
     {
@@ -185,8 +185,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/mapbox/mapbox-core-maps-ios.git",
       "state" : {
-        "revision" : "b7d45e14ed146839bc005df8181d1af488f34417",
-        "version" : "11.28.3"
+        "revision" : "03fc876d19072637689a465ff9a2be64ba447439",
+        "version" : "11.31.1"
       }
     },
     {
@@ -194,8 +194,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/mapbox/mapbox-maps-ios.git",
       "state" : {
-        "revision" : "fb8a1030a1a64412b98bf2bfdd21d4fb4f96ae5c",
-        "version" : "11.28.3"
+        "revision" : "6be7a1608d70c6d64eb9c57acb45f982f3953d09",
+        "version" : "11.31.1"
       }
     },
     {
@@ -239,8 +239,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SVGKit/SVGKit",
       "state" : {
-        "revision" : "58152b9f7c85eab239160b36ffdfd364aa43d666",
-        "version" : "3.0.0"
+        "revision" : "0e14a78b7d1e3a3b0d5920203802dbeb0ca49b37",
+        "version" : "3.0.2"
       }
     },
     {
@@ -248,8 +248,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log",
       "state" : {
-        "revision" : "a878e7f8f46cfc0e1125e565b5c08e7d5272dc9a",
-        "version" : "1.14.0"
+        "revision" : "e3da04078777e6a1b72ce19981fbd6539b0847d8",
+        "version" : "1.17.0"
       }
     },
     {

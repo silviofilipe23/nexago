@@ -641,7 +641,7 @@ void main() {
     ) async {
       final h = await addAntunes(tester);
 
-      // Toca fora da folha (fecha sem escolher).
+      // Arrasta a folha pra baixo (fecha sem escolher).
       await tester.tapAt(const Offset(195, 40));
       await _settle(tester);
       expect(find.text(StoreCopy.customizeAddedTitle), findsNothing);
@@ -919,7 +919,10 @@ void main() {
       expect(request.name?.text, 'ANTUNES');
       expect(request.image, isNull);
       expect(h.popped, isNull);
-      expect(find.text('Nome ANTUNES · Nº 10 nas costas'), findsOneWidget);
+      expect(
+        find.text('Nome ANTUNES · Nº 10 nas costas'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('seletor Número · Imagem: imagem pelo mesmo fluxo da frente', (

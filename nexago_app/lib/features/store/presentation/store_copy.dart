@@ -84,7 +84,8 @@ abstract final class StoreCopy {
   static const recentSearches = 'BUSCAS RECENTES';
   static const suggestionsProducts = 'PRODUTOS';
   static const suggestionsCategories = 'CATEGORIAS';
-  static const noSuggestions = 'Nada com esse nome. Aperte buscar pra ver tudo.';
+  static const noSuggestions =
+      'Nada com esse nome. Aperte buscar pra ver tudo.';
 
   static String categorySuggestion(String label) => 'Ver tudo em $label';
 

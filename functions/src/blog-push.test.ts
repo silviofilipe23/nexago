@@ -2,14 +2,14 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import type {Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
+import * as notificationDelivery from "./notification-delivery";
 import {
-  BLOG_PUSH_MIN_BUILD_DEFAULT,
   blogPushMessage,
-  blogPushMinBuild,
   blogPushRecipients,
   estimateBlogPushReachCore,
   matchesAudience,
   normalizeCity,
+  sendBlogPushCore,
   shouldSendBlogPush,
 } from "./blog-push";
 
@@ -60,10 +60,10 @@ describe("matchesAudience", () => {
 });
 
 describe("blogPushRecipients", () => {
-  it("só quem tem o app com o blog, não silenciou a categoria e não desligou o push", async () => {
+  it("todo atleta do filtro, com ou sem aparelho e em qualquer build; fora só quem silenciou a categoria", async () => {
     const {fake, db} = makeDb();
     seedAthlete(fake, "ok");
-    seedAthlete(fake, "old-app", {}, 117);
+    seedAthlete(fake, "old-app", {}, 110);
     seedAthlete(fake, "no-device", {}, null);
     seedAthlete(fake, "muted");
     fake.store.set("blogNotifyPrefs/muted", {muted: ["torneios"]});
@@ -71,47 +71,57 @@ describe("blogPushRecipients", () => {
     fake.store.set("blogNotifyPrefs/muted-other", {muted: ["loja"]});
     seedAthlete(fake, "push-off", {notificationPreferences: {channels: {push: false}}});
     seedAthlete(fake, "other-city", {city: "Anápolis"});
+    seedAthlete(fake, "seed", {seedTestAthlete: true});
+    fake.store.set("users/arena", {roles: ["arena"], email: "arena@gmail.com"});
 
-    const uids = await blogPushRecipients(db, {city: "Goiânia", sport: "all"}, "torneios", 118);
-    assert.deepEqual(uids.sort(), ["muted-other", "ok"]);
+    const got = await blogPushRecipients(db, {city: "Goiânia", sport: "all"}, "torneios");
+    assert.deepEqual(got.sort((a, b) => a.uid.localeCompare(b.uid)), [
+      {uid: "muted-other", push: true},
+      {uid: "no-device", push: true},
+      {uid: "ok", push: true},
+      {uid: "old-app", push: true},
+      // Desligou o push nas Configurações: só o item na lista de notificações do app.
+      {uid: "push-off", push: false},
+    ]);
   });
-});
 
-describe("blogPushMinBuild", () => {
-  it("lê appConfig/blog e cai no padrão sem doc", async () => {
+  it("sem filtro, avisa todos os atletas", async () => {
     const {fake, db} = makeDb();
-    assert.equal(await blogPushMinBuild(db), BLOG_PUSH_MIN_BUILD_DEFAULT);
-    fake.store.set("appConfig/blog", {pushMinBuild: 120});
-    assert.equal(await blogPushMinBuild(db), 120);
+    seedAthlete(fake, "a");
+    seedAthlete(fake, "b", {city: "Anápolis", sportOnboarding: {}}, null);
+    const got = await blogPushRecipients(db, {city: null, sport: "all"}, "treino");
+    assert.deepEqual(got.map((r) => r.uid).sort(), ["a", "b"]);
   });
 });
 
 describe("estimateBlogPushReachCore", () => {
-  it("separa quem recebe de quem está no filtro e lista as cidades", async () => {
+  it("separa os avisados no app dos que recebem push no celular e lista as cidades", async () => {
     const {fake, db} = makeDb();
     seedAthlete(fake, "a");
     seedAthlete(fake, "b", {}, null);
     seedAthlete(fake, "c", {city: "Anápolis"});
     seedAthlete(fake, "d", {city: "goiania "}, null);
+    seedAthlete(fake, "e", {notificationPreferences: {channels: {push: false}}});
     const reach = await estimateBlogPushReachCore(db, {city: "Goiânia", sport: "all"}, "treino");
+    assert.equal(reach.athletes, 4);
     assert.equal(reach.reachable, 1);
-    assert.equal(reach.athletes, 3);
-    assert.deepEqual(reach.cities, [{city: "Goiânia", count: 3}, {city: "Anápolis", count: 1}]);
+    assert.deepEqual(reach.cities, [{city: "Goiânia", count: 4}, {city: "Anápolis", count: 1}]);
   });
 });
 
 describe("shouldSendBlogPush", () => {
   const live = {status: "published", push: {enabled: true}, channels: {app: true}, pushSentAt: null};
 
-  it("envia quando o post vai ao ar com push ligado", () => {
+  it("envia quando o post vai ao ar no app, com ou sem a chave antiga do editor", () => {
     assert.equal(shouldSendBlogPush({status: "scheduled"}, live), true);
     assert.equal(shouldSendBlogPush(undefined, live), true);
+    assert.equal(shouldSendBlogPush({status: "draft"}, {...live, push: {enabled: false}}), true);
+    assert.equal(shouldSendBlogPush({status: "draft"}, {...live, push: undefined}), true);
   });
 
-  it("não reenvia, não envia sem push nem fora do app", () => {
+  it("não reenvia nem envia fora do app", () => {
     assert.equal(shouldSendBlogPush({status: "published"}, live), false);
     assert.equal(shouldSendBlogPush({status: "draft"}, {...live, pushSentAt: "x"}), false);
-    assert.equal(shouldSendBlogPush({status: "draft"}, {...live, push: {enabled: false}}), false);
     assert.equal(shouldSendBlogPush({status: "draft"}, {...live, channels: {app: false}}), false);
     assert.equal(shouldSendBlogPush({status: "draft"}, {...live, status: "scheduled"}), false);
   });
@@ -124,5 +134,43 @@ describe("blogPushMessage", () => {
       title: "T",
       body: "3 min de leitura no blog do nexaGO",
     });
+  });
+});
+
+describe("sendBlogPushCore", () => {
+  it("avisa todos uma vez: push só para quem deixou ligado, item no app para todos", async () => {
+    const {fake, db} = makeDb();
+    seedAthlete(fake, "ok");
+    seedAthlete(fake, "no-device", {}, null);
+    seedAthlete(fake, "push-off", {notificationPreferences: {channels: {push: false}}});
+    seedAthlete(fake, "muted");
+    fake.store.set("blogNotifyPrefs/muted", {muted: ["torneios"]});
+    fake.store.set("blogPosts/p1", {
+      status: "published",
+      title: "Liga nexaGO",
+      subtitle: "Tudo sobre a 2ª etapa",
+      category: "torneios",
+      channels: {app: true},
+      push: {enabled: false, city: null, sport: "all"},
+    });
+    const calls: Array<{userId: string; skipPush?: boolean; url: unknown}> = [];
+    (notificationDelivery as unknown as {
+      deliverNotificationToUser: typeof notificationDelivery.deliverNotificationToUser;
+    }).deliverNotificationToUser = async ({userId, skipPush, data}) => {
+      calls.push({userId, skipPush, url: data?.["url"]});
+      return {sent: userId === "ok" ? 1 : 0, failed: 0};
+    };
+
+    const now = new Date("2026-11-09T12:00:00Z");
+    assert.deepEqual(await sendBlogPushCore(db, "p1", now), {recipients: 3, sent: 1});
+    assert.deepEqual(calls.sort((a, b) => a.userId.localeCompare(b.userId)), [
+      {userId: "no-device", skipPush: false, url: "/athlete/blog/p1"},
+      {userId: "ok", skipPush: false, url: "/athlete/blog/p1"},
+      {userId: "push-off", skipPush: true, url: "/athlete/blog/p1"},
+    ]);
+    assert.equal((fake.store.get("blogPosts/p1")!["pushResult"] as {recipients: number}).recipients, 3);
+    // Segunda chamada (gatilho repetido): nada sai de novo.
+    assert.equal(await sendBlogPushCore(db, "p1", now), null);
+    assert.equal(calls.length, 3);
   });
 });

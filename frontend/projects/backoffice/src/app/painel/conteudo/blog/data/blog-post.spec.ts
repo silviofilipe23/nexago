@@ -128,15 +128,15 @@ describe('blog · post', () => {
 
   it('texto do alcance e resumo do push enviado', () => {
     expect(reachLabel({ reachable: 1240, athletes: 3106 })).toBe(
-      'Alcance estimado: 1.240 atletas com o app atualizado · de 3.106 no público · respeita quem desligou avisos do blog',
+      'Alcance: 3.106 atletas avisados no app · 1.240 com push no celular · fora quem silenciou este assunto',
     );
-    expect(reachLabel({ reachable: 1, athletes: 1 })).toContain('1 atleta com o app');
+    expect(reachLabel({ reachable: 1, athletes: 1 })).toContain('1 atleta avisado no app');
     const now = new Date('2026-11-13T12:00:00Z');
     const sentAt = new Date('2026-11-12T12:00:05Z');
     expect(pushSentLabel({ pushSentAt: null, pushResult: null }, now)).toBeNull();
-    expect(pushSentLabel({ pushSentAt: sentAt, pushResult: { state: 'sending', recipients: 0, sent: 0 } }, now)).toBe('Enviando push…');
+    expect(pushSentLabel({ pushSentAt: sentAt, pushResult: { state: 'sending', recipients: 0, sent: 0 } }, now)).toBe('Enviando aviso…');
     expect(pushSentLabel({ pushSentAt: sentAt, pushResult: { state: 'sent', recipients: 1240, sent: 1100 } }, now)).toBe(
-      'Push enviado em 12 nov · 09:00 para 1.240 atletas',
+      'Aviso enviado em 12 nov · 09:00 para 1.240 atletas · 1.100 com push no celular',
     );
   });
 

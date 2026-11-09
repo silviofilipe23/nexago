@@ -182,7 +182,7 @@ type LoadState = 'loading' | 'ok' | 'error';
                           <div class="status">
                             <bo-blog-status-pill [status]="post.status" />
                             @if (push(post); as badge) {
-                              <span class="push" [class.sent]="badge.sent" [attr.title]="badge.sent ? 'Notificação push enviada' : 'Notificação push ligada'">
+                              <span class="push" [class.sent]="badge.sent" [attr.title]="badge.sent ? 'Aviso enviado aos atletas' : 'Avisa os atletas quando for ao ar'">
                                 <bo-icon name="bell" [size]="11" />
                                 {{ badge.text }}
                               </span>

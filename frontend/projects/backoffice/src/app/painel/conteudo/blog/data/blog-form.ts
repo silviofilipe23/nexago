@@ -63,7 +63,6 @@ export interface BlogDraft {
   app: boolean;
   site: boolean;
   featured: boolean;
-  pushEnabled: boolean;
   /** Vazio = todas as cidades. */
   pushCity: string;
   pushSport: string;
@@ -154,7 +153,6 @@ export function newBlogDraft(authorName: string): BlogDraft {
     app: true,
     site: true,
     featured: false,
-    pushEnabled: false,
     pushCity: '',
     pushSport: 'all',
     pushSent: false,
@@ -191,7 +189,6 @@ export function draftFromPost(post: BlogPost): BlogDraft {
     app: post.channels.app,
     site: post.channels.site,
     featured: post.featured,
-    pushEnabled: post.push.enabled,
     pushCity: post.push.city ?? '',
     pushSport: post.push.sport,
     pushSent: post.pushSentAt !== null || post.pushResult !== null,
@@ -348,9 +345,9 @@ export function payloadFromDraft(draft: BlogDraft): BlogPostInput {
     channels: { app: draft.app, site: draft.site },
     featured: draft.featured,
     push: {
-      // Já enviado, o push não volta a sair (o servidor olha `pushSentAt`); desligar aqui só evita
-      // que "Blog no app" desligado depois do envio trave o save com a regra do push.
-      enabled: draft.pushEnabled && !(draft.pushSent && !draft.app),
+      // O aviso aos atletas sai sempre que o post vai ao ar no app (o servidor não olha mais esta
+      // chave); ela só acompanha o canal para a regra do save, que recusa aviso sem "Blog no app".
+      enabled: draft.app,
       city: line(draft.pushCity) || null,
       sport: draft.pushSport,
     },

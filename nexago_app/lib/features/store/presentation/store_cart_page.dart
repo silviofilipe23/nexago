@@ -446,10 +446,15 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
     final channel = ref.watch(storeCheckoutChannelProvider);
 
     final config = configAsync.valueOrNull ?? StoreShowcaseConfig.empty;
-    final arenas = config.pickupArenas;
+    // Só o que vale pra todos os itens: produto só de retirada não oferece
+    // entrega (e vice-versa), mesmo com a modalidade ligada na loja.
+    final fulfillment = storeCartFulfillment(cart, products);
+    final arenas =
+        fulfillment.pickup ? config.pickupArenas : const <StorePickupArena>[];
     final modes = [
-      for (final m in config.delivery.modes)
-        if (m.priceCents != null) m,
+      if (fulfillment.delivery)
+        for (final m in config.delivery.modes)
+          if (m.priceCents != null) m,
     ];
     final addresses = addressesAsync.valueOrNull ?? const <StoreAddress>[];
 
@@ -570,7 +575,7 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
         ],
         const SizedBox(height: 12),
         StoreSectionLabel(
-          config.pickupArenas.isNotEmpty && modes.isNotEmpty
+          arenas.isNotEmpty == modes.isNotEmpty
               ? StoreCheckoutCopy.receiveTitle
               : modes.isNotEmpty
                   ? StoreCheckoutCopy.receiveHomeOnly
@@ -580,6 +585,7 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
         ..._receive(
           colors,
           config: config,
+          arenas: arenas,
           kind: kind,
           arena: arena,
           modes: modes,
@@ -692,20 +698,20 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
       value: quote == null && _quoteError != null
           ? const Text('—', key: ValueKey('store-cart-total'))
           : quote == null
-          ? const SizedBox(
-              height: 28,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+              ? const SizedBox(
+                  height: 28,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                )
+              : Text(
+                  StoreCheckoutCopy.price(quote.totalCents),
+                  key: const ValueKey('store-cart-total'),
                 ),
-              ),
-            )
-          : Text(
-              StoreCheckoutCopy.price(quote.totalCents),
-              key: const ValueKey('store-cart-total'),
-            ),
       valueStale: !fresh,
       top: _needCpf || hint != null
           ? Column(
@@ -808,6 +814,7 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
   List<Widget> _receive(
     AppThemeColors colors, {
     required StoreShowcaseConfig config,
+    required List<StorePickupArena> arenas,
     required String? kind,
     required StorePickupArena? arena,
     required List<StoreDeliveryMode> modes,
@@ -817,11 +824,16 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
     required String Function(StoreDeliveryMode) modePrice,
     required int? freeGap,
   }) {
-    final arenas = config.pickupArenas;
     if (arenas.isEmpty && modes.isEmpty) {
+      // A loja tem como receber, mas não pra esses itens juntos.
+      final storeHasAny = config.pickupArenas.isNotEmpty ||
+          config.delivery.modes.any((m) => m.priceCents != null);
       return [
         Text(
-          StoreCheckoutCopy.receiveNone,
+          key: const ValueKey('store-cart-receive-none'),
+          storeHasAny
+              ? StoreCheckoutCopy.receiveNoneForCart
+              : StoreCheckoutCopy.receiveNone,
           style:
               AppTypography.bodyS.copyWith(color: StoreStyle.secondary(colors)),
         ),

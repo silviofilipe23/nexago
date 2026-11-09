@@ -342,4 +342,54 @@ void main() {
       );
     });
   });
+
+  group('storeCartFulfillment', () {
+    StoreProduct product(
+      String id, {
+      required bool pickup,
+      required bool delivery,
+    }) =>
+        StoreProduct(
+          id: id,
+          name: id,
+          category: 'acessorios',
+          priceCents: 100,
+          minPriceCents: 100,
+          maxPriceCents: 100,
+          pickup: pickup,
+          delivery: delivery,
+        );
+    StoreCartItem item(String id) =>
+        StoreCartItem(productId: id, skuId: 'unico', qty: 1);
+
+    test('produto só de retirada não libera entrega', () {
+      final r = storeCartFulfillment(
+        [item('toalha')],
+        [product('toalha', pickup: true, delivery: false)],
+      );
+      expect(r.pickup, isTrue);
+      expect(r.delivery, isFalse);
+    });
+
+    test('vale o que todos os itens aceitam', () {
+      final r = storeCartFulfillment(
+        [item('a'), item('b')],
+        [
+          product('a', pickup: true, delivery: false),
+          product('b', pickup: false, delivery: true),
+        ],
+      );
+      expect(r.pickup, isFalse);
+      expect(r.delivery, isFalse);
+    });
+
+    test('produto fora do catálogo não restringe', () {
+      final r = storeCartFulfillment(
+        [item('sumiu'), item('a')],
+        [product('a', pickup: true, delivery: true)],
+      );
+      expect(r.pickup, isTrue);
+      expect(r.delivery, isTrue);
+    });
+  });
 }

@@ -34,6 +34,27 @@ Map<String, Object?>? _map(Object? v) =>
 String storeCartLineKey(StoreCartItem item) =>
     item.lineId ?? '${item.productId}/${item.skuId}';
 
+/// Como o carrinho pode ser recebido, pelo `pickup`/`delivery` de cada
+/// produto: a retirada só vale se **todo** produto sai pra retirada; a
+/// entrega, se todo produto vai pra casa — senão o servidor marca a linha
+/// (`sem_retirada`/`sem_entrega`). Produto fora do catálogo não restringe (a
+/// cotação já marca a linha como indisponível).
+({bool pickup, bool delivery}) storeCartFulfillment(
+  List<StoreCartItem> cart,
+  List<StoreProduct> products,
+) {
+  final byId = {for (final p in products) p.id: p};
+  var pickup = true;
+  var delivery = true;
+  for (final item in cart) {
+    final p = byId[item.productId];
+    if (p == null) continue;
+    pickup = pickup && p.pickup;
+    delivery = delivery && p.delivery;
+  }
+  return (pickup: pickup, delivery: delivery);
+}
+
 /// Muda a quantidade da linha [key] (0 remove), sem passar do teto da
 /// compra. As outras linhas voltam inteiras — `lineId` e `customization`
 /// inclusive (a rule só aceita `items` + `updatedAt`).

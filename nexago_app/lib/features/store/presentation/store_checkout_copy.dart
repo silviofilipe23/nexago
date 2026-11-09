@@ -31,6 +31,7 @@ abstract final class StoreCheckoutCopy {
       'Não deu pra atualizar o carrinho. Tente de novo em instantes.';
 
   static const receiveTitle = 'COMO RECEBER';
+
   /// Só uma forma de receber: o título já diz qual (sem o seletor).
   static const receiveHomeOnly = 'ENTREGA EM CASA';
   static const receivePickupOnly = 'RETIRADA NA ARENA';
@@ -38,6 +39,11 @@ abstract final class StoreCheckoutCopy {
   static const receiveDelivery = 'Entregar';
   static const receiveNone =
       'A loja ainda não abriu retirada nem entrega. Volte em breve.';
+
+  /// A loja tem retirada/entrega, mas nenhuma vale pra todos os itens.
+  static const receiveNoneForCart =
+      'Nenhuma forma de receber atende todos os itens do carrinho. '
+      'Separe em pedidos diferentes.';
   static const free = 'Grátis';
 
   // 04 Entrega

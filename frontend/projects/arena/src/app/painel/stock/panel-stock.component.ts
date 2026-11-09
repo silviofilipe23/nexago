@@ -131,7 +131,13 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
                 <div class="table-list">
                   @for (p of filteredProducts(); track p.id) {
                     <div class="table-row">
-                      <div class="thumb" aria-hidden="true">{{ p.emoji }}</div>
+                      <div class="thumb" aria-hidden="true">
+                        @if (p.imageUrl) {
+                          <img [src]="p.imageUrl" alt="" loading="lazy" />
+                        } @else {
+                          {{ p.emoji }}
+                        }
+                      </div>
                       <div class="product-name">{{ p.name }}</div>
                       <div class="product-category">{{ categoryLabel[p.category] }}</div>
                       <div class="product-price">{{ formatBRL(p.priceCents) }}</div>
@@ -316,6 +322,13 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
       display: grid;
       place-items: center;
       font-size: 16px;
+      overflow: hidden;
+    }
+
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
 
     .product-name {

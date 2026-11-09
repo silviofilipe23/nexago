@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
+import { arenaStorage } from '../data/storage';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -18,15 +19,15 @@ import {
   productUnitProfitCents,
   type ArenaProductCategory,
 } from './product.model';
-import { createProduct } from './products-repository';
+import { ProductImageFieldComponent } from './product-image-field.component';
+import { createProduct, newProductId, uploadProductImage } from './products-repository';
 
 /** Tela Novo produto do painel: cadastro de item de estoque em `arenas/{arenaId}/products`.
- *  Sem upload de foto (Storage não integrado ainda) — usa `emoji` como identificador visual,
- *  que é o campo real do schema (`ArenaProduct.emoji`). */
+ *  Foto opcional (mesmo caminho do app no Storage); sem foto, o `emoji` identifica o produto. */
 @Component({
   selector: 'ar-panel-stock-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent, ProductImageFieldComponent],
   template: `
     <ar-panel-shell>
       <ar-page-header title="Novo produto" subtitle="Cadastrar item no estoque da arena">
@@ -66,6 +67,15 @@ import { createProduct } from './products-repository';
                 />
               </div>
             </div>
+
+            <div class="field-label row-gap">Foto do produto (opcional)</div>
+            <ar-product-image-field
+              [file]="imageFile()"
+              [emoji]="emoji()"
+              [disabled]="saving() || readOnly()"
+              (picked)="imageFile.set($event)"
+              (cleared)="imageFile.set(null)"
+            />
 
             <div class="field-label row-gap">Categoria</div>
             <div class="ar-filter-bar">
@@ -264,6 +274,7 @@ export class PanelStockFormComponent {
   protected readonly costValue = signal('');
   protected readonly initialStock = signal(0);
   protected readonly minStock = signal(0);
+  protected readonly imageFile = signal<File | null>(null);
 
   protected readonly saving = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
@@ -296,7 +307,13 @@ export class PanelStockFormComponent {
     this.saving.set(true);
     this.errorMessage.set(null);
     try {
-      await createProduct(arenaFirestore(), arenaId, {
+      const db = arenaFirestore();
+      // Foto primeiro, já no caminho final: se o envio falhar, nada foi gravado e o gestor
+      // tenta de novo sem deixar um produto pela metade.
+      const productId = newProductId(db, arenaId);
+      const file = this.imageFile();
+      const imageUrl = file ? await uploadProductImage(arenaStorage(), arenaId, productId, file) : undefined;
+      await createProduct(db, arenaId, {
         name: this.name().trim(),
         category: this.category(),
         active: true,
@@ -305,7 +322,8 @@ export class PanelStockFormComponent {
         stockQuantity: Math.max(0, Math.round(this.initialStock())),
         minStockQuantity: Math.max(0, Math.round(this.minStock())),
         emoji: this.emoji().trim() || undefined,
-      });
+        imageUrl,
+      }, productId);
       void this.router.navigate(['/painel/estoque']);
     } catch (err) {
       this.errorMessage.set(err instanceof Error ? err.message : 'Não foi possível salvar o produto.');

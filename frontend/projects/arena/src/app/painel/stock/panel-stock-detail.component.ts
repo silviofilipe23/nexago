@@ -4,6 +4,7 @@ import { AuthService } from '../../auth/auth.service';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
+import { arenaStorage } from '../data/storage';
 import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -31,13 +32,16 @@ import {
   type ArenaProductStockStatus,
   type ArenaStockMovement,
 } from './product.model';
+import { ProductImageFieldComponent } from './product-image-field.component';
 import {
   deactivateProduct,
   deleteProduct,
+  deleteProductImage,
   fetchMovements,
   fetchProductWithCost,
   registerStockMovement,
   updateProduct,
+  uploadProductImage,
 } from './products-repository';
 import { StockAdjustDialogComponent, type StockAdjustResult } from './stock-adjust-dialog.component';
 
@@ -51,7 +55,7 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
 @Component({
   selector: 'ar-panel-stock-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, ModalComponent, StockAdjustDialogComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, ModalComponent, StockAdjustDialogComponent, ProductImageFieldComponent],
   template: `
     <ar-panel-shell>
       <ar-page-header [title]="name() || 'Produto'" [subtitle]="'Estoque · ' + categoryLabel[category()]">
@@ -88,6 +92,16 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
                   <input type="text" maxlength="8" class="input-box" [value]="emoji()" (input)="emoji.set($any($event.target).value)" [disabled]="readOnly()" />
                 </div>
               </div>
+
+              <div class="field-label row-gap">Foto do produto</div>
+              <ar-product-image-field
+                [imageUrl]="imageUrl()"
+                [file]="imageFile()"
+                [emoji]="emoji()"
+                [disabled]="saving() || readOnly()"
+                (picked)="imageFile.set($event)"
+                (cleared)="clearImage()"
+              />
 
               <div class="field-label row-gap">Categoria</div>
               <div class="ar-filter-bar">
@@ -618,6 +632,10 @@ export class PanelStockDetailComponent {
     return costCents == null ? '' : formatCentsInputValue(costCents);
   });
   protected readonly minStock = linkedSignal(() => this.product()?.minStockQuantity ?? 0);
+  /** Foto salva; vira `null` quando o gestor remove (só vale ao salvar). */
+  protected readonly imageUrl = linkedSignal<string | null>(() => this.product()?.imageUrl ?? null);
+  /** Foto nova escolhida, enviada ao salvar. */
+  protected readonly imageFile = signal<File | null>(null);
 
   protected readonly movementsKicker = computed(() => `${this.movements().length} lançamentos recentes`);
   protected readonly status = computed(() => {
@@ -689,6 +707,13 @@ export class PanelStockDetailComponent {
     this.saving.set(true);
     this.saveError.set(null);
     try {
+      const file = this.imageFile();
+      const removeImage = !file && !this.imageUrl() && !!p.imageUrl;
+      const imageUrl = file
+        ? await uploadProductImage(arenaStorage(), arenaId, p.id, file)
+        : removeImage
+          ? null
+          : undefined;
       await updateProduct(arenaFirestore(), arenaId, p.id, {
         name: this.name().trim(),
         category: this.category(),
@@ -698,13 +723,23 @@ export class PanelStockDetailComponent {
         stockQuantity: p.stockQuantity,
         minStockQuantity: Math.max(0, Math.round(this.minStock())),
         emoji: this.emoji().trim() || undefined,
+        imageUrl,
       });
+      if (removeImage) {
+        void deleteProductImage(arenaStorage(), arenaId, p.id);
+      }
+      this.imageFile.set(null);
       void this.router.navigate(['/painel/estoque']);
     } catch (err) {
       this.saveError.set(err instanceof Error ? err.message : 'Não foi possível salvar as alterações.');
     } finally {
       this.saving.set(false);
     }
+  }
+
+  protected clearImage(): void {
+    this.imageFile.set(null);
+    this.imageUrl.set(null);
   }
 
   protected async applyAdjustment(result: StockAdjustResult): Promise<void> {

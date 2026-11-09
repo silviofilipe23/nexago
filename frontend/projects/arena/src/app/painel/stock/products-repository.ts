@@ -1,6 +1,7 @@
 import {
   Timestamp,
   collection,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -15,6 +16,8 @@ import {
   type Firestore,
   type WriteBatch,
 } from 'firebase/firestore';
+import { deleteObject, getDownloadURL, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
+import { validateArenaImageFile } from '../profile/arena-profile-repository';
 import {
   signedDeltaForMovementType,
   type ArenaProduct,
@@ -168,7 +171,8 @@ export interface ProductInput {
   minStockQuantity: number;
   description?: string;
   emoji?: string;
-  imageUrl?: string;
+  /** `null` = remover a foto (só faz diferença na edição; na criação é o mesmo que omitir). */
+  imageUrl?: string | null;
 }
 
 function productPayload(input: ProductInput): Record<string, unknown> {
@@ -187,13 +191,23 @@ function productPayload(input: ProductInput): Record<string, unknown> {
   };
 }
 
-export async function createProduct(db: Firestore, arenaId: string, input: ProductInput): Promise<string> {
-  const ref = doc(productsCol(db, arenaId));
+/** Id de um produto ainda não gravado — a foto sobe antes do doc existir, já no caminho final. */
+export function newProductId(db: Firestore, arenaId: string): string {
+  return doc(productsCol(db, arenaId)).id;
+}
+
+export async function createProduct(
+  db: Firestore,
+  arenaId: string,
+  input: ProductInput,
+  productId: string = newProductId(db, arenaId),
+): Promise<string> {
+  const productRef = doc(productsCol(db, arenaId), productId);
   const batch = writeBatch(db);
-  batch.set(ref, { ...productPayload(input), createdAt: serverTimestamp() });
-  applyCostWrite(batch, db, arenaId, ref.id, input.costCents);
+  batch.set(productRef, { ...productPayload(input), createdAt: serverTimestamp() });
+  applyCostWrite(batch, db, arenaId, productId, input.costCents);
   await batch.commit();
-  return ref.id;
+  return productId;
 }
 
 export async function updateProduct(
@@ -203,7 +217,10 @@ export async function updateProduct(
   input: ProductInput,
 ): Promise<void> {
   const batch = writeBatch(db);
-  batch.update(doc(db, 'arenas', arenaId, 'products', productId), productPayload(input));
+  batch.update(doc(db, 'arenas', arenaId, 'products', productId), {
+    ...productPayload(input),
+    ...(input.imageUrl === null ? { imageUrl: deleteField() } : {}),
+  });
   applyCostWrite(batch, db, arenaId, productId, input.costCents);
   await batch.commit();
 }
@@ -233,6 +250,46 @@ export async function restoreProduct(db: Firestore, arenaId: string, product: Ar
   batch.set(doc(db, 'arenas', arenaId, 'products', product.id), payload);
   applyCostWrite(batch, db, arenaId, product.id, product.costCents ?? null);
   await batch.commit();
+}
+
+/** Mesmo caminho do app (`ArenaProductsRepository.uploadProductImage`): um arquivo por
+ *  produto, sobrescrito a cada troca — sem acumular fotos órfãs. storage.rules libera o dono
+ *  e a equipe que grava o estoque (gestor/manutenção, com plano em dia). */
+function productImageRef(storage: FirebaseStorage, arenaId: string, productId: string) {
+  return ref(storage, `arenas/${arenaId}/products/${productId}.jpg`);
+}
+
+/** Sobe a foto do produto e devolve a download URL — ela ainda precisa ir pro doc do produto. */
+export async function uploadProductImage(
+  storage: FirebaseStorage,
+  arenaId: string,
+  productId: string,
+  file: File,
+): Promise<string> {
+  const error = validateArenaImageFile(file);
+  if (error) {
+    throw new Error(error);
+  }
+  const fileRef = productImageRef(storage, arenaId, productId);
+  try {
+    await uploadBytes(fileRef, file, { contentType: file.type });
+  } catch (err) {
+    if ((err as { code?: string }).code === 'storage/unauthorized') {
+      throw new Error('Sem permissão para enviar a foto do produto. A equipe só edita o estoque com o plano da arena em dia.');
+    }
+    throw new Error('Não foi possível enviar a foto do produto.');
+  }
+  return getDownloadURL(fileRef);
+}
+
+/** Apaga o arquivo da foto. Melhor esforço: o doc já não aponta mais pra ele, então uma
+ *  falha aqui só deixa um arquivo sobrando, não quebra nada na tela. */
+export async function deleteProductImage(storage: FirebaseStorage, arenaId: string, productId: string): Promise<void> {
+  try {
+    await deleteObject(productImageRef(storage, arenaId, productId));
+  } catch {
+    // arquivo inexistente ou sem permissão — nada a fazer
+  }
 }
 
 export class InsufficientStockError extends Error {}

@@ -198,9 +198,11 @@ describe("buildShowcaseConfig", () => {
       returns: {windowDays: 15},
       campaigns: null,
       pickupPoints: [
-        {arenaId: "a1", data: {name: "Arena Errejota", active: true, restockHours: 24}},
-        {arenaId: "a2", data: {name: "Arena CFC", active: true, restockHours: 48}},
-        {arenaId: "a3", data: {name: "Pausada", active: false, restockHours: 24}},
+        {arenaId: "a1", data: {name: "Arena Errejota", active: true, restockHours: 24, locationId: "arena-errejota"}},
+        {arenaId: "a2", data: {name: "Arena CFC", active: true, restockHours: 48, locationId: "arena-cfc"}},
+        {arenaId: "a3", data: {name: "Pausada", active: false, restockHours: 24, locationId: "x"}},
+        // Ativa sem local de estoque: o checkout recusaria a retirada.
+        {arenaId: "a4", data: {name: "Sem estoque", active: true, restockHours: 72, locationId: null}},
       ],
       arenas: new Map([["a1", {location: {latitude: -16.7, longitude: -49.3}}]]),
     });
@@ -240,7 +242,7 @@ describe("sincronização", () => {
 
   it("monta a config pública com os pontos ativos e a localização da arena", async () => {
     const fake = new FakeFirestore();
-    fake.seedDoc("storePickupPoints/a1", {name: "Arena Errejota", active: true, restockHours: 24});
+    fake.seedDoc("storePickupPoints/a1", {name: "Arena Errejota", active: true, restockHours: 24, locationId: "arena-errejota"});
     fake.seedDoc("storePickupPoints/a2", {name: "Arena CFC", active: false, restockHours: 48});
     fake.seedDoc("arenas/a1", {name: "Arena Errejota", latitude: -16.7, longitude: -49.3});
     fake.seedDoc("storeConfig/campaigns", {

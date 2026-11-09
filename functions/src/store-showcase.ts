@@ -395,8 +395,9 @@ export function buildShowcaseConfig(input: {
 
   const windowDays = withReturnsDefaults(input.returns ?? undefined).windowDays;
 
+  // Sem local de estoque o checkout recusa a retirada: não oferece no app o que não fecha.
   const pickupArenas = input.pickupPoints
-    .filter((p) => p.data["active"] === true)
+    .filter((p) => p.data["active"] === true && typeof p.data["locationId"] === "string" && p.data["locationId"] !== "")
     .map(({arenaId, data}): ShowcasePickupArena => {
       const arena = input.arenas.get(arenaId) ?? null;
       return {

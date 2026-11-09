@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/friendly_error_message.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -11,6 +10,7 @@ import '../../../core/ui/nexa_segmented_control.dart';
 import '../../../core/ui/nexa_skeleton.dart';
 import '../application/blog_providers.dart';
 import '../domain/blog_logic.dart';
+import '../../../core/router/routes.dart';
 import 'blog_navigation.dart';
 import 'widgets/blog_notify_widgets.dart';
 import 'widgets/blog_parts.dart';
@@ -29,7 +29,10 @@ class _BlogLibraryPageState extends ConsumerState<BlogLibraryPage> {
   _Tab _tab = _Tab.saved;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      BlogBackScope(fallback: AppRoutes.blog, child: _page(context));
+
+  Widget _page(BuildContext context) {
     final colors = context.themeColors;
     final async = ref.watch(blogLibraryViewProvider);
     final view = async.valueOrNull;
@@ -53,7 +56,7 @@ class _BlogLibraryPageState extends ConsumerState<BlogLibraryPage> {
                   icon: Icons.arrow_back_rounded,
                   size: 42,
                   tooltip: 'Voltar',
-                  onTap: () => context.pop(),
+                  onTap: () => blogBack(context, AppRoutes.blog),
                 ),
                 const SizedBox(width: 14),
                 Expanded(

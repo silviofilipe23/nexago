@@ -106,6 +106,9 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
   int _quoteSeq = 0;
   bool _paying = false;
   String? _payError;
+
+  /// Forma escolhida. O cartão só aparece quando o servidor já cota cartão.
+  StorePaymentMethod _method = StorePaymentMethod.pix;
   bool _needCpf = false;
   String? _cpfError;
   bool _viewLogged = false;
@@ -241,6 +244,13 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
   }
 
   // ── Pagamento ─────────────────────────────────────────────────────────
+
+  /// Troca a forma: a cotação roda de novo (o total do cartão não tem o
+  /// desconto Pix).
+  void _choose(StorePaymentMethod method) {
+    if (_paying || method == _method) return;
+    setState(() => _method = method);
+  }
 
   Future<void> _pay(
     StoreCheckoutQuote quote,
@@ -492,6 +502,7 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
       channel: channel,
       delivery: delivery,
       couponCode: _couponCode,
+      paymentMethod: _method,
     );
     final cartKey =
         cart.map((i) => '${storeCartLineKey(i)}:${i.qty}').join('|');
@@ -535,7 +546,11 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
         blocker = storeQuoteBlocker(quote);
       }
     }
-    final canPay = fresh && blocker == null && !_paying && quote.totalCents > 0;
+    final canPay = fresh &&
+        blocker == null &&
+        !_paying &&
+        quote.totalCents > 0 &&
+        quote.paymentMethod == _method;
 
     int? freeGap;
     if (kind == _homeKind &&
@@ -555,6 +570,11 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
 
     final pixPct =
         quote?.pixDiscountPct ?? (config.benefits.pixDiscountPct?.round() ?? 0);
+    final card = _method == StorePaymentMethod.card;
+    // Os dois totais vêm em qualquer cotação; sem eles (servidor antigo) não
+    // há cartão pra oferecer.
+    final offersCard = quote?.offersCard ?? false;
+    final pixSavings = quote?.pixSavingsCents ?? 0;
 
     // ── Conteúdo ──
     final content = ListView(
@@ -600,7 +620,7 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
         const SizedBox(height: 10),
         StoreChoiceTile(
           key: const ValueKey('store-cart-pix'),
-          selected: true,
+          selected: !card,
           leading: const Icon(Icons.pix, size: 19, color: AppColors.brand),
           title: StoreCheckoutCopy.pix,
           titleTrailing: pixPct > 0
@@ -613,9 +633,33 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
                   ),
                 )
               : null,
-          subtitle: StoreCheckoutCopy.pixInstant,
-          trailing: const StoreRadioDot(on: true),
+          subtitle: offersCard && quote!.pixTotalCents != null
+              ? '${StoreCheckoutCopy.pixInstant} · '
+                  '${StoreCheckoutCopy.price(quote.pixTotalCents!)}'
+              : StoreCheckoutCopy.pixInstant,
+          detail: offersCard && pixSavings > 0
+              ? StoreCheckoutCopy.pixCheaper(pixSavings)
+              : null,
+          trailing: StoreRadioDot(on: !card),
+          onTap: offersCard ? () => _choose(StorePaymentMethod.pix) : null,
         ),
+        if (offersCard) ...[
+          const SizedBox(height: 10),
+          StoreChoiceTile(
+            key: const ValueKey('store-cart-card'),
+            selected: card,
+            leading: const Icon(
+              Icons.credit_card,
+              size: 19,
+              color: AppColors.brand,
+            ),
+            title: StoreCheckoutCopy.card,
+            subtitle: '${StoreCheckoutCopy.cardHosted} · '
+                '${StoreCheckoutCopy.price(quote!.cardTotalCents!)}',
+            trailing: StoreRadioDot(on: card),
+            onTap: () => _choose(StorePaymentMethod.card),
+          ),
+        ],
         const SizedBox(height: 24),
         _coupon(colors, applied: applied, problem: couponProblem, fresh: fresh),
         const SizedBox(height: 22),
@@ -740,8 +784,10 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
           : null,
       button: StorePrimaryButton(
         key: const ValueKey('store-cart-pay'),
-        label: _paying ? StoreCheckoutCopy.paying : StoreCheckoutCopy.pay,
-        icon: Icons.pix,
+        label: _paying
+            ? (card ? StoreCheckoutCopy.payingCard : StoreCheckoutCopy.paying)
+            : (card ? StoreCheckoutCopy.payCard : StoreCheckoutCopy.pay),
+        icon: card ? Icons.credit_card : Icons.pix,
         busy: _paying,
         onPressed: canPay ? () => _pay(quote, request, requestKey) : null,
       ),

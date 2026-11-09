@@ -91,6 +91,32 @@ void main() {
       expect(storeQuoteFromMap(null), isNull);
     });
 
+    test('cotação no cartão: forma, os dois totais e a economia do Pix', () {
+      final q = storeQuoteFromMap({
+        'paymentMethod': 'cartao',
+        'lines': const [],
+        'pixDiscountCents': 0,
+        'cardFeeCents': 0,
+        'totalCents': 18990,
+        'pixTotalCents': 18040,
+        'cardTotalCents': 18990,
+      })!;
+      expect(q.paymentMethod, StorePaymentMethod.card);
+      expect(q.offersCard, isTrue);
+      expect(q.pixSavingsCents, 950);
+      // Servidor anterior ao cartão: Pix e sem cartão a oferecer.
+      final old = storeQuoteFromMap({'lines': const [], 'totalCents': 900})!;
+      expect(old.paymentMethod, StorePaymentMethod.pix);
+      expect(old.offersCard, isFalse);
+      expect(old.pixSavingsCents, 0);
+      // A forma vai na cotação e entra na chave (troca → re-cota).
+      const pix = StoreCheckoutRequest(channel: 'web');
+      const card = StoreCheckoutRequest(
+          channel: 'web', paymentMethod: StorePaymentMethod.card);
+      expect(card.toMap()['paymentMethod'], 'cartao');
+      expect(pix.key == card.key, isFalse);
+    });
+
     test('o motivo do Pagar travado segue a ordem que o atleta resolve', () {
       final q = storeQuoteFromMap({
         'lines': [],
@@ -144,10 +170,16 @@ void main() {
         'channel': 'app_ios',
         'delivery': {'type': 'casa', 'addressId': 'a1', 'modeId': 'expressa'},
         'couponCode': 'VERAO',
+        'paymentMethod': 'pix',
       });
       expect(
         const StoreCheckoutRequest(channel: kStoreChannelAndroid).toMap(),
-        {'channel': 'app_android', 'delivery': null, 'couponCode': null},
+        {
+          'channel': 'app_android',
+          'delivery': null,
+          'couponCode': null,
+          'paymentMethod': 'pix',
+        },
       );
     });
   });

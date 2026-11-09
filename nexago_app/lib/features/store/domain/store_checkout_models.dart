@@ -49,11 +49,28 @@ class StoreHomeDelivery extends StoreCheckoutDelivery {
 }
 
 /// Entrada da cotação (e, com o total e o CPF, da criação do pedido).
+/// Forma de pagamento do checkout (`paymentMethod` das callables). O cartão
+/// é à vista, no checkout hospedado do Asaas; o desconto Pix é só do Pix.
+enum StorePaymentMethod {
+  pix('pix', 'Pix'),
+  card('cartao', 'Cartão de crédito');
+
+  const StorePaymentMethod(this.id, this.label);
+
+  final String id;
+  final String label;
+
+  /// Ausente/desconhecido = Pix (todo o acervo anterior ao cartão).
+  static StorePaymentMethod from(Object? raw) =>
+      raw == 'cartao' ? StorePaymentMethod.card : StorePaymentMethod.pix;
+}
+
 class StoreCheckoutRequest {
   const StoreCheckoutRequest({
     required this.channel,
     this.delivery,
     this.couponCode,
+    this.paymentMethod = StorePaymentMethod.pix,
   });
 
   final String channel;
@@ -61,14 +78,17 @@ class StoreCheckoutRequest {
   /// `null` = ainda não escolheu (o servidor devolve `entrega_faltando`).
   final StoreCheckoutDelivery? delivery;
   final String? couponCode;
+  final StorePaymentMethod paymentMethod;
 
   Map<String, Object?> toMap() => {
         'channel': channel,
         'delivery': delivery?.toMap(),
         'couponCode': couponCode,
+        'paymentMethod': paymentMethod.id,
       };
 
-  String get key => '$channel|${delivery?.key ?? '-'}|${couponCode ?? '-'}';
+  String get key =>
+      '$channel|${delivery?.key ?? '-'}|${couponCode ?? '-'}|${paymentMethod.id}';
 
   @override
   bool operator ==(Object other) =>
@@ -179,6 +199,7 @@ class StoreQuoteCoupon {
 
 class StoreCheckoutQuote {
   const StoreCheckoutQuote({
+    this.paymentMethod = StorePaymentMethod.pix,
     this.lines = const [],
     this.units = 0,
     this.subtotalCents = 0,
@@ -188,9 +209,14 @@ class StoreCheckoutQuote {
     this.shippingCents = 0,
     this.freeShipping = false,
     this.totalCents = 0,
+    this.cardFeeCents = 0,
+    this.pixTotalCents,
+    this.cardTotalCents,
     this.problems = const [],
   });
 
+  /// A forma que [totalCents] cobra.
+  final StorePaymentMethod paymentMethod;
   final List<StoreQuoteLine> lines;
   final int units;
   final int subtotalCents;
@@ -201,6 +227,24 @@ class StoreCheckoutQuote {
   final bool freeShipping;
   final int totalCents;
 
+  /// Acréscimo do cartão neste total (hoje 0: a Loja absorve a taxa).
+  final int cardFeeCents;
+
+  /// Os dois totais, para comparar as formas. `null` = servidor anterior ao
+  /// cartão (aí o cartão não aparece).
+  final int? pixTotalCents;
+  final int? cardTotalCents;
+
+  /// O servidor já cota o cartão.
+  bool get offersCard => cardTotalCents != null;
+
+  /// Quanto o Pix sai mais barato que o cartão (0 sem desconto Pix).
+  int get pixSavingsCents {
+    final pix = pixTotalCents, card = cardTotalCents;
+    if (pix == null || card == null || card <= pix) return 0;
+    return card - pix;
+  }
+
   /// Com qualquer problema não se paga.
   final List<StoreQuoteProblem> problems;
 
@@ -210,6 +254,7 @@ class StoreCheckoutQuote {
     int? totalCents,
   }) {
     return StoreCheckoutQuote(
+      paymentMethod: paymentMethod,
       lines: lines,
       units: units,
       subtotalCents: subtotalCents,
@@ -220,6 +265,9 @@ class StoreCheckoutQuote {
       shippingCents: shippingCents,
       freeShipping: freeShipping,
       totalCents: totalCents ?? this.totalCents,
+      cardFeeCents: cardFeeCents,
+      pixTotalCents: pixTotalCents,
+      cardTotalCents: cardTotalCents,
       problems: problems ?? this.problems,
     );
   }
@@ -499,6 +547,14 @@ class StoreOrderPix {
   final DateTime? expiresAt;
 }
 
+/// O checkout hospedado do cartão (só enquanto aguarda pagamento).
+class StoreOrderCardCheckout {
+  const StoreOrderCardCheckout({required this.invoiceUrl, this.expiresAt});
+
+  final String invoiceUrl;
+  final DateTime? expiresAt;
+}
+
 sealed class StoreOrderDelivery {
   const StoreOrderDelivery();
 }
@@ -562,7 +618,9 @@ class StoreOrderView {
     this.pixDiscountCents = 0,
     this.shippingCents = 0,
     this.totalCents = 0,
+    this.paymentMethod = StorePaymentMethod.pix,
     this.pix,
+    this.card,
     this.delivery = const StoreOrderHomeDelivery(),
     this.createdAt,
     this.paidAt,
@@ -588,7 +646,9 @@ class StoreOrderView {
   final int pixDiscountCents;
   final int shippingCents;
   final int totalCents;
+  final StorePaymentMethod paymentMethod;
   final StoreOrderPix? pix;
+  final StoreOrderCardCheckout? card;
   final StoreOrderDelivery delivery;
   final DateTime? createdAt;
   final DateTime? paidAt;
@@ -636,20 +696,25 @@ enum StoreOrderFilter {
   final String label;
 }
 
-/// O que `createStoreOrder` devolve — vai pela navegação até a tela do Pix,
-/// porque o espelho `storeOrderViews` nasce ~1 s depois.
+/// O que `createStoreOrder` devolve — vai pela navegação até a tela do
+/// pedido, porque o espelho `storeOrderViews` nasce ~1 s depois. Pix traz o
+/// copia-e-cola; cartão, o link do checkout hospedado.
 class StoreCreatedOrder {
   const StoreCreatedOrder({
     required this.orderId,
     required this.number,
     required this.totalCents,
-    required this.pix,
+    this.paymentMethod = StorePaymentMethod.pix,
+    this.pix,
+    this.card,
   });
 
   final String orderId;
   final String number;
   final int totalCents;
-  final StoreOrderPix pix;
+  final StorePaymentMethod paymentMethod;
+  final StoreOrderPix? pix;
+  final StoreOrderCardCheckout? card;
 }
 
 /// Uma linha do "Comprar de novo" (peça comum ainda à venda).

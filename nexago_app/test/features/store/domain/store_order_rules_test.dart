@@ -291,8 +291,65 @@ void main() {
       'pix': {'copyPaste': 'x' * 40, 'expiresAt': '2026-10-17T20:30:00.000Z'},
     })!;
     expect(created.orderId, 'ord_1');
-    expect(created.pix.expiresAt, DateTime.utc(2026, 10, 17, 20, 30));
+    expect(created.paymentMethod, StorePaymentMethod.pix);
+    expect(created.pix!.expiresAt, DateTime.utc(2026, 10, 17, 20, 30));
+    expect(created.card, isNull);
     expect(storeCreatedOrderFromMap({'orderId': 'x'}), isNull);
+  });
+
+  test('resposta do createStoreOrder no cartão: só link https', () {
+    final created = storeCreatedOrderFromMap({
+      'orderId': 'ord_2',
+      'number': 'NX-0002',
+      'totalCents': 18990,
+      'paymentMethod': 'cartao',
+      'pix': null,
+      'card': {
+        'invoiceUrl': 'https://sandbox.asaas.com/i/abc',
+        'expiresAt': '2026-10-17T20:15:00.000Z',
+      },
+    })!;
+    expect(created.paymentMethod, StorePaymentMethod.card);
+    expect(created.pix, isNull);
+    expect(created.card!.invoiceUrl, 'https://sandbox.asaas.com/i/abc');
+    expect(created.card!.expiresAt, DateTime.utc(2026, 10, 17, 20, 15));
+    // Sem link (ou link que não é https) não há como pagar.
+    expect(
+      storeCreatedOrderFromMap({
+        'orderId': 'ord_2',
+        'paymentMethod': 'cartao',
+        'card': {'invoiceUrl': 'javascript:alert(1)'},
+      }),
+      isNull,
+    );
+  });
+
+  test('visão no cartão: link só aguardando; recado fala do cartão', () {
+    final now = DateTime.utc(2026, 10, 17, 20);
+    final o = storeOrderViewFromMap('o', {
+      'number': 'NX-2',
+      'status': 'pag',
+      'paymentMethod': 'cartao',
+      'card': {
+        'invoiceUrl': 'https://sandbox.asaas.com/i/abc',
+        'expiresAt': '2026-10-17T20:15:00.000Z',
+      },
+      'delivery': {'type': 'arena'},
+    })!;
+    expect(o.paymentMethod, StorePaymentMethod.card);
+    expect(o.card?.invoiceUrl, 'https://sandbox.asaas.com/i/abc');
+    expect(storeOrderInfo(o), 'Pague com o cartão até 17:15');
+    expect(storePixCountdown(o.card!.expiresAt, now), '15:00');
+    final paid = storeOrderViewFromMap('o', {
+      'number': 'NX-2',
+      'status': 'sep',
+      'paymentMethod': 'cartao',
+      'card': {'invoiceUrl': 'https://sandbox.asaas.com/i/abc'},
+    })!;
+    expect(paid.card, isNull);
+    // Acervo sem `paymentMethod` é Pix.
+    expect(storeOrderViewFromMap('o', {'status': 'pag'})!.paymentMethod,
+        StorePaymentMethod.pix);
   });
 
   test('Google Maps com o endereço da arena', () {

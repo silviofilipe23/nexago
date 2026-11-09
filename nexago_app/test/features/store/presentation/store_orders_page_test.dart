@@ -14,6 +14,19 @@ StoreOrderView _pag() => orderView('ord_3', {
       'pix': {'copyPaste': 'x' * 40, 'expiresAt': '2026-10-17T20:30:00.000Z'},
     });
 
+StoreOrderView _pagCard() => orderView('ord_3', {
+      'number': 'NX-3',
+      'status': 'pag',
+      'paymentMethod': 'cartao',
+      'pixDiscountCents': 0,
+      'totalCents': 18990,
+      'pix': null,
+      'card': {
+        'invoiceUrl': kCardInvoiceUrl,
+        'expiresAt': '2026-10-17T20:15:00.000Z',
+      },
+    });
+
 StoreOrderView _ret() => orderView('ord_2', {
       'number': 'NX-2',
       'status': 'ret',
@@ -349,6 +362,73 @@ void main() {
       await tester.tap(find.text('Como chegar'));
       await tester.pump();
       expect(h.opened.single.host, 'www.google.com');
+    });
+
+    testWidgets('cartão esperando: valor, prazo e o botão reabre o checkout', (
+      tester,
+    ) async {
+      final h = CheckoutHarness();
+      await h.pump(tester, initial: '/loja/pedidos/ord_3');
+      h.checkout.order('ord_3').add(_pagCard());
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Pagamento'), findsOneWidget);
+      expect(find.text('Pague com o cartão'), findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('store-card-amount')))
+            .data,
+        brl(18990),
+      );
+      expect(find.text('EXPIRA EM 15:00'), findsOneWidget);
+      expect(find.byKey(const ValueKey('store-pix-qr')), findsNothing);
+      // Sem extra (abriu pela lista): não abre o checkout sozinho.
+      expect(h.cardOpened, isEmpty);
+
+      await tester.tap(find.byKey(const ValueKey('store-card-open')));
+      await tester.pump();
+      expect(h.cardOpened, [kCardInvoiceUrl]);
+    });
+
+    testWidgets('cartão aprovado com a tela aberta: avisa e fecha o checkout', (
+      tester,
+    ) async {
+      final h = CheckoutHarness();
+      await h.pump(tester, initial: '/loja/pedidos/ord_3');
+      h.checkout.order('ord_3').add(_pagCard());
+      await tester.pump();
+      await tester.pump();
+
+      h.checkout.order('ord_3').add(orderView('ord_3', {
+            'number': 'NX-3',
+            'status': 'sep',
+            'paymentMethod': 'cartao',
+          }));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Pagamento aprovado!'), findsOneWidget);
+      expect(find.text('Pague com o cartão'), findsNothing);
+      expect(h.cardClosed, 1);
+    });
+
+    testWidgets('cartão vencido: aviso próprio, sem falar em Pix', (
+      tester,
+    ) async {
+      final h = CheckoutHarness(cart: const []);
+      await h.pump(
+        tester,
+        initial: '/loja/pedidos/ord_3',
+        now: DateTime.utc(2026, 10, 17, 20, 16),
+      );
+      h.checkout.order('ord_3').add(_pagCard());
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const ValueKey('store-card-expired')), findsOneWidget);
+      expect(find.text('O prazo do pagamento acabou'), findsOneWidget);
+      expect(find.text('O prazo do Pix acabou'), findsNothing);
     });
 
     testWidgets('Pix vencido: aviso e "Montar o carrinho de novo"', (

@@ -40,6 +40,8 @@ StoreOrderView? storeOrderViewFromMap(String id, Map<String, Object?>? data) {
   final d = _map(data['delivery']) ?? const <String, Object?>{};
   final pix = _map(data['pix']);
   final copyPaste = _str(pix?['copyPaste']);
+  final card = _map(data['card']);
+  final invoiceUrl = _str(card?['invoiceUrl']);
   return StoreOrderView(
     id: id,
     number: _orNull(data['number']) ?? id,
@@ -68,9 +70,14 @@ StoreOrderView? storeOrderViewFromMap(String id, Map<String, Object?>? data) {
     pixDiscountCents: _int(data['pixDiscountCents']),
     shippingCents: _int(data['shippingCents']),
     totalCents: _int(data['totalCents']),
+    paymentMethod: StorePaymentMethod.from(data['paymentMethod']),
     pix: status == StoreOrderStatus.pag && copyPaste.isNotEmpty
         ? StoreOrderPix(
             copyPaste: copyPaste, expiresAt: _date(pix?['expiresAt']))
+        : null,
+    card: status == StoreOrderStatus.pag && _isHttps(invoiceUrl)
+        ? StoreOrderCardCheckout(
+            invoiceUrl: invoiceUrl, expiresAt: _date(card?['expiresAt']))
         : null,
     delivery: d['type'] == 'arena'
         ? StoreOrderArenaDelivery(
@@ -105,22 +112,43 @@ StoreOrderView? storeOrderViewFromMap(String id, Map<String, Object?>? data) {
   );
 }
 
-/// Resposta de `createStoreOrder`; `null` se faltar o id ou o Pix.
+/// Resposta de `createStoreOrder`; `null` se faltar o id ou o meio de pagar
+/// (copia-e-cola do Pix, ou link https do checkout do cartão).
 StoreCreatedOrder? storeCreatedOrderFromMap(Object? raw) {
   final d = _map(raw);
   if (d == null) return null;
   final orderId = _str(d['orderId']);
+  if (orderId.isEmpty) return null;
+  final method = StorePaymentMethod.from(d['paymentMethod']);
   final pix = _map(d['pix']);
   final copyPaste = _str(pix?['copyPaste']);
-  if (orderId.isEmpty || copyPaste.isEmpty) return null;
+  final card = _map(d['card']);
+  final invoiceUrl = _str(card?['invoiceUrl']);
+  final StoreOrderPix? parsedPix = copyPaste.isEmpty
+      ? null
+      : StoreOrderPix(
+          copyPaste: copyPaste, expiresAt: _date(pix?['expiresAt']));
+  final StoreOrderCardCheckout? parsedCard = _isHttps(invoiceUrl)
+      ? StoreOrderCardCheckout(
+          invoiceUrl: invoiceUrl, expiresAt: _date(card?['expiresAt']))
+      : null;
+  if (method == StorePaymentMethod.pix
+      ? parsedPix == null
+      : parsedCard == null) {
+    return null;
+  }
   return StoreCreatedOrder(
     orderId: orderId,
     number: _orNull(d['number']) ?? orderId,
     totalCents: _int(d['totalCents']),
-    pix: StoreOrderPix(
-        copyPaste: copyPaste, expiresAt: _date(pix?['expiresAt'])),
+    paymentMethod: method,
+    pix: parsedPix,
+    card: parsedCard,
   );
 }
+
+/// Só abre link https (o checkout do Asaas); o resto é ignorado.
+bool _isHttps(String url) => Uri.tryParse(url)?.scheme == 'https';
 
 // ── Status, etapas e filtros ────────────────────────────────────────────
 
@@ -262,6 +290,12 @@ String storeOrderInfo(StoreOrderView o) {
   final d = o.delivery;
   switch (o.status) {
     case StoreOrderStatus.pag:
+      if (o.paymentMethod == StorePaymentMethod.card) {
+        final expiresAt = o.card?.expiresAt;
+        return expiresAt != null
+            ? 'Pague com o cartão até ${formatStoreClock(expiresAt)}'
+            : 'Aguardando o cartão';
+      }
       final expiresAt = o.pix?.expiresAt;
       return expiresAt != null
           ? 'Pague o Pix até ${formatStoreClock(expiresAt)}'

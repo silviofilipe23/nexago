@@ -8,6 +8,7 @@ import {
   addressArea,
   addressLine,
   appliedCoupon,
+  cartFulfillment,
   cartLineKey,
   defaultAddressId,
   quoteBlocker,
@@ -99,10 +100,17 @@ export class LojaCheckoutComponent {
   protected readonly cpfError = signal<string | null>(null);
 
   // ── Derivados ───────────────────────────────────────────────────
-  protected readonly arenas = computed(() => this.store.config().pickupArenas);
+  /** Só o que vale pra todos os itens: produto só de retirada não oferece entrega (e vice-versa). */
+  private readonly fulfillment = computed(() => cartFulfillment(this.store.cart(), this.store.products()));
+  protected readonly arenas = computed(() => (this.fulfillment().pickup ? this.store.config().pickupArenas : []));
   protected readonly modes = computed<StoreDeliveryMode[]>(() =>
-    this.store.config().delivery.modes.filter((m) => m.priceCents !== null),
+    this.fulfillment().delivery ? this.store.config().delivery.modes.filter((m) => m.priceCents !== null) : [],
   );
+  /** A loja tem como receber, mas nenhuma forma vale pra todos os itens do carrinho. */
+  protected readonly storeHasReceive = computed(() => {
+    const c = this.store.config();
+    return c.pickupArenas.length > 0 || c.delivery.modes.some((m) => m.priceCents !== null);
+  });
 
   protected readonly kind = computed<'arena' | 'casa' | null>(() => {
     const choice = this.kindChoice();

@@ -27,6 +27,9 @@ const BOLA: StoreProduct = storeProductFromDoc('bola', {
   variants: [{ id: 'unico', values: {}, priceCents: 18990, inStock: true, maxQty: 3 }],
 })!;
 
+/** A mesma bola, mas só de retirada (entrega desmarcada no backoffice). */
+const BOLA_SO_RETIRADA: StoreProduct = { ...BOLA, delivery: false };
+
 class FakeShowcase implements StoreShowcaseSource {
   products?: (p: StoreProduct[], fromCache: boolean) => void;
   config?: (c: StoreShowcaseConfig) => void;
@@ -153,12 +156,16 @@ describe('LojaCheckoutComponent', () => {
     return harness;
   }
 
-  async function load(harness: RouterTestingHarness, cart: StoreCartItem[] = [{ productId: 'bola', skuId: 'unico', qty: 1 }]) {
-    showcase.products!([BOLA], false);
+  async function load(
+    harness: RouterTestingHarness,
+    cart: StoreCartItem[] = [{ productId: 'bola', skuId: 'unico', qty: 1 }],
+    opts: { products?: StoreProduct[]; withArena?: boolean } = {},
+  ) {
+    showcase.products!(opts.products ?? [BOLA], false);
     showcase.config!(
       storeConfigFromDoc({
         benefits: { pixDiscountPct: 5, exchangeDays: 30 },
-        pickupArenas: [{ arenaId: 'a1', name: 'Arena Errejota', readyHours: 24 }],
+        pickupArenas: opts.withArena === false ? [] : [{ arenaId: 'a1', name: 'Arena Errejota', readyHours: 24 }],
         delivery: { freeAboveCents: 39900, modes: [{ id: 'expressa', name: 'Expressa', description: 'Chega amanhã', priceCents: 3490 }] },
       }),
     );
@@ -195,6 +202,26 @@ describe('LojaCheckoutComponent', () => {
     const pixRow = [...el.querySelectorAll('.ck-summary .ck-row')].find((r) => text(r).startsWith('Desconto Pix'));
     expect(text(pixRow?.querySelector('.ck-row-v'))).toBe('− R$ 9,50');
     expect(button(el, 'Pagar com Pix').disabled).toBeFalse();
+  });
+
+  it('produto só de retirada: não oferece receber em casa nem a Expressa', async () => {
+    const harness = await render();
+    const el = await load(harness, undefined, { products: [BOLA_SO_RETIRADA] });
+    expect(radio(el, 'ck-kind', 'arena')).not.toBeNull();
+    expect(radio(el, 'ck-kind', 'casa')).toBeNull();
+    expect(text(el)).not.toContain('Expressa');
+    expect(api.quotes.at(-1)?.delivery).toEqual({ type: 'arena', arenaId: 'a1' });
+  });
+
+  it('produto só de retirada sem ponto de retirada: avisa em vez de cair na entrega', async () => {
+    const harness = await render();
+    const el = await load(harness, undefined, { products: [BOLA_SO_RETIRADA], withArena: false });
+    expect(radio(el, 'ck-kind', 'casa')).toBeNull();
+    expect(text(el)).not.toContain('Expressa');
+    expect(text(el.querySelector('.ck-note'))).toBe(
+      'Nenhuma forma de receber atende todos os itens do carrinho. Separe em pedidos diferentes.',
+    );
+    expect(button(el, 'Pagar com Pix').disabled).toBeTrue();
   });
 
   it('quantidade e remover gravam a linha pela chave', async () => {

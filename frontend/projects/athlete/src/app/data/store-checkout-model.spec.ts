@@ -5,6 +5,7 @@ import {
   addressLine,
   addressToDoc,
   appliedCoupon,
+  cartFulfillment,
   cartLineKey,
   defaultAddressId,
   EMPTY_ADDRESS_DRAFT,
@@ -67,6 +68,16 @@ describe('store-checkout-model', () => {
   it('chave da linha: lineId da personalizada, senão produto/SKU (a mesma do servidor)', () => {
     expect(cartLineKey({ productId: 'p', skuId: 's', qty: 1 })).toBe('p/s');
     expect(cartLineKey({ productId: 'p', skuId: 's', qty: 1, lineId: 'L1' })).toBe('L1');
+  });
+
+  it('como receber: vale só o que todos os itens do carrinho aceitam', () => {
+    const item = (productId: string) => ({ productId, skuId: 'unico', qty: 1 });
+    const toalha = { id: 'toalha', pickup: true, delivery: false };
+    const bola = { id: 'bola', pickup: false, delivery: true };
+    expect(cartFulfillment([item('toalha')], [toalha])).toEqual({ pickup: true, delivery: false });
+    expect(cartFulfillment([item('toalha'), item('bola')], [toalha, bola])).toEqual({ pickup: false, delivery: false });
+    // Produto fora do catálogo não restringe.
+    expect(cartFulfillment([item('sumiu')], [toalha])).toEqual({ pickup: true, delivery: true });
   });
 
   it('lê a cotação e descarta problema que não conhece', () => {

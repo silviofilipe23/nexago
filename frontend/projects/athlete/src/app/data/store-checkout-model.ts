@@ -28,6 +28,28 @@ export function cartLineKey(item: StoreCartItem): string {
   return item.lineId ?? `${item.productId}/${item.skuId}`;
 }
 
+/**
+ * Como o carrinho pode ser recebido, pelo `pickup`/`delivery` de cada produto: a retirada só vale
+ * se **todo** produto sai pra retirada; a entrega, se todo produto vai pra casa — senão o servidor
+ * marca a linha (`sem_retirada`/`sem_entrega`). Produto fora do catálogo não restringe (a cotação
+ * já marca a linha como indisponível). Espelha `storeCartFulfillment` do app.
+ */
+export function cartFulfillment(
+  cart: readonly StoreCartItem[],
+  products: readonly { id: string; pickup: boolean; delivery: boolean }[],
+): { pickup: boolean; delivery: boolean } {
+  const byId = new Map(products.map((p) => [p.id, p]));
+  let pickup = true;
+  let delivery = true;
+  for (const item of cart) {
+    const p = byId.get(item.productId);
+    if (!p) continue;
+    pickup &&= p.pickup;
+    delivery &&= p.delivery;
+  }
+  return { pickup, delivery };
+}
+
 // ── Cotação ──────────────────────────────────────────────────────
 
 export type CheckoutDeliveryInput = { type: 'arena'; arenaId: string } | { type: 'casa'; addressId: string; modeId: string };

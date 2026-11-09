@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/store/domain/store_checkout_models.dart';
 import 'package:nexago_app/features/store/domain/store_checkout_rules.dart';
 import 'package:nexago_app/features/store/domain/store_models.dart';
+import 'package:nexago_app/features/store/presentation/store_checkout_copy.dart';
 
 import 'store_checkout_test_kit.dart';
 
@@ -484,5 +485,62 @@ void main() {
     await CheckoutHarness.settleQuote(tester);
     expect(h.service.quotes.last.delivery?.key, 'casa:casa:expressa');
     expect(_payEnabled(tester), isTrue);
+  });
+
+  group('produto só de retirada (entrega desmarcada no backoffice)', () {
+    const toalha = StoreProduct(
+      id: 'bola',
+      name: 'Toalha nexaGO',
+      category: 'acessorios',
+      priceCents: 18990,
+      minPriceCents: 18990,
+      maxPriceCents: 18990,
+      pickup: true,
+      delivery: false,
+      variants: [
+        StoreVariant(id: 'unico', priceCents: 18990, inStock: true, maxQty: 3),
+      ],
+    );
+
+    testWidgets('com arena: só a retirada, sem o prazo da entrega', (
+      tester,
+    ) async {
+      final h = CheckoutHarness(products: const [toalha]);
+      await h.pump(tester);
+      await CheckoutHarness.settleQuote(tester);
+
+      expect(find.text('RETIRADA NA ARENA'), findsOneWidget);
+      expect(find.text('Arena Errejota'), findsOneWidget);
+      expect(find.byKey(const ValueKey('store-segment-casa')), findsNothing);
+      expect(find.text('PRAZO'), findsNothing);
+      expect(find.text('Expressa'), findsNothing);
+      expect(
+        h.service.quotes.last.toMap()['delivery'],
+        {'type': 'arena', 'arenaId': 'a1'},
+      );
+    });
+
+    testWidgets('sem ponto de retirada: não cai na entrega expressa', (
+      tester,
+    ) async {
+      final h = CheckoutHarness(
+        products: const [toalha],
+        config: StoreShowcaseConfig(
+          benefits: kConfig.benefits,
+          delivery: kConfig.delivery,
+        ),
+      );
+      await h.pump(tester);
+      await CheckoutHarness.settleQuote(tester);
+
+      expect(find.text('PRAZO'), findsNothing);
+      expect(find.text('Expressa'), findsNothing);
+      expect(
+        find.text(StoreCheckoutCopy.receiveNoneForCart),
+        findsOneWidget,
+      );
+      expect(h.service.quotes.last.delivery, isNull);
+      expect(_payEnabled(tester), isFalse);
+    });
   });
 }

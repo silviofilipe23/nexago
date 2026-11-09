@@ -71,10 +71,12 @@ class FakeStoreRepository implements StoreRepository {
   FakeStoreRepository({
     List<StoreCartItem> cart = const [],
     this.products = const [kBola],
+    this.config = kConfig,
   }) : cart = List.of(cart);
 
   List<StoreCartItem> cart;
   final List<StoreProduct> products;
+  final StoreShowcaseConfig config;
   final _cartChanges = StreamController<List<StoreCartItem>>.broadcast();
   final List<(String, String, int, int?)> added = [];
 
@@ -91,7 +93,7 @@ class FakeStoreRepository implements StoreRepository {
       Stream.value(StoreCatalog(products: products));
 
   @override
-  Stream<StoreShowcaseConfig> watchShowcaseConfig() => Stream.value(kConfig);
+  Stream<StoreShowcaseConfig> watchShowcaseConfig() => Stream.value(config);
 
   @override
   Stream<StoreShopper> watchShopper(String uid) =>
@@ -277,8 +279,10 @@ class CheckoutHarness {
     ],
     List<StoreAddress> addresses = const [],
     List<StoreProduct> products = const [kBola],
+    StoreShowcaseConfig config = kConfig,
     FakeStoreReviewRepository? reviews,
-  })  : store = FakeStoreRepository(cart: cart, products: products),
+  })  : store =
+            FakeStoreRepository(cart: cart, products: products, config: config),
         service = FakeCheckoutService(),
         reviews = reviews ?? FakeStoreReviewRepository() {
     checkout = FakeCheckoutRepository(store, addresses: addresses);

@@ -102,7 +102,11 @@
           <section class="ck-section" aria-labelledby="ck-delivery-title">
             <h2 id="ck-delivery-title" class="ck-h2">Entrega</h2>
             @if (arenaOption() === null && homeOption() === null) {
-              <p class="ck-note">A loja ainda não abriu retirada nem entrega. Volte em breve.</p>
+              @if (storeHasReceive()) {
+                <p class="ck-note">Nenhuma forma de receber atende todos os itens do carrinho. Separe em pedidos diferentes.</p>
+              } @else {
+                <p class="ck-note">A loja ainda não abriu retirada nem entrega. Volte em breve.</p>
+              }
             } @else {
               <div class="ck-options" role="radiogroup" aria-labelledby="ck-delivery-title">
                 @if (arenaOption(); as opt) {

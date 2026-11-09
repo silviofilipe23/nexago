@@ -204,3 +204,52 @@ export function formatMovementDate(date: Date | undefined): string {
   if (!date) return '—';
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(date);
 }
+
+/** Filtro de tipo do catálogo da comanda: `todos` ou uma categoria. */
+export type ProductCatalogFilter = 'todos' | ArenaProductCategory;
+
+/** Minúsculas e sem acento: "acai" acha "Açaí", "agua" acha "Água". */
+export function normalizeProductSearch(value: string): string {
+  return value.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+}
+
+export function productMatchesSearch(product: Pick<ArenaProduct, 'name'>, query: string): boolean {
+  const q = normalizeProductSearch(query);
+  return !q || normalizeProductSearch(product.name).includes(q);
+}
+
+/** Produtos do catálogo que batem com o tipo escolhido e com a busca. */
+export function filterCatalogProducts<T extends Pick<ArenaProduct, 'name' | 'category'>>(
+  products: readonly T[],
+  filter: ProductCatalogFilter,
+  query: string,
+): T[] {
+  return products.filter((p) => (filter === 'todos' || p.category === filter) && productMatchesSearch(p, query));
+}
+
+export interface ProductCatalogChip {
+  key: ProductCatalogFilter;
+  label: string;
+  /** Quantos produtos do tipo batem com a busca atual. */
+  count: number;
+}
+
+/** Chips de tipo do catálogo: "Todos" + só os tipos que a arena tem cadastrados (na ordem
+ *  fixa das categorias). A contagem acompanha a busca, para o atendente ver onde está o que
+ *  digitou. Com um tipo só, os chips não ajudam e a lista volta vazia. */
+export function buildProductCatalogChips(
+  products: readonly Pick<ArenaProduct, 'name' | 'category'>[],
+  query: string,
+): ProductCatalogChip[] {
+  const present = ARENA_PRODUCT_CATEGORIES.filter((c) => products.some((p) => p.category === c));
+  if (present.length < 2) return [];
+  const matches = products.filter((p) => productMatchesSearch(p, query));
+  return [
+    { key: 'todos', label: 'Todos', count: matches.length },
+    ...present.map((c) => ({
+      key: c,
+      label: ARENA_PRODUCT_CATEGORY_LABEL[c],
+      count: matches.filter((p) => p.category === c).length,
+    })),
+  ];
+}

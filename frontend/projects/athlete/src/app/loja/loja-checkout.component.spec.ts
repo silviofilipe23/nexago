@@ -58,16 +58,21 @@ class FakeShowcase implements StoreShowcaseSource {
 
 function quoteFor(req: CheckoutRequest, over: Record<string, unknown> = {}): CheckoutQuote {
   const casa = req.delivery?.type === 'casa';
+  const card = req.paymentMethod === 'cartao';
   return quoteFromData({
+    paymentMethod: req.paymentMethod,
     lines: [{ key: 'bola/unico', productId: 'bola', skuId: 'unico', qty: 1, name: 'Bola Pro Beach', unitCents: 18990, totalCents: 18990, problem: null }],
     units: 1,
     subtotalCents: 18990,
     coupon: null,
     pixDiscountPct: 5,
-    pixDiscountCents: 950,
+    pixDiscountCents: card ? 0 : 950,
+    cardFeeCents: 0,
     shippingCents: casa ? 3490 : 0,
     freeShipping: false,
-    totalCents: casa ? 21530 : 18040,
+    totalCents: card ? (casa ? 22480 : 18990) : casa ? 21530 : 18040,
+    pixTotalCents: casa ? 21530 : 18040,
+    cardTotalCents: casa ? 22480 : 18990,
     problems: req.delivery ? [] : ['entrega_faltando'],
     ...over,
   })!;
@@ -196,7 +201,7 @@ describe('LojaCheckoutComponent', () => {
   it('cota com retirada na arena e mostra o resumo do servidor', async () => {
     const harness = await render();
     const el = await load(harness);
-    expect(api.quotes.at(-1)).toEqual({ channel: 'web', delivery: { type: 'arena', arenaId: 'a1' }, couponCode: null });
+    expect(api.quotes.at(-1)).toEqual({ channel: 'web', delivery: { type: 'arena', arenaId: 'a1' }, couponCode: null, paymentMethod: 'pix' });
     expect(text(el.querySelector('.ck-line-name'))).toBe('Bola Pro Beach');
     expect(text(el.querySelector('.ck-total'))).toBe('R$ 180,40');
     const pixRow = [...el.querySelectorAll('.ck-summary .ck-row')].find((r) => text(r).startsWith('Desconto Pix'));
@@ -268,8 +273,68 @@ describe('LojaCheckoutComponent', () => {
     const router = TestBed.inject(Router);
     button(el, 'Pagar com Pix').click();
     await settle();
-    expect(api.creates[0]).toEqual({ channel: 'web', delivery: { type: 'arena', arenaId: 'a1' }, couponCode: null, expectedTotalCents: 18040, cpf: null });
+    expect(api.creates[0]).toEqual({
+      channel: 'web',
+      delivery: { type: 'arena', arenaId: 'a1' },
+      couponCode: null,
+      paymentMethod: 'pix',
+      expectedTotalCents: 18040,
+      cpf: null,
+    });
     expect(router.url).toBe('/loja/pedidos/ord_pedido_1');
+  });
+
+  it('cartão: re-cota sem o desconto Pix e o Pix mostra quanto sai mais barato', async () => {
+    const harness = await render();
+    const el = await load(harness);
+    expect(text(el.querySelector('[data-testid="ck-pix-total"]'))).toBe('R$ 180,40');
+    expect(text(el.querySelector('[data-testid="ck-card-total"]'))).toBe('R$ 189,90');
+    expect(text(el.querySelector('[data-testid="ck-pix-cheaper"]'))).toBe('R$ 9,50 a menos que no cartão');
+
+    radio(el, 'ck-method', 'cartao').dispatchEvent(new Event('change'));
+    harness.detectChanges();
+    await settle();
+    harness.detectChanges();
+
+    expect(api.quotes.at(-1)?.paymentMethod).toBe('cartao');
+    expect(text(el.querySelector('.ck-total'))).toBe('R$ 189,90');
+    expect([...el.querySelectorAll('.ck-summary .ck-row')].some((r) => text(r).startsWith('Desconto Pix'))).toBeFalse();
+    expect(button(el, 'Pagar com cartão').disabled).toBeFalse();
+  });
+
+  it('pagar com cartão manda o total do cartão e leva o checkout pro pedido', async () => {
+    const harness = await render();
+    const el = await load(harness);
+    api.createImpl = (input) =>
+      Promise.resolve({
+        orderId: 'ord_pedido_1',
+        number: 'NX-0001',
+        totalCents: input.expectedTotalCents,
+        paymentMethod: 'cartao',
+        pix: null,
+        card: { invoiceUrl: 'https://sandbox.asaas.com/i/abc', expiresAt: '2026-10-17T20:15:00.000Z' },
+      });
+    radio(el, 'ck-method', 'cartao').dispatchEvent(new Event('change'));
+    harness.detectChanges();
+    await settle();
+    harness.detectChanges();
+    const router = TestBed.inject(Router);
+    button(el, 'Pagar com cartão').click();
+    await settle();
+    expect(api.creates[0].paymentMethod).toBe('cartao');
+    expect(api.creates[0].expectedTotalCents).toBe(18990);
+    expect(router.url).toBe('/loja/pedidos/ord_pedido_1');
+    const state = router.lastSuccessfulNavigation?.extras.state as { order?: CreateOrderResult } | undefined;
+    expect(state?.order?.card?.invoiceUrl).toBe('https://sandbox.asaas.com/i/abc');
+  });
+
+  it('servidor anterior ao cartão: só o Pix aparece', async () => {
+    const harness = await render();
+    api.quoteOver = { pixTotalCents: null, cardTotalCents: null };
+    const el = await load(harness);
+    expect(radio(el, 'ck-method', 'pix')).not.toBeNull();
+    expect(radio(el, 'ck-method', 'cartao')).toBeNull();
+    expect(button(el, 'Pagar com Pix').disabled).toBeFalse();
   });
 
   it('sem CPF no cadastro: pede o CPF e reenvia com ele', async () => {
@@ -296,7 +361,7 @@ describe('LojaCheckoutComponent', () => {
       Promise.reject({
         code: 'functions/aborted',
         message: 'Os valores do carrinho mudaram.',
-        details: { quote: { ...quoteFor({ channel: 'web', delivery: { type: 'arena', arenaId: 'a1' }, couponCode: null }), totalCents: 17000 } },
+        details: { quote: { ...quoteFor({ channel: 'web', delivery: { type: 'arena', arenaId: 'a1' }, couponCode: null, paymentMethod: 'pix' }), totalCents: 17000 } },
       });
     button(el, 'Pagar com Pix').click();
     await settle();

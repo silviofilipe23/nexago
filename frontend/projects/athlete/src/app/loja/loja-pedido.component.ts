@@ -9,6 +9,7 @@ import {
   formatDeadline,
   formatOrderDate,
   mapsUrl,
+  isHttps,
   orderInfo,
   orderProgress,
   orderWhere,
@@ -58,7 +59,7 @@ export class LojaPedidoComponent {
   private readonly params = toSignal(this.route.paramMap, { initialValue: this.route.snapshot.paramMap });
   protected readonly orderId = computed(() => this.params().get('id') ?? '');
 
-  /** O Pix que o checkout acabou de gerar (some ao recarregar só se o navegador perder o state). */
+  /** O Pix/cartão que o checkout acabou de gerar (some ao recarregar só se o navegador perder o state). */
   private readonly handoff = signal<CreateOrderResult | null>(
     readHandoff(this.router.getCurrentNavigation()?.extras.state) ?? readHandoff(globalThis.history?.state),
   );
@@ -84,13 +85,24 @@ export class LojaPedidoComponent {
     const o = this.order();
     if (o) return o.status === 'pag' && o.pix ? { copyPaste: o.pix.copyPaste, expiresAt: o.pix.expiresAt } : null;
     const h = this.handoff();
-    return h && h.orderId === this.orderId() ? { copyPaste: h.pix.copyPaste, expiresAt: new Date(h.pix.expiresAt) } : null;
+    return h && h.orderId === this.orderId() && h.pix ? { copyPaste: h.pix.copyPaste, expiresAt: new Date(h.pix.expiresAt) } : null;
   });
+  /** O checkout hospedado do cartão enquanto o pedido espera o pagamento. */
+  protected readonly card = computed(() => {
+    const o = this.order();
+    if (o) return o.status === 'pag' && o.card ? o.card : null;
+    const h = this.handoff();
+    return h && h.orderId === this.orderId() && h.card && isHttps(h.card.invoiceUrl)
+      ? { invoiceUrl: h.card.invoiceUrl, expiresAt: new Date(h.card.expiresAt) }
+      : null;
+  });
+  /** Esperando o pagamento (Pix ou cartão). */
+  protected readonly pending = computed(() => this.pix() !== null || this.card() !== null);
   protected readonly countdown = computed(() => {
-    const p = this.pix();
-    return p ? pixCountdown(p.expiresAt, this.now()) : null;
+    const expiresAt = this.pix()?.expiresAt ?? this.card()?.expiresAt;
+    return this.pending() ? pixCountdown(expiresAt ?? null, this.now()) : null;
   });
-  protected readonly expired = computed(() => this.pix() !== null && this.countdown() === null);
+  protected readonly expired = computed(() => this.pending() && this.countdown() === null);
   protected readonly number = computed(() => this.order()?.number ?? this.handoff()?.number ?? '');
   protected readonly totalCents = computed(() => this.order()?.totalCents ?? this.handoff()?.totalCents ?? 0);
   protected readonly progress = computed(() => {
@@ -137,7 +149,7 @@ export class LojaPedidoComponent {
       });
       if (!id || !uid || !this.api) return;
       const timer = setTimeout(() => {
-        if (!this.order() && !this.pix()) this.notFound.set(true);
+        if (!this.order() && !this.pending()) this.notFound.set(true);
       }, NOT_FOUND_AFTER_MS);
       const stop = this.api.watchOrder(
         id,
@@ -146,7 +158,7 @@ export class LojaPedidoComponent {
           if (before?.status === 'pag' && o && o.status !== 'pag' && o.status !== 'can') this.justPaid.set(true);
           this.order.set(o);
           this.loaded.set(true);
-          // Sem espelho e sem o Pix do checkout: não é um pedido deste atleta.
+          // Sem espelho e sem o pagamento do checkout: não é um pedido deste atleta.
           if (!o && !this.handoff()) this.notFound.set(true);
           if (o) this.notFound.set(false);
         },
@@ -205,6 +217,10 @@ export class LojaPedidoComponent {
     }
   }
 
+  protected openCard(): void {
+    trackLojaEvent('loja_cartao_abrir', { pedido_id: this.orderId() });
+  }
+
   protected async rebuy(): Promise<void> {
     const o = this.order();
     if (!o || this.rebuying()) return;
@@ -229,5 +245,5 @@ export class LojaPedidoComponent {
 /** O state da navegação do checkout (ou o do histórico, num recarregar). */
 function readHandoff(state: unknown): CreateOrderResult | null {
   const o = (state as Partial<PixHandoff> | null | undefined)?.order;
-  return o && typeof o.orderId === 'string' && typeof o.pix?.copyPaste === 'string' ? o : null;
+  return o && typeof o.orderId === 'string' && (typeof o.pix?.copyPaste === 'string' || typeof o.card?.invoiceUrl === 'string') ? o : null;
 }

@@ -252,6 +252,64 @@ describe('Loja · pedidos', () => {
     expect(text(el.querySelector('app-loja-order-pill'))).toBe('Em separação');
   });
 
+  it('logo depois do checkout com cartão: valor, prazo e o link do checkout do Asaas', async () => {
+    const state = {
+      order: {
+        orderId: 'ord_pedido_1',
+        number: 'NX-0001',
+        totalCents: 18990,
+        paymentMethod: 'cartao',
+        pix: null,
+        card: { invoiceUrl: 'https://sandbox.asaas.com/i/abc', expiresAt: SOON },
+      },
+    };
+    const harness = await render('/loja/pedidos/ord_pedido_1', LojaPedidoComponent, state);
+    api.one!(null);
+    harness.detectChanges();
+    const el = harness.routeNativeElement as HTMLElement;
+    expect(text(el.querySelector('#pd-card-title'))).toBe('Pague com o cartão');
+    expect(text(el.querySelector('[data-testid="pd-card-amount"]'))).toBe('R$ 189,90');
+    const link = el.querySelector('[data-testid="pd-card-open"]') as HTMLAnchorElement;
+    expect(link.href).toBe('https://sandbox.asaas.com/i/abc');
+    expect(link.target).toBe('_blank');
+    expect(el.querySelector('.pd-copy-input')).toBeNull();
+    expect(text(el.querySelector('.pd-timer strong'))).toMatch(/^\d{2}:\d{2}$/);
+  });
+
+  it('cartão aprovado com a tela aberta: troca pelo "Pagamento aprovado"', async () => {
+    const harness = await render('/loja/pedidos/ord_pedido_1', LojaPedidoComponent);
+    api.one!(
+      order('ord_pedido_1', {
+        status: 'pag',
+        paymentMethod: 'cartao',
+        pix: null,
+        card: { invoiceUrl: 'https://sandbox.asaas.com/i/abc', expiresAt: SOON },
+      }),
+    );
+    harness.detectChanges();
+    const el = harness.routeNativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="pd-card-open"]')).not.toBeNull();
+    api.one!(order('ord_pedido_1', { status: 'sep', paymentMethod: 'cartao' }));
+    harness.detectChanges();
+    expect(el.querySelector('[data-testid="pd-card-open"]')).toBeNull();
+    expect(text(el.querySelector('.pd-paid .pd-h'))).toBe('Pagamento aprovado!');
+  });
+
+  it('cartão vencido: aviso próprio, sem falar em Pix', async () => {
+    const harness = await render('/loja/pedidos/ord_pedido_1', LojaPedidoComponent);
+    api.one!(
+      order('ord_pedido_1', {
+        status: 'pag',
+        paymentMethod: 'cartao',
+        card: { invoiceUrl: 'https://sandbox.asaas.com/i/abc', expiresAt: new Date(Date.now() - 1000).toISOString() },
+      }),
+    );
+    harness.detectChanges();
+    const el = harness.routeNativeElement as HTMLElement;
+    expect(text(el.querySelector('[data-testid="pd-card-expired"] .pd-h'))).toBe('O prazo do pagamento acabou');
+    expect(text(el)).not.toContain('Pix vencido');
+  });
+
   it('na arena mostra o código e o prazo', async () => {
     const harness = await render('/loja/pedidos/ord_pedido_1', LojaPedidoComponent);
     api.one!(

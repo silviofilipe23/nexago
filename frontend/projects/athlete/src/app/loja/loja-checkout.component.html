@@ -224,8 +224,9 @@
           <!-- ── Pagamento ──────────────────────────────────── -->
           <section class="ck-section" aria-labelledby="ck-pay-title">
             <h2 id="ck-pay-title" class="ck-h2">Pagamento</h2>
-            <div class="ck-options ck-options--single">
-              <div class="ck-opt ck-opt--on ck-opt--static">
+            <div class="ck-options" [class.ck-options--single]="!offersCard()" role="radiogroup" aria-labelledby="ck-pay-title">
+              <label class="ck-opt" [class.ck-opt--on]="method() === 'pix'">
+                <input type="radio" class="ck-opt-input" name="ck-method" value="pix" [checked]="method() === 'pix'" (change)="chooseMethod('pix')" />
                 <span class="ck-radio" aria-hidden="true"></span>
                 <span class="ck-opt-icon" aria-hidden="true">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 4.2 4.2-4.2 4.2-4.2-4.2zM12 12.6l4.2 4.2L12 21l-4.2-4.2zM3 12l4.2-4.2 4.2 4.2-4.2 4.2zM12.6 12l4.2-4.2L21 12l-4.2 4.2z" /></svg>
@@ -233,11 +234,30 @@
                 <span class="ck-opt-text">
                   <strong>Pix</strong>
                   <small>{{ (quote()?.pixDiscountPct ?? 0) > 0 ? quote()!.pixDiscountPct + '% de desconto · aprovação na hora' : 'Aprovação na hora' }}</small>
+                  @if (pixSavings() > 0) {
+                    <small class="ck-opt-win" data-testid="ck-pix-cheaper">{{ money(pixSavings()) }} a menos que no cartão</small>
+                  }
                 </span>
-                @if ((quote()?.pixDiscountPct ?? 0) > 0) {
+                @if (offersCard() && quote()?.pixTotalCents != null) {
+                  <span class="ck-opt-price" data-testid="ck-pix-total">{{ money(quote()!.pixTotalCents!) }}</span>
+                } @else if ((quote()?.pixDiscountPct ?? 0) > 0) {
                   <span class="ck-tag">-{{ quote()!.pixDiscountPct }}%</span>
                 }
-              </div>
+              </label>
+              @if (offersCard()) {
+                <label class="ck-opt" [class.ck-opt--on]="method() === 'cartao'" data-testid="ck-method-card">
+                  <input type="radio" class="ck-opt-input" name="ck-method" value="cartao" [checked]="method() === 'cartao'" (change)="chooseMethod('cartao')" />
+                  <span class="ck-radio" aria-hidden="true"></span>
+                  <span class="ck-opt-icon" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="M3 10h18M7 15h3" /></svg>
+                  </span>
+                  <span class="ck-opt-text">
+                    <strong>Cartão de crédito</strong>
+                    <small>À vista, no ambiente seguro do Asaas</small>
+                  </span>
+                  <span class="ck-opt-price" data-testid="ck-card-total">{{ money(quote()!.cardTotalCents!) }}</span>
+                </label>
+              }
             </div>
           </section>
         </div>
@@ -339,14 +359,19 @@
               @if (cpfError(); as e) {
                 <small class="ck-cpf-error">{{ e }}</small>
               } @else {
-                <small class="ck-cpf-hint">Sai no comprovante do Pix. Só pedimos uma vez.</small>
+                <small class="ck-cpf-hint">Sai no comprovante do pagamento. Só pedimos uma vez.</small>
               }
             </label>
           }
 
           <button type="button" class="ck-pay" [disabled]="!canPay()" [attr.aria-busy]="paying()" (click)="pay()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 4.2 4.2-4.2 4.2-4.2-4.2zM12 12.6l4.2 4.2L12 21l-4.2-4.2zM3 12l4.2-4.2 4.2 4.2-4.2 4.2zM12.6 12l4.2-4.2L21 12l-4.2 4.2z" /></svg>
-            {{ paying() ? 'Gerando o Pix…' : 'Pagar com Pix' }}
+            @if (method() === 'cartao') {
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="M3 10h18M7 15h3" /></svg>
+              {{ paying() ? 'Gerando o pagamento…' : 'Pagar com cartão' }}
+            } @else {
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 4.2 4.2-4.2 4.2-4.2-4.2zM12 12.6l4.2 4.2L12 21l-4.2-4.2zM3 12l4.2-4.2 4.2 4.2-4.2 4.2zM12.6 12l4.2-4.2L21 12l-4.2 4.2z" /></svg>
+              {{ paying() ? 'Gerando o Pix…' : 'Pagar com Pix' }}
+            }
           </button>
           @if (payError(); as e) {
             <p class="ck-pay-error" role="alert">{{ e }}</p>

@@ -130,7 +130,8 @@ export class LojaPedidosComponent {
       deadline: o.delivery.pickupDeadline ? formatDeadline(o.delivery.pickupDeadline) : null,
     };
   });
-  protected readonly awaitingPix = computed(() => this.orders().find((o) => o.status === 'pag' && o.pix) ?? null);
+  /** Pedido esperando o pagamento (Pix ou cartão), para o atalho da lateral. */
+  protected readonly awaitingPix = computed(() => this.orders().find((o) => o.status === 'pag' && (o.pix || o.card)) ?? null);
 
   constructor() {
     effect((onCleanup) => {

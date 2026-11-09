@@ -23,6 +23,7 @@ import {
   orderViewFromDoc,
   orderWhere,
   pixCountdown,
+  pixSavingsCents,
   quoteBlocker,
   quoteFromData,
   removeAddress,
@@ -92,6 +93,25 @@ describe('store-checkout-model', () => {
     expect(q.problems).toEqual(['linha_com_problema']);
     expect(appliedCoupon(q)?.code).toBe('NEXA10');
     expect(quoteFromData({ foo: 1 })).toBeNull();
+  });
+
+  it('cotação no cartão: forma, os dois totais e a economia do Pix', () => {
+    const q = quoteFromData({
+      paymentMethod: 'cartao',
+      lines: [],
+      pixDiscountCents: 0,
+      totalCents: 18990,
+      pixTotalCents: 18040,
+      cardTotalCents: 18990,
+    })!;
+    expect(q.paymentMethod).toBe('cartao');
+    expect(q.cardTotalCents).toBe(18990);
+    expect(pixSavingsCents(q)).toBe(950);
+    // Servidor anterior ao cartão: Pix e sem os totais (a tela não oferece cartão).
+    const old = quoteFromData({ lines: [], totalCents: 900 })!;
+    expect(old.paymentMethod).toBe('pix');
+    expect(old.cardTotalCents).toBeNull();
+    expect(pixSavingsCents(old)).toBe(0);
   });
 
   it('o motivo do Pagar travado segue a ordem que o atleta resolve', () => {
@@ -171,6 +191,17 @@ describe('store-checkout-model', () => {
       expect(sep.delivery.type === 'arena' && sep.delivery.pickupCode).toBeNull();
       expect(sep.pix).toBeNull();
       expect(orderViewFromDoc('x', { status: 'inventado' })).toBeNull();
+    });
+
+    it('cartão: link https só aguardando; recado fala do cartão; acervo é Pix', () => {
+      const card = { invoiceUrl: 'https://sandbox.asaas.com/i/abc', expiresAt: '2026-10-17T20:15:00.000Z' };
+      const pag = view({ status: 'pag', paymentMethod: 'cartao', card });
+      expect(pag.paymentMethod).toBe('cartao');
+      expect(pag.card?.invoiceUrl).toBe('https://sandbox.asaas.com/i/abc');
+      expect(orderInfo(pag)).toBe('Pague com o cartão até 17:15');
+      expect(view({ status: 'sep', paymentMethod: 'cartao', card }).card).toBeNull();
+      expect(view({ status: 'pag', paymentMethod: 'cartao', card: { invoiceUrl: 'javascript:alert(1)' } }).card).toBeNull();
+      expect(view({ status: 'pag' }).paymentMethod).toBe('pix');
     });
 
     it('barra de etapas por entrega; encerrado não tem barra', () => {

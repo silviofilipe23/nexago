@@ -128,7 +128,7 @@
                 }
                 @switch (c.order.status) {
                   @case ('pag') {
-                    <a class="ps-btn ps-btn--primary" [routerLink]="['/loja/pedidos', c.order.id]">Pagar Pix</a>
+                    <a class="ps-btn ps-btn--primary" [routerLink]="['/loja/pedidos', c.order.id]">{{ c.order.paymentMethod === 'cartao' ? 'Pagar cartão' : 'Pagar Pix' }}</a>
                   }
                   @case ('ret') {
                     <a class="ps-btn ps-btn--primary" [routerLink]="['/loja/pedidos', c.order.id]">Ver código</a>
@@ -173,8 +173,8 @@
           } @else if (awaitingPix(); as o) {
             <a class="ps-pix" [routerLink]="['/loja/pedidos', o.id]">
               <span class="ps-ready-kicker">#{{ o.number }}</span>
-              <strong>Falta pagar o Pix</strong>
-              <small>{{ money(o.totalCents) }} · abrir o QR code</small>
+              <strong>{{ o.paymentMethod === 'cartao' ? 'Falta pagar com o cartão' : 'Falta pagar o Pix' }}</strong>
+              <small>{{ money(o.totalCents) }} · {{ o.paymentMethod === 'cartao' ? 'abrir o pagamento' : 'abrir o QR code' }}</small>
             </a>
           }
           <div class="ps-help">

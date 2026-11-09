@@ -11,12 +11,14 @@ import {
   cartFulfillment,
   cartLineKey,
   defaultAddressId,
+  pixSavingsCents,
   quoteBlocker,
   removeAddress,
   upsertAddress,
   type CheckoutDeliveryInput,
   type CheckoutQuote,
   type CheckoutRequest,
+  type PaymentMethod,
   type QuoteLineProblem,
   type StoreAddress,
 } from '../data/store-checkout-model';
@@ -44,15 +46,15 @@ interface CheckoutLine {
   problem: QuoteLineProblem | null;
 }
 
-/** Estado que volta pela navegação até a tela do Pix (o espelho do pedido chega ~1 s depois). */
+/** Estado que vai pela navegação até a tela do pagamento (o espelho do pedido chega ~1 s depois). */
 export interface PixHandoff {
   order: CreateOrderResult;
 }
 
 /**
  * Loja · Carrinho e checkout (web 03/04/05). O cliente monta o pedido (linhas, entrega, cupom) e
- * o servidor cota tudo de novo (`quoteStoreCheckout`); o "Pagar com Pix" manda o total que a
- * tela mostrou e o servidor recusa se mudou. Regras em `docs/business-rules/loja-checkout.md`.
+ * o servidor cota tudo de novo (`quoteStoreCheckout`, com a forma escolhida: Pix ou cartão); o
+ * "Pagar" manda o total que a tela mostrou e o servidor recusa se mudou. Regras em `docs/business-rules/loja-checkout.md`.
  */
 @Component({
   selector: 'app-loja-checkout',
@@ -82,6 +84,8 @@ export class LojaCheckoutComponent {
   protected readonly couponInput = signal('');
   protected readonly couponCode = signal<string | null>(null);
   protected readonly arenaMenuOpen = signal(false);
+  /** Forma escolhida. O cartão só aparece quando o servidor já cota os dois totais. */
+  protected readonly method = signal<PaymentMethod>('pix');
 
   // ── Endereços ───────────────────────────────────────────────────
   protected readonly addresses = signal<StoreAddress[]>([]);
@@ -155,6 +159,7 @@ export class LojaCheckoutComponent {
     channel: 'web',
     delivery: this.delivery(),
     couponCode: this.couponCode(),
+    paymentMethod: this.method(),
   }));
 
   /** Muda a cada linha/quantidade do carrinho: a cotação velha deixa de valer. */
@@ -212,8 +217,18 @@ export class LojaCheckoutComponent {
   });
 
   protected readonly canPay = computed(
-    () => this.quoteFresh() && this.blocker() === null && !this.paying() && (this.quote()?.totalCents ?? 0) > 0,
+    () =>
+      this.quoteFresh() &&
+      this.blocker() === null &&
+      !this.paying() &&
+      (this.quote()?.totalCents ?? 0) > 0 &&
+      // Servidor anterior ao cartão cota Pix mesmo pedindo cartão: não deixa pagar no escuro.
+      this.quote()?.paymentMethod === this.method(),
   );
+
+  /** O servidor já cota o cartão (devolve os dois totais). */
+  protected readonly offersCard = computed(() => this.quote()?.cardTotalCents != null);
+  protected readonly pixSavings = computed(() => pixSavingsCents(this.quote()));
 
   protected readonly arenaOption = computed(() => {
     const a = this.arena();
@@ -431,6 +446,13 @@ export class LojaCheckoutComponent {
 
   // ── Pagamento ───────────────────────────────────────────────────
 
+  /** Troca a forma: a cotação roda de novo (o cartão não tem o desconto Pix). */
+  protected chooseMethod(method: PaymentMethod): void {
+    if (this.paying() || method === this.method()) return;
+    this.method.set(method);
+    trackLojaEvent('loja_pagamento_select', { forma: method });
+  }
+
   protected onCpfInput(value: string): void {
     this.cpf.set(value.replace(/\D/g, '').slice(0, 11));
     this.cpfError.set(null);
@@ -453,7 +475,7 @@ export class LojaCheckoutComponent {
     }
     this.paying.set(true);
     this.payError.set(null);
-    trackLojaEvent('loja_checkout_pagar', { total: q.totalCents, entrega: this.kind(), cupom: this.couponCode() });
+    trackLojaEvent('loja_checkout_pagar', { total: q.totalCents, entrega: this.kind(), cupom: this.couponCode(), forma: this.method() });
     try {
       const order = await this.api.createOrder({
         ...this.request(),

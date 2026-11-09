@@ -54,10 +54,19 @@ export function cartFulfillment(
 
 export type CheckoutDeliveryInput = { type: 'arena'; arenaId: string } | { type: 'casa'; addressId: string; modeId: string };
 
+/** Forma de pagamento (`paymentMethod` das callables). Cartão à vista, no checkout do Asaas. */
+export type PaymentMethod = 'pix' | 'cartao';
+
+/** Ausente/desconhecido = Pix (todo o acervo anterior ao cartão). */
+export function paymentMethodOf(raw: unknown): PaymentMethod {
+  return raw === 'cartao' ? 'cartao' : 'pix';
+}
+
 export interface CheckoutRequest {
   channel: 'web';
   delivery: CheckoutDeliveryInput | null;
   couponCode: string | null;
+  paymentMethod: PaymentMethod;
 }
 
 export type QuoteLineProblem = 'indisponivel' | 'esgotado' | 'sem_retirada' | 'sem_entrega' | 'personalizacao_off';
@@ -92,6 +101,8 @@ export interface QuoteCoupon {
 }
 
 export interface CheckoutQuote {
+  /** A forma que `totalCents` cobra. */
+  paymentMethod: PaymentMethod;
   lines: QuoteLine[];
   units: number;
   subtotalCents: number;
@@ -101,7 +112,18 @@ export interface CheckoutQuote {
   shippingCents: number;
   freeShipping: boolean;
   totalCents: number;
+  /** Acréscimo do cartão neste total (hoje 0: a Loja absorve a taxa). */
+  cardFeeCents: number;
+  /** Os dois totais, para comparar as formas. `null` = servidor anterior ao cartão (sem cartão). */
+  pixTotalCents: number | null;
+  cardTotalCents: number | null;
   problems: QuoteProblem[];
+}
+
+/** Quanto o Pix sai mais barato que o cartão (0 sem desconto Pix ou sem cartão). */
+export function pixSavingsCents(q: Pick<CheckoutQuote, 'pixTotalCents' | 'cardTotalCents'> | null): number {
+  if (q?.pixTotalCents == null || q.cardTotalCents == null) return 0;
+  return Math.max(0, q.cardTotalCents - q.pixTotalCents);
 }
 
 const LINE_PROBLEMS: readonly QuoteLineProblem[] = ['indisponivel', 'esgotado', 'sem_retirada', 'sem_entrega', 'personalizacao_off'];
@@ -121,6 +143,7 @@ export function quoteFromData(raw: unknown): CheckoutQuote | null {
   if (!Array.isArray(d['lines'])) return null;
   const couponRaw = d['coupon'] as Raw | null | undefined;
   return {
+    paymentMethod: paymentMethodOf(d['paymentMethod']),
     lines: (d['lines'] as Raw[]).map((l) => ({
       key: str(l?.['key']),
       productId: str(l?.['productId']),
@@ -151,6 +174,9 @@ export function quoteFromData(raw: unknown): CheckoutQuote | null {
     shippingCents: int(d['shippingCents']),
     freeShipping: d['freeShipping'] === true,
     totalCents: int(d['totalCents']),
+    cardFeeCents: int(d['cardFeeCents']),
+    pixTotalCents: typeof d['pixTotalCents'] === 'number' ? int(d['pixTotalCents']) : null,
+    cardTotalCents: typeof d['cardTotalCents'] === 'number' ? int(d['cardTotalCents']) : null,
     problems: Array.isArray(d['problems'])
       ? (d['problems'] as unknown[]).filter((p): p is QuoteProblem => QUOTE_PROBLEMS.includes(p as QuoteProblem))
       : [],
@@ -397,7 +423,10 @@ export interface StoreOrderView {
   pixDiscountCents: number;
   shippingCents: number;
   totalCents: number;
+  paymentMethod: PaymentMethod;
   pix: { copyPaste: string; expiresAt: Date | null } | null;
+  /** Checkout hospedado do cartão, só enquanto aguarda pagamento. */
+  card: { invoiceUrl: string; expiresAt: Date | null } | null;
   delivery:
     | { type: 'arena'; placeName: string | null; counter: string | null; address: string | null; pickupCode: string | null; pickupDeadline: Date | null }
     | {
@@ -428,12 +457,23 @@ function date(v: unknown): Date | null {
   return typeof ts?.toDate === 'function' ? ts.toDate() : null;
 }
 
+/** Só abre link https (o checkout do Asaas). */
+export function isHttps(url: string): boolean {
+  try {
+    return new URL(url).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export function orderViewFromDoc(id: string, data: Raw | undefined): StoreOrderView | null {
   if (!data) return null;
   const status = str(data['status']) as StoreOrderStatus;
   if (!ORDER_STATUSES.includes(status)) return null;
   const d = (data['delivery'] ?? {}) as Raw;
   const pix = data['pix'] as Raw | null | undefined;
+  const card = data['card'] as Raw | null | undefined;
+  const invoiceUrl = str(card?.['invoiceUrl']);
   return {
     id,
     number: str(data['number']) || id,
@@ -457,7 +497,9 @@ export function orderViewFromDoc(id: string, data: Raw | undefined): StoreOrderV
     pixDiscountCents: int(data['pixDiscountCents']),
     shippingCents: int(data['shippingCents']),
     totalCents: int(data['totalCents']),
+    paymentMethod: paymentMethodOf(data['paymentMethod']),
     pix: status === 'pag' && pix && str(pix['copyPaste']) ? { copyPaste: str(pix['copyPaste']), expiresAt: date(pix['expiresAt']) } : null,
+    card: status === 'pag' && isHttps(invoiceUrl) ? { invoiceUrl, expiresAt: date(card?.['expiresAt']) } : null,
     delivery:
       d['type'] === 'arena'
         ? {
@@ -632,6 +674,9 @@ export function orderInfo(o: StoreOrderView): string {
   const d = o.delivery;
   switch (o.status) {
     case 'pag':
+      if (o.paymentMethod === 'cartao') {
+        return o.card?.expiresAt ? `Pague com o cartão até ${hhmm(wall(o.card.expiresAt))}` : 'Aguardando o cartão';
+      }
       return o.pix?.expiresAt ? `Pague o Pix até ${hhmm(wall(o.pix.expiresAt))}` : 'Aguardando o Pix';
     case 'ret':
       return d.type === 'arena' && d.pickupDeadline ? `Retire até ${formatDeadline(d.pickupDeadline)}` : 'Já está na arena';

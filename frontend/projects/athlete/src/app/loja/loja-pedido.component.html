@@ -11,14 +11,14 @@
   </header>
 
   <div class="pd-body">
-    @if (notFound() && !order() && !pix()) {
+    @if (notFound() && !order() && !pending()) {
       <section class="lp-state" role="alert">
         <span class="lp-kicker">Pedido</span>
         <h2>Não achamos esse pedido</h2>
         <p>Confira se entrou com a mesma conta da compra. Seus pedidos ficam em "Meus pedidos".</p>
         <a class="lp-state-btn" routerLink="/loja/pedidos">Meus pedidos</a>
       </section>
-    } @else if (!order() && !pix()) {
+    } @else if (!order() && !pending()) {
       <p class="lp-visually-hidden" role="status">Carregando o pedido…</p>
       <div class="pd-grid" aria-hidden="true">
         <app-nx-skeleton w="100%" [h]="420" [r]="22" />
@@ -74,6 +74,46 @@
                     {{ copied() ? 'Copiado!' : 'Copiar código' }}
                   </button>
                 </div>
+                <p class="pd-wait" role="status">
+                  <span class="pd-wait-dot" aria-hidden="true"></span>
+                  Aguardando o pagamento…
+                </p>
+              </section>
+            }
+          } @else if (card(); as c) {
+            <!-- ── Cartão: checkout hospedado do Asaas ─────────── -->
+            @if (expired()) {
+              <section class="pd-card pd-expired" role="alert" data-testid="pd-card-expired">
+                <span class="lp-kicker">Prazo encerrado</span>
+                <h2 class="pd-h">O prazo do pagamento acabou</h2>
+                <p class="pd-text">Se o cartão foi aprovado, a gente confirma em instantes. Se não, o pedido é cancelado e as peças voltam pra loja.</p>
+                <button type="button" class="pd-soft" [disabled]="rebuying() || !order()" (click)="rebuy()">Montar o carrinho de novo</button>
+              </section>
+            } @else {
+              <section class="pd-card pd-pix" aria-labelledby="pd-card-title">
+                <div class="pd-pix-head">
+                  <div>
+                    <span class="lp-kicker">Falta pagar</span>
+                    <h2 id="pd-card-title" class="pd-h">Pague com o cartão</h2>
+                  </div>
+                  <div class="pd-timer" role="timer" aria-live="off" [attr.aria-label]="'Expira em ' + countdown()">
+                    <span>Expira em</span>
+                    <strong>{{ countdown() }}</strong>
+                  </div>
+                </div>
+                <div class="pd-amount">
+                  <span>Valor</span>
+                  <strong data-testid="pd-card-amount">{{ money(totalCents()) }}</strong>
+                </div>
+                <ol class="pd-steps">
+                  <li>Abra o pagamento com cartão (abre numa nova aba).</li>
+                  <li>Digite os dados do cartão no ambiente seguro do <b>Asaas</b> (à vista).</li>
+                  <li>Volte pra cá: esta tela muda sozinha quando o pagamento for aprovado.</li>
+                </ol>
+                <a class="pd-card-btn" data-testid="pd-card-open" [href]="c.invoiceUrl" target="_blank" rel="noopener" (click)="openCard()">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" /><path d="M3 10h18M7 15h3" /></svg>
+                  Abrir pagamento com cartão
+                </a>
                 <p class="pd-wait" role="status">
                   <span class="pd-wait-dot" aria-hidden="true"></span>
                   Aguardando o pagamento…

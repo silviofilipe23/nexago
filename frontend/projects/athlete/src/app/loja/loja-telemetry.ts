@@ -17,6 +17,8 @@ export type LojaEvent =
   | 'loja_avise_me'
   | 'loja_add_carrinho'
   | 'loja_entrega_select'
+  | 'loja_pagamento_select'
+  | 'loja_cartao_abrir'
   | 'loja_personalizar_open'
   // Personalizar (tela 02b, `docs/business-rules/loja-personalizar.md`).
   | 'loja_personalizar_nome'

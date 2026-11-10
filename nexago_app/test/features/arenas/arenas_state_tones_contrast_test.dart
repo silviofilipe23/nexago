@@ -74,6 +74,8 @@ final _pieceFinder = find.byKey(_piece);
 
 final _today = DateTime.now();
 final _todayKey = DateFormat('yyyy-MM-dd').format(_today);
+final _tomorrowKey =
+    DateFormat('yyyy-MM-dd').format(_today.add(const Duration(days: 1)));
 
 /// Monta [child] numa tela do tema, opcionalmente sobre um card (onde ela
 /// mora no app de verdade).
@@ -308,7 +310,8 @@ final _screens = <_Screen>[
               id: 'w1',
               arenaId: 'a1',
               courtId: 'q1',
-              dateKey: _todayKey,
+              // Amanhã: horário já começado some da Agenda.
+              dateKey: _tomorrowKey,
               startTime: '18:00',
               endTime: '19:00',
               athleteId: 'u1',

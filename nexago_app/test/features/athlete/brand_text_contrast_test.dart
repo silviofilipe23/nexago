@@ -633,11 +633,15 @@ final _screens = <_Screen>[
       overrides: [
         myWaitlistStreamProvider.overrideWith(
           (ref) => Stream.value([
-            const ArenaBookingWaitlistEntry(
+            // Amanhã: horário já começado some da Agenda.
+            ArenaBookingWaitlistEntry(
               id: 'w1',
               arenaId: 'a1',
               courtId: 'q1',
-              dateKey: '2026-10-21',
+              dateKey: DateTime.now()
+                  .add(const Duration(days: 1))
+                  .toIso8601String()
+                  .substring(0, 10),
               startTime: '18:00',
               endTime: '19:00',
               athleteId: 'u1',

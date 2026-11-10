@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/errors/friendly_error_message.dart';
+import '../../../../../core/ui/app_snackbar.dart';
 import '../../../../arenas/domain/arena_booking_labels.dart';
 import '../../../../arenas/domain/arena_booking_waitlist_entry.dart';
 import '../../../../arenas/domain/waitlist_providers.dart';
@@ -20,7 +22,10 @@ class AgendaWaitlistSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final entries = ref.watch(myWaitlistStreamProvider).valueOrNull ?? const [];
-    final active = entries.where((e) => e.isActive).toList();
+    final now = DateTime.now();
+    // Horário que já começou some na hora; o servidor encerra a entrada em até 5 min.
+    final active =
+        entries.where((e) => e.isActive && !e.slotStarted(now)).toList();
     if (active.isEmpty) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
@@ -57,17 +62,18 @@ class AgendaWaitlistSection extends ConsumerWidget {
   }
 }
 
-class _WaitlistEntryCard extends StatefulWidget {
+class _WaitlistEntryCard extends ConsumerStatefulWidget {
   const _WaitlistEntryCard({required this.entry});
 
   final ArenaBookingWaitlistEntry entry;
 
   @override
-  State<_WaitlistEntryCard> createState() => _WaitlistEntryCardState();
+  ConsumerState<_WaitlistEntryCard> createState() => _WaitlistEntryCardState();
 }
 
-class _WaitlistEntryCardState extends State<_WaitlistEntryCard> {
+class _WaitlistEntryCardState extends ConsumerState<_WaitlistEntryCard> {
   Timer? _ticker;
+  bool _leaving = false;
 
   @override
   void initState() {
@@ -157,6 +163,21 @@ class _WaitlistEntryCardState extends State<_WaitlistEntryCard> {
                     color: ink,
                   ),
                 ),
+                TextButton(
+                  key: ValueKey('waitlist-leave-${entry.id}'),
+                  onPressed: _leaving ? null : _confirmLeave,
+                  style: TextButton.styleFrom(
+                    foregroundColor: context.themeColors.onSurfaceMuted,
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 40),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    alignment: Alignment.centerLeft,
+                  ),
+                  child: Text(
+                    _leaving ? 'Saindo…' : 'Sair da lista',
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
               ],
             ),
           ),
@@ -177,6 +198,52 @@ class _WaitlistEntryCardState extends State<_WaitlistEntryCard> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmLeave() async {
+    final entry = widget.entry;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Sair da lista de espera?'),
+        content: Text(
+          'Você deixa de ser avisado se uma vaga abrir em '
+          '${entry.arenaName ?? 'Arena'} às ${entry.startTime}. '
+          'Para voltar, entre na lista de novo pelo horário.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Continuar na lista'),
+          ),
+          TextButton(
+            key: const ValueKey('waitlist-leave-confirm'),
+            style: TextButton.styleFrom(foregroundColor: context.themeColors.live),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Sair da lista'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _leaving = true);
+    try {
+      await ref.read(waitlistRepositoryProvider).leave(entry.id);
+      if (mounted) showAppSnackBar(context, 'Você saiu da lista de espera.');
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        friendlyErrorMessage(
+          e,
+          action: 'Não foi possível sair da lista',
+          logReason: 'reserva:sair_lista_espera',
+        ),
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _leaving = false);
+    }
   }
 
   void _openSlot(BuildContext context) {

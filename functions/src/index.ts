@@ -865,6 +865,7 @@ export {
 } from "./match-live-follow-notify";
 export {
   joinArenaBookingWaitlist,
+  leaveArenaBookingWaitlist,
   notifyArenaWaitlistOnSlotFreed,
   expireArenaBookingWaitlistEntries,
 } from "./arena-booking-waitlist";

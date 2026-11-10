@@ -143,6 +143,19 @@ Trava (`arenaSlotLocks`): `floating: true` enquanto a reserva estiver `unassigne
 5. **Painel:** visão por horário, check-in, quadro de alocação.
 6. **Relatórios.**
 
+### Estado
+
+- **PR 1** (#1147, mergeado): `changeArenaBookingCourt` + "Trocar quadra" no portal.
+- **PR 2**: `claimCourtLocks` (`functions/src/arena-floating-booking.ts`) ligado em reserva do
+  atleta, balcão, horário fixo, aula, clubinho, reposição de plano, remarcação por chuva, desfazer
+  cancelamento e troca de quadra. Na troca, se a quadra de destino tem flutuante, ela vai para
+  outra livre; se a única livre é a que a reserva deixa, as duas trocam de lugar. O gestor
+  definindo a quadra de uma flutuante marca `assigned` e a trava para de flutuar. Prévias (conflitos
+  da aula, opções de reposição) não contam trava flutuante como ocupada.
+  Ficam para o PR 3: bloqueio de quadra feito pelo app/portal direto no Firestore (`arenaSlots`
+  `blocked`, sem function no meio) e bloqueio do Modo chuva — os dois ainda não empurram flutuante.
+  Grade e lista de espera do atleta (`isSlotFullyBooked`) entram no PR 4.
+
 ## 10. Para confirmar com a arena
 
 - O preço do horário é o mesmo para todas as quadras?

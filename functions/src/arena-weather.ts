@@ -61,6 +61,7 @@ import {
   type WeatherPolicy,
 } from "./arena-weather-model";
 import {roundMoney} from "./mercadopago-arena-helpers";
+import {claimCourtLocks} from "./arena-floating-booking";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -920,14 +921,19 @@ export async function rescheduleWeatherRelease(
   await db.runTransaction(async (tx) => {
     const fresh = (await tx.get(oldRef)).data();
     const freshRelease = pendingReleaseOf(fresh, uid);
-    const lockSnaps = await tx.getAll(...lockRefs);
-    if (lockSnaps.some((s) => s.exists)) {
+    const claim = await claimCourtLocks(tx, db, {arenaId, courtId: input.courtId, lockRefs}, {
+      ownBookingId: newRef.id,
+      reason: "Quadra ocupada por remarcação de chuva",
+      nowMs,
+    });
+    if (!claim.ok) {
       throw new HttpsError("already-exists", "Esse horário acabou de ser reservado. Escolha outro.");
     }
     const block = await readEventForBlock(tx, db, freshRelease);
     const transfer = await prepareBlockTransfer(tx, db, bookingId, fresh as DocumentData, block, nowMs);
     const [creditSnap, userSnap] = await tx.getAll(creditRef, db.collection("users").doc(athleteId));
 
+    claim.commit(tx);
     tx.set(newRef, {
       athleteId,
       arenaId,

@@ -13,6 +13,7 @@ import {deliverNotificationToUser} from "./notification-delivery";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {grantArenaCanceledOccurrenceCredit} from "./arena-schedule-makeup";
+import {claimCourtLocks} from "./arena-floating-booking";
 
 export const ARENA_RECURRING_BOOKINGS = "arenaRecurringBookings";
 const ARENA_BOOKINGS = "arenaBookings";
@@ -316,10 +317,13 @@ export async function materializeSeriesOccurrences(
           // retomada da mesma série) — sobrescreve com a config nova em vez
           // de bloquear.
         }
-        for (const lock of locks) {
-          const snap = await tx.get(lock.ref);
-          if (snap.exists) return "conflict";
-        }
+        const claim = await claimCourtLocks(tx, db, {
+          arenaId: series.arenaId,
+          courtId: series.courtId,
+          lockRefs: locks.map((l) => l.ref),
+        }, {ownBookingId: bookingRef.id, reason: "Quadra ocupada por horário fixo"});
+        if (!claim.ok) return "conflict";
+        claim.commit(tx);
 
         tx.set(bookingRef, {
           athleteId: series.athleteId,

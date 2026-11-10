@@ -154,6 +154,31 @@ describe("usar a reposição", () => {
   });
 });
 
+describe("reposição com reserva flutuante na quadra", () => {
+  it("a opção continua na lista e, ao usar, a flutuante vai para outra quadra", async () => {
+    const {fake, db} = makeDb();
+    seedArena(fake, {plan: {windows: [1, 2, 3, 4, 5, 6, 7].map((weekday) => ({weekday, startTime: "18:00", endTime: "20:00"}))}});
+    const d1 = addDaysToDateKey(today(), 7);
+    seedSubscription(fake, db, {dates: [d1]});
+    const {creditId} = await grantManualMakeupCore(db, MANAGER, "s1", "chuva", today());
+
+    const date = addDaysToDateKey(today(), 3);
+    fake.seedDoc("arenaBookings/flo", {
+      arenaId: ARENA, courtId: "q1", courtName: "Quadra 1", date, startTime: "19:00", endTime: "20:00",
+      status: "active", allocationStatus: "unassigned",
+    });
+    fake.seedDoc(lockPath(db, date, "19:00", "20:00"), {arenaId: ARENA, courtId: "q1", date, bookingId: "flo", floating: true});
+
+    const {options} = await getMakeupOptionsCore(db, "u2", creditId, date, today(), Date.now());
+    assert.ok(options.some((o) => o.courtId === "q1" && o.startTime === "19:00"));
+
+    const {bookingId} = await useMakeupCore(db, "u2", {creditId, date, courtId: "q1", startTime: "19:00"}, today(), Date.now());
+    assert.equal(fake.store.get(lockPath(db, date, "19:00", "20:00"))!["bookingId"], bookingId);
+    assert.equal(fake.store.get("arenaBookings/flo")!["courtId"], "q2");
+    assert.equal(fake.store.get(lockPath(db, date, "19:00", "20:00", "q2"))!["bookingId"], "flo");
+  });
+});
+
 describe("feriado", () => {
   it("cancela a ocorrência e dá crédito `holiday` no plano `makeup`; plano `play` não muda", async () => {
     const {fake, db} = makeDb();

@@ -49,6 +49,7 @@ import {asaasArenaSecrets} from "./asaas-client";
 import {debitArenaWalletForClubRefund} from "./arena-wallet";
 import {resolveAthleteDisplay} from "./arena-club-join";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {claimCourtLocks} from "./arena-floating-booking";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -195,6 +196,10 @@ export async function materializeClubSession(
         locks: ReturnType<typeof lockRefsForOccurrence>;
       }> = [];
       const skippedCourtIds = [...preSkipped];
+      // Reserva flutuante numa quadra do clubinho vai para outra quadra — nunca para uma do
+      // próprio clubinho, nem duas para a mesma (Set compartilhado entre os claims).
+      const takenLockPaths = new Set<string>();
+      const relocationCommits: Array<(writer: Transaction) => void> = [];
 
       for (const court of preUsable) {
         const locks = lockRefsForOccurrence(
@@ -211,24 +216,28 @@ export async function materializeClubSession(
           skippedCourtIds.push(court.courtId);
           continue;
         }
-        let conflict = false;
-        for (const lock of locks) {
-          const snap = await tx.get(lock.ref);
-          if (snap.exists) {
-            conflict = true;
-            break;
-          }
-        }
-        if (conflict) {
+        const claim = await claimCourtLocks(tx, db, {
+          arenaId: club.arenaId,
+          courtId: court.courtId,
+          lockRefs: locks.map((l) => l.ref),
+        }, {
+          ownBookingId: clubBlockBookingId(clubId, dateKey, court.courtId),
+          avoidCourtIds: club.courtIds,
+          takenLockPaths,
+          reason: "Quadra ocupada por clubinho",
+        });
+        if (!claim.ok) {
           skippedCourtIds.push(court.courtId);
         } else {
           usable.push({...court, locks});
+          relocationCommits.push(claim.commit);
         }
       }
 
       if (usable.length === 0) {
         return {outcome: "conflict" as const, skippedCourtIds};
       }
+      for (const commit of relocationCommits) commit(tx);
 
       const blockBookingIds: string[] = [];
       for (const court of usable) {

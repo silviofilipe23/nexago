@@ -26,6 +26,7 @@ import {
 import * as logger from "firebase-functions/logger";
 import {isArenaEntitledPro} from "./arena-entitlement";
 import {assertArenaAreaAccess} from "./arena-area-access";
+import {claimCourtLocks, isFloatingLock} from "./arena-floating-booking";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {
@@ -475,11 +476,15 @@ export async function materializeClassSession(
       const existing = await tx.get(sessionRef);
       if (existing.exists) return "exists" as const;
 
-      for (const lock of locks) {
-        const snap = await tx.get(lock.ref);
-        // Lock que já é desta aula (sobra de liberação interrompida) não é conflito.
-        if (snap.exists && snap.data()?.["bookingId"] !== sessionId) return "conflict" as const;
-      }
+      // Lock que já é desta aula (sobra de liberação interrompida) não é conflito; o de reserva
+      // flutuante é empurrado para outra quadra.
+      const claim = await claimCourtLocks(tx, db, {
+        arenaId: cls.arenaId,
+        courtId: cls.courtId,
+        lockRefs: locks.map((l) => l.ref),
+      }, {ownBookingId: sessionId, reason: "Quadra ocupada por aula"});
+      if (!claim.ok) return "conflict" as const;
+      claim.commit(tx);
 
       tx.set(bookingRef, {
         athleteId: null,
@@ -816,7 +821,8 @@ export async function findClassConflicts(
     const locks = lockRefsForOccurrence(db, cls, dateKey);
     const lockSnaps = locks.length > 0 ? await db.getAll(...locks.map((l) => l.ref)) : [];
     const foreignBookingIds = [...new Set(lockSnaps
-      .filter((s) => s.exists && s.data()?.["bookingId"] !== ownId)
+      // Reserva flutuante não é conflito: na criação ela vai para outra quadra (ou a data cai).
+      .filter((s) => s.exists && s.data()?.["bookingId"] !== ownId && !isFloatingLock(s.data()))
       .map((s) => String(s.data()?.["bookingId"] ?? "")))];
     if (foreignBookingIds.length > 0) {
       const ids = foreignBookingIds.filter(Boolean);

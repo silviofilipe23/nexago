@@ -30,6 +30,7 @@ import {
 } from "./slot-vacancy-alerts";
 import {computeSlotLockIds} from "./arena-booking-waitlist";
 import {restoreWeatherCreditOnCancel} from "./arena-weather-credits";
+import {claimCourtLocks} from "./arena-floating-booking";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -175,16 +176,14 @@ export async function reacquireArenaBookingSlotHold(
     typeof booking["amountReais"] === "number" ? booking["amountReais"] : null;
 
   return db.runTransaction(async (tx) => {
-    let conflict = false;
-    for (const plan of plans) {
-      const snap = await tx.get(db.collection(ARENA_SLOT_LOCKS).doc(plan.id));
-      if (snap.exists && snap.data()?.["bookingId"] !== bookingId) {
-        conflict = true;
-        break;
-      }
-    }
+    // Horário tomado por reserva flutuante não impede o desfazer: ela vai para outra quadra.
+    const claim = await claimCourtLocks(tx, db, {
+      arenaId,
+      courtId,
+      lockRefs: plans.map((plan) => db.collection(ARENA_SLOT_LOCKS).doc(plan.id)),
+    }, {ownBookingId: bookingId, reason: "Gestor desfez o cancelamento de outra reserva"});
 
-    if (conflict) {
+    if (!claim.ok) {
       tx.set(bookingRef, {
         status: "canceled",
         attendanceStatus: "canceled",
@@ -193,6 +192,7 @@ export async function reacquireArenaBookingSlotHold(
       }, {merge: true});
       return "conflict";
     }
+    claim.commit(tx);
 
     for (const plan of plans) {
       tx.set(db.collection(ARENA_SLOT_LOCKS).doc(plan.id), {

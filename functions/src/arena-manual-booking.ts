@@ -15,6 +15,7 @@ import {
   readArenaFallbackPrice,
 } from "./arena-pricing";
 import {assertArenaAreaAccess} from "./arena-area-access";
+import {claimCourtLocks} from "./arena-floating-booking";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
@@ -271,12 +272,15 @@ export const createArenaManualBooking = onCall({
 
   try {
     await db.runTransaction(async (transaction) => {
-      for (const lock of lockRefs) {
-        const snap = await transaction.get(lock.ref);
-        if (snap.exists) {
-          throw new HttpsError("already-exists", "Esse horário já está reservado.");
-        }
+      const claim = await claimCourtLocks(transaction, db, {
+        arenaId: parsed.arenaId,
+        courtId: parsed.courtId,
+        lockRefs: lockRefs.map((l) => l.ref),
+      }, {ownBookingId: bookingRef.id, reason: "Quadra reservada no balcão"});
+      if (!claim.ok) {
+        throw new HttpsError("already-exists", "Esse horário já está reservado.");
       }
+      claim.commit(transaction);
 
       transaction.set(bookingRef, {
         athleteId: parsed.athleteId,

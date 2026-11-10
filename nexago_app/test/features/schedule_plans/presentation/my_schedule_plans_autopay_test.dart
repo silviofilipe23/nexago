@@ -38,6 +38,7 @@ const _preview = ScheduleAutopayPreview(
 
 class _FakeRepo implements SchedulePlansRepository {
   final sets = <({String id, bool enabled, String? text})>[];
+  ScheduleAutopayPreview preview = _preview;
 
   @override
   Future<ScheduleAutopayConsent> setAutopay(
@@ -50,7 +51,7 @@ class _FakeRepo implements SchedulePlansRepository {
   }
 
   @override
-  Future<ScheduleAutopayPreview> autopayPreview(String id) async => _preview;
+  Future<ScheduleAutopayPreview> autopayPreview(String id) async => preview;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -101,11 +102,13 @@ Future<_FakeRepo> pump(
   Map<String, dynamic> sub, {
   bool flag = true,
   SavedPaymentCard? card,
+  ScheduleAutopayPreview? preview,
 }) async {
   tester.view.physicalSize = const Size(1170, 2532);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
   final repo = _FakeRepo();
+  if (preview != null) repo.preview = preview;
   final router = GoRouter(
     initialLocation: AppRoutes.mySchedulePlans,
     routes: [
@@ -183,6 +186,23 @@ void main() {
     expect(repo.sets.single.id, 's1');
     expect(repo.sets.single.enabled, isTrue);
     expect(repo.sets.single.text, _consentText);
+  });
+
+  testWidgets('taxa zerada na prévia: avisa, sem folha nem setAutopay',
+      (tester) async {
+    final repo = await pump(
+      tester,
+      subMap(),
+      card: _card,
+      preview: const ScheduleAutopayPreview(),
+    );
+    await tapKey(tester, 'schedule-autopay-enable');
+    expect(
+      find.text('Não foi possível carregar a taxa do cartão. Tente de novo.'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('schedule-autopay-authorize')), findsNothing);
+    expect(repo.sets, isEmpty);
   });
 
   testWidgets('sem cartão: abre o formulário e, ao voltar, a folha',

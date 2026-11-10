@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/router/routes.dart';
+import 'package:nexago_app/features/tournaments/domain/registration_payment_method.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/domain/arena_list_item.dart';
 import 'package:nexago_app/features/arenas/domain/arenas_providers.dart';
@@ -342,6 +344,7 @@ void main() {
         'quiser em Meu plano.';
 
     String? shown;
+    String? detail;
 
     Future<_AutopayRepo> run(
       WidgetTester tester, {
@@ -352,6 +355,7 @@ void main() {
       bool failSet = false,
       bool cancelSheet = false,
       bool arenaLoaded = true,
+      bool zeroFees = false,
     }) async {
       tester.view.physicalSize = const Size(1170, 2532);
       tester.view.devicePixelRatio = 3;
@@ -423,11 +427,13 @@ void main() {
                 .overrideWith((ref) => Stream.value(flag)),
             myPaymentCardProvider.overrideWith((ref) async => saved),
             scheduleCardFeeTermsProvider.overrideWith(
-              (ref) async => const CardFeeTerms(
-                anticipationPercent: 1.5,
-                processingPercent: 3.99,
-                fixedReais: 0.49,
-              ),
+              (ref) async => zeroFees
+                  ? CardFeeTerms.none
+                  : const CardFeeTerms(
+                      anticipationPercent: 1.5,
+                      processingPercent: 3.99,
+                      fixedReais: 0.49,
+                    ),
             ),
             arenaByIdProvider.overrideWith(
               (ref, id) => Stream.value(
@@ -484,10 +490,26 @@ void main() {
         // A folha aparece antes de qualquer chamada ao servidor.
         expect(repo.calls.where((c) => c != 'cardForm'), isEmpty);
         shown = tester.widget<Text>(text).data;
-        expect(find.textContaining('taxa do cartão'), findsOneWidget);
+        expect(find.textContaining('taxa do cartão'), findsNWidgets(2));
         expect(find.textContaining('Visa final 4242'), findsOneWidget);
-        expect(find.textContaining('1ª mensalidade agora: R\$'), findsOneWidget);
-        expect(find.textContaining('180,00'), findsWidgets);
+        final q = registrationMethodQuote(
+          pixCents: 18000,
+          cardFee: const CardFeeTerms(
+            anticipationPercent: 1.5,
+            processingPercent: 3.99,
+            fixedReais: 0.49,
+          ),
+        );
+        detail = tester
+            .widget<Text>(
+                find.byKey(const Key('schedule-autopay-consent-detail')))
+            .data;
+        expect(
+          detail,
+          '1ª mensalidade agora: ${formatBRL(q.cardTotalCents / 100)} '
+          '(${formatBRL(q.pixCents / 100)} + taxa do cartão '
+          '${formatBRL(q.cardFeeCents / 100)})',
+        );
         await tester.tap(cancelSheet
             ? find.text('Agora não')
             : find.byKey(const Key('schedule-autopay-authorize')));
@@ -512,6 +534,32 @@ void main() {
       expect(repo.calls.last, 'set:s1:true:$shown');
       expect(shown, consent);
       expect(repo.calls, isNot(contains('preview:s1')));
+    });
+
+    testWidgets('a folha mostra o total com a taxa do cartão', (tester) async {
+      await run(tester, saved: card);
+      expect(detail, contains('taxa do cartão'));
+      final q = registrationMethodQuote(
+        pixCents: 18000,
+        cardFee: const CardFeeTerms(
+          anticipationPercent: 1.5,
+          processingPercent: 3.99,
+          fixedReais: 0.49,
+        ),
+      );
+      expect(q.cardFeeCents, greaterThan(0));
+    });
+
+    testWidgets('taxa do cartão zerada: avisa, sem folha nem chamadas',
+        (tester) async {
+      final repo = await run(tester, saved: card, zeroFees: true);
+      expect(
+        find.text('Não foi possível carregar a taxa do cartão. Tente de novo.'),
+        findsOneWidget,
+      );
+      expect(
+          find.byKey(const Key('schedule-autopay-consent-text')), findsNothing);
+      expect(repo.calls, isEmpty);
     });
 
     testWidgets('Agora não: nada é criado nem cobrado', (tester) async {

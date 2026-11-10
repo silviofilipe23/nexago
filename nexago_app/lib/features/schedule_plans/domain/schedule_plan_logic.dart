@@ -487,6 +487,10 @@ String _commaNumber(double v, {int maxDecimals = 2}) {
   return s.replaceAll('.', ',');
 }
 
+/// Taxa do cartão que não carregou: sem ela não há consentimento válido.
+const scheduleCardFeeUnavailableMessage =
+    'Não foi possível carregar a taxa do cartão. Tente de novo.';
+
 /// Texto da autorização, gravado como prova (`consentText`). Com os números
 /// da prévia do servidor (Meu plano).
 String scheduleAutopayConsentText({

@@ -61,6 +61,13 @@ class _ScheduleAutopayCardState extends ConsumerState<ScheduleAutopayCard> {
       final repo = ref.read(schedulePlansRepositoryProvider);
       final preview = await repo.autopayPreview(_sub.id);
       if (!mounted) return;
+      if (preview.cardFeePercent <= 0 &&
+          preview.cardProcessingPercent <= 0 &&
+          preview.cardFixedReais <= 0) {
+        showAppSnackBar(context, scheduleCardFeeUnavailableMessage,
+            isError: true);
+        return;
+      }
       final text = scheduleAutopayConsentText(
         planName: _sub.planName,
         arenaName: _sub.arenaName,

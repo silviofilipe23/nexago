@@ -16,6 +16,7 @@ import '../../../core/ui/nexa_async_view.dart';
 import '../../../core/ui/nexa_bottom_action_bar.dart';
 import '../../../core/ui/nexa_skeleton.dart';
 import '../../arenas/domain/arenas_providers.dart';
+import '../../tournaments/domain/registration_payment_method.dart';
 import '../../payment_card/application/payment_card_providers.dart';
 import '../../payment_card/domain/saved_payment_card.dart';
 import '../../arena/domain/aulas/arena_class_logic.dart'
@@ -285,10 +286,20 @@ class _SchedulePlanSignupPageState
         // Só com dados à vista: cartão, valor e taxa. Nada é criado antes.
         final terms = await ref.read(scheduleCardFeeTermsProvider.future);
         if (!mounted) return;
+        if (terms.isZero) {
+          // Falha ao carregar vira "sem taxa"; o servidor cobraria a taxa.
+          showAppSnackBar(context, scheduleCardFeeUnavailableMessage,
+              isError: true);
+          return;
+        }
         final players = _players(plan);
         final first = scheduleSharePerPlayer(
           scheduleCycleMonthlyPrice(plan.monthlyPriceReais, _cycleOption(plan)),
           players,
+        );
+        final quote = registrationMethodQuote(
+          pixCents: (first * 100).round(),
+          cardFee: terms,
         );
         consentText = scheduleAutopayConsentTextForTerms(
           planName: plan.name,
@@ -299,7 +310,10 @@ class _SchedulePlanSignupPageState
         final ok = await showScheduleAutopayConsentSheet(
           context,
           consentText: consentText,
-          detail: '1ª mensalidade agora: ${formatBRL(first)}',
+          detail:
+              '1ª mensalidade agora: ${formatBRL(quote.cardTotalCents / 100)} '
+              '(${formatBRL(quote.pixCents / 100)} + taxa do cartão '
+              '${formatBRL(quote.cardFeeCents / 100)})',
         );
         if (ok != true || !mounted) return;
       }

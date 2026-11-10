@@ -3,6 +3,7 @@ import { AvatarComponent } from '../ui/avatar.component';
 import { PillComponent } from '../ui/pill.component';
 import {
   QUEUES,
+  canChargeOnline,
   contactLine,
   followUpLine,
   money,
@@ -111,6 +112,11 @@ interface QueueRow {
                   @if (ui.canWrite()) {
                     @switch (queue()) {
                       @case ('overdue') {
+                        @if (r.customer.contract?.onlineLink) {
+                          <button type="button" class="btn" (click)="ui.openCustomer(r.customer.key)">Link enviado</button>
+                        } @else if (canCharge(r.customer)) {
+                          <button type="button" class="btn" (click)="ui.chargeFor.set(r.customer)">Cobrar online</button>
+                        }
                         @if (r.customer.contract?.source === 'contract') {
                           <button type="button" class="btn" (click)="ui.paymentFor.set(r.customer)">Registrar pagamento</button>
                         } @else {
@@ -261,6 +267,7 @@ export class CrmTodayComponent {
   protected readonly patternLabel = patternLabel;
   protected readonly contactLine = contactLine;
   protected readonly followUpLine = followUpLine;
+  protected readonly canCharge = canChargeOnline;
   protected readonly round = Math.round;
 
   protected readonly queue = signal<CrmQueueId>(this.firstNonEmptyQueue());

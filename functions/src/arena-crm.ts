@@ -48,6 +48,15 @@ import {
 } from "./arena-crm-model";
 import {bookingSnapshot} from "./arena-crm-cache";
 import {
+  createCrmPaymentLink,
+  defaultCrmBillingDeps,
+  onlineLinkFrom,
+  voidLink,
+  voidStaleLink,
+  type CrmBillingDeps,
+} from "./arena-crm-billing";
+import {asaasArenaSecrets} from "./asaas-client";
+import {
   CRM_REMINDERS,
   REMINDER_KINDS,
   reminderOutcome,
@@ -117,6 +126,7 @@ export function contractFromDoc(id: string, d: Data): CrmContractRecord {
     renewedToId: optStr(d["renewedToId"]),
     note: optStr(d["note"]),
     createdAt: toIso(d["createdAt"]),
+    onlineLink: onlineLinkFrom(d["onlineLink"]),
   };
 }
 
@@ -446,7 +456,7 @@ export function parseContractInput(d: Data): ContractInput {
   };
 }
 
-async function saveContract(db: Firestore, arenaId: string, uid: string, d: Data, today: string): Promise<{contractId: string}> {
+async function saveContract(db: Firestore, arenaId: string, uid: string, d: Data, today: string, deps: CrmBillingDeps): Promise<{contractId: string}> {
   const input = parseContractInput(d);
   let customerName = input.customerName;
   if (input.athleteId) {
@@ -487,6 +497,9 @@ async function saveContract(db: Firestore, arenaId: string, uid: string, d: Data
     const snap = await ref.get();
     if (!snap.exists || str((snap.data() as Data)["arenaId"]) !== arenaId) throw new HttpsError("not-found", "Contrato não encontrado.");
     await ref.set(fields, {merge: true});
+    // Valor, início ou vencimento podem ter mudado: o link aberto cobraria errado.
+    const link = onlineLinkFrom((snap.data() as Data)["onlineLink"]);
+    if (link) await voidLink(db, ref.id, link, "contract_edited", deps);
     return {contractId: ref.id};
   }
   const ref = db.collection(CRM_CONTRACTS).doc();
@@ -651,21 +664,52 @@ async function saveSettings(db: Firestore, arenaId: string, uid: string, d: Data
   return {saved: true};
 }
 
-export const CRM_OPS = ["saveContract", "cancelContract", "renewContract", "registerPayment", "logContact", "saveSettings"] as const;
+export const CRM_OPS = [
+  "saveContract", "cancelContract", "renewContract", "registerPayment", "logContact", "saveSettings",
+  "createPaymentLink", "cancelPaymentLink",
+] as const;
 
-export async function updateArenaCrmCore(db: Firestore, uid: string, raw: unknown, now: Date): Promise<unknown> {
+async function paymentLinkOp(
+  db: Firestore, arenaId: string, uid: string, d: Data, create: boolean, deps: CrmBillingDeps,
+): Promise<unknown> {
+  const contractId = str(d["contractId"]);
+  if (!contractId) throw new HttpsError("invalid-argument", "contractId é obrigatório.");
+  const snap = await db.collection(CRM_CONTRACTS).doc(contractId).get();
+  const data = snap.data() as Data | undefined;
+  if (!snap.exists || !data || str(data["arenaId"]) !== arenaId) throw new HttpsError("not-found", "Contrato não encontrado.");
+  const contract = contractFromDoc(contractId, data);
+  if (create) return createCrmPaymentLink(db, arenaId, uid, await actorName(db, uid), d, contract, data["onlineLink"], deps);
+  const link = onlineLinkFrom(data["onlineLink"]);
+  if (link) await voidLink(db, contractId, link, "canceled_by_arena", deps, true);
+  return {canceled: !!link};
+}
+
+export async function updateArenaCrmCore(
+  db: Firestore, uid: string, raw: unknown, now: Date, deps: CrmBillingDeps = defaultCrmBillingDeps,
+): Promise<unknown> {
   const arenaId = requireArenaId(raw);
   const d = raw as Data;
   const op = oneOf(d["op"], CRM_OPS, "Operação");
   await assertArenaAreaAccess(db, arenaId, uid, "agenda", "write");
   const today = dayKeyFromEventDate(now);
   switch (op) {
-  case "saveContract": return saveContract(db, arenaId, uid, d, today);
-  case "cancelContract": return cancelContract(db, arenaId, uid, d, today);
+  case "saveContract": return saveContract(db, arenaId, uid, d, today, deps);
+  case "cancelContract": {
+    const r = await cancelContract(db, arenaId, uid, d, today);
+    await voidStaleLink(db, r.contractId, deps);
+    return r;
+  }
   case "renewContract": return renewContract(db, arenaId, uid, d, today);
-  case "registerPayment": return registerPayment(db, arenaId, uid, d, today);
+  case "registerPayment": {
+    const r = await registerPayment(db, arenaId, uid, d, today);
+    // Baixa manual: o link que cobrava essas parcelas sai do ar.
+    await voidStaleLink(db, str(d["contractId"]), deps);
+    return r;
+  }
   case "logContact": return logContact(db, arenaId, uid, d);
   case "saveSettings": return saveSettings(db, arenaId, uid, d);
+  case "createPaymentLink": return paymentLinkOp(db, arenaId, uid, d, true, deps);
+  case "cancelPaymentLink": return paymentLinkOp(db, arenaId, uid, d, false, deps);
   }
 }
 
@@ -681,5 +725,5 @@ export const getArenaCrmOverview = onCall({region: CLIENT_FACING_REGIONS, memory
 export const getArenaCrmCustomer = onCall({region: CLIENT_FACING_REGIONS}, async (request) =>
   getArenaCrmCustomerCore(getFirestore(), requireUid(request), request.data, new Date()));
 
-export const updateArenaCrm = onCall({region: CLIENT_FACING_REGIONS}, async (request) =>
+export const updateArenaCrm = onCall({region: CLIENT_FACING_REGIONS, secrets: asaasArenaSecrets}, async (request) =>
   updateArenaCrmCore(getFirestore(), requireUid(request), request.data, new Date()));

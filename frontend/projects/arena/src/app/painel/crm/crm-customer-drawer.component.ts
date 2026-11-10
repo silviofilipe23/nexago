@@ -8,7 +8,8 @@ import {
   CHANNEL_LABEL,
   OUTCOMES,
   OUTCOME_LABEL,
-  PAYMENT_METHODS,
+  canChargeOnline,
+  paymentMethodLabel,
   PERIOD_LABEL,
   REMINDER_LABEL,
   STATUS_LABEL,
@@ -69,8 +70,11 @@ interface TimelineEntry {
             <button type="button" class="btn wa lg" [disabled]="!c.whatsapp" (click)="whatsapp(c)"><ar-icon name="message" [size]="14" /> WhatsApp{{ waHint(c) }}</button>
             @if (ui.canWrite()) {
               @if (ownContract(); as v) {
+                @if (canCharge(c) && !v.onlineLink) {
+                  <button type="button" class="btn primary lg" (click)="ui.chargeFor.set(c)">Cobrar online</button>
+                }
                 @if (v.status !== 'canceled' && (v.totalInstallments === null || v.paidInstallments < v.totalInstallments)) {
-                  <button type="button" class="btn primary lg" (click)="ui.paymentFor.set(c)">Registrar pagamento</button>
+                  <button type="button" class="btn lg" [class.primary]="!canCharge(c)" (click)="ui.paymentFor.set(c)">Registrar pagamento</button>
                 }
                 @if (!v.renewedToId && v.status !== 'canceled' && !v.autoRenew) {
                   <button type="button" class="btn lg" (click)="renew(c)">Renovar contrato</button>
@@ -114,6 +118,18 @@ interface TimelineEntry {
                     @for (i of strip(); track i.month) {
                       <div class="ins" [class]="'ins ' + i.state"><b>{{ monthShort(i.month) }}</b><small>{{ stateLabel[i.state] }}</small></div>
                     }
+                  </div>
+                }
+                @if (v.onlineLink; as l) {
+                  <div class="banner">
+                    <div>
+                      <div class="name sm">Link aberto · {{ money(l.amountReais) }}</div>
+                      <div class="sub">{{ l.installments }} {{ l.installments === 1 ? 'parcela' : 'parcelas' }} · gerado {{ dayMonth(l.createdAt.slice(0, 10)) }}{{ l.byName ? ' por ' + l.byName.split(' ')[0] : '' }}</div>
+                    </div>
+                    <div class="row-acts">
+                      <button type="button" class="btn" (click)="copyLink(l.invoiceUrl)">Copiar</button>
+                      @if (ui.canWrite()) { <button type="button" class="btn" [disabled]="busy()" (click)="cancelLink()">Cancelar link</button> }
+                    </div>
                   </div>
                 }
                 <p class="sub">
@@ -235,6 +251,9 @@ interface TimelineEntry {
     .ins.late small { color: var(--nx-live); }
     .ins.open { border-color: rgba(244,197,67,.45); }
     .ins.open small { color: var(--nx-pending); }
+    .ins.link { border-color: rgba(255,106,26,.55); background: rgba(255,106,26,.06); }
+    .ins.link small { color: var(--nx-orange-400); }
+    .banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(255,106,26,.06); border: 1px solid rgba(255,106,26,.35); }
     .chart { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; align-items: end; height: 140px; margin-top: 14px; border-bottom: 1px solid var(--nx-line); }
     .col-bar { display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; height: 100%; }
     .col-bar i { display: block; border-radius: 4px; min-height: 3px; }
@@ -287,7 +306,8 @@ export class CrmCustomerDrawerComponent {
   protected readonly outcomes = OUTCOMES;
   protected readonly channels: CrmContactChannel[] = ['whatsapp', 'call', 'in_person', 'note'];
   protected readonly channelLabel = CHANNEL_LABEL;
-  protected readonly stateLabel = { paid: 'Pago', late: 'Atrasada', open: 'A vencer', future: 'Futura' };
+  protected readonly stateLabel = { paid: 'Pago', late: 'Atrasada', open: 'A vencer', future: 'Futura', link: 'No link' };
+  protected readonly canCharge = canChargeOnline;
   protected readonly money = money;
   protected readonly monthShort = monthShort;
   protected readonly dayMonth = dayMonth;
@@ -336,7 +356,7 @@ export class CrmCustomerDrawerComponent {
       });
     }
     for (const p of d.payments) {
-      const method = PAYMENT_METHODS.find((m) => m.id === p.method)?.label ?? p.method;
+      const method = paymentMethodLabel(p.method);
       out.push({ sort: `${p.paidOn}T23`, at: dayMonth(p.paidOn), who: method, text: `Pagamento de ${p.installments} ${p.installments === 1 ? 'parcela' : 'parcelas'} · ${money(p.amountReais)}`, tone: 'green' });
     }
     for (const r of d.reminders ?? []) {
@@ -430,6 +450,24 @@ export class CrmCustomerDrawerComponent {
       customer: c,
       contractId: v.id,
       prefill: { planId: v.planId, planName: v.planName, period: v.period, dueDay: v.dueDay, timesPerWeek: v.timesPerWeek, monthlyPriceReais: v.monthlyPriceReais, autoRenew: v.autoRenew },
+    });
+  }
+
+  protected async copyLink(url: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(url);
+      this.ui.flash('Link copiado.');
+    } catch {
+      this.ui.flash('Não foi possível copiar.');
+    }
+  }
+
+  protected async cancelLink(): Promise<void> {
+    const v = this.ownContract();
+    if (!v) return;
+    await this.run(async () => {
+      await this.store.cancelPaymentLink(v.id);
+      this.ui.flash('Link cancelado.');
     });
   }
 

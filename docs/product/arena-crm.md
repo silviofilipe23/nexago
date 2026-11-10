@@ -58,6 +58,24 @@ médio mensal e sugere o Plano de horário que cobre esse horário com a frequê
 (economia = gasto médio − preço do plano). A mensagem tem 3 modelos (economia, horário garantido,
 1º mês com desconto) e "Fechou? Criar contrato" abre o contrato preenchido.
 
+## Cobrança online (Pix ou cartão)
+
+"Cobrar online" na ficha ou na fila de inadimplentes gera um link do Asaas (fatura `UNDEFINED`: o
+atleta escolhe Pix ou cartão) para 1 a 12 parcelas em aberto, a partir da próxima não paga.
+
+- Só contrato do CRM com atleta do app: o Asaas exige CPF e o cliente Asaas mora em `users/{uid}`.
+  Sem CPF guardado, o portal pede e ele fica salvo no cadastro do atleta.
+- Arena precisa do pagamento online ligado e da chave Pix de repasse (mesma regra das Aulas e dos Planos).
+- Um link aberto por contrato: `arenaCrmPaymentLinks/{linkId}` (`externalReference`
+  `arenaCrmPayment:{linkId}`), espelho em `contract.onlineLink`. Pedir o mesmo link devolve o aberto;
+  outro número de parcelas apaga o anterior no Asaas.
+- Pago: o webhook dá baixa nas parcelas (`payments` com `method: online`) e credita o caixa da arena
+  com a mesma taxa e as mesmas fases da mensalidade dos Planos (Pix credita no `RECEIVED`; cartão vai
+  para o "a liberar" no `CONFIRMED`). Baixa manual, edição ou cancelamento do contrato apagam o link;
+  se for pago mesmo assim (corrida), estorna.
+- Webhook perdido: o agendador das 9h confere os links abertos no Asaas antes dos lembretes.
+- Os lembretes de cobrança e as mensagens de WhatsApp da fila levam o link quando ele cobre a parcela.
+
 ## Lembretes automáticos
 
 Agendador `sendArenaCrmReminders`, todo dia às 9h (São Paulo). Push no app só para contrato do CRM com
@@ -106,7 +124,8 @@ O formato tem versão (`CACHE_VERSION`): mudou o que vai no cache, sobe a versã
 - `updateArenaCrm({arenaId, op, ...})` — `saveContract`, `cancelContract`, `renewContract`,
   `registerPayment`, `logContact`, `saveSettings` (área `agenda`, escrita).
 
-Rules negam o cliente em `arenaCrmContracts` (e `payments`), `arenaCrmContacts`, `arenaCrmReminders` e `arenaCrmCache` (com `shards`).
+Rules negam o cliente em `arenaCrmContracts` (e `payments`), `arenaCrmContacts`, `arenaCrmReminders`, `arenaCrmPaymentLinks` e `arenaCrmCache` (com `shards`).
 Índices: `arenaCrmContacts (arenaId, at)` e `arenaCrmReminders (arenaId, sentAt)`.
 
-Deploy: índices → functions (3 callables + `sendArenaCrmReminders`) → rules → portal da arena.
+Deploy: índices → functions (3 callables + `sendArenaCrmReminders` + `asaasWebhook`) → rules → portal da arena.
+O `asaasWebhook` roteia vários produtos: só deployar de uma árvore em dia com a main.

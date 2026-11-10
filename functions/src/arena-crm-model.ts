@@ -156,6 +156,19 @@ export interface CrmContractRecord {
   renewedToId: string | null;
   note: string | null;
   createdAt: string | null;
+  /** Link de pagamento online aberto (`arena-crm-billing.ts`). */
+  onlineLink?: CrmOnlineLink | null;
+}
+
+/** Espelho do link aberto no contrato (o portal mostra e a fila e o lembrete mandam junto). */
+export interface CrmOnlineLink {
+  linkId: string;
+  invoiceUrl: string;
+  fromInstallment: number;
+  installments: number;
+  amountReais: number;
+  createdAt: string;
+  byName: string | null;
 }
 
 /** Contrato de qualquer fonte, já com o status do dia. */
@@ -188,6 +201,7 @@ export interface CrmContractView {
   renewedFromId: string | null;
   renewedToId: string | null;
   note: string | null;
+  onlineLink: CrmOnlineLink | null;
 }
 
 export function periodMonths(period: CrmPeriod): number {
@@ -279,6 +293,7 @@ export function contractView(c: CrmContractRecord, today: string): CrmContractVi
     renewedFromId: c.renewedFromId,
     renewedToId: c.renewedToId,
     note: c.note,
+    onlineLink: c.status === "active" ? c.onlineLink ?? null : null,
   };
 }
 
@@ -361,6 +376,7 @@ export function subscriptionView(
     renewedFromId: null,
     renewedToId: null,
     note: null,
+    onlineLink: null,
   };
 }
 

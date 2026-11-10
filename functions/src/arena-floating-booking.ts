@@ -260,6 +260,9 @@ export interface ClaimOptions {
   /** Motivo no histórico da reserva empurrada. */
   reason?: string;
   nowMs?: number;
+  /** `false` quando o fluxo NÃO grava as travas disputadas (bloqueio de quadra): o deslocamento
+   *  apaga as travas antigas da flutuante também nelas. Padrão `true`. */
+  flowWritesTargetLocks?: boolean;
 }
 
 export type ClaimResult =
@@ -364,6 +367,7 @@ export async function claimCourtLocks(
   }
   const nowMs = opts.nowMs ?? Date.now();
   const reason = opts.reason ?? "Quadra ocupada por outra reserva";
+  const keepPaths = opts.flowWritesTargetLocks === false ? new Set<string>() : targetPaths;
   return {
     ok: true,
     relocations,
@@ -371,8 +375,80 @@ export async function claimCourtLocks(
     commit: (writer) => {
       for (const move of relocations) {
         // As travas antigas na quadra disputada serão sobrescritas pelo fluxo: não apagar.
-        writeBookingCourtMove(writer, db, move, {by: SYSTEM_ACTOR, reason, nowMs, skipDeletePaths: targetPaths});
+        writeBookingCourtMove(writer, db, move, {by: SYSTEM_ACTOR, reason, nowMs, skipDeletePaths: keepPaths});
       }
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Bloqueio de quadra do gestor (gravado direto pelo app/portal)
+// ---------------------------------------------------------------------------
+
+/** Dia do slot: `dateKey`/`date` string, ou Timestamp no fuso da arena (app grava Timestamp). */
+function slotDateKey(data: DocumentData): string {
+  const key = str(data["dateKey"]);
+  if (key) return key.slice(0, 10);
+  const raw = data["date"];
+  if (typeof raw === "string") return raw.trim().slice(0, 10);
+  if (raw && typeof raw === "object" && "toDate" in raw) {
+    return (raw as {toDate: () => Date}).toDate().toLocaleDateString("en-CA", {timeZone: "America/Sao_Paulo"});
+  }
+  return "";
+}
+
+/** Bloqueio que deve empurrar flutuante: `blocked`, com quadra e horário, que não é do Modo chuva
+ *  (o Modo chuva trata as reservas da quadra pela regra dele). Puro. */
+export function isManagerCourtBlock(data: DocumentData | undefined): boolean {
+  if (!data) return false;
+  const status = str(data["status"]).toLowerCase();
+  if (status !== "blocked" && status !== "bloqueado") return false;
+  if (data["blockReason"] === "weather" || str(data["weatherEventId"])) return false;
+  return Boolean(str(data["arenaId"]) && str(data["courtId"]) && slotDateKey(data) &&
+    str(data["startTime"]).length >= 4 && str(data["endTime"]).length >= 4);
+}
+
+/**
+ * Bloqueio novo numa quadra: cada reserva flutuante que estava nela no horário vai para outra
+ * quadra livre (uma transação por reserva — uma que não cabe não segura as outras). Reserva comum
+ * fica onde está (o gestor bloqueou por cima dela; é decisão dele). Devolve quem moveu e quem
+ * ficou sem quadra.
+ */
+export async function relocateFloatingFromBlock(
+  db: Firestore,
+  slot: DocumentData,
+  nowMs: number,
+): Promise<{moved: string[]; stuck: string[]}> {
+  const arenaId = str(slot["arenaId"]);
+  const courtId = str(slot["courtId"]);
+  const dateKey = slotDateKey(slot);
+  const lockIds = computeSlotLockIds({
+    arenaId, courtId, dateKey, startTime: str(slot["startTime"]), endTime: str(slot["endTime"]),
+  });
+  const refs = lockIds.map((id) => db.collection(ARENA_SLOT_LOCKS).doc(id));
+  const snaps = refs.length > 0 ? await db.getAll(...refs) : [];
+  const byBooking = new Map<string, DocumentReference[]>();
+  for (const snap of snaps) {
+    if (!snap.exists || !isFloatingLock(snap.data())) continue;
+    const owner = lockOwner(snap);
+    if (!owner) continue;
+    byBooking.set(owner, [...(byBooking.get(owner) ?? []), snap.ref]);
+  }
+
+  const moved: string[] = [];
+  const stuck: string[] = [];
+  for (const [bookingId, lockRefs] of byBooking) {
+    const ok = await db.runTransaction(async (tx) => {
+      const claim = await claimCourtLocks(tx, db, {arenaId, courtId, lockRefs}, {
+        reason: "Quadra bloqueada pela arena",
+        flowWritesTargetLocks: false,
+        nowMs,
+      });
+      if (!claim.ok) return false;
+      claim.commit(tx);
+      return true;
+    });
+    (ok ? moved : stuck).push(bookingId);
+  }
+  return {moved, stuck};
 }

@@ -10,6 +10,7 @@ import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
 import { ARENA_COURT_STATUS_LABEL, type ArenaCourt, type ArenaCourtStatus } from './court.model';
 import { CourtCheckinQrModalComponent } from './court-checkin-qr-modal.component';
+import { BookingAllocationCardComponent } from './booking-allocation-card.component';
 import { fetchCourtsList } from './courts-repository';
 
 const STATUS_TONE: Record<ArenaCourtStatus, PillTone> = { active: 'green', maintenance: 'yellow' };
@@ -33,6 +34,7 @@ function formatBRL(n: number): string {
     IconComponent,
     RouterLink,
     CourtCheckinQrModalComponent,
+    BookingAllocationCardComponent,
   ],
   template: `
     <ar-panel-shell>
@@ -72,6 +74,10 @@ function formatBRL(n: number): string {
               <div class="kpi-value tone-pending">{{ maintenanceCount() }}</div>
             </ar-panel-card>
           </div>
+
+          @if (courts().length > 0) {
+            <ar-booking-allocation-card [courts]="courts()" />
+          }
 
           <div class="grid-wrap">
             <div class="grid">

@@ -105,7 +105,16 @@ export function bookingChannelLabel(channel: string | null): string {
 
             <ar-panel-card title="Horário">
               <div class="row"><span class="label">Data</span><span class="value">{{ booking()!.dateKey }}</span></div>
-              <div class="row"><span class="label">Quadra</span><span class="value">{{ booking()!.courtName }}</span></div>
+              <div class="row">
+                <span class="label">Quadra</span>
+                <span class="value">
+                  @if (resolvedBooking()!.allocationStatus === 'unassigned') {
+                    <ar-pill tone="yellow">A definir</ar-pill> provisória: {{ resolvedBooking()!.courtName }}
+                  } @else {
+                    {{ resolvedBooking()!.courtName }}
+                  }
+                </span>
+              </div>
               @if (booking()!.sportLabel; as sport) {
                 <div class="row"><span class="label">Esporte</span><span class="value">{{ sport }}</span></div>
               }

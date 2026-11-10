@@ -43,6 +43,9 @@ export interface ArenaBooking {
   /** Ocorrência de clubinho / plano de horário: a série manda nas travas, troca de quadra é pela tela dela. */
   clubSessionId: string | null;
   scheduleSubscriptionId: string | null;
+  /** Arena "a arena define a quadra": `unassigned` = quadra provisória, a recepção define na
+   *  chegada. `null` em arena no modo de sempre. */
+  allocationStatus: 'unassigned' | 'assigned' | null;
   amountReais: number | null;
   paymentChannel: string | null;
   paymentStatus: string | null;
@@ -111,6 +114,7 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     sportCode: optionalTrimmed(d['sport']),
     clubSessionId: optionalTrimmed(d['clubSessionId']),
     scheduleSubscriptionId: optionalTrimmed(d['scheduleSubscriptionId']),
+    allocationStatus: d['allocationStatus'] === 'unassigned' ? 'unassigned' : d['allocationStatus'] === 'assigned' ? 'assigned' : null,
     amountReais: typeof amount === 'number' ? amount : null,
     paymentChannel: optionalTrimmed(d['paymentChannel']),
     paymentStatus: optionalTrimmed(d['paymentStatus']),
@@ -168,6 +172,11 @@ export function professorBookingLabel(
     default:
       return 'Professor';
   }
+}
+
+/** Quadra como a equipe vê: a provisória da reserva sem quadra definida vem marcada. */
+export function bookingCourtLabel(booking: Pick<ArenaBooking, 'courtName' | 'allocationStatus'>): string {
+  return booking.allocationStatus === 'unassigned' ? `${booking.courtName} (provisória)` : booking.courtName;
 }
 
 export function enrichCourtName(booking: ArenaBooking, namesByCourtId: ReadonlyMap<string, string>): ArenaBooking {

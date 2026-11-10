@@ -1070,7 +1070,8 @@ service cloud.firestore {
         (isAdmin() || isSuperAdmin() || isArena()) &&
         !request.resource.data.keys().hasAny([
           'planTier', 'planStatus', 'planActiveUntil',
-          'unclaimed', 'contactClicksTotal', 'contactAthletesCount', 'contactLastClickAt'
+          'unclaimed', 'contactClicksTotal', 'contactAthletesCount', 'contactLastClickAt',
+          'bookingAllocation'
         ]);
       // Campos de plano (planTier/planStatus/planActiveUntil) só as Cloud Functions
       // gravam (Admin SDK ignora rules); o gestor não pode se auto-promover.
@@ -1091,6 +1092,9 @@ service cloud.firestore {
           request.resource.data.get('contactClicksTotal', null) == resource.data.get('contactClicksTotal', null) &&
           request.resource.data.get('contactAthletesCount', null) == resource.data.get('contactAthletesCount', null) &&
           request.resource.data.get('contactLastClickAt', null) == resource.data.get('contactLastClickAt', null) &&
+          // "Como o atleta reserva" (reservas por capacidade): só `setArenaBookingAllocation`
+          // grava — valida quadras e preços. Todo save do cliente usa merge e não manda o campo.
+          request.resource.data.get('bookingAllocation', null) == resource.data.get('bookingAllocation', null) &&
           (
             isArenaOwner(arenaId) || (
               request.resource.data.get('payoutPixKey', null) == resource.data.get('payoutPixKey', null) &&

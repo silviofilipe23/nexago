@@ -39,6 +39,7 @@ function makeBooking(overrides: Partial<ArenaBooking> = {}): ArenaBooking {
     sportCode: null,
     clubSessionId: null,
     scheduleSubscriptionId: null,
+    allocationStatus: null,
     amountReais: null,
     paymentChannel: null,
     paymentStatus: null,

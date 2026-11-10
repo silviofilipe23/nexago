@@ -15,6 +15,7 @@ import {
   AUTOPAY_UNAVAILABLE_MESSAGE,
   disableAllScheduleAutopayCore,
   getScheduleAutopayPreviewCore,
+  refreshScheduleAutopayCardCore,
   removeMyPaymentCardCore,
   setScheduleAutopayCore,
 } from "./arena-schedule-autopay";
@@ -187,6 +188,32 @@ describe("setScheduleAutopayCore", () => {
     const gid = ((get(fake, `${CHARGES}/c1`)["asaas"]) as Data)["groupId"] as string;
     assert.equal(get(fake, `${GROUPS}/${gid}`)["state"], "pending");
     assert.deepEqual(get(fake, `${SUBS}/s1`)["autopayAthleteIds"], []);
+  });
+});
+
+describe("refreshScheduleAutopayCardCore", () => {
+  it("atualiza bandeira e final nas assinaturas e mensalidades por debitar, sem tocar em charging", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    seedSub(fake, "s2", {autopayAthleteIds: ["u1"], autopay: {u1: {enabled: true, brand: "VISA", last4: "4242"}}});
+    seedSub(fake, "s3", {autopayAthleteIds: ["u2"], autopay: {u2: {enabled: true, brand: "VISA", last4: "4242"}}});
+    fake.seedDoc(`${SUBS}/s1`, {
+      ...get(fake, `${SUBS}/s1`), autopayAthleteIds: ["u1"], autopay: {u1: {enabled: true, brand: "VISA", last4: "4242"}},
+    });
+    seedCharge(fake, "c1", {autopay: {state: "scheduled", brand: "VISA", last4: "4242"}});
+    seedCharge(fake, "c2", {autopay: {state: "charging", brand: "VISA", last4: "4242"}});
+    const n = await refreshScheduleAutopayCardCore(db, "u1", {brand: "MASTERCARD", last4: "1111"});
+    assert.equal(n, 2);
+    for (const id of ["s1", "s2"]) {
+      const mine = ((get(fake, `${SUBS}/${id}`)["autopay"]) as Data)["u1"] as Data;
+      assert.equal(mine["brand"], "MASTERCARD");
+      assert.equal(mine["last4"], "1111");
+      assert.equal(mine["enabled"], true);
+    }
+    assert.equal((((get(fake, `${SUBS}/s3`)["autopay"]) as Data)["u2"] as Data)["last4"], "4242");
+    assert.equal(autopay(fake, "c1")!["last4"], "1111");
+    assert.equal(autopay(fake, "c1")!["state"], "scheduled");
+    assert.equal(autopay(fake, "c2")!["last4"], "4242");
   });
 });
 

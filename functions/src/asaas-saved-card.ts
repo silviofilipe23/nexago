@@ -367,7 +367,16 @@ export const saveMyPaymentCard = onCall(
   async (request) => {
     const uid = requireUid(request.auth);
     try {
-      return await saveMyPaymentCardCore(getFirestore(), uid, request.data, request.rawRequest?.ip ?? "");
+      const db = getFirestore();
+      const saved = await saveMyPaymentCardCore(db, uid, request.data, request.rawRequest?.ip ?? "");
+      try {
+        // Import tardio: arena-schedule-autopay importa este módulo.
+        const {refreshScheduleAutopayCardCore} = await import("./arena-schedule-autopay.js");
+        await refreshScheduleAutopayCardCore(db, uid, saved);
+      } catch {
+        logger.error("saveMyPaymentCard: falha ao atualizar o cartão nos planos", {uid});
+      }
+      return saved;
     } catch (e) {
       return rethrowSchedule("saveMyPaymentCard", e);
     }

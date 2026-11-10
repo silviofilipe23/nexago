@@ -76,6 +76,34 @@ async function payerOpenChargeIds(db: Firestore, subscriptionId: string, uid: st
   return snap.docs.map((d) => ({id: d.id, data: d.data() as Data}));
 }
 
+/**
+ * "Trocar de cartão = salvar de novo": a bandeira e o final novos valem para todos os planos com
+ * débito ligado do atleta (tela, push D-3 e de pago) e para as mensalidades ainda por debitar.
+ * `charging` e os demais estados não mudam. Devolve quantas assinaturas foram atualizadas.
+ */
+export async function refreshScheduleAutopayCardCore(
+  db: Firestore,
+  uid: string,
+  card: {brand: string; last4: string},
+): Promise<number> {
+  const subs = await db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).where("autopayAthleteIds", "array-contains", uid).get();
+  for (const doc of subs.docs) {
+    await doc.ref.set({
+      autopay: {[uid]: {brand: card.brand, last4: card.last4, updatedAt: FieldValue.serverTimestamp()}},
+    }, {merge: true});
+  }
+  const charges = await db.collection(ARENA_SCHEDULE_CHARGES)
+    .where("payerAthleteId", "==", uid)
+    .where("status", "==", "open")
+    .get();
+  for (const doc of charges.docs) {
+    const state = str(((doc.data() as Data)["autopay"] as Data | undefined)?.["state"]);
+    if (state !== "scheduled" && state !== "retry") continue;
+    await doc.ref.set({autopay: {brand: card.brand, last4: card.last4}}, {merge: true});
+  }
+  return subs.size;
+}
+
 // ---------------------------------------------------------------------------
 // Ligar / desligar
 // ---------------------------------------------------------------------------

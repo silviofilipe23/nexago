@@ -16,6 +16,7 @@ import 'package:nexago_app/features/athlete_billing/presentation/athlete_billing
 import 'package:nexago_app/features/athlete_billing/presentation/widgets/athlete_billing_home_alert.dart';
 import 'package:nexago_app/features/athlete_training/application/athlete_training_providers.dart';
 import 'package:nexago_app/features/athlete_training/domain/training_center.dart';
+import 'package:nexago_app/features/payment_card/application/payment_card_providers.dart';
 import 'package:nexago_app/features/schedule_plans/domain/schedule_plan_models.dart';
 import 'package:nexago_app/features/tournaments/domain/my_tournaments_models.dart';
 import 'package:nexago_app/features/tournaments/domain/my_tournaments_providers.dart';
@@ -50,6 +51,7 @@ Widget _app({
   List<PaidMonth>? history = const [],
   Widget? home,
   String initial = '/',
+  bool cardEnabled = false,
 }) {
   final router = GoRouter(
     initialLocation: initial,
@@ -80,6 +82,8 @@ Widget _app({
       athleteOpenChargesProvider.overrideWith((ref) => open),
       athleteRecurringChargesProvider.overrideWith((ref) => recurring),
       athletePaidHistoryProvider.overrideWith((ref) => history),
+      scheduleCardAutopayEnabledProvider
+          .overrideWith((ref) => Stream.value(cardEnabled)),
     ],
     child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
   );
@@ -87,6 +91,18 @@ Widget _app({
 
 void main() {
   group('AthleteBillingPage', () {
+    testWidgets('tile Cartão salvo some com a flag desligada', (tester) async {
+      await tester.pumpWidget(_app(open: _open));
+      await tester.pumpAndSettle();
+      expect(find.text('Cartão salvo'), findsNothing);
+    });
+
+    testWidgets('tile Cartão salvo aparece com a flag ligada', (tester) async {
+      await tester.pumpWidget(_app(open: _open, cardEnabled: true));
+      await tester.pumpAndSettle();
+      expect(find.text('Cartão salvo'), findsOneWidget);
+    });
+
     testWidgets('Em aberto: resumo, linhas e filtro por tipo', (tester) async {
       await tester.pumpWidget(_app(open: _open));
       await tester.pumpAndSettle();

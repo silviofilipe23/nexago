@@ -38,6 +38,11 @@ export interface ArenaBooking {
   recurringBookingId: string | null;
   /** Bloqueio de quadra de uma aula (módulo Aulas) — id da aula em `arenaClassSessions`. */
   classSessionId: string | null;
+  /** Código do esporte da reserva (`sport`, ex. `beachTennis`) — filtra as quadras na troca de quadra. */
+  sportCode: string | null;
+  /** Ocorrência de clubinho / plano de horário: a série manda nas travas, troca de quadra é pela tela dela. */
+  clubSessionId: string | null;
+  scheduleSubscriptionId: string | null;
   amountReais: number | null;
   paymentChannel: string | null;
   paymentStatus: string | null;
@@ -103,6 +108,9 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     isRecurring: d['isRecurring'] === true || optionalTrimmed(d['recurringBookingId']) != null,
     recurringBookingId: optionalTrimmed(d['recurringBookingId']),
     classSessionId: d['isClassSession'] === true ? optionalTrimmed(d['classSessionId']) ?? doc.id : null,
+    sportCode: optionalTrimmed(d['sport']),
+    clubSessionId: optionalTrimmed(d['clubSessionId']),
+    scheduleSubscriptionId: optionalTrimmed(d['scheduleSubscriptionId']),
     amountReais: typeof amount === 'number' ? amount : null,
     paymentChannel: optionalTrimmed(d['paymentChannel']),
     paymentStatus: optionalTrimmed(d['paymentStatus']),

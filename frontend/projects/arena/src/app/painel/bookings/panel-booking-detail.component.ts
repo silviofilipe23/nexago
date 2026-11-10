@@ -3,7 +3,9 @@ import { Router, RouterLink } from '@angular/router';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
+import { arenaFunctions } from '../data/functions';
 import { fetchCourtsList } from '../courts/courts-repository';
+import type { ArenaCourt } from '../courts/court.model';
 import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -22,6 +24,7 @@ import {
   professorDiscountLabel,
   type ArenaBooking,
 } from './arena-booking.model';
+import { bookingCanChangeCourt, changeBookingCourt, courtChangeOptions } from './booking-court-change';
 import { cancelBookingByManager, checkInBookingByManager, resolveAthleteLabel, restoreBookingByManager, watchBooking } from './bookings-repository';
 
 const ATTENDANCE_TONE: Record<string, PillTone | undefined> = {
@@ -74,6 +77,9 @@ export function bookingChannelLabel(channel: string | null): string {
         } @else {
           @if (errorMessage(); as err) {
             <div class="error-banner">{{ err }}</div>
+          }
+          @if (successMessage(); as ok) {
+            <div class="success-banner">{{ ok }}</div>
           }
           @if (undoSecondsLeft(); as secs) {
             <div class="undo-banner">
@@ -136,6 +142,12 @@ export function bookingChannelLabel(channel: string | null): string {
                     {{ checkingIn() ? 'Registrando…' : 'Fazer check-in' }}
                   </button>
                 }
+                @if (canChangeCourt()) {
+                  <button type="button" class="ar-mini-btn" [disabled]="readOnly()" (click)="openCourtChange()">
+                    <ar-icon name="courts" [size]="14" />
+                    Trocar quadra
+                  </button>
+                }
                 @if (booking()!.classSessionId; as classSessionId) {
                   <a class="ar-mini-btn" [routerLink]="['/painel/aulas/aula', classSessionId]">Abrir aula</a>
                 }
@@ -150,6 +162,55 @@ export function bookingChannelLabel(channel: string | null): string {
           </div>
         }
       </div>
+
+      @if (showCourtChange()) {
+        <ar-modal (close)="closeCourtChange()">
+          <h2 class="confirm-title">Trocar quadra</h2>
+          <p class="confirm-body">
+            A reserva continua a mesma — horário, valor e pagamento. Só a quadra muda@if (booking()!.athleteId) {, e o atleta recebe um aviso}.
+          </p>
+
+          @if (courtOptions().length === 0) {
+            <p class="confirm-body">Nenhuma outra quadra ativa deste esporte.</p>
+          } @else {
+            <div class="field-label">Nova quadra</div>
+            <div class="court-options" role="radiogroup" aria-label="Nova quadra">
+              @for (court of courtOptions(); track court.id) {
+                <label class="court-option" [class.selected]="targetCourtId() === court.id">
+                  <input
+                    type="radio"
+                    name="target-court"
+                    [value]="court.id"
+                    [checked]="targetCourtId() === court.id"
+                    (change)="targetCourtId.set(court.id)"
+                  />
+                  <span>{{ court.name }}</span>
+                </label>
+              }
+            </div>
+          }
+
+          <div class="field-label">Motivo (opcional)</div>
+          <input
+            type="text"
+            class="input-box"
+            placeholder="Ex.: quadra 3 com a rede quebrada"
+            [value]="courtChangeReason()"
+            (input)="courtChangeReason.set($any($event.target).value)"
+          />
+
+          @if (courtChangeError(); as err) {
+            <div class="error-banner modal-error">{{ err }}</div>
+          }
+
+          <div class="confirm-actions">
+            <button type="button" class="ar-ghost-btn" [disabled]="changingCourt()" (click)="closeCourtChange()">Voltar</button>
+            <button type="button" class="ar-mini-btn ar-mini-btn-primary confirm-btn" [disabled]="changingCourt() || !targetCourtId()" (click)="changeCourt()">
+              {{ changingCourt() ? 'Trocando…' : 'Trocar quadra' }}
+            </button>
+          </div>
+        </ar-modal>
+      }
 
       @if (showCancelConfirm()) {
         <ar-modal (close)="showCancelConfirm.set(false)">
@@ -191,6 +252,7 @@ export function bookingChannelLabel(channel: string | null): string {
     }
 
     .error-banner,
+    .success-banner,
     .undo-banner {
       border-radius: var(--nx-r-2);
       padding: 10px 14px;
@@ -201,6 +263,46 @@ export function bookingChannelLabel(channel: string | null): string {
       border: 1px solid var(--nx-live);
       background: rgba(255, 59, 48, 0.08);
       color: var(--nx-live);
+    }
+
+    .success-banner {
+      border: 1px solid var(--nx-success);
+      background: rgba(47, 179, 107, 0.1);
+      color: var(--nx-text);
+    }
+
+    .modal-error {
+      margin-bottom: 16px;
+    }
+
+    .court-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 8px;
+      margin-bottom: 22px;
+    }
+
+    .court-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 12px;
+      border-radius: var(--nx-r-2);
+      border: 1px solid var(--nx-line);
+      background: var(--nx-surface-1);
+      color: var(--nx-text);
+      font-size: 13.5px;
+      cursor: pointer;
+    }
+
+    .court-option.selected {
+      border-color: var(--nx-orange-500);
+    }
+
+    .confirm-btn {
+      height: 44px;
+      padding: 0 20px;
     }
 
     .undo-banner {
@@ -369,7 +471,10 @@ export class PanelBookingDetailComponent {
 
   protected readonly loading = signal(true);
   protected readonly booking = signal<ArenaBooking | null>(null);
-  protected readonly courtNames = signal<ReadonlyMap<string, string>>(new Map());
+  protected readonly courts = signal<readonly ArenaCourt[]>([]);
+  protected readonly courtNames = computed<ReadonlyMap<string, string>>(
+    () => new Map(this.courts().map((c) => [c.id, c.name])),
+  );
   protected readonly athleteLabel = signal<string | null>(null);
 
   protected readonly errorMessage = signal<string | null>(null);
@@ -377,6 +482,13 @@ export class PanelBookingDetailComponent {
   protected readonly canceling = signal(false);
   protected readonly showCancelConfirm = signal(false);
   protected readonly cancelReason = signal('');
+  protected readonly successMessage = signal<string | null>(null);
+
+  protected readonly showCourtChange = signal(false);
+  protected readonly targetCourtId = signal<string | null>(null);
+  protected readonly courtChangeReason = signal('');
+  protected readonly changingCourt = signal(false);
+  protected readonly courtChangeError = signal<string | null>(null);
 
   protected readonly undoDeadlineMs = signal<number | null>(null);
   protected readonly nowTick = signal(Date.now());
@@ -398,6 +510,16 @@ export class PanelBookingDetailComponent {
   protected readonly canCancel = computed(() => {
     const b = this.resolvedBooking();
     return b != null && bookingCanCancel(b) && this.undoDeadlineMs() == null;
+  });
+
+  protected readonly canChangeCourt = computed(() => {
+    const b = this.booking();
+    return b != null && bookingCanChangeCourt(b) && this.undoDeadlineMs() == null;
+  });
+
+  protected readonly courtOptions = computed(() => {
+    const b = this.booking();
+    return b ? courtChangeOptions(b, this.courts()) : [];
   });
 
   protected readonly undoSecondsLeft = computed(() => {
@@ -446,9 +568,7 @@ export class PanelBookingDetailComponent {
       if (!arenaId || !bookingId) return;
 
       const db = arenaFirestore();
-      void fetchCourtsList(db, arenaId).then((courts) => {
-        this.courtNames.set(new Map(courts.map((c) => [c.id, c.name])));
-      });
+      void fetchCourtsList(db, arenaId).then((courts) => this.courts.set(courts));
       this.unsubscribeBooking = watchBooking(db, bookingId, (booking) => {
         this.booking.set(booking);
         this.loading.set(false);
@@ -503,6 +623,44 @@ export class PanelBookingDetailComponent {
       this.errorMessage.set(err instanceof Error ? err.message : 'Não foi possível cancelar a reserva.');
     } finally {
       this.canceling.set(false);
+    }
+  }
+
+  protected openCourtChange(): void {
+    if (this.readOnly()) return;
+    const options = this.courtOptions();
+    this.targetCourtId.set(options.length === 1 ? options[0]!.id : null);
+    this.courtChangeReason.set('');
+    this.courtChangeError.set(null);
+    this.successMessage.set(null);
+    this.showCourtChange.set(true);
+  }
+
+  protected closeCourtChange(): void {
+    if (this.changingCourt()) return;
+    this.showCourtChange.set(false);
+  }
+
+  protected async changeCourt(): Promise<void> {
+    const b = this.booking();
+    const toCourtId = this.targetCourtId();
+    if (!b || !toCourtId || this.readOnly()) return;
+    this.changingCourt.set(true);
+    this.courtChangeError.set(null);
+    try {
+      const result = await changeBookingCourt(arenaFunctions(), {
+        bookingId: b.id,
+        toCourtId,
+        reason: this.courtChangeReason().trim() || null,
+      });
+      this.showCourtChange.set(false);
+      this.successMessage.set(
+        b.athleteId ? `Reserva movida para ${result.courtName}. O atleta foi avisado.` : `Reserva movida para ${result.courtName}.`,
+      );
+    } catch (err) {
+      this.courtChangeError.set(err instanceof Error ? err.message : 'Não foi possível trocar a quadra.');
+    } finally {
+      this.changingCourt.set(false);
     }
   }
 

@@ -1,0 +1,150 @@
+# Reservas por capacidade — a arena define a quadra
+
+Status: **aprovado para construção** (10/11/2026). Entrega em 6 PRs (seção 9).
+
+## 1. Problema
+
+Arenas grandes (o caso de referência tem 15 quadras) não querem que o atleta escolha a quadra.
+O atleta reserva **um horário**; a recepção direciona cada grupo para uma quadra na chegada.
+
+Hoje tudo no motor de reservas é por quadra: a trava contra reserva dupla
+(`arenaSlotLocks/{arena}_{quadra}_{data}_hXX`), o preço (documento da quadra), a grade do app,
+a liberação do horário no cancelamento, e os fluxos de reserva manual, recorrente, aula, plano de
+horário, clubinho, chuva, lista de espera e webhook de pagamento.
+
+## 2. Decisão: as quadras são as vagas
+
+Não existe contador de capacidade separado e o `courtId` da reserva **nunca fica nulo**.
+
+- Para o atleta, a reserva não tem quadra: "a equipe define na chegada".
+- Por dentro, a reserva segura uma **quadra provisória** com as travas que já existem, marcada
+  como deslocável (`floating`).
+- Capacidade disponível = quadras livres do esporte naquele horário, calculada a partir das
+  travas. Não há número guardado que possa divergir das travas.
+
+### Por que não um contador (`availability/{slotId}`)
+
+- Aula, plano, clubinho e reserva manual continuam ocupando quadra específica. Com contador, todo
+  fluxo teria que atualizar o contador **e** a trava; o primeiro que esquecer gera reserva dupla.
+- `courtId: null` quebra quem lê a quadra da reserva (74 pontos). Ex.: a liberação do horário no
+  cancelamento devolve vazio sem `courtId`, e a vaga nunca voltaria.
+- Pagamento pendente, prazo do Pix, sweeper de vaga vencida e webhooks idempotentes já existem por
+  quadra; com quadra provisória, continuam valendo sem mudança.
+
+## 3. Configuração por arena
+
+A arena escolhe no portal, página **Quadras**, card **"Como o atleta reserva"**:
+
+- **O atleta escolhe a quadra** — padrão, comportamento de hoje.
+- **A arena define a quadra** — o atleta reserva o horário; a recepção direciona.
+
+Opções do modo "arena define":
+
+| Opção | Padrão |
+|---|---|
+| Quadras que entram na distribuição | todas as ativas |
+| Preço do horário por esporte | obrigatório |
+| Mostrar a quadra ao atleta quando a recepção definir antes da chegada | não |
+| O atleta pode escolher a quadra, se quiser (modo misto) | desligado |
+
+Permissão: área `quadras` do RBAC da equipe da arena.
+
+Gravação: campo no documento da arena, só por callable (valida, registra quem e quando):
+
+```ts
+bookingAllocation?: {
+  mode: "court" | "capacity";       // ausente = "court"
+  courtIds: string[];               // quadras da distribuição
+  priceBySport: Record<string, number>;
+  revealBeforeArrival: boolean;
+  allowCourtChoice: boolean;
+  updatedAt: Timestamp;
+  updatedBy: string;
+}
+```
+
+O campo fica bloqueado para escrita do cliente nas rules, e o save do perfil não pode enviá-lo
+(campo congelado derruba o save inteiro). Cotação e criação leem o modo no servidor.
+
+### Trocar de modo
+
+Vale só para reservas **novas**; não há migração.
+
+- "atleta escolhe" → "arena define": reservas existentes já têm quadra escolhida e ficam como estão.
+- "arena define" → "atleta escolhe": as flutuantes continuam flutuantes até acontecerem; a recepção
+  continua vendo a lista "sem quadra".
+- O portal avisa antes: "Há N reservas futuras sem quadra definida; elas continuam assim."
+
+### App antigo
+
+Versões na loja não conhecem o modo. Numa arena "arena define", o servidor recusa reserva de
+cliente que não declara suporte ao modo capacidade ("Atualize o app para reservar nesta arena").
+Depois da versão na loja, subir o `minBuildNumber` (`docs/forced-app-update.md`).
+
+## 4. Dados (só acréscimos)
+
+Reserva (`arenaBookings`):
+
+```ts
+allocationStatus?: "unassigned" | "assigned"; // ausente = "assigned" (legado)
+allocationSource?: "auto" | "staff" | "qr";
+allocatedAt?: Timestamp;
+allocatedBy?: string;
+courtHistory?: Array<{fromCourtId, toCourtId, by, at, reason}>; // trocas de quadra
+```
+
+Trava (`arenaSlotLocks`): `floating: true` enquanto a reserva estiver `unassigned`.
+
+## 5. Motor
+
+1. **Trocar a quadra de uma reserva** (callable do gestor, PR 1). Move travas e `arenaSlots` numa
+   transação. Se a quadra de destino está com uma reserva flutuante, as duas trocam de lugar.
+   Vale nos dois modos.
+2. **Ocupar quadra com deslocamento** (PR 2). Helper único para todo fluxo que reserva quadra
+   específica (manual, aula, plano, clubinho, recorrente, bloqueio do gestor, chuva): se a trava é
+   flutuante, move essa reserva para outra quadra livre do mesmo esporte; se não houver, recusa.
+   É isso que dá a regra de integridade da manutenção ("não reduzir abaixo das reservas").
+3. **Criação no modo capacidade** (PR 3). Lê as travas das horas pedidas em todas as quadras da
+   distribuição pelos IDs exatos (15 quadras × 2 h = 30 leituras; nunca uma query do dia inteiro,
+   que faria toda reserva do dia disputar a mesma transação). Escolhe a quadra que deixa menos
+   buraco na grade (encostada numa reserva vizinha; mesma quadra da hora anterior do atleta).
+4. **Congelamento.** Reserva `assigned` não é mais deslocável.
+
+## 6. Alocação na chegada
+
+- Recepção atribui pelo painel (`allocationSource: "staff"`), ou
+- o atleta lê o **QR da quadra** para onde foi mandado (`arena-court-checkin-qr.ts`, já existe
+  para aulas): a reserva vira `assigned` naquela quadra e a presença é marcada (`"qr"`).
+- Sem ação nenhuma, vale a quadra provisória.
+
+## 7. Telas
+
+- **App:** grade só com horários disponíveis; confirmação "quadra definida na chegada"; push
+  quando a quadra for atribuída; botão de ler o QR na reserva.
+- **Painel da arena:** visão por horário (reservas, capacidade, vagas, ocupação); lista do horário
+  com ações (atribuir quadra, chegou, no-show); quadro das quadras com arrastar e
+  "Confirmar todas".
+- **Relatórios:** ocupação e receita por horário sempre; por quadra só das reservas `assigned`.
+
+## 8. Fora do escopo
+
+- Blocos de 15 minutos (as travas são por hora).
+- Vaga por jogador (é o clubinho).
+- Coleção `availability` e novos status de reserva.
+
+## 9. Entrega
+
+1. **Trocar a quadra da reserva** + botão no painel. Útil sozinho, nos dois modos.
+2. **Helper de deslocamento nos fluxos de quadra específica.** Sem mudança de comportamento (ainda
+   não há flutuante). Testes de fiação por fluxo, não só da função pura.
+3. **Modo capacidade na cotação e na criação** + card de configuração + recusa de app antigo.
+   Ligado primeiro numa arena do DEV.
+4. **App:** grade por horário, confirmação, push, QR.
+5. **Painel:** visão por horário, check-in, quadro de alocação.
+6. **Relatórios.**
+
+## 10. Para confirmar com a arena
+
+- O preço do horário é o mesmo para todas as quadras?
+- As 15 quadras são todas do mesmo esporte?
+- Se a recepção definir antes, o atleta pode ver a quadra, ou só na chegada?

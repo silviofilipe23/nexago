@@ -8,6 +8,7 @@ import {
   quoteArenaManualBooking,
   createArenaManualBooking,
 } from "./arena-manual-booking";
+import {changeArenaBookingCourt} from "./arena-booking-court-change";
 import {
   cancelPendingArenaBookingPayment,
   createArenaBookingCardPayment,
@@ -499,6 +500,7 @@ export {
   createArenaBooking,
   quoteArenaManualBooking,
   createArenaManualBooking,
+  changeArenaBookingCourt,
   cancelPendingArenaBookingPayment,
   createArenaBookingCardPayment,
   createArenaBookingPixPayment,

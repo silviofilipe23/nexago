@@ -9,6 +9,8 @@ import {
   createArenaManualBooking,
 } from "./arena-manual-booking";
 import {changeArenaBookingCourt} from "./arena-booking-court-change";
+import {setArenaBookingAllocation} from "./arena-booking-allocation";
+import {onArenaCourtBlockedRelocateFloating} from "./arena-court-block-floating";
 import {
   cancelPendingArenaBookingPayment,
   createArenaBookingCardPayment,
@@ -501,6 +503,8 @@ export {
   quoteArenaManualBooking,
   createArenaManualBooking,
   changeArenaBookingCourt,
+  setArenaBookingAllocation,
+  onArenaCourtBlockedRelocateFloating,
   cancelPendingArenaBookingPayment,
   createArenaBookingCardPayment,
   createArenaBookingPixPayment,

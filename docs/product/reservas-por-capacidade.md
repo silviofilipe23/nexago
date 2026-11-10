@@ -155,6 +155,16 @@ Trava (`arenaSlotLocks`): `floating: true` enquanto a reserva estiver `unassigne
   Ficam para o PR 3: bloqueio de quadra feito pelo app/portal direto no Firestore (`arenaSlots`
   `blocked`, sem function no meio) e bloqueio do Modo chuva — os dois ainda não empurram flutuante.
   Grade e lista de espera do atleta (`isSlotFullyBooked`) entram no PR 4.
+- **PR 3**: `setArenaBookingAllocation` + card "Como o atleta reserva" na tela Quadras (rules
+  congelam `bookingAllocation`). `quoteArenaBooking`/`createArenaBooking` aceitam
+  `allocation: "capacity"` sem `courtId`: ranqueiam as quadras da distribuição (encostada numa
+  reserva primeiro), a transação pega a 1ª livre, preço = `priceBySport` do esporte, reserva
+  `unassigned`/`auto` e travas `floating: true`. Cliente sem `allocation` numa arena capacidade
+  recebe "Atualize o app" (modo misto aceita quadra escolhida). Bloqueio gravado pelo app/portal
+  (`onArenaCourtBlockedRelocateFloating`) empurra as flutuantes; sem quadra livre ficam e o log
+  avisa. **Modo chuva fica como está**: a flutuante numa quadra afetada segue a regra da chuva
+  (crédito/remarcação), como qualquer reserva daquela quadra. Painel mostra "A definir ·
+  provisória" no detalhe e "(provisória)" na lista.
 
 ## 10. Para confirmar com a arena
 

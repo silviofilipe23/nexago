@@ -5,6 +5,8 @@ import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
 import {
   claimCourtLocks,
   floatingCandidateCourts,
+  isManagerCourtBlock,
+  relocateFloatingFromBlock,
   SYSTEM_ACTOR,
   type TxReader,
   type TxWriter,
@@ -280,5 +282,45 @@ describe("troca de quadra pelo gestor com reserva flutuante", () => {
     seedBooking(fake, "a", {courtId: "c1"});
     await move(fake, "a", "c2");
     assert.equal(fake.store.get("arenaBookings/a")?.["allocationStatus"], undefined);
+  });
+});
+
+describe("bloqueio de quadra empurra reserva flutuante", () => {
+  it("isManagerCourtBlock: só bloqueio do gestor, com quadra e horário", () => {
+    const base = {arenaId: ARENA, courtId: "c1", date: DATE, startTime: "18:00", endTime: "19:00", status: "blocked"};
+    assert.equal(isManagerCourtBlock(base), true);
+    assert.equal(isManagerCourtBlock({...base, status: "booked"}), false);
+    assert.equal(isManagerCourtBlock({...base, blockReason: "weather", weatherEventId: "ev1"}), false);
+    assert.equal(isManagerCourtBlock({...base, courtId: ""}), false);
+  });
+
+  it("flutuante sai da quadra bloqueada; reserva comum fica; sem quadra livre, fica e avisa", async () => {
+    const fake = seedArena(2);
+    seedBooking(fake, "flo", {courtId: "c1", startTime: "18:00", endTime: "20:00", floating: true});
+    seedBooking(fake, "fixed", {courtId: "c1", startTime: "20:00", endTime: "21:00"});
+    const block = {arenaId: ARENA, courtId: "c1", date: DATE, startTime: "18:00", endTime: "21:00", status: "blocked"};
+
+    const result = await relocateFloatingFromBlock(db(fake), block, NOW);
+    assert.deepEqual(result, {moved: ["flo"], stuck: []});
+    assert.equal(fake.store.get("arenaBookings/flo")?.["courtId"], "c2");
+    // As travas antigas da flutuante saíram da quadra bloqueada (o bloqueio não grava trava).
+    for (const id of lockIds("c1", "18:00", "20:00")) assert.equal(fake.store.has(`arenaSlotLocks/${id}`), false);
+    for (const id of lockIds("c2", "18:00", "20:00")) assert.equal(fake.store.get(`arenaSlotLocks/${id}`)?.["bookingId"], "flo");
+    assert.equal(fake.store.get(`arenaSlotLocks/${lockIds("c1", "20:00", "21:00")[0]}`)?.["bookingId"], "fixed");
+
+    seedBooking(fake, "flo2", {courtId: "c1", startTime: "18:00", endTime: "19:00", floating: true});
+    const again = await relocateFloatingFromBlock(db(fake), block, NOW);
+    assert.deepEqual(again, {moved: [], stuck: ["flo2"]});
+    assert.equal(fake.store.get("arenaBookings/flo2")?.["courtId"], "c1");
+  });
+
+  it("bloqueio com data em Timestamp (app) usa o dia da arena", async () => {
+    const fake = seedArena(2);
+    seedBooking(fake, "flo", {courtId: "c1", floating: true});
+    const date = {toDate: () => new Date("2026-08-05T03:00:00Z")};
+    const result = await relocateFloatingFromBlock(db(fake), {
+      arenaId: ARENA, courtId: "c1", date, startTime: "18:00", endTime: "19:00", status: "blocked",
+    }, NOW);
+    assert.deepEqual(result.moved, ["flo"]);
   });
 });

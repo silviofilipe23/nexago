@@ -9,6 +9,7 @@ import { PillComponent, type PillTone } from '../ui/pill.component';
 import {
   BOOKING_VIEW_MODE_LABEL,
   attendanceLabel,
+  bookingCourtLabel,
   bookingIsActive,
   bookingStatusLabel,
   displayBookingCode,
@@ -114,7 +115,7 @@ function tomorrowKey(): string {
                     </div>
                     <div class="cell-slot">
                       <span class="col-label">Quadra / horário</span>
-                      {{ b.courtName }}@if (b.sportLabel; as sport) { · {{ sport }} } · {{ b.startTime }}–{{ b.endTime }}
+                      {{ courtLabel(b) }}@if (b.sportLabel; as sport) { · {{ sport }} } · {{ b.startTime }}–{{ b.endTime }}
                     </div>
                     <div class="cell-amount right">
                       <span class="col-label">Valor</span>
@@ -149,7 +150,7 @@ function tomorrowKey(): string {
                       </div>
                       <div class="cell-slot">
                         <span class="col-label">Quadra / horário</span>
-                        {{ b.courtName }}@if (b.sportLabel; as sport) { · {{ sport }} } · {{ b.startTime }}–{{ b.endTime }}
+                        {{ courtLabel(b) }}@if (b.sportLabel; as sport) { · {{ sport }} } · {{ b.startTime }}–{{ b.endTime }}
                       </div>
                       <div class="cell-amount right">
                         <span class="col-label">Valor</span>
@@ -394,6 +395,7 @@ export class PanelBookingsComponent {
   protected readonly modeLabel = BOOKING_VIEW_MODE_LABEL;
   protected readonly attendanceTone = ATTENDANCE_TONE;
   protected readonly formatBRL = formatBRL;
+  protected readonly courtLabel = bookingCourtLabel;
   protected readonly attendanceLabel = attendanceLabel;
   protected readonly statusLabel = bookingStatusLabel;
   protected readonly bookingIsActive = bookingIsActive;

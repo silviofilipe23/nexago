@@ -26,8 +26,17 @@ import {
   type CouponPricingOutcome,
 } from "./arena-coupons";
 import {ensurePeakRuleSatisfied, parsePeakRulesFromDocs} from "./arena-peak-rules";
-import {resolveBookingSport} from "./arena-booking-sport";
+import {bookingSportCode, resolveBookingSport} from "./arena-booking-sport";
 import {claimCourtLocks} from "./arena-floating-booking";
+import {
+  CAPACITY_FULL_MESSAGE,
+  rankCapacityCourts,
+  readBookingAllocation,
+  resolveAllocationRequest,
+  takeFirstFreeCourt,
+  withCapacityPrice,
+  type CapacityCourt,
+} from "./arena-booking-allocation";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {professorCourtDiscountForQuote, resolveProfessorBooking} from "./arena-professor-permissions";
 import {applyProfessorCourtDiscount, type ProfessorCourtDiscountOutcome} from "./arena-professor-court-discount";
@@ -80,6 +89,12 @@ interface BookingInput {
    * Apps antigos não enviam: nada muda para eles.
    */
   useWeatherCredit?: boolean;
+  /**
+   * `"capacity"`: o cliente sabe reservar sem quadra (arena "a arena define a quadra"). Sem
+   * `courtId`, a reserva nasce flutuante. Apps antigos não mandam — numa arena nesse modo
+   * recebem "Atualize o app" (salvo modo misto com quadra escolhida).
+   */
+  allocation?: "capacity";
 }
 
 function parseDateKey(dateRaw: string): string {
@@ -167,21 +182,65 @@ async function ensureNotBlocked(arenaId: string, athleteId: string): Promise<voi
   );
 }
 
+interface ResolvedBookingCourt {
+  /** Quadra da cotação/validações: a escolhida ou, na flutuante, a 1ª candidata. */
+  courtId: string;
+  courtName: string;
+  floating: boolean;
+  /** Candidatas em ordem (só na flutuante) — a transação pega a primeira ainda livre. */
+  capacityCourts: CapacityCourt[];
+  allocation: ReturnType<typeof readBookingAllocation>;
+}
+
+/**
+ * Modo da arena + o que o cliente pediu → quadra da reserva. Na arena "a arena define a quadra"
+ * sem quadra pedida, ranqueia as candidatas da distribuição (lotou → erro).
+ */
+async function resolveBookingCourt(
+  input: BookingInput,
+  params: {arenaId: string; dateKey: string; startTime: string; endTime: string},
+): Promise<ResolvedBookingCourt> {
+  const db = getFirestore();
+  const arenaSnap = await db.collection("arenas").doc(params.arenaId).get();
+  const allocation = readBookingAllocation(arenaSnap.data());
+  const request = resolveAllocationRequest(allocation, input);
+  if (request.kind === "court") {
+    const courtId = input.courtId?.trim() ?? "";
+    if (!courtId) throw new HttpsError("invalid-argument", "Dados da reserva inválidos.");
+    return {courtId, courtName: input.courtName?.trim() || "Quadra", floating: false, capacityCourts: [], allocation};
+  }
+  const sport = bookingSportCode(input.sport);
+  if (!sport) throw new HttpsError("invalid-argument", "Escolha o esporte da reserva.");
+  const capacityCourts = await rankCapacityCourts(db, {...params, arenaData: arenaSnap.data(), sport});
+  if (capacityCourts.length === 0) throw new HttpsError("resource-exhausted", CAPACITY_FULL_MESSAGE);
+  return {
+    courtId: capacityCourts[0]!.id,
+    courtName: capacityCourts[0]!.name,
+    floating: true,
+    capacityCourts,
+    allocation,
+  };
+}
+
 async function quoteInternal(
   input: BookingInput,
   athleteId: string,
 ): Promise<BookingTotalResult & CouponPricingOutcome & ProfessorCourtDiscountOutcome> {
   const arenaId = input.arenaId?.trim();
-  const courtId = input.courtId?.trim();
   const dateKey = parseDateKey(input.date ?? "");
   const startTime = input.startTime?.trim() ?? "";
   const endTime = input.endTime?.trim() ?? "";
 
-  if (!arenaId || !courtId || !dateKey || startTime.length < 4 || endTime.length < 4) {
+  if (!arenaId || !dateKey || startTime.length < 4 || endTime.length < 4) {
     throw new HttpsError("invalid-argument", "Dados da reserva inválidos.");
   }
 
+  const resolved = await resolveBookingCourt(input, {arenaId, dateKey, startTime, endTime});
+  const courtId = resolved.courtId;
   const ctx = await loadPricingContext(arenaId, courtId);
+  if (resolved.floating) {
+    ctx.courtData = withCapacityPrice(ctx.courtData, resolved.allocation, bookingSportCode(input.sport)) ?? {};
+  }
   const promoTotal = calculateBookingTotal({
     arenaId,
     courtId,
@@ -337,19 +396,22 @@ export const createArenaBooking = onCall({
 
   const input = (request.data ?? {}) as BookingInput;
   const arenaId = input.arenaId?.trim();
-  const courtId = input.courtId?.trim();
   const arenaName = (input.arenaName?.trim() || "Arena");
-  const courtName = (input.courtName?.trim() || "Quadra");
   const dateKey = parseDateKey(input.date ?? "");
   const startTime = input.startTime?.trim() ?? "";
   const endTime = input.endTime?.trim() ?? "";
 
-  if (!arenaId || !courtId || !dateKey || startTime.length < 4 || endTime.length < 4) {
+  if (!arenaId || !dateKey || startTime.length < 4 || endTime.length < 4) {
     throw new HttpsError("invalid-argument", "Dados da reserva inválidos.");
   }
   if (dateKey < dayKeyFromEventDate(new Date())) {
     throw new HttpsError("invalid-argument", "Não dá pra reservar em data passada.");
   }
+  // Arena "a arena define a quadra": sem quadra pedida, a reserva nasce flutuante numa quadra
+  // provisória (a transação pega a 1ª candidata ainda livre).
+  const resolved = await resolveBookingCourt(input, {arenaId, dateKey, startTime, endTime});
+  let courtId = resolved.courtId;
+  let courtName = resolved.courtName;
 
   await ensureNotBlocked(arenaId, athleteId);
   // Bloqueio de quadra do gestor (`arenaSlots` com status blocked): a grade já
@@ -378,6 +440,9 @@ export const createArenaBooking = onCall({
   );
 
   const ctx = await loadPricingContext(arenaId, courtId);
+  if (resolved.floating) {
+    ctx.courtData = withCapacityPrice(ctx.courtData, resolved.allocation, bookingSportCode(input.sport)) ?? {};
+  }
   const sport = resolveBookingSport(input.sport, ctx.courtData);
   const paymentFlags = readArenaPaymentFlags(ctx.arenaData);
   const paymentMode: PaymentMode =
@@ -500,7 +565,7 @@ export const createArenaBooking = onCall({
 
   const safeArena = safeIdPart(arenaId);
   const safeCourt = safeIdPart(courtId);
-  const lockRefs = hours.map((h) =>
+  let lockRefs = hours.map((h) =>
     db
       .collection(ARENA_SLOT_LOCKS)
       .doc(`${safeArena}_${safeCourt}_${dateKey}_h${h.toString().padStart(2, "0")}`),
@@ -518,16 +583,28 @@ export const createArenaBooking = onCall({
 
   try {
     await db.runTransaction(async (transaction) => {
-      // Trava de reserva flutuante (modo "arena define a quadra") é empurrada para outra quadra.
-      const claim = await claimCourtLocks(transaction, db, {arenaId, courtId, lockRefs}, {
-        ownBookingId: bookingId,
-        reason: "Quadra reservada por um atleta",
-      });
-      if (!claim.ok) {
-        throw new HttpsError(
-          "already-exists",
-          "Esse horário acabou de ser reservado. Escolha outro.",
-        );
+      // Flutuante: a 1ª quadra candidata ainda livre vira a provisória.
+      let claim: Awaited<ReturnType<typeof claimCourtLocks>> | null = null;
+      if (resolved.floating) {
+        const picked = await takeFirstFreeCourt(transaction, db, resolved.capacityCourts, {
+          arenaId, dateKey, startTime, endTime,
+        });
+        if (!picked) throw new HttpsError("resource-exhausted", CAPACITY_FULL_MESSAGE);
+        courtId = picked.court.id;
+        courtName = picked.court.name;
+        lockRefs = picked.lockRefs;
+      } else {
+        // Trava de reserva flutuante (modo "arena define a quadra") é empurrada para outra quadra.
+        claim = await claimCourtLocks(transaction, db, {arenaId, courtId, lockRefs}, {
+          ownBookingId: bookingId,
+          reason: "Quadra reservada por um atleta",
+        });
+        if (!claim.ok) {
+          throw new HttpsError(
+            "already-exists",
+            "Esse horário acabou de ser reservado. Escolha outro.",
+          );
+        }
       }
 
       // Revalida vigência/limites do cupom com dados frescos (mesma fase de
@@ -599,6 +676,11 @@ export const createArenaBooking = onCall({
             : null,
         ...(weatherCreditReais > 0 ? {weatherCreditReais, weatherCreditUses} : {}),
         source: "platform",
+        // Arena "a arena define a quadra": a flutuante espera a recepção; a escolhida pelo atleta
+        // (modo misto) já nasce definida. Arena no modo de sempre não ganha os campos.
+        ...(resolved.floating ?
+          {allocationStatus: "unassigned", allocationSource: "auto"} :
+          resolved.allocation.mode === "capacity" ? {allocationStatus: "assigned", allocationSource: "athlete"} : {}),
         ...(professorStamp ?? {}),
         appliedPromotionIds: total.appliedPromotionIds,
         couponId: couponOutcome.couponId,
@@ -617,7 +699,7 @@ export const createArenaBooking = onCall({
 
       commitCouponRedemption?.();
       commitWeatherCredit?.();
-      claim.commit(transaction);
+      if (claim?.ok) claim.commit(transaction);
 
       // Cópia do total fora do alcance dos clientes: é dela que o PIX, a
       // divisão em fatias e o webhook partem (ver arena-booking-pricing.ts).
@@ -654,6 +736,7 @@ export const createArenaBooking = onCall({
           endTime: fmtHourEnd(h),
           bookingId,
           bookingAthleteId: athleteId,
+          ...(resolved.floating ? {floating: true} : {}),
           createdAt: FieldValue.serverTimestamp(),
         });
       }
@@ -696,5 +779,7 @@ export const createArenaBooking = onCall({
     professorDiscountPercent: professorDiscount.professorDiscountPercent,
     professorDiscountReais: professorDiscount.professorDiscountReais,
     bookedAs: professorStamp?.bookedAs ?? "athlete",
+    /** `unassigned`: a quadra é definida pela recepção (não mostrar a provisória ao atleta). */
+    allocationStatus: resolved.floating ? "unassigned" : "assigned",
   };
 });

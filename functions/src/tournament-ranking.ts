@@ -81,14 +81,17 @@ export const RANKING_SCALE_VERSION = 2;
 export const MIN_TEAMS_FOR_GLOBAL_RANKING = 10;
 
 /**
- * Esportes que já pontuavam no ranking geral (códigos de `profileCode` do catálogo). O ranking
- * ainda não tem `sport` (fase 3 do spec multiesporte): um esporte novo misturaria os pontos com
- * os do vôlei, então fica fora até lá. `null` = esporte não reconhecido, que sempre pontuou.
+ * Esportes que alimentam o ranking LEGADO (somado, lido pelo app da loja) — códigos de
+ * `profileCode` do catálogo. Desde a fase 3a do multiesporte todo esporte reconhecido pontua no
+ * seu ranking por esporte (`athleteRankingsBySport`); os de fora desta lista (hoje: beach tennis)
+ * só não entram no legado, onde misturariam os pontos com os do vôlei (`feedsLegacyRanking`).
+ * `null` = esporte não reconhecido, que sempre alimentou o legado.
  */
 export const GLOBAL_RANKING_SPORT_CODES: ReadonlySet<string> = new Set(["VOLEI_PRAIA", "VOLEI_QUADRA", "FUTEVOLEI"]);
 
-/** Etapa de liga é isenta; torneio avulso exige toggle ligado e categoria cheia. Esporte que
- *  nunca pontuou (hoje: beach tennis) fica fora em qualquer caso, até a fase 3. */
+/** Etapa de liga é isenta; torneio avulso exige toggle ligado e categoria cheia. `sportCode` é
+ *  resquício de antes da fase 3a: a premiação não o passa mais (o esporte decide em qual doc o
+ *  ponto cai, não se pontua). Se passado, barra quem não alimenta o legado. */
 export function isGlobalRankingEligible(params: {
   isLeagueStage: boolean;
   rankingEnabled: boolean;

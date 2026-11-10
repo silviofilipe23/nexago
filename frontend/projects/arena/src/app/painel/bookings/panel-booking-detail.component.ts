@@ -135,6 +135,13 @@ export function bookingChannelLabel(channel: string | null): string {
                   <span class="value">{{ discount }}@if (booking()!.professorDiscountReais; as reais) { (-{{ formatBRL(reais) }})}</span>
                 </div>
               }
+              @if (booking()!.athletePricingLabel; as tierLabel) {
+                <!-- Preço por perfil (aluno/professor validado pela arena): não acumula com promoção e cupom. -->
+                <div class="row">
+                  <span class="label">Preço por perfil</span>
+                  <span class="value">{{ tierLabel }}@if (booking()!.athletePricingDiscountReais; as reais) { (-{{ formatBRL(reais) }})}</span>
+                </div>
+              }
               @if (booking()!.couponCode; as code) {
                 <div class="row"><span class="label">Cupom</span><span class="value">{{ code }} (-{{ formatBRL(booking()!.couponDiscountReais) }})</span></div>
               }

@@ -40,6 +40,13 @@ import {
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {professorCourtDiscountForQuote, resolveProfessorBooking} from "./arena-professor-permissions";
 import {applyProfessorCourtDiscount, type ProfessorCourtDiscountOutcome} from "./arena-professor-court-discount";
+import {
+  applyAthletePricing,
+  loadAthletePricingRule,
+  NO_ATHLETE_PRICING,
+  type AthletePricingOutcome,
+  type AthletePricingRule,
+} from "./arena-athlete-pricing";
 import {reserveWeatherCreditInTransaction, weatherCreditSummary} from "./arena-weather-credits";
 import {weatherCreditToApply, type WeatherCreditUse} from "./arena-weather-model";
 import {hasBlockedSlotOverlap} from "./arena-recurring-booking";
@@ -130,6 +137,27 @@ function fmtHourEnd(h: number): string {
 
 function safeIdPart(s: string): string {
   return s.replace(/\//g, "_");
+}
+
+/**
+ * Promoção + cupom → preço do perfil do atleta (aluno/professor da arena) → desconto do vínculo de
+ * professor. Nada acumula: cada etapa só troca o preço quando deixa a reserva mais barata, e o
+ * desconto do vínculo, quando vence, desfaz o do perfil.
+ */
+export function applyAthleteDiscounts(
+  withCoupon: {result: BookingTotalResult; coupon: CouponPricingOutcome},
+  athleteRule: AthletePricingRule | null,
+  professorRule: Parameters<typeof applyProfessorCourtDiscount>[1],
+): {
+  result: BookingTotalResult;
+  coupon: CouponPricingOutcome;
+  professor: ProfessorCourtDiscountOutcome;
+  athletePricing: AthletePricingOutcome;
+} {
+  const tiered = applyAthletePricing(withCoupon, athleteRule);
+  const {result, coupon, professor} = applyProfessorCourtDiscount(tiered, professorRule);
+  const athletePricing = professor.professorDiscountPercent > 0 ? NO_ATHLETE_PRICING : tiered.athletePricing;
+  return {result, coupon, professor, athletePricing};
 }
 
 export async function loadPricingContext(arenaId: string, courtId: string) {
@@ -225,7 +253,7 @@ async function resolveBookingCourt(
 async function quoteInternal(
   input: BookingInput,
   athleteId: string,
-): Promise<BookingTotalResult & CouponPricingOutcome & ProfessorCourtDiscountOutcome> {
+): Promise<BookingTotalResult & CouponPricingOutcome & ProfessorCourtDiscountOutcome & AthletePricingOutcome> {
   const arenaId = input.arenaId?.trim();
   const dateKey = parseDateKey(input.date ?? "");
   const startTime = input.startTime?.trim() ?? "";
@@ -277,8 +305,9 @@ async function quoteInternal(
     athleteId,
     input.asProfessor,
   );
-  const {result, coupon, professor} = applyProfessorCourtDiscount(withCoupon, discount);
-  return {...result, ...coupon, ...professor};
+  const athleteRule = await loadAthletePricingRule(getFirestore(), arenaId, ctx.arenaData, athleteId);
+  const {result, coupon, professor, athletePricing} = applyAthleteDiscounts(withCoupon, athleteRule, discount);
+  return {...result, ...coupon, ...professor, ...athletePricing};
 }
 
 export interface BookingPaymentPlan {
@@ -383,6 +412,9 @@ export const quoteArenaBooking = onCall({
     couponDiscountReais: total.couponDiscountReais,
     professorDiscountPercent: total.professorDiscountPercent,
     professorDiscountReais: total.professorDiscountReais,
+    athletePricingTier: total.athletePricingTier,
+    athletePricingLabel: total.athletePricingLabel,
+    athletePricingDiscountReais: total.athletePricingDiscountReais,
   };
 });
 
@@ -506,7 +538,8 @@ export const createArenaBooking = onCall({
     result: total,
     coupon: couponOutcome,
     professor: professorDiscount,
-  } = applyProfessorCourtDiscount(
+    athletePricing,
+  } = applyAthleteDiscounts(
     await resolveCouponForBooking({
       db,
       arenaId,
@@ -514,6 +547,7 @@ export const createArenaBooking = onCall({
       couponCode: input.couponCode,
       promoTotal,
     }),
+    await loadAthletePricingRule(db, arenaId, ctx.arenaData, athleteId),
     professorBooking?.courtDiscount ?? null,
   );
 
@@ -693,6 +727,8 @@ export const createArenaBooking = onCall({
         couponCode: couponOutcome.couponCode,
         couponDiscountReais: couponOutcome.couponDiscountReais,
         ...(professorDiscount.professorDiscountPercent > 0 ? professorDiscount : {}),
+        // Preço do perfil (aluno/professor da arena): a arena vê na reserva por que saiu mais barato.
+        ...(athletePricing.athletePricingTier ? athletePricing : {}),
         pricingLineItems: total.lineItems.map((l) => ({
           startTime: l.startTime,
           endTime: l.endTime,
@@ -784,6 +820,7 @@ export const createArenaBooking = onCall({
     couponDiscountReais: couponOutcome.couponDiscountReais,
     professorDiscountPercent: professorDiscount.professorDiscountPercent,
     professorDiscountReais: professorDiscount.professorDiscountReais,
+    ...athletePricing,
     bookedAs: professorStamp?.bookedAs ?? "athlete",
     /** `unassigned`: a quadra é definida pela recepção (não mostrar a provisória ao atleta). */
     allocationStatus: resolved.floating ? "unassigned" : "assigned",

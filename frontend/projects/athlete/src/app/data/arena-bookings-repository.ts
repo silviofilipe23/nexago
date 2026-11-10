@@ -72,6 +72,10 @@ export interface ArenaBookingQuote {
    *  barato. Quando vale, a cotação vem sem promoção e sem cupom (não acumulam). */
   professorDiscountPercent: number;
   professorDiscountReais: number;
+  /** Preço por perfil da arena (aluno/professor validado) — `null` no preço avulso ou quando
+   *  promoção/cupom saíram mais baratos. Servidor antigo não devolve. */
+  athletePricingLabel?: string | null;
+  athletePricingDiscountReais?: number;
 }
 
 export interface CreateArenaBookingResult {
@@ -260,6 +264,9 @@ export async function quoteArenaBooking(
         couponDiscountReais?: number;
         professorDiscountPercent?: number;
         professorDiscountReais?: number;
+        athletePricingTier?: string | null;
+        athletePricingLabel?: string | null;
+        athletePricingDiscountReais?: number;
       }
     >(functions, 'quoteArenaBooking')({
       ...callablePayload(args, couponCode),
@@ -290,11 +297,27 @@ export async function quoteArenaBooking(
       couponDiscountReais: Number(result.data.couponDiscountReais) || 0,
       professorDiscountPercent: Number(result.data.professorDiscountPercent) || 0,
       professorDiscountReais: Number(result.data.professorDiscountReais) || 0,
+      ...athletePricingFromQuote(result.data),
     };
   } catch (err) {
     if (err instanceof ArenaBookingError) throw err;
     throw mapCallableError(err);
   }
+}
+
+/** Preço por perfil devolvido pela cotação (`null` = avulso). */
+export function athletePricingFromQuote(data: {
+  athletePricingTier?: string | null;
+  athletePricingLabel?: string | null;
+  athletePricingDiscountReais?: number;
+}): Pick<ArenaBookingQuote, 'athletePricingLabel' | 'athletePricingDiscountReais'> {
+  const tier = data.athletePricingTier;
+  const reais = Number(data.athletePricingDiscountReais) || 0;
+  if ((tier !== 'student' && tier !== 'professor') || reais <= 0) {
+    return { athletePricingLabel: null, athletePricingDiscountReais: 0 };
+  }
+  const label = data.athletePricingLabel?.trim() || (tier === 'student' ? 'Aluno' : 'Professor');
+  return { athletePricingLabel: label, athletePricingDiscountReais: reais };
 }
 
 /** Cria a reserva (transação server-side com locks). `paymentMode: 'onsite'` já nasce

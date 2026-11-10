@@ -440,6 +440,12 @@
                 <span class="pm-summary-value pm-summary-value--discount">&minus;{{ formatBRL(professorDiscountReais()) }}</span>
               </div>
             }
+            @if (athletePricingLabel(); as tierLabel) {
+              <div class="pm-summary-row">
+                <span class="pm-summary-label">Preço {{ tierLabel }}</span>
+                <span class="pm-summary-value pm-summary-value--discount">&minus;{{ formatBRL(athletePricingDiscountReais()) }}</span>
+              </div>
+            }
             @if (appliedCouponCode(); as code) {
               <div class="pm-summary-row">
                 <span class="pm-summary-label">Cupom {{ code }}</span>

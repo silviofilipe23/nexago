@@ -126,6 +126,41 @@ void main() {
     });
   });
 
+  group('BookingService — preço por perfil da arena', () {
+    test('quote lê o preço do perfil (aluno)', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'quoteArenaBooking': {
+          'amountReais': 100.0,
+          'lineItems': <dynamic>[],
+          'athletePricingTier': 'student',
+          'athletePricingLabel': 'Aluno',
+          'athletePricingDiscountReais': 50.0,
+        },
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      final quote = await service.quoteBooking(args: args);
+
+      expect(quote.hasAthletePricing, isTrue);
+      expect(quote.amountBeforeAthletePricingReais, 150.0);
+      expect(quote.athletePricingLineLabel, 'Preço Aluno');
+      expect(quote.athletePricingValueLabel, contains('50,00'));
+    });
+
+    test('servidor antigo (sem os campos): avulso', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'quoteArenaBooking': {'amountReais': 150.0, 'lineItems': <dynamic>[]},
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      final quote = await service.quoteBooking(args: args);
+
+      expect(quote.hasAthletePricing, isFalse);
+      expect(quote.athletePricingLineLabel, isNull);
+      expect(quote.athletePricingValueLabel, isNull);
+    });
+  });
+
   group('BookingService — desconto de professor', () {
     test('quote como professor manda asProfessor e lê o desconto', () async {
       final functions = _FakeFirebaseFunctions(responses: {

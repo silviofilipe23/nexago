@@ -249,6 +249,10 @@ class BookingService {
           (map['professorDiscountPercent'] as num?)?.round() ?? 0,
       professorDiscountReais:
           (map['professorDiscountReais'] as num?)?.toDouble() ?? 0,
+      athletePricingTier: map['athletePricingTier'] as String?,
+      athletePricingLabel: map['athletePricingLabel'] as String?,
+      athletePricingDiscountReais:
+          _nonNegative(map['athletePricingDiscountReais']),
       weatherCreditAvailableReais:
           _nonNegative(map['weatherCreditAvailableReais']),
       weatherCreditNextExpiresAt: map['weatherCreditNextExpiresAt'] is String

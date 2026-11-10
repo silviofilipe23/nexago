@@ -295,6 +295,19 @@ String? arenaBookingProfessorDiscountLabel(Map<String, dynamic>? data) {
   return 'Desconto professor \u2212$percent%';
 }
 
+/// Preço por perfil da arena aplicado na reserva (`athletePricingTier`, gravado por
+/// `createArenaBooking` só quando o perfil venceu promoção/cupom): "Preço Aluno". `null` no
+/// preço avulso.
+String? arenaBookingAthletePricingLabel(Map<String, dynamic>? data) {
+  final tier = data?['athletePricingTier'];
+  if (tier != 'student' && tier != 'professor') return null;
+  final raw = (data?['athletePricingLabel'] as String?)?.trim();
+  final label = raw == null || raw.isEmpty
+      ? (tier == 'student' ? 'Aluno' : 'Professor')
+      : raw;
+  return 'Preço $label';
+}
+
 /// Status da reserva apenas no âmbito do negócio (ativa, cancelada…).
 String arenaBookingBusinessStatusLabel(Map<String, dynamic>? data) {
   if (data == null) return '—';

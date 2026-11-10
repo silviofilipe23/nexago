@@ -453,10 +453,13 @@ abstract final class AppRoutes {
   /// abrem aqui (o `url` deles é `/my-bookings`, para os apps antigos).
   static const String bookingWeatherChoice = '/booking/:bookingId/rain';
 
-  /// Avaliar a arena depois do horário. Abre pelo cartão de Minhas reservas,
-  /// pelo detalhe da reserva e pelo push `arena_review_request` (cujo `url` é
-  /// `/my-bookings`, para os apps antigos).
+  /// Avaliar a arena depois do horário. Abre pelo cartão de Minhas reservas e
+  /// pelo botão "Avaliar experiência" do detalhe da reserva.
   static const String bookingArenaReview = '/booking/:bookingId/review';
+
+  /// Detalhe da reserva só pelo id. Destino do push `arena_review_request`
+  /// ("Como foi o jogo?"), cujo `url` é `/my-bookings` para os apps antigos.
+  static const String bookingDetailsById = '/booking/:bookingId/details';
 
   /// Créditos de chuva do atleta (saldo por arena, validade, usados/vencidos).
   static const String athleteWeatherCredits = '/weather-credits';
@@ -1283,6 +1286,7 @@ abstract final class AppRouteNames {
   static const String athleteCashback = 'athleteCashback';
   static const String bookingWeatherChoice = 'bookingWeatherChoice';
   static const String bookingArenaReview = 'bookingArenaReview';
+  static const String bookingDetailsById = 'bookingDetailsById';
   static const String athleteWeatherCredits = 'athleteWeatherCredits';
   static const String arenaSchedulePlans = 'arenaSchedulePlans';
   static const String arenaSchedulePlanSignup = 'arenaSchedulePlanSignup';

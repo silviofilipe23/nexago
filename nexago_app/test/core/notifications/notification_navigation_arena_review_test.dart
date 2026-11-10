@@ -12,8 +12,8 @@ void main() {
     'webUrl': '/agenda/reserva/b1',
   };
 
-  test('abre a tela de avaliar a reserva, não Minhas reservas', () {
-    expect(resolveNotificationRoute(payload), '/booking/b1/review');
+  test('abre o detalhe da reserva, não Minhas reservas', () {
+    expect(resolveNotificationRoute(payload), '/booking/b1/details');
   });
 
   test('sem bookingId cai em Minhas reservas', () {
@@ -25,6 +25,6 @@ void main() {
   });
 
   test('a rota existe no app com o mesmo formato', () {
-    expect(AppRoutes.bookingArenaReview, '/booking/:bookingId/review');
+    expect(AppRoutes.bookingDetailsById, '/booking/:bookingId/details');
   });
 }

@@ -18,11 +18,7 @@ import 'package:nexago_app/features/arenas/domain/my_booking_guests_providers.da
 import 'package:nexago_app/features/arenas/domain/my_booking_item.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_payment.dart';
 import 'package:nexago_app/features/arenas/domain/waitlist_providers.dart';
-import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_bookings_booking_card.dart';
-import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_bookings_empty_hero.dart';
-import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_bookings_nearby_arena_card.dart';
-import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_bookings_streak_banner.dart';
-import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_bookings_waitlist_section.dart';
+import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_waitlist_section.dart';
 import 'package:nexago_app/features/arenas/presentation/pelada_detail_page.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_models.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_home_dashboard_logic.dart';
@@ -629,30 +625,12 @@ final _screens = <_Screen>[
     ],
   ),
   _Screen(
-    'Minhas reservas: horário fixo, sequência, espera, perto e vazio',
+    'Agenda: lista de espera',
     (tester, theme) => _pump(
       tester,
       theme,
-      Column(
-        children: [
-          MyBookingsBookingCard(
-            item: _recurring,
-            sportLabel: 'Vôlei de praia',
-            onTap: () {},
-          ),
-          const MyBookingsStreakBanner(consecutiveWeeks: 3),
-          const MyBookingsWaitlistSection(),
-          MyBookingsNearbyArenaCard(result: _result, onTap: () {}),
-          const MyBookingsEmptyHero(
-            nearbyCountToday: 4,
-            firstBookingXp: 50,
-            proximityPhrase: 'a 5 min de você',
-          ),
-        ],
-      ),
+      const AgendaWaitlistSection(),
       overrides: [
-        myBookingGuestDisplaysProvider(_recurring)
-            .overrideWith((ref) async => const []),
         myWaitlistStreamProvider.overrideWith(
           (ref) => Stream.value([
             const ArenaBookingWaitlistEntry(
@@ -672,14 +650,7 @@ final _screens = <_Screen>[
       ],
     ),
     _pieceFinder,
-    [
-      'Horário fixo',
-      'SUA PRIMEIRA RESERVA',
-      '+50 XP.',
-      Icons.event_repeat_rounded,
-      Icons.local_fire_department_rounded,
-      Icons.hourglass_top_rounded,
-    ],
+    [Icons.hourglass_top_rounded],
   ),
   // Peladas
   _Screen(

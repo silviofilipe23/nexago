@@ -7,15 +7,15 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../../domain/arena_booking_labels.dart';
-import '../../../domain/arena_booking_waitlist_entry.dart';
-import '../../../domain/waitlist_providers.dart';
+import '../../../../arenas/domain/arena_booking_labels.dart';
+import '../../../../arenas/domain/arena_booking_waitlist_entry.dart';
+import '../../../../arenas/domain/waitlist_providers.dart';
 
 /// "Minha lista de espera" — entradas ativas (`waiting`/`notified`) de
-/// `arenaBookingWaitlist`. Seção simples dentro de Minhas reservas; some
+/// `arenaBookingWaitlist`. Seção simples no topo da Agenda; some
 /// quando não há entrada ativa.
-class MyBookingsWaitlistSection extends ConsumerWidget {
-  const MyBookingsWaitlistSection({super.key});
+class AgendaWaitlistSection extends ConsumerWidget {
+  const AgendaWaitlistSection({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

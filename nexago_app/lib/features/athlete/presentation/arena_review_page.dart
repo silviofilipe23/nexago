@@ -6,7 +6,6 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/errors/friendly_error_message.dart';
-import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
@@ -16,6 +15,7 @@ import '../domain/arena_review.dart';
 import '../domain/arena_review_eligibility.dart';
 import '../domain/arena_review_providers.dart';
 import 'widgets/arena_review/arena_review_widgets.dart';
+import '../../arenas/presentation/arena_booking_navigation.dart';
 
 /// "Avaliar reserva" (`/booking/:bookingId/review`) — canvas "Avaliação da arena depois
 /// do horário · app do atleta" 02–03. Substitui o diálogo antigo, que só abria numa
@@ -66,8 +66,8 @@ class ArenaReviewPage extends ConsumerWidget {
         icon: Icons.star_rounded,
         title: 'Você já avaliou esta reserva',
         subtitle: 'Obrigado por contar como foi o jogo na ${target.arenaName}.',
-        actionLabel: 'Ver minhas reservas',
-        onAction: () => context.go(AppRoutes.myBookings),
+        actionLabel: 'Ver agenda',
+        onAction: () => openDiscoverAgendaTab(context),
       );
     }
     if (target.ownerUid.isNotEmpty && target.ownerUid != uid) {
@@ -123,7 +123,7 @@ class _ReviewAppBar extends StatelessWidget implements PreferredSizeWidget {
               borderRadius: BorderRadius.circular(12),
               onTap: () => context.canPop()
                   ? context.pop()
-                  : context.go(AppRoutes.myBookings),
+                  : openDiscoverAgendaTab(context),
               child: SizedBox(
                 width: 40,
                 height: 40,
@@ -207,7 +207,7 @@ class _ArenaReviewFormState extends ConsumerState<ArenaReviewForm> {
       if (context.canPop()) {
         context.pop();
       } else {
-        context.go(AppRoutes.myBookings);
+        openDiscoverAgendaTab(context);
       }
     } catch (e) {
       if (!mounted) return;

@@ -4,9 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/auth/auth_providers.dart';
+import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/domain/my_bookings_providers.dart';
-import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_bookings_review_prompt_card.dart';
+import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_review_prompt_card.dart';
 import 'package:nexago_app/features/athlete/data/arena_review_service.dart';
 import 'package:nexago_app/features/athlete/domain/arena_review.dart';
 import 'package:nexago_app/features/athlete/domain/arena_review_providers.dart';
@@ -47,7 +48,7 @@ const _target = PendingArenaReview(
 );
 
 void main() {
-  testWidgets('envia nota, destaques e comentário e volta para Minhas reservas',
+  testWidgets('envia nota, destaques e comentário e volta para a Agenda',
       (tester) async {
     final service = _FakeReviewService();
     final user = MockUser(uid: 'uid1');
@@ -61,8 +62,10 @@ void main() {
               const Scaffold(body: ArenaReviewForm(target: _target)),
         ),
         GoRoute(
-            path: '/my-bookings',
-            builder: (_, __) => const Text('minhas reservas')),
+          path: AppRoutes.discover,
+          name: AppRouteNames.discover,
+          builder: (_, state) => Text('agenda ${state.uri.queryParameters['tab']}'),
+        ),
       ],
     );
 
@@ -119,10 +122,10 @@ void main() {
       'comment': 'Destaques: Vestiário\nRede baixa',
     });
     expect(container.read(locallyReviewedBookingsProvider), contains('b1'));
-    expect(find.text('minhas reservas'), findsOneWidget);
+    expect(find.text('agenda agenda'), findsOneWidget);
   });
 
-  testWidgets('convite de Minhas reservas: avaliar e dispensar',
+  testWidgets('convite da Agenda: avaliar e dispensar',
       (tester) async {
     var opened = 0;
     var dismissed = 0;
@@ -130,7 +133,7 @@ void main() {
       MaterialApp(
         theme: AppTheme.dark,
         home: Scaffold(
-          body: MyBookingsReviewPromptView(
+          body: AgendaReviewPromptView(
             pending: _target,
             onReview: () => opened++,
             onDismiss: () => dismissed++,
@@ -141,8 +144,8 @@ void main() {
 
     expect(find.text('Como foi o jogo na Arena CFC?'), findsOneWidget);
     expect(find.text('Quadra 4 · 19:00 – 20:00'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('my-bookings-review-open')));
-    await tester.tap(find.byKey(const ValueKey('my-bookings-review-dismiss')));
+    await tester.tap(find.byKey(const ValueKey('agenda-review-open')));
+    await tester.tap(find.byKey(const ValueKey('agenda-review-dismiss')));
     expect(opened, 1);
     expect(dismissed, 1);
   });

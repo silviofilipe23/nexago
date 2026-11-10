@@ -67,6 +67,7 @@ import 'sand_rank/widgets/sand_rank_avatar_frame.dart';
 import 'widgets/athlete_home/athlete_home_next_reservation_card.dart';
 import 'widgets/athlete_home/athlete_home_registration_tracker.dart';
 import 'widgets/athlete_home/athlete_home_shortcuts_grid.dart';
+import '../../arenas/presentation/arena_booking_navigation.dart';
 
 /// Aba Início do atleta — convites de dupla recebidos aparecem primeiro,
 /// logo após o header (pedido do dono, 27/08); em seguida convites enviados
@@ -507,7 +508,7 @@ class AthleteHomePage extends ConsumerWidget {
   static void _openBookingDetails(BuildContext context, MyBookingItem booking) {
     final start = parseBookingStartAt(booking);
     if (start == null) {
-      context.pushNamed(AppRouteNames.myBookings);
+      openDiscoverAgendaTab(context);
       return;
     }
     Navigator.of(context).push(

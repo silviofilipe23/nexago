@@ -21,6 +21,8 @@ import '../domain/agenda/class_charge_payment_watch.dart';
 import '../domain/athlete_notifications_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import 'widgets/agenda/agenda_day_strip.dart';
+import 'widgets/agenda/agenda_review_prompt_card.dart';
+import 'widgets/agenda/agenda_waitlist_section.dart';
 import 'widgets/agenda/agenda_empty_day_view.dart';
 import 'widgets/agenda/agenda_empty_state.dart';
 import 'widgets/agenda/agenda_filter_chips.dart';
@@ -351,6 +353,14 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                         // Plano de horário (assinatura viva ou vaga oferecida).
                         const SliverToBoxAdapter(
                           child: MySchedulePlansAgendaTile(),
+                        ),
+                        // "Como foi o jogo?" da reserva concluída mais recente.
+                        const SliverToBoxAdapter(
+                          child: AgendaReviewPromptCard(),
+                        ),
+                        // Lista de espera (vinha de Minhas reservas).
+                        const SliverToBoxAdapter(
+                          child: AgendaWaitlistSection(),
                         ),
                         SliverToBoxAdapter(
                           child: AgendaTabs(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/auth/auth_providers.dart';
@@ -19,6 +20,7 @@ import 'widgets/athlete_notifications/athlete_notification_card.dart';
 import 'widgets/athlete_notifications/athlete_notifications_filter_bar.dart';
 import 'widgets/athlete_notifications/athlete_notifications_section_header.dart';
 import 'package:nexago_app/core/ui/nexa_skeleton.dart';
+import '../../arenas/presentation/arena_booking_navigation.dart';
 
 class AthleteNotificationsPage extends ConsumerStatefulWidget {
   const AthleteNotificationsPage({super.key});
@@ -100,6 +102,11 @@ class _AthleteNotificationsPageState
     }
     final path = presentation.routePath;
     if (!mounted || path == null || path.isEmpty) return;
+    // Minhas reservas virou a aba Agenda: empilhar o redirect criaria um 2º shell.
+    if (path == AppRoutes.myBookings) {
+      openDiscoverAgendaTab(context, ref: ref);
+      return;
+    }
     context.push(path);
   }
 

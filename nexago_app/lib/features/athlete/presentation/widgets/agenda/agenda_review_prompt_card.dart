@@ -4,15 +4,14 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
-import '../../../../athlete/domain/arena_review.dart';
-import '../../../../athlete/domain/arena_review_providers.dart';
-import '../../../../athlete/presentation/widgets/arena_review/arena_review_widgets.dart';
-import '../my_bookings_logic.dart';
+import '../../../domain/arena_review.dart';
+import '../../../domain/arena_review_providers.dart';
+import '../arena_review/arena_review_widgets.dart';
 
-/// Convite "Como foi o jogo?" no topo de Minhas reservas (canvas "Avaliação da arena
+/// Convite "Como foi o jogo?" no topo da Agenda (canvas "Avaliação da arena
 /// depois do horário" 01): a reserva concluída mais recente que ainda não foi avaliada.
-class MyBookingsReviewPromptCard extends ConsumerWidget {
-  const MyBookingsReviewPromptCard({super.key});
+class AgendaReviewPromptCard extends ConsumerWidget {
+  const AgendaReviewPromptCard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,7 +19,7 @@ class MyBookingsReviewPromptCard extends ConsumerWidget {
     if (pending == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-      child: MyBookingsReviewPromptView(
+      child: AgendaReviewPromptView(
         pending: pending,
         onReview: () => openArenaReview(context, pending.bookingId),
         onDismiss: () => ref
@@ -31,8 +30,8 @@ class MyBookingsReviewPromptCard extends ConsumerWidget {
   }
 }
 
-class MyBookingsReviewPromptView extends StatelessWidget {
-  const MyBookingsReviewPromptView({
+class AgendaReviewPromptView extends StatelessWidget {
+  const AgendaReviewPromptView({
     super.key,
     required this.pending,
     required this.onReview,
@@ -48,7 +47,7 @@ class MyBookingsReviewPromptView extends StatelessWidget {
     final colors = context.themeColors;
     final arena =
         pending.arenaName.trim().isEmpty ? 'arena' : pending.arenaName.trim();
-    final day = relativeBookingDayLabel(pending.dateRaw).toUpperCase();
+    final day = _relativeDayLabel(pending.dateRaw);
     final time = [pending.startTime, pending.endTime]
         .where((t) => t.trim().isNotEmpty)
         .join(' – ');
@@ -56,7 +55,7 @@ class MyBookingsReviewPromptView extends StatelessWidget {
         [pending.courtName.trim(), time].where((p) => p.isNotEmpty).join(' · ');
 
     return Container(
-      key: const ValueKey('my-bookings-review-prompt'),
+      key: const ValueKey('agenda-review-prompt'),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
@@ -112,7 +111,7 @@ class MyBookingsReviewPromptView extends StatelessWidget {
                 child: SizedBox(
                   height: 44,
                   child: FilledButton.icon(
-                    key: const ValueKey('my-bookings-review-open'),
+                    key: const ValueKey('agenda-review-open'),
                     onPressed: onReview,
                     icon: const Icon(Icons.star_rounded, size: 18),
                     label: const Text(
@@ -134,7 +133,7 @@ class MyBookingsReviewPromptView extends StatelessWidget {
               SizedBox(
                 height: 44,
                 child: TextButton(
-                  key: const ValueKey('my-bookings-review-dismiss'),
+                  key: const ValueKey('agenda-review-dismiss'),
                   onPressed: onDismiss,
                   style: TextButton.styleFrom(
                       foregroundColor: colors.onSurfaceMuted),
@@ -150,4 +149,18 @@ class MyBookingsReviewPromptView extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "HOJE", "ONTEM" ou "HÁ N DIAS" (a reserva do convite sempre já passou).
+String _relativeDayLabel(String dateRaw, {DateTime? now}) {
+  final date =
+      dateRaw.length >= 10 ? DateTime.tryParse(dateRaw.substring(0, 10)) : null;
+  if (date == null) return '';
+  final clock = now ?? DateTime.now();
+  final diff = DateTime(clock.year, clock.month, clock.day)
+      .difference(DateTime(date.year, date.month, date.day))
+      .inDays;
+  if (diff <= 0) return 'HOJE';
+  if (diff == 1) return 'ONTEM';
+  return 'HÁ $diff DIAS';
 }

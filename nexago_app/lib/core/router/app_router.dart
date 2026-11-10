@@ -142,7 +142,7 @@ import '../../features/arena/presentation/products/arena_products_list_page.dart
 import '../../features/arena/presentation/products/arena_restock_page.dart';
 import '../../features/arena/presentation/products/arena_stock_alerts_page.dart';
 import '../../features/arena/domain/arena_slot_detail_args.dart';
-import '../../features/arenas/presentation/my_bookings_page.dart';
+import '../../features/arenas/presentation/arena_booking_navigation.dart' show selectAthleteShellAgendaTab;
 import '../../features/athlete_training/presentation/athlete_training_routes.dart';
 import '../../features/athlete/onboarding/presentation/athlete_onboarding_welcome_page.dart';
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_level_step.dart';
@@ -1550,10 +1550,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           return AthleteShellPage(initialIndex: initialIndex);
         },
       ),
+      // Minhas reservas deixou de existir: a Agenda faz o mesmo. O caminho fica
+      // porque pushes (`url: /my-bookings`), banners e links antigos ainda o usam.
       GoRoute(
         path: AppRoutes.myBookings,
         name: AppRouteNames.myBookings,
-        builder: (context, state) => const MyBookingsPage(),
+        redirect: (context, state) {
+          selectAthleteShellAgendaTab(context);
+          return '${AppRoutes.discover}?tab=agenda';
+        },
       ),
       GoRoute(
         path: AppRoutes.favoriteArenas,

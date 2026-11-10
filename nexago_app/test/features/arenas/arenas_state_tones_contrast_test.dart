@@ -31,12 +31,7 @@ import 'package:nexago_app/features/arenas/presentation/booking_result_page.dart
 import 'package:nexago_app/features/arenas/presentation/booking_result_score_page.dart';
 import 'package:nexago_app/features/arenas/presentation/club_session_detail_page.dart';
 import 'package:nexago_app/features/arenas/presentation/club_session_pix_page.dart';
-import 'package:nexago_app/features/arenas/presentation/my_bookings/my_bookings_details_sheet.dart';
-import 'package:nexago_app/features/arenas/presentation/my_bookings/my_bookings_status.dart';
-import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_bookings_booking_card.dart';
-import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_bookings_nearby_arena_card.dart';
-import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_bookings_payment_chip.dart';
-import 'package:nexago_app/features/arenas/presentation/my_bookings/widgets/my_bookings_waitlist_section.dart';
+import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_waitlist_section.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_club_section.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_court_card.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/booking_confirm/booking_confirm_cancellation_card.dart';
@@ -301,102 +296,11 @@ List<Override> _resultOverrides() => [
 
 final _screens = <_Screen>[
   _Screen(
-    'Minhas reservas: card da reserva',
+    'Agenda: vaga liberada na lista de espera',
     (tester, theme) => _pumpPiece(
       tester,
       theme,
-      MyBookingsBookingCard(
-        item: _bookingItem,
-        sportLabel: 'Beach tennis',
-        onTap: () {},
-      ),
-      overrides: [
-        myBookingGuestDisplaysProvider(_bookingItem).overrideWith(
-          (ref) async => const [
-            MyBookingGuestDisplay(displayName: 'Enzo Lima', shortLabel: 'Enzo'),
-          ],
-        ),
-      ],
-    ),
-    find.byType(MyBookingsBookingCard),
-    ['AGENDADA', 'PIX · 100% PAGO', 'EL', 'marca'],
-  ),
-  _Screen(
-    'Minhas reservas: selos de status e de pagamento',
-    (tester, theme) => _pumpPiece(
-      tester,
-      theme,
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final raw in ['active', 'canceled', 'pending'])
-            MyBookingStatusBadge(ui: myBookingStatusUi(raw)),
-          for (final data in [
-            {'status': 'pending_payment'},
-            {'paymentChannel': 'pix', 'paymentStatus': 'rejected'},
-            {'paymentChannel': 'card', 'paymentStatus': 'paid'},
-          ])
-            MyBookingsPaymentChip(
-              payment: myBookingPaymentDisplayFromData(data),
-            ),
-        ],
-      ),
-      onCard: true,
-    ),
-    _pieceFinder,
-    [
-      'AGENDADA',
-      'CANCELADA',
-      'PENDENTE',
-      'PIX · AGUARDANDO PAGAMENTO',
-      'PIX · NÃO CONCLUÍDO',
-      'CARTÃO · 100% PAGO',
-    ],
-  ),
-  _Screen(
-    'Minhas reservas: arenas por perto',
-    (tester, theme) => _pumpPiece(
-      tester,
-      theme,
-      Column(
-        children: [
-          MyBookingsNearbyArenaCard(
-            result: ArenaSearchResult(
-              arena: _arena,
-              selectedSlot: _freeSlot,
-              courtName: 'Quadra 1',
-              isExactMatch: true,
-              minutesDistance: 5,
-              displayPricePerHourReais: 120,
-              availableCourtsCount: 2,
-            ),
-            onTap: () {},
-          ),
-          const SizedBox(height: 12),
-          MyBookingsNearbyArenaCard(
-            result: const ArenaSearchResult(
-              arena: _arena,
-              selectedSlot: null,
-              courtName: null,
-              isExactMatch: false,
-              minutesDistance: 5,
-              displayPricePerHourReais: 120,
-            ),
-            onTap: () {},
-          ),
-        ],
-      ),
-    ),
-    _pieceFinder,
-    ['• 2 QUADRAS LIVRES', 'VER HORÁRIOS'],
-  ),
-  _Screen(
-    'Minhas reservas: vaga liberada na lista de espera',
-    (tester, theme) => _pumpPiece(
-      tester,
-      theme,
-      const MyBookingsWaitlistSection(),
+      const AgendaWaitlistSection(),
       overrides: [
         myWaitlistStreamProvider.overrideWith(
           (ref) => Stream.value([
@@ -418,23 +322,8 @@ final _screens = <_Screen>[
         ),
       ],
     ),
-    find.byType(MyBookingsWaitlistSection),
+    find.byType(AgendaWaitlistSection),
     [Icons.notifications_active_rounded],
-  ),
-  _Screen(
-    'Minhas reservas: reserva em andamento',
-    (tester, theme) => _pumpPiece(
-      tester,
-      theme,
-      BookingLiveStatus(
-        dateRaw: _todayKey,
-        startTime: '00:00',
-        endTime: '23:59',
-      ),
-      onCard: true,
-    ),
-    find.byType(BookingLiveStatus),
-    ['Em andamento'],
   ),
   _Screen(
     'Clubinho: você está na lista',

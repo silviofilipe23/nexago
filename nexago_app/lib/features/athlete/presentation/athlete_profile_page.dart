@@ -24,6 +24,7 @@ import '../domain/profile_completion_providers.dart';
 import 'public_profile/athlete_public_profile_page.dart';
 import 'widgets/athlete_profile_main_view.dart';
 import 'widgets/gamification_feedback_sheet.dart';
+import '../../arenas/presentation/arena_booking_navigation.dart';
 
 /// Perfil do atleta.
 ///
@@ -100,7 +101,7 @@ class AthleteProfilePage extends ConsumerWidget {
               badges: badgesAsync.valueOrNull ?? const <UserBadgeProgress>[],
               readOnly: false,
               onEdit: () => context.pushNamed(AppRouteNames.athleteProfileEdit),
-              onOpenAgenda: () => context.pushNamed(AppRouteNames.myBookings),
+              onOpenAgenda: () => openDiscoverAgendaTab(context, ref: ref),
               onOpenSettings: () =>
                   context.pushNamed(AppRouteNames.athleteSettings),
             ),

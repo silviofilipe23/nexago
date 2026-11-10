@@ -15,8 +15,15 @@ import {
   AUTOPAY_UNAVAILABLE_MESSAGE,
   disableAllScheduleAutopayCore,
   getScheduleAutopayPreviewCore,
+  removeMyPaymentCardCore,
   setScheduleAutopayCore,
 } from "./arena-schedule-autopay";
+import {
+  AUTOPAY_BUSY_MESSAGE,
+  CARD_REFUSED_MESSAGE,
+  payScheduleChargeWithSavedCardCore,
+} from "./arena-schedule-autopay-pay";
+import {PAYMENT_WINDOW_CLOSED_MESSAGE} from "./arena-schedule-asaas";
 import {
   chargeScheduleAutopayDue,
   defaultAutopayDeps,
@@ -775,5 +782,141 @@ describe("débito com token no vencimento", () => {
     assert.equal(calls.created.length, 1);
     assert.equal(charge(fake)["status"], "paid");
     assert.equal((charge(fake)["autopay"] as Data)["state"], "paid");
+  });
+
+  describe("pagar com cartão salvo e remover cartão", () => {
+    const pay = (db: Firestore, deps: AutopayDeps, uid = "u1") =>
+      payScheduleChargeWithSavedCardCore(db, uid, {chargeId: "c1"}, deps);
+
+    it("pay with saved card: manual source, no autopay created", async () => {
+      const {fake, db} = makeDb();
+      seed(fake);
+      seedCharge(fake, "c1", {dueDate: TODAY});
+      const {deps, calls} = autopayDeps();
+      assert.deepEqual(await pay(db, deps), {status: "paid"});
+      assert.equal(charge(fake)["status"], "paid");
+      assert.equal(attempt(fake, "a1")["source"], "manual");
+      assert.equal(charge(fake)["autopay"], undefined);
+      assert.equal(calls.created.length, 1);
+    });
+
+    it("manual pay of a scheduled or skipped charge ends with autopay paid", async () => {
+      for (const state of ["scheduled", "retry", "skipped"]) {
+        const {fake, db} = makeDb();
+        seedAuto(fake, {autopay: {state}});
+        const {deps} = autopayDeps();
+        assert.deepEqual(await pay(db, deps), {status: "paid"}, state);
+        assert.equal((charge(fake)["autopay"] as Data)["state"], "paid", state);
+      }
+    });
+
+    it("manual does not count as an attempt", async () => {
+      const {fake, db} = makeDb();
+      seedAuto(fake, {autopay: {state: "retry", attempts: 1, scheduledFor: addDaysToDateKey(TODAY, 1)}});
+      const {deps} = autopayDeps({respond: refusal});
+      await rejectsWith(pay(db, deps), "invalid-argument", "Saldo insuficiente.");
+      const ap = charge(fake)["autopay"] as Data;
+      assert.equal(ap["attempts"], 1);
+      assert.equal(ap["state"], "retry");
+    });
+
+    it("an empty refusal message falls back to the generic one", async () => {
+      const {fake, db} = makeDb();
+      seed(fake);
+      seedCharge(fake, "c1", {dueDate: TODAY});
+      const {deps} = autopayDeps({respond: () => Promise.reject(new AsaasApiError("", 400))});
+      await rejectsWith(pay(db, deps), "invalid-argument", CARD_REFUSED_MESSAGE);
+    });
+
+    it("manual on failed works even with a link", async () => {
+      const {fake, db} = makeDb();
+      seedAuto(fake, {
+        autopay: {state: "failed", attempts: 2},
+        charge: {asaas: {groupId: "g1", state: "open", invoiceUrl: "https://x", status: null}},
+      });
+      fake.seedDoc(`${GROUPS}/g1`, {chargeId: "c1", state: "open", amountReais: 300, description: "Mensalidade"});
+      const {deps} = autopayDeps();
+      assert.deepEqual(await pay(db, deps), {status: "paid"});
+      assert.equal(charge(fake)["status"], "paid");
+      assert.equal((charge(fake)["autopay"] as Data)["state"], "paid");
+    });
+
+    it("busy while the debit is charging", async () => {
+      const {fake, db} = makeDb();
+      seedAuto(fake, {autopay: {state: "charging", attemptId: "x", lastAttemptAt: Timestamp.fromDate(NOW)}});
+      const {deps, calls} = autopayDeps();
+      await rejectsWith(pay(db, deps), "failed-precondition", AUTOPAY_BUSY_MESSAGE);
+      assert.equal(calls.created.length, 0);
+    });
+
+    it("not visible, no card, payment window closed", async () => {
+      {
+        const {fake, db} = makeDb();
+        seed(fake);
+        seedCharge(fake, "c1", {dueDate: TODAY});
+        await rejectsWith(pay(db, autopayDeps().deps, "u2"), "permission-denied", "Esta mensalidade não é sua.");
+      }
+      {
+        const {fake, db} = makeDb();
+        seed(fake, {card: false});
+        seedCharge(fake, "c1", {dueDate: TODAY});
+        await rejectsWith(pay(db, autopayDeps().deps), "failed-precondition", AUTOPAY_NO_CARD_MESSAGE);
+      }
+      {
+        const {fake, db} = makeDb();
+        seed(fake, {sub: {status: "pending_payment", pendingPaymentUntil: Timestamp.fromMillis(Date.now() - MIN)}});
+        seedCharge(fake, "c1", {dueDate: TODAY});
+        await rejectsWith(pay(db, autopayDeps().deps), "failed-precondition", PAYMENT_WINDOW_CLOSED_MESSAGE);
+      }
+    });
+
+    it("remove card turns off every plan, deletes the token and gives the link back", async () => {
+      const {fake, db} = makeDb();
+      seed(fake);
+      seedSub(fake, "s2");
+      seedCharge(fake, "c1", {dueDate: TODAY});
+      seedCharge(fake, "c2", {subscriptionId: "s2", dueDate: TODAY});
+      await enable(db);
+      await setScheduleAutopayCore(db, "u1", {subscriptionId: "s2", enabled: true, consentText: CONSENT}, "sandbox");
+      assert.equal(autopay(fake, "c1")!["state"], "scheduled");
+      assert.deepEqual(await removeMyPaymentCardCore(db, "u1"), {removed: true, plans: 2});
+      assert.equal(fake.store.has("users/u1/asaas/savedCard"), false);
+      for (const id of ["c1", "c2"]) {
+        assert.equal(autopay(fake, id)!["state"], "skipped", id);
+        assert.ok((get(fake, `${CHARGES}/${id}`)["asaas"] as Data)["groupId"], id);
+      }
+      assert.deepEqual(await removeMyPaymentCardCore(db, "u1"), {removed: false, plans: 0});
+    });
+  });
+
+  describe("ruling 9: link quietly", () => {
+    it("recovery gives the link to skipped/failed open charges with no group", async () => {
+      const {fake, db} = makeDb();
+      seedAuto(fake, {autopay: {state: "skipped"}});
+      seedCharge(fake, "c2", {autopay: {state: "failed"}, dueDate: TODAY});
+      seedCharge(fake, "c3", {autopay: {state: "skipped"}, asaas: {groupId: "g9", state: "open"}});
+      seedCharge(fake, "c4", {autopay: {state: "skipped"}, billingMode: "manual"});
+      fake.seedDoc(`${GROUPS}/g9`, {chargeId: "c3", state: "open"});
+      const {deps} = autopayDeps();
+      assert.deepEqual(await recoverScheduleAutopay(db, NOW, deps), {resumed: 0, linked: 2});
+      for (const id of ["c1", "c2"]) {
+        assert.ok(((get(fake, `${CHARGES}/${id}`)["asaas"] ?? {}) as Data)["groupId"], id);
+      }
+      assert.equal(((get(fake, `${CHARGES}/c4`)["asaas"] ?? {}) as Data)["groupId"], undefined);
+    });
+
+    it("disableAll survives a link failure and leaves the charge skipped", async () => {
+      const {fake, db} = makeDb();
+      seed(fake);
+      seedCharge(fake, "c1", {dueDate: TODAY});
+      await enable(db);
+      const collection = fake.collection.bind(fake);
+      (fake as unknown as {collection: (n: string) => unknown}).collection = (name: string) => {
+        if (name === GROUPS) throw new Error("boom");
+        return collection(name);
+      };
+      assert.equal(await disableAllScheduleAutopayCore(db, "u1"), 1);
+      assert.equal(autopay(fake, "c1")!["state"], "skipped");
+    });
   });
 });

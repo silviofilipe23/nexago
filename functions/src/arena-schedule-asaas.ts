@@ -984,7 +984,7 @@ export const PAYMENT_WINDOW_CLOSED_MESSAGE =
   "O prazo de 30 minutos para pagar acabou e o horário foi liberado. Assine de novo.";
 
 /** Assinatura aguardando pagamento com o prazo vencido não gera mais cobrança. */
-async function assertPaymentWindowOpen(db: Firestore, chargeId: string): Promise<void> {
+export async function assertPaymentWindowOpen(db: Firestore, chargeId: string): Promise<void> {
   if (!chargeId || chargeId.includes("/")) return;
   const charge = (await db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId).get()).data();
   const subId = str(charge?.["subscriptionId"]);

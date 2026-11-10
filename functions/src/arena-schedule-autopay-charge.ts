@@ -181,7 +181,7 @@ function chargedFor(baseReais: number, terms: CardFeeTerms) {
 }
 
 /** O link não pode derrubar quem chamou: falhou, a rede de segurança da varredura repara. */
-async function ensureLinkQuietly(db: Firestore, chargeId: string): Promise<boolean> {
+export async function ensureLinkQuietly(db: Firestore, chargeId: string): Promise<boolean> {
   try {
     await ensureScheduleChargeLinkGroup(db, chargeId);
     return true;
@@ -583,6 +583,7 @@ async function resumeStuckCharge(db: Firestore, chargeId: string, charge: Data, 
  * Recuperação (varredura de 30 min). Nenhuma mensalidade fica parada sem débito e sem link:
  * - `charging` há mais de 15 min é retomada (ou vira recusa depois de 24 h);
  * - `scheduled`/`retry` esquecida (2+ dias no passado: o job das 06:00 não rodou) → `skipped` + link;
+ * - `skipped`/`failed` aberta sem nenhum grupo no espelho (o link nunca saiu) → ganha o link;
  * - grupo `autopay` de mensalidade aberta fora da janela do débito (o link falhou depois do
  *   `skipped`/`failed`, ou uma tentativa na mão o criou) → ganha o link.
  */
@@ -623,6 +624,15 @@ export async function recoverScheduleAutopay(
     } catch (e) {
       logger.warn(`recoverScheduleAutopay: link de ${doc.id} falhou`, e);
     }
+  }
+
+  // `skipped`/`failed` aberta e sem grupo no espelho (o link nunca saiu): ganha o link.
+  const linkless = await col.where("status", "==", "open").where("autopay.state", "in", ["skipped", "failed"])
+    .limit(200).get();
+  for (const doc of linkless.docs) {
+    const charge = doc.data() as Data;
+    if (charge["billingMode"] !== "asaas" || str(mapOf(charge["asaas"])["groupId"])) continue;
+    if (await ensureLinkQuietly(db, doc.id)) linked += 1;
   }
 
   const orphans = await groupsCol(db).where("state", "==", "autopay").limit(200).get();

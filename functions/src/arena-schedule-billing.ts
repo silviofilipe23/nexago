@@ -20,10 +20,13 @@ import {
   ARENA_SCHEDULE_CHARGES,
   ARENA_SCHEDULE_CREDITS,
   ARENA_SCHEDULE_SUBSCRIPTIONS,
+  AUTOPAY_WINDOW_STATES,
   LIVE_SUBSCRIPTION_STATUSES,
   SCHEDULE_PAYMENT_METHODS,
+  autopayOf,
   daysBetween,
   str,
+  type AutopayState,
 } from "./arena-schedule-plan-constants";
 import {notifyScheduleSafe, requireScheduleManager, requireUid, rethrowSchedule} from "./arena-schedule-plans";
 import {
@@ -49,16 +52,24 @@ export function overdueReleaseDaysOf(sub: Data): number {
   return Number.isFinite(days) && days > 0 ? days : 3;
 }
 
+/**
+ * Mensalidade na janela do débito automático (`scheduled`/`retry`/`charging`): o cartão ainda será
+ * (ou está sendo) debitado, então a régua de atraso espera. `failed`/`skipped` voltam à régua normal.
+ */
+export function inAutopayWindow(charge: Data): boolean {
+  return AUTOPAY_WINDOW_STATES.has(str(autopayOf(charge)["state"]) as AutopayState);
+}
+
 /** Mensalidade aberta que já passou do prazo de liberação do horário. */
 export function isPastRelease(charge: Data, releaseDays: number, todayKey: string): boolean {
-  if (charge["status"] !== "open") return false;
+  if (charge["status"] !== "open" || inAutopayWindow(charge)) return false;
   const due = str(charge["dueDate"]);
   return !!due && addDaysToDateKey(due, releaseDays) <= todayKey;
 }
 
 /** Próximo lembrete devido (o maior marco já alcançado e ainda não enviado), ou null. */
 export function dueReminder(charge: Data, todayKey: string): number | null {
-  if (charge["status"] !== "open") return null;
+  if (charge["status"] !== "open" || inAutopayWindow(charge)) return null;
   const due = str(charge["dueDate"]);
   if (!due || due > todayKey) return null;
   const late = daysBetween(due, todayKey);

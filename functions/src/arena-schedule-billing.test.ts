@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {addDaysToDateKey} from "./arena-recurring-booking";
 import {
   dueReminder,
+  inAutopayWindow,
   isPastRelease,
   registerSchedulePaymentCore,
   runScheduleSubscriptionsDaily,
@@ -29,6 +30,55 @@ describe("atraso (puro)", () => {
     // Agendador parado uns dias: manda só o marco mais recente.
     assert.equal(dueReminder(charge, "2026-11-20"), 3);
     assert.equal(dueReminder({...charge, remindersSent: [0, 1, 3]}, "2026-11-20"), null);
+  });
+});
+
+describe("régua de atraso e janela do débito automático", () => {
+  async function runWith(autopayState: string) {
+    const {fake, db} = makeDb();
+    seedArena(fake);
+    const todayKey = today();
+    const {subscriptionId} = await createSubscriptionCore(db, {
+      arenaId: ARENA, planId: "p1", holder: holder("u1"), memberAthleteIds: [], weekdays: [weekdayIn(2)],
+      startTime: "19:00", preferredCourtId: null, strictCourt: false, cycle: "monthly", paymentMethod: "onsite",
+      startDate: todayKey, source: "athlete", createdByUid: "u1", audience: "athlete",
+    }, todayKey, Date.now());
+    fake.seedDoc(`arenaScheduleSubscriptions/${subscriptionId}`, {
+      ...fake.store.get(`arenaScheduleSubscriptions/${subscriptionId}`)!, planSnapshot: {overdueReleaseDays: 1},
+    });
+    fake.seedDoc(`arenaScheduleCharges/${subscriptionId}_1999-01_0`, {
+      arenaId: ARENA, subscriptionId, planName: "Fixo 1x", period: "1999-01", status: "open", payerAthleteId: "u1",
+      amountReais: 300, dueDate: addDaysToDateKey(todayKey, -1), remindersSent: [], billingMode: "asaas",
+      autopay: {state: autopayState, scheduledFor: todayKey, attempts: 1},
+    });
+    pushes.length = 0;
+    const run = await runScheduleSubscriptionsDaily(db, todayKey, Date.now());
+    return {run, status: fake.store.get(`arenaScheduleSubscriptions/${subscriptionId}`)!["status"]};
+  }
+
+  it("no reminder and no suspension inside the debit window", async () => {
+    for (const state of ["scheduled", "retry", "charging"]) {
+      const {run, status} = await runWith(state);
+      assert.equal(run.reminders, 0, state);
+      assert.equal(run.suspended, 0, state);
+      assert.equal(status, "active", state);
+      assert.ok(!pushes.some((p) => p.type === "schedule_plan_charge_reminder"), state);
+    }
+    for (const state of ["failed", "skipped"]) {
+      const {run, status} = await runWith(state);
+      assert.equal(run.reminders, 1, state);
+      assert.equal(run.suspended, 1, state);
+      assert.equal(status, "suspended", state);
+      assert.ok(pushes.some((p) => p.type === "schedule_plan_charge_reminder"), state);
+    }
+  });
+
+  it("inAutopayWindow is pure on the state", () => {
+    assert.equal(inAutopayWindow({autopay: {state: "retry"}}), true);
+    assert.equal(inAutopayWindow({autopay: {state: "failed"}}), false);
+    assert.equal(inAutopayWindow({}), false);
+    assert.equal(dueReminder({status: "open", dueDate: "2000-01-01", autopay: {state: "scheduled"}}, "2000-01-02"), null);
+    assert.equal(isPastRelease({status: "open", dueDate: "2000-01-01", autopay: {state: "charging"}}, 1, "2000-01-05"), false);
   });
 });
 

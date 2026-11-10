@@ -21,10 +21,10 @@ import {
   str,
 } from "./arena-schedule-plan-constants";
 import {requireUid, rethrowSchedule, scheduleOnlineBillingOn, scheduleSettingsRef} from "./arena-schedule-plans";
-import {ensureScheduleChargeLinkGroup} from "./arena-schedule-asaas";
+import {ensureLinkQuietly} from "./arena-schedule-autopay-charge";
 import {asaasArenaSecrets, getAsaasEnvTag} from "./asaas-client";
 import {cardFeePreviewFields, cardSurcharge, loadCardFeeTerms, type CardFeeTerms} from "./card-anticipation-fee";
-import {cardValidForDueDate, readSavedCard, readSavedCardTx, type SavedCard} from "./asaas-saved-card";
+import {cardValidForDueDate, deleteSavedCardCore, readSavedCard, readSavedCardTx, type SavedCard} from "./asaas-saved-card";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
@@ -179,7 +179,7 @@ async function skipOne(db: Firestore, chargeId: string): Promise<void> {
     return true;
   });
   // Só devolve o link se saiu da fila: em `charging` o débito está em curso (link = cobrança dupla).
-  if (skipped) await ensureScheduleChargeLinkGroup(db, chargeId);
+  if (skipped) await ensureLinkQuietly(db, chargeId);
 }
 
 /** Desliga o débito de todas as assinaturas do atleta (cartão apagado). Devolve quantas. */
@@ -202,6 +202,14 @@ export async function disableAllScheduleAutopayCore(db: Firestore, uid: string):
     count += 1;
   }
   return count;
+}
+
+/** Remove o cartão salvo e desliga o débito de todos os planos do atleta. */
+export async function removeMyPaymentCardCore(db: Firestore, uid: string): Promise<{removed: boolean; plans: number}> {
+  // Desliga primeiro: se algo falhar, o cartão segue salvo e o atleta repete; o inverso deixaria débito sem cartão.
+  const plans = await disableAllScheduleAutopayCore(db, uid);
+  const removed = await deleteSavedCardCore(db, uid);
+  return {removed, plans};
 }
 
 // ---------------------------------------------------------------------------
@@ -267,5 +275,14 @@ export const getScheduleAutopayPreview = onCall({
     );
   } catch (e) {
     return rethrowSchedule("getScheduleAutopayPreview", e);
+  }
+});
+
+export const removeMyPaymentCard = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
+  const uid = requireUid(request.auth);
+  try {
+    return await removeMyPaymentCardCore(getFirestore(), uid);
+  } catch (e) {
+    return rethrowSchedule("removeMyPaymentCard", e);
   }
 });

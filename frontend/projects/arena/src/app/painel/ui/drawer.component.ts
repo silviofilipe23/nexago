@@ -39,6 +39,7 @@ const FOCUSABLE =
         aria-modal="true"
         [attr.aria-label]="ariaLabel() || null"
         tabindex="-1"
+        [style.max-width]="width()"
         (click)="$event.stopPropagation()"
       >
         <ng-content />
@@ -107,6 +108,8 @@ export class DrawerComponent implements OnDestroy {
   readonly close = output<void>();
   readonly side = input<'left' | 'right'>('right');
   readonly ariaLabel = input('');
+  /** Largura máxima do painel (padrão 420px, no CSS). Ex.: `'860px'` para uma ficha larga. */
+  readonly width = input<string | null>(null);
 
   private readonly panel = viewChild.required<ElementRef<HTMLElement>>('panel');
   private readonly host = inject(ElementRef<HTMLElement>);

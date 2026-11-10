@@ -2412,6 +2412,34 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "arenaCrmContacts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "arenaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "at",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "arenaCrmReminders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "arenaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sentAt",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

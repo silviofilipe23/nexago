@@ -2,7 +2,8 @@ import { ChangeDetectionStrategy, Component, inject, input, output } from '@angu
 import { PersonPhotoService } from './person-photo.service';
 
 /** Overlay de modal genérico (protótipo ArModal): scrim + painel centralizado, conteúdo projetado. Fecha no scrim, no X ou em Escape.
- *  `size="lg"` abre o painel até 600px, para formulários com duas colunas (ex.: convite de professor). */
+ *  `size="lg"` abre o painel até 600px, para formulários com duas colunas (ex.: convite de professor);
+ *  `size="xl"` até 980px e sem padding, para formulário com resumo ao lado (contrato do CRM). */
 @Component({
   selector: 'ar-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -11,7 +12,7 @@ import { PersonPhotoService } from './person-photo.service';
   },
   template: `
     <div class="scrim" (click)="close.emit()">
-      <div class="panel" [class.lg]="size() === 'lg'" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <div class="panel" [class.lg]="size() === 'lg'" [class.xl]="size() === 'xl'" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
         <ng-content />
       </div>
     </div>
@@ -45,6 +46,11 @@ import { PersonPhotoService } from './person-photo.service';
       max-width: 600px;
     }
 
+    .panel.xl {
+      max-width: 980px;
+      padding: 0;
+    }
+
     @keyframes ar-scrim-in {
       from {
         opacity: 0;
@@ -61,7 +67,7 @@ import { PersonPhotoService } from './person-photo.service';
 })
 export class ModalComponent {
   readonly close = output<void>();
-  readonly size = input<'md' | 'lg'>('md');
+  readonly size = input<'md' | 'lg' | 'xl'>('md');
 
   private readonly photos = inject(PersonPhotoService);
 

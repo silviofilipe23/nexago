@@ -1,0 +1,163 @@
+// Peças comuns das telas do CRM (canvas "CRM da arena"). Enxuto: entra no orçamento de cada componente.
+
+.card {
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: 16px;
+  padding: 20px 22px;
+  min-width: 0;
+}
+
+.card-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 16px;
+  margin: 0;
+  color: var(--nx-text);
+}
+
+.card-desc {
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+.label {
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.av-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--nx-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sub {
+  font-size: 12px;
+  color: var(--nx-text-dim);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+.mono {
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+}
+
+.money {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--nx-surface-2);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn.primary {
+  background: var(--nx-orange-500);
+  border-color: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  box-shadow: 0 8px 28px rgba(255, 106, 26, 0.22);
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--nx-orange-400);
+}
+
+.btn.wa {
+  background: rgba(43, 209, 126, 0.1);
+  border-color: rgba(43, 209, 126, 0.4);
+  color: var(--nx-win);
+}
+
+.btn.lg {
+  min-height: 42px;
+  padding: 0 16px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+.pattern {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--nx-font-mono);
+  font-size: 10.5px;
+  color: var(--nx-orange-400);
+  background: rgba(255, 106, 26, 0.08);
+  border: 1px solid rgba(255, 106, 26, 0.3);
+  padding: 3px 8px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+
+.weeks {
+  display: flex;
+  gap: 3px;
+}
+
+.weeks i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--nx-surface-2);
+}
+
+.weeks i.on {
+  background: var(--nx-orange-500);
+}
+
+.good {
+  color: var(--nx-win);
+  font-weight: 600;
+}
+
+.warn {
+  color: var(--nx-pending);
+  font-weight: 600;
+}
+
+.state {
+  font-size: 13px;
+  color: var(--nx-text-mute);
+  margin: 0;
+  line-height: 1.5;
+}

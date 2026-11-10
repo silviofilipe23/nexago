@@ -852,6 +852,9 @@ export {
 } from "./arena-coupons";
 // --- Relatórios de ocupação de quadra (gestor de arena) ---
 export {getArenaOccupancyReport} from "./arena-occupancy-report";
+// CRM da arena: base de clientes, contratos de mensalista, filas do time e conversão de avulso.
+export {getArenaCrmOverview, getArenaCrmCustomer, updateArenaCrm} from "./arena-crm";
+export {sendArenaCrmReminders} from "./arena-crm-reminders";
 export {postTournamentAnnouncement} from "./tournament-announcements";
 // "Enviar para o celular" do Compartilhar no Stories (painel do organizador).
 export {sendStoriesToPhone} from "./organizer-stories-share";

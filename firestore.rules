@@ -2086,6 +2086,27 @@ service cloud.firestore {
       );
       allow create, update, delete: if false;
     }
+    // CRM da arena: contratos de mensalista, pagamentos e contatos só por callable
+    // (`arena-crm.ts`, área `agenda`). O cliente nunca lê nem escreve direto.
+    match /arenaCrmContracts/{contractId} {
+      allow read, write: if false;
+      match /payments/{paymentId} {
+        allow read, write: if false;
+      }
+    }
+    match /arenaCrmContacts/{contactId} {
+      allow read, write: if false;
+    }
+    match /arenaCrmReminders/{reminderId} {
+      allow read, write: if false;
+    }
+    // Cache da visão geral do CRM (reservas agregadas + telefone): só servidor.
+    match /arenaCrmCache/{arenaId} {
+      allow read, write: if false;
+      match /shards/{shardId} {
+        allow read, write: if false;
+      }
+    }
     match /arenaScheduleCharges/{chargeId} {
       allow read: if request.auth != null && (
         request.auth.uid in resource.data.visibleTo ||

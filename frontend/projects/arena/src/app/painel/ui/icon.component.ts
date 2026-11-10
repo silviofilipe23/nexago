@@ -36,7 +36,8 @@ export type PanelIconName =
   | 'pause'
   | 'play'
   | 'school'
-  | 'x';
+  | 'x'
+  | 'message';
 
 /** Ícones stroke-24 do painel da arena (protótipo Ar\*\/Bo\*\/At\* Ic\*), um componente para evitar repetir SVG. */
 @Component({
@@ -108,6 +109,9 @@ export type PanelIconName =
         }
         @case ('star') {
           <path d="m12 2.5 3.1 6.5 7.1 1-5.1 5 1.2 7.1L12 18.7l-6.3 3.4 1.2-7.1-5.1-5 7.1-1z" />
+        }
+        @case ('message') {
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         }
         @case ('share') {
           <circle cx="18" cy="5" r="2.7" /><circle cx="6" cy="12" r="2.7" /><circle cx="18" cy="19" r="2.7" />

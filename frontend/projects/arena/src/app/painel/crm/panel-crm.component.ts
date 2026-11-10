@@ -13,6 +13,7 @@ import { CrmCustomersComponent } from './crm-customers.component';
 import { CrmPaymentModalComponent } from './crm-payment-modal.component';
 import { CrmTodayComponent } from './crm-today.component';
 import { CrmUiService } from './crm-ui.service';
+import { cacheLabel } from './crm.model';
 import { CrmStore } from './crm.store';
 
 type CrmTab = 'hoje' | 'clientes' | 'conversao';
@@ -36,8 +37,9 @@ type CrmTab = 'hoje' | 'clientes' | 'conversao';
   template: `
     <ar-panel-shell>
       <ar-page-header title="Clientes" [subtitle]="subtitle()">
-        <button type="button" class="ar-mini-btn" [disabled]="store.loading()" (click)="store.reload()" aria-label="Atualizar">
-          <ar-icon name="repeat" [size]="14" /> Atualizar
+        <button type="button" class="ar-mini-btn" [disabled]="store.loading() || store.refreshing()" (click)="refresh()"
+          [attr.title]="'Relê as reservas (o CRM guarda por até 30 min)'">
+          <ar-icon name="repeat" [size]="14" /> {{ store.refreshing() ? 'Atualizando…' : 'Atualizar' }}
         </button>
         @if (ui.canWrite()) {
           <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="ui.newContract()">
@@ -142,8 +144,15 @@ export class PanelCrmComponent {
     const o = this.store.overview();
     if (!o) return 'CRM';
     const date = new Date(`${o.today}T12:00:00Z`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
-    return `CRM · ${date}`;
+    const fresh = cacheLabel(o.cache?.builtAt);
+    return fresh ? `CRM · ${date} · ${fresh}` : `CRM · ${date}`;
   });
+
+  protected async refresh(): Promise<void> {
+    await this.store.reload(true);
+    // O servidor só relê a cada 2 min: avisa em vez de parecer que o botão não fez nada.
+    if (this.store.overview()?.cache?.fromCache) this.ui.flash('As reservas foram lidas há menos de 2 minutos.');
+  }
 
   protected go(tab: CrmTab): void {
     void this.router.navigate([], { relativeTo: this.route, queryParams: { aba: tab === 'hoje' ? null : tab }, queryParamsHandling: 'merge' });

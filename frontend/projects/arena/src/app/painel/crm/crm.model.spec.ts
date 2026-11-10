@@ -1,4 +1,5 @@
 import {
+  cacheLabel,
   contractSummary,
   customerInsight,
   customersCsv,
@@ -97,6 +98,12 @@ describe('crm.model', () => {
     const contact = { id: 'k', customerKey: 'a:u1', contractId: null, channel: 'whatsapp' as const, reason: 'overdue' as const, outcome: 'no_answer' as const, note: null, at: '2026-11-05T14:00:00.000Z', byName: 'Bruna Lima' };
     expect(followUpLine(customer({ lastContact: contact, lastReminder: { kind: 'overdue_7', sentAt: '2026-11-10T12:00:00.000Z' } }), '2026-11-10')).toBe('Lembrete automático (atraso +7) · hoje');
     expect(followUpLine(customer({ lastContact: contact, lastReminder: { kind: 'due_soon', sentAt: '2026-11-01T12:00:00.000Z' } }), '2026-11-10')).toBe('Sem resposta · há 5 dias, por Bruna');
+  });
+
+  it('rótulo do cache com a hora local das reservas', () => {
+    expect(cacheLabel('2026-11-10T17:32:00.000Z')).toMatch(/^reservas de \d{2}:\d{2}$/);
+    expect(cacheLabel(null)).toBe('');
+    expect(cacheLabel('x')).toBe('');
   });
 
   it('CSV com separador ; e texto entre aspas quando precisa', () => {

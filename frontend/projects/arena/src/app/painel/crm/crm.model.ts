@@ -143,6 +143,8 @@ export interface CrmOverview {
   plans: CrmPlanOption[];
   settings: { monthlyGoal: number; reminders: ReminderSettings };
   reminders: ReminderOutcome;
+  /** Quando as reservas foram lidas: o servidor guarda por até 30 min. */
+  cache: { builtAt: string; fromCache: boolean };
 }
 
 export type ReminderKind = 'due_soon' | 'due_today' | 'overdue_1' | 'overdue_7' | 'renewal_15' | 'renewal_3' | 'absence';
@@ -579,4 +581,12 @@ export function profileReason(c: CrmCustomer): CrmContactReason {
   if (c.absent) return 'absence';
   if (c.conversion) return 'offer';
   return 'other';
+}
+
+/** "reservas de 14:32" (hora local de quando o servidor leu as reservas). */
+export function cacheLabel(builtAt: string | null | undefined): string {
+  if (!builtAt) return '';
+  const d = new Date(builtAt);
+  if (Number.isNaN(d.getTime())) return '';
+  return `reservas de ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 }

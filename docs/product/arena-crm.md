@@ -79,6 +79,15 @@ atleta do app; assinantes dos Planos de horário já têm os lembretes da cobran
 - Efeito na aba Hoje (7 dias): pagaram a parcela lembrada, renovaram, voltaram a jogar. A fila mostra
   "Lembrete automático" quando ele é mais novo que o último contato humano (e não desce o cliente).
 
+## Cache da visão geral
+
+O caro é ler 6 meses de reservas e o perfil de cada atleta. Isso vira estatística por cliente e
+identidade (nome, foto, telefone) em `arenaCrmCache/{arenaId}/shards/{i}` (400 clientes por shard),
+válido no mesmo dia por 30 min (`arena-crm-cache.ts`). Contratos, mensalidades, contatos e lembretes
+continuam ao vivo: o que a equipe faz no CRM aparece na hora; reserva nova, em até 30 min.
+"Atualizar" força a releitura (no máximo a cada 2 min). O cabeçalho mostra "reservas de HH:MM".
+O formato tem versão (`CACHE_VERSION`): mudou o que vai no cache, sobe a versão e o velho é ignorado.
+
 ## KPIs
 
 - **Receita recorrente**: soma das mensalidades dos contratos vivos no dia (pausado não conta;
@@ -97,7 +106,7 @@ atleta do app; assinantes dos Planos de horário já têm os lembretes da cobran
 - `updateArenaCrm({arenaId, op, ...})` — `saveContract`, `cancelContract`, `renewContract`,
   `registerPayment`, `logContact`, `saveSettings` (área `agenda`, escrita).
 
-Rules negam o cliente em `arenaCrmContracts` (e `payments`), `arenaCrmContacts` e `arenaCrmReminders`.
+Rules negam o cliente em `arenaCrmContracts` (e `payments`), `arenaCrmContacts`, `arenaCrmReminders` e `arenaCrmCache` (com `shards`).
 Índices: `arenaCrmContacts (arenaId, at)` e `arenaCrmReminders (arenaId, sentAt)`.
 
 Deploy: índices → functions (3 callables + `sendArenaCrmReminders`) → rules → portal da arena.

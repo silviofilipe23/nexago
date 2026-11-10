@@ -41,6 +41,8 @@ export class CrmStore {
 
   readonly overview = signal<CrmOverview | null>(null);
   readonly loading = signal(true);
+  /** Releitura pedida pelo botão Atualizar (o resto recarrega em silêncio). */
+  readonly refreshing = signal(false);
   readonly loadError = signal<string | null>(null);
 
   readonly customers = computed(() => this.overview()?.customers ?? []);
@@ -62,7 +64,8 @@ export class CrmStore {
     });
   }
 
-  async reload(): Promise<void> {
+  /** `refresh` relê as reservas (o servidor guarda por 30 min e aceita forçar a cada 2 min). */
+  async reload(refresh = false): Promise<void> {
     const arenaId = this.arenaContext.arenaId();
     if (!arenaId) return;
     const seq = ++this.seq;
@@ -72,13 +75,17 @@ export class CrmStore {
       this.loading.set(true);
     }
     this.loadError.set(null);
+    if (refresh) this.refreshing.set(true);
     try {
-      const data = await this.call<CrmOverview>('getArenaCrmOverview', { arenaId });
+      const data = await this.call<CrmOverview>('getArenaCrmOverview', { arenaId, refresh });
       if (seq === this.seq) this.overview.set(data);
     } catch (err) {
       if (seq === this.seq) this.loadError.set(err instanceof Error ? err.message : 'Não foi possível carregar os clientes.');
     } finally {
-      if (seq === this.seq) this.loading.set(false);
+      if (seq === this.seq) {
+        this.loading.set(false);
+        this.refreshing.set(false);
+      }
     }
   }
 

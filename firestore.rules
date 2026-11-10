@@ -2100,6 +2100,13 @@ service cloud.firestore {
     match /arenaCrmReminders/{reminderId} {
       allow read, write: if false;
     }
+    // Cache da visão geral do CRM (reservas agregadas + telefone): só servidor.
+    match /arenaCrmCache/{arenaId} {
+      allow read, write: if false;
+      match /shards/{shardId} {
+        allow read, write: if false;
+      }
+    }
     match /arenaScheduleCharges/{chargeId} {
       allow read: if request.auth != null && (
         request.auth.uid in resource.data.visibleTo ||

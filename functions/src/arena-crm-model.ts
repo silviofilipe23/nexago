@@ -684,6 +684,8 @@ export interface BuildOverviewInput {
   plans: CrmPlanOption[];
   identities: Map<string, CrmIdentity>;
   monthlyGoal: number;
+  /** Estatísticas já prontas (cache); quando vêm, `bookings` é ignorado. */
+  bookingStats?: Map<string, CrmBookingStats>;
 }
 
 const LIVE: ReadonlySet<CrmStatus> = new Set(["active", "expiring", "overdue"]);
@@ -712,7 +714,7 @@ function liveOn(v: CrmContractView, day: string): boolean {
 
 export function buildOverview(input: BuildOverviewInput): CrmOverview {
   const {today} = input;
-  const stats = aggregateBookings(input.bookings, today);
+  const stats = input.bookingStats ?? aggregateBookings(input.bookings, today);
 
   const views: CrmContractView[] = [];
   for (const c of input.contracts) views.push(contractView(c, today));

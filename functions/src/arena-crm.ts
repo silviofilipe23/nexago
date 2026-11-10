@@ -28,6 +28,7 @@ import {
   CRM_SETTINGS,
   CRM_SETTINGS_DOC,
   addDays,
+  aggregateBookings,
   buildOverview,
   contractView,
   customerKeyOf,
@@ -45,6 +46,7 @@ import {
   type ScheduleChargeRecord,
   type ScheduleSubscriptionRecord,
 } from "./arena-crm-model";
+import {bookingSnapshot} from "./arena-crm-cache";
 import {
   CRM_REMINDERS,
   REMINDER_KINDS,
@@ -196,12 +198,14 @@ function requireArenaId(raw: unknown): string {
 export interface ArenaCrmOverviewPayload extends CrmOverview {
   settings: {monthlyGoal: number; reminders: ReminderSettings};
   reminders: ReminderOutcome;
+  /** Quando as reservas foram lidas (cache de até 30 min). */
+  cache: {builtAt: string; fromCache: boolean};
 }
 
 export async function getArenaCrmOverviewCore(db: Firestore, uid: string, raw: unknown, now: Date): Promise<ArenaCrmOverviewPayload> {
   const arenaId = requireArenaId(raw);
   await assertArenaAreaAccess(db, arenaId, uid, "agenda", "read");
-  const loaded = await loadArenaCrmOverview(db, arenaId, now);
+  const loaded = await loadArenaCrmOverview(db, arenaId, now, (raw as Data)["refresh"] === true);
   const {overview} = loaded;
   const sentFrom = Timestamp.fromDate(new Date(now.getTime() - 8 * 86_400_000));
   const sentSnap = await db.collection(CRM_REMINDERS).where("arenaId", "==", arenaId).where("sentAt", ">=", sentFrom).get();
@@ -223,6 +227,7 @@ export async function getArenaCrmOverviewCore(db: Firestore, uid: string, raw: u
     customers,
     settings: {monthlyGoal: loaded.monthlyGoal, reminders: loaded.reminderSettings},
     reminders: reminderOutcome(sent, new Map(loaded.contracts.map((c) => [c.id, c])), lastVisit, overview.today),
+    cache: loaded.cache,
   };
 }
 
@@ -239,30 +244,39 @@ function sentReminderFromDoc(d: Data): SentReminder | null {
   };
 }
 
-/** Lê tudo da arena e monta a visão geral (sem checar acesso: o agendador também usa). */
-export async function loadArenaCrmOverview(db: Firestore, arenaId: string, now: Date): Promise<{
+/** Lê tudo da arena e monta a visão geral (sem checar acesso: o agendador também usa).
+ *  Reservas e perfis vêm do cache (`arena-crm-cache.ts`); o resto é sempre ao vivo. */
+export async function loadArenaCrmOverview(db: Firestore, arenaId: string, now: Date, refresh = false): Promise<{
   overview: CrmOverview;
   contracts: CrmContractRecord[];
   monthlyGoal: number;
   reminderSettings: ReminderSettings;
+  cache: {builtAt: string; fromCache: boolean};
 }> {
   const today = dayKeyFromEventDate(now);
   const arenaRef = db.collection("arenas").doc(arenaId);
   const contactsFrom = Timestamp.fromDate(new Date(now.getTime() - CONTACTS_WINDOW_DAYS * 86_400_000));
 
-  const [contractsSnap, subsSnap, chargesSnap, bookingsSnap, contactsSnap, plansSnap, settingsSnap] = await Promise.all([
+  const [contractsSnap, subsSnap, chargesSnap, contactsSnap, plansSnap, settingsSnap, snapshot] = await Promise.all([
     db.collection(CRM_CONTRACTS).where("arenaId", "==", arenaId).get(),
     db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).where("arenaId", "==", arenaId).get(),
     db.collection(ARENA_SCHEDULE_CHARGES).where("arenaId", "==", arenaId).where("status", "==", "open").get(),
-    db.collection(ARENA_BOOKINGS)
-      .where("arenaId", "==", arenaId)
-      .where("date", ">=", historyStartDate(today))
-      .where("date", "<=", today)
-      .select(...BOOKING_FIELDS)
-      .get(),
     db.collection(CRM_CONTACTS).where("arenaId", "==", arenaId).where("at", ">=", contactsFrom).get(),
     arenaRef.collection(SCHEDULE_PLANS).where("status", "==", "active").get(),
     arenaRef.collection(CRM_SETTINGS).doc(CRM_SETTINGS_DOC).get(),
+    bookingSnapshot(db, arenaId, today, now, refresh, async () => {
+      const bookingsSnap = await db.collection(ARENA_BOOKINGS)
+        .where("arenaId", "==", arenaId)
+        .where("date", ">=", historyStartDate(today))
+        .where("date", "<=", today)
+        .select(...BOOKING_FIELDS)
+        .get();
+      const bookings = bookingsSnap.docs.map((d) => d.data() as CrmBookingRecord);
+      return {
+        stats: aggregateBookings(bookings, today),
+        identities: await loadIdentities(db, bookings.map((b) => str(b.athleteId))),
+      };
+    }),
   ]);
 
   const contracts = contractsSnap.docs.map((d) => contractFromDoc(d.id, d.data() as Data));
@@ -271,27 +285,29 @@ export async function loadArenaCrmOverview(db: Firestore, arenaId: string, now: 
     const c = d.data() as Data;
     return {subscriptionId: str(c["subscriptionId"]), amountReais: num(c["amountReais"]), dueDate: str(c["dueDate"]), status: str(c["status"])};
   });
-  const bookings = bookingsSnap.docs.map((d) => d.data() as CrmBookingRecord);
   const contacts = contactsSnap.docs.map((d) => contactFromDoc(d.id, d.data() as Data));
   const plans = plansSnap.docs.map((d) => planFromDoc(d.id, d.data() as Data));
   const settingsData = (settingsSnap.data() ?? {}) as Data;
   const monthlyGoal = num(settingsData["monthlyGoal"], DEFAULT_MONTHLY_GOAL);
   const reminderSettings = reminderSettingsFrom(settingsData["reminders"]);
 
-  const athleteIds = [
+  // Mensalista que não reservou nos 6 meses não está no cache: perfil lido ao vivo (poucos).
+  const identities = new Map(snapshot.identities);
+  const missing = [
     ...contracts.map((c) => c.athleteId ?? ""),
     ...subscriptions.map((s) => s.holderAthleteId ?? ""),
-    ...bookings.map((b) => str(b.athleteId)),
-  ];
-  const identities = await loadIdentities(db, athleteIds);
+  ].filter((uid) => uid && !identities.has(`a:${uid}`));
+  for (const [k, v] of await loadIdentities(db, missing)) identities.set(k, v);
   for (const s of subscriptions) {
     const key = customerKeyOf(s.holderAthleteId, s.holderName);
     const id = key ? identities.get(key) : undefined;
     if (key && id && !id.photoUrl && s.holderPhotoUrl) identities.set(key, {...id, photoUrl: s.holderPhotoUrl});
   }
 
-  const overview = buildOverview({today, contracts, subscriptions, openCharges, bookings, contacts, plans, identities, monthlyGoal});
-  return {overview, contracts, monthlyGoal, reminderSettings};
+  const overview = buildOverview({
+    today, contracts, subscriptions, openCharges, bookings: [], bookingStats: snapshot.stats, contacts, plans, identities, monthlyGoal,
+  });
+  return {overview, contracts, monthlyGoal, reminderSettings, cache: {builtAt: snapshot.builtAt, fromCache: snapshot.fromCache}};
 }
 
 // ── Ficha do cliente ──────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@
  * só se ele ainda não avaliou.
  *
  * - `url` = `/my-bookings`: existe nos builds da loja (que só leem `url`); o app novo reconhece o
- *   tipo e abre a tela de avaliar pelo `bookingId`.
+ *   tipo e abre o detalhe da reserva pelo `bookingId` (lá está o "Avaliar experiência").
  * - `webUrl` = detalhe da reserva no portal do atleta, que tem o botão "Avaliar experiência".
  * - Janela curta (até 6 h depois do fim): a primeira rodada depois do deploy não cobra jogos
  *   antigos, e uma reserva que o lote não alcançou não vira push no dia seguinte.

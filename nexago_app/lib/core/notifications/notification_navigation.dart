@@ -141,7 +141,7 @@ String? arenaReviewRequestNotificationRoute(
   if (type != arenaReviewRequestNotificationType) return null;
   final bookingId = (data['bookingId'] as String?)?.trim() ?? '';
   if (bookingId.isEmpty) return AppRoutes.myBookings;
-  return AppRoutes.bookingArenaReview
+  return AppRoutes.bookingDetailsById
       .replaceAll(':bookingId', Uri.encodeComponent(bookingId));
 }
 
@@ -379,8 +379,8 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   final weatherRoute = arenaWeatherNotificationRoute(type, data);
   if (weatherRoute != null) return weatherRoute;
 
-  // "Como foi o jogo?": o `url` é `/my-bookings` (app antigo); este build abre a
-  // tela de avaliar a reserva — por isso o tipo vem antes da url.
+  // "Como foi o jogo?": o `url` é `/my-bookings` (app antigo); este build abre o
+  // detalhe da reserva, com o "Avaliar experiência" — por isso o tipo vem antes da url.
   final reviewRoute = arenaReviewRequestNotificationRoute(type, data);
   if (reviewRoute != null) return reviewRoute;
 

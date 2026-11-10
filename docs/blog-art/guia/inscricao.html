@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="wide.css">
+<style>
+  /* Inscrição em 3 passos: categoria → dupla (convidar ou guardar a vaga) → confirmado + story. */
+  .c { top: 96px; width: 214px; }
+  .c1 { left: 46px; } .c2 { left: 293px; } .c3 { left: 540px; }
+  .cover { height: 64px; margin: -14px -14px 0; border-radius: 17px 17px 0 0;
+    background: radial-gradient(60% 120% at 70% 100%, rgba(255,140,60,.85), rgba(255,106,26,.25) 45%, rgba(0,0,0,0) 70%), linear-gradient(180deg,#2A160C,#120A06);
+    position: relative; overflow: hidden; }
+  .cover::after { content: ""; position: absolute; left: 0; right: 0; bottom: 14px; height: 1px; background: rgba(0,0,0,.6); box-shadow: 0 -8px 0 rgba(0,0,0,.35), 0 -16px 0 rgba(0,0,0,.2); }
+  .cats { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .cat { display: flex; align-items: center; justify-content: space-between; height: 32px; padding: 0 10px; border-radius: 10px; background: var(--surf2); border: 1px solid var(--line); font-size: 9.5px; }
+  .cat .v { font-family: JB; font-size: 8.5px; color: var(--dim); }
+  .cat.on { border-color: var(--or); background: rgba(255,106,26,.10); }
+  .cat.on .v { color: var(--or); }
+  .lvl { width: 7px; height: 7px; border-radius: 9px; display: inline-block; margin-right: 6px; }
+  .search { height: 30px; border-radius: 10px; background: var(--surf2); border: 1px solid var(--line); display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 9.5px; color: var(--fg); margin-top: 10px; }
+  .search .i { font-size: 14px; color: var(--dim); }
+  .ath { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .ath .av { width: 28px; height: 28px; font-size: 11px; }
+  .ath .n { font-size: 10px; font-weight: 700; } .ath .m { font-size: 8.5px; color: var(--dim); }
+  .mini { height: 24px; border-radius: 8px; background: var(--or); color: #0A0A0A; font-size: 8.5px; font-weight: 700; padding: 0 9px; display: grid; place-items: center; margin-left: auto; }
+  .or { text-align: center; font-family: JB; font-weight: 700; font-size: 7px; letter-spacing: .16em; color: var(--dim2); margin: 9px 0 7px; }
+  .ok { width: 46px; height: 46px; border-radius: 99px; background: rgba(43,209,126,.14); border: 1px solid rgba(43,209,126,.4); display: grid; place-items: center; color: var(--win); font-size: 26px; margin: 4px auto 0; box-shadow: 0 0 30px rgba(43,209,126,.25); }
+  .pay { display: flex; gap: 6px; margin-top: 12px; }
+  .pay .chip { flex: 1; justify-content: center; height: 26px; }
+  .story { margin-top: 9px; height: 70px; border-radius: 12px; position: relative; overflow: hidden;
+    background: radial-gradient(70% 100% at 50% 100%, rgba(255,106,26,.55), rgba(255,106,26,0) 70%), #160D08; border: 1px solid rgba(255,106,26,.3); display: flex; align-items: center; gap: 9px; padding: 0 11px; }
+  .story .duo { position: relative; width: 44px; height: 28px; }
+  .story .duo .av { position: absolute; width: 28px; height: 28px; font-size: 10px; border: 2px solid #160D08; }
+  .story .duo .av:last-child { left: 16px; }
+</style></head>
+<body><div class="art">
+  <div class="step" style="left:46px;top:60px"><span class="n">1</span><span class="t">Escolha a categoria</span></div>
+  <div class="card c c1">
+    <div class="cover"></div>
+    <div class="title" style="margin-top:10px">Open Goiânia Beach</div>
+    <div class="sub">Vôlei de praia · 21 a 23 de nov</div><div class="kicker" style="margin-top:10px">Masculino</div>
+    <div class="cats" style="margin-top:6px">
+      <div class="cat"><span><span class="lvl" style="background:#5BC0EB"></span>Iniciante</span><span class="v">8 vagas</span></div>
+      <div class="cat on"><span><span class="lvl" style="background:#FFB020"></span>Intermediário</span><span class="v">3 vagas</span></div>
+      <div class="cat"><span><span class="lvl" style="background:#FF5A5F"></span>Avançado</span><span class="v">5 vagas</span></div>
+    </div>
+    <div class="btn" style="margin-top:11px">Inscrever minha dupla</div>
+  </div>
+  <div class="arrow" style="left:265px;top:222px"><span class="i">&#xe15f;</span></div>
+
+  <div class="step" style="left:293px;top:60px"><span class="n">2</span><span class="t">Feche a dupla</span></div>
+  <div class="card c c2">
+    <div class="title" style="font-size:12px">Escolher meu parceiro</div>
+    <div class="search"><span class="i">&#xe567;</span>caio</div>
+    <div class="ath"><div class="av" style="background:#8AB4FF">C</div><div><div class="n">Caio Mendes</div><div class="m">Intermediário</div></div><span class="mini">Convidar</span></div>
+    <div class="ath" style="border-bottom:0"><div class="av" style="background:#9BE7C4">C</div><div><div class="n">Caio Rocha</div><div class="m">Iniciante</div></div><span class="mini" style="background:transparent;color:var(--fg);border:1px solid var(--line2)">Convidar</span></div>
+    <div class="row" style="margin-top:4px;font-size:8.5px;color:var(--dim)"><span class="i" style="font-size:13px;color:var(--or)">&#xe380;</span>Ou convide por link</div>
+    <div class="or">— OU —</div>
+    <div class="btn ghost">Guardar minha vaga sem parceiro</div>
+  </div>
+  <div class="arrow" style="left:512px;top:222px"><span class="i">&#xe15f;</span></div>
+
+  <div class="step" style="left:540px;top:60px"><span class="n">3</span><span class="t">Pague e poste</span></div>
+  <div class="card c c3">
+    <div class="ok"><span class="i">&#xe159;</span></div>
+    <div class="title" style="text-align:center;margin-top:9px">Confirmado</div>
+    <div class="sub" style="text-align:center">Você &amp; Caio · Masculino Intermediário</div>
+    <div class="pay"><span class="chip on">Pix</span><span class="chip">Cartão</span><span class="chip">Organizador</span></div>
+    <div class="story">
+      <div class="duo"><div class="av" style="background:#FFB27A">V</div><div class="av" style="background:#8AB4FF">C</div></div>
+      <div><div class="kicker" style="color:var(--or)">Inscritos</div><div style="font-size:10.5px;font-weight:700;margin-top:2px">Open Goiânia Beach</div></div>
+    </div>
+    <div class="btn" style="margin-top:9px"><span class="i">&#xe593;</span>Compartilhar no story</div>
+  </div>
+  <div class="brand" style="left:46px"><b>nexa</b>GO · GUIA DO APP</div>
+</div></body></html>

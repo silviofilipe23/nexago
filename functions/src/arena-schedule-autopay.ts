@@ -175,7 +175,7 @@ async function skipOne(db: Firestore, chargeId: string): Promise<void> {
     if (!snap.exists || !charge || charge["status"] !== "open") return false;
     const state = str(autopayOf(charge)["state"]);
     if (state !== "scheduled" && state !== "retry") return false;
-    tx.set(ref, {autopay: {state: "skipped"}}, {merge: true});
+    tx.set(ref, {autopay: {state: "skipped", needsLink: true}}, {merge: true});
     return true;
   });
   // Só devolve o link se saiu da fila: em `charging` o débito está em curso (link = cobrança dupla).

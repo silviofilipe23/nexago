@@ -892,17 +892,61 @@ describe("débito com token no vencimento", () => {
   describe("ruling 9: link quietly", () => {
     it("recovery gives the link to skipped/failed open charges with no group", async () => {
       const {fake, db} = makeDb();
-      seedAuto(fake, {autopay: {state: "skipped"}});
-      seedCharge(fake, "c2", {autopay: {state: "failed"}, dueDate: TODAY});
-      seedCharge(fake, "c3", {autopay: {state: "skipped"}, asaas: {groupId: "g9", state: "open"}});
+      seedAuto(fake, {autopay: {state: "skipped", needsLink: true}});
+      seedCharge(fake, "c2", {autopay: {state: "failed", needsLink: true}, dueDate: TODAY});
+      seedCharge(fake, "c3", {autopay: {state: "skipped", needsLink: false}, asaas: {groupId: "g9", state: "open"}});
       seedCharge(fake, "c4", {autopay: {state: "skipped"}, billingMode: "manual"});
       fake.seedDoc(`${GROUPS}/g9`, {chargeId: "c3", state: "open"});
       const {deps} = autopayDeps();
       assert.deepEqual(await recoverScheduleAutopay(db, NOW, deps), {resumed: 0, linked: 2});
+      assert.equal(autopay(fake, "c1")!["needsLink"], false);
       for (const id of ["c1", "c2"]) {
         assert.ok(((get(fake, `${CHARGES}/${id}`)["asaas"] ?? {}) as Data)["groupId"], id);
       }
       assert.equal(((get(fake, `${CHARGES}/c4`)["asaas"] ?? {}) as Data)["groupId"], undefined);
+    });
+
+    it("250 open failed charges with links + 1 linkless: one run links it (queue drains)", async () => {
+      const {fake, db} = makeDb();
+      seed(fake);
+      for (let i = 0; i < 250; i++) {
+        seedCharge(fake, `L${i}`, {
+          autopay: {state: "failed", needsLink: false}, asaas: {groupId: `gl${i}`, state: "open"},
+        });
+      }
+      seedCharge(fake, "lonely", {autopay: {state: "failed", needsLink: true}});
+      const {deps} = autopayDeps();
+      assert.deepEqual(await recoverScheduleAutopay(db, NOW, deps), {resumed: 0, linked: 1});
+      assert.ok(((get(fake, `${CHARGES}/lonely`)["asaas"] ?? {}) as Data)["groupId"]);
+      assert.equal(autopay(fake, "lonely")!["needsLink"], false);
+    });
+
+    it("a failing ensure keeps needsLink and the next run retries", async () => {
+      const {fake, db} = makeDb();
+      seed(fake);
+      seedCharge(fake, "c1", {autopay: {state: "skipped", needsLink: true}});
+      const {deps} = autopayDeps();
+      const original = fake.runTransaction.bind(fake);
+      fake.runTransaction = (() => Promise.reject(new Error("boom"))) as typeof fake.runTransaction;
+      assert.deepEqual(await recoverScheduleAutopay(db, NOW, deps), {resumed: 0, linked: 0});
+      assert.equal(autopay(fake, "c1")!["needsLink"], true);
+      fake.runTransaction = original;
+      assert.deepEqual(await recoverScheduleAutopay(db, NOW, deps), {resumed: 0, linked: 1});
+      assert.equal(autopay(fake, "c1")!["needsLink"], false);
+    });
+
+    it("every skip/failed write marks needsLink", async () => {
+      const {fake, db} = makeDb();
+      seed(fake);
+      seedCharge(fake, "c1", {dueDate: TODAY});
+      await enable(db);
+      const collection = fake.collection.bind(fake);
+      (fake as unknown as {collection: (n: string) => unknown}).collection = (name: string) => {
+        if (name === GROUPS) throw new Error("boom");
+        return collection(name);
+      };
+      await disableAllScheduleAutopayCore(db, "u1");
+      assert.equal(autopay(fake, "c1")!["needsLink"], true);
     });
 
     it("disableAll survives a link failure and leaves the charge skipped", async () => {

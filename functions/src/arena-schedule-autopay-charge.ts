@@ -184,6 +184,8 @@ function chargedFor(baseReais: number, terms: CardFeeTerms) {
 export async function ensureLinkQuietly(db: Firestore, chargeId: string): Promise<boolean> {
   try {
     await ensureScheduleChargeLinkGroup(db, chargeId);
+    // Link garantido (ou mensalidade fora de "aberta online"): sai da fila da rede de segurança.
+    await chargeRefOf(db, chargeId).set({autopay: {needsLink: false}}, {merge: true});
     return true;
   } catch (e) {
     logger.error(`débito automático ${chargeId}: link de pagamento não foi gerado — a varredura tenta de novo`, e);
@@ -262,7 +264,7 @@ async function claimTokenCharge(
     }) ?? (resumeId && !live ? "charge_resolved" : null);
     if (reason) {
       if (source === "manual") return {kind: "skip", reason, link: false};
-      tx.set(chargeRef, {autopay: {state: "skipped", lastError: reason}}, {merge: true});
+      tx.set(chargeRef, {autopay: {state: "skipped", lastError: reason, needsLink: true}}, {merge: true});
       if (resumeId && group) {
         tx.set(groupsCol(db).doc(currentGroupId), {
           tokenCharges: {[resumeId]: {status: "abandoned", error: reason}}, updatedAt: FieldValue.serverTimestamp(),
@@ -442,7 +444,7 @@ async function refuseTokenCharge(
       tx.set(chargeRef, {autopay: {state: "retry", scheduledFor: tomorrow, lastError: error}}, {merge: true});
       return "retry";
     }
-    tx.set(chargeRef, {autopay: {state: "failed", lastError: error}}, {merge: true});
+    tx.set(chargeRef, {autopay: {state: "failed", lastError: error, needsLink: true}}, {merge: true});
     return "failed";
   });
   if (next === "failed" || next === "link") await ensureLinkQuietly(db, attempt.chargeId);
@@ -583,7 +585,7 @@ async function resumeStuckCharge(db: Firestore, chargeId: string, charge: Data, 
  * Recuperação (varredura de 30 min). Nenhuma mensalidade fica parada sem débito e sem link:
  * - `charging` há mais de 15 min é retomada (ou vira recusa depois de 24 h);
  * - `scheduled`/`retry` esquecida (2+ dias no passado: o job das 06:00 não rodou) → `skipped` + link;
- * - `skipped`/`failed` aberta sem nenhum grupo no espelho (o link nunca saiu) → ganha o link;
+ * - `autopay.needsLink` (saiu do débito em `skipped`/`failed` e o link ainda não foi garantido) → ganha o link;
  * - grupo `autopay` de mensalidade aberta fora da janela do débito (o link falhou depois do
  *   `skipped`/`failed`, ou uma tentativa na mão o criou) → ganha o link.
  */
@@ -617,7 +619,7 @@ export async function recoverScheduleAutopay(
         const ap = autopayOf((await tx.get(doc.ref)).data() as Data | undefined);
         const state = str(ap["state"]);
         if ((state !== "scheduled" && state !== "retry") || str(ap["scheduledFor"]) > cutoff) return false;
-        tx.set(doc.ref, {autopay: {state: "skipped", lastError: "missed_run"}}, {merge: true});
+        tx.set(doc.ref, {autopay: {state: "skipped", lastError: "missed_run", needsLink: true}}, {merge: true});
         return true;
       });
       if (skipped && await ensureLinkQuietly(db, doc.id)) linked += 1;
@@ -626,12 +628,9 @@ export async function recoverScheduleAutopay(
     }
   }
 
-  // `skipped`/`failed` aberta e sem grupo no espelho (o link nunca saiu): ganha o link.
-  const linkless = await col.where("status", "==", "open").where("autopay.state", "in", ["skipped", "failed"])
-    .limit(200).get();
+  // Fila `needsLink`: quem saiu do débito (`skipped`/`failed`) e ainda não ganhou o link. Esvazia sozinha.
+  const linkless = await col.where("autopay.needsLink", "==", true).limit(200).get();
   for (const doc of linkless.docs) {
-    const charge = doc.data() as Data;
-    if (charge["billingMode"] !== "asaas" || str(mapOf(charge["asaas"])["groupId"])) continue;
     if (await ensureLinkQuietly(db, doc.id)) linked += 1;
   }
 

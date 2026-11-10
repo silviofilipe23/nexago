@@ -166,6 +166,9 @@ void main() {
     await tester.pump();
     expect(find.text('+1000 pts'), findsOneWidget);
     expect(find.text('Ver ranking completo'), findsOneWidget);
+    // Beach tennis pontua no ranking do próprio esporte desde a fase 3a.
+    expect(find.textContaining('Cada esporte tem o seu ranking'), findsOneWidget);
+    expect(find.textContaining('ainda não pontua'), findsNothing);
   });
 
   testWidgets('aberta do Ranking não oferece voltar pro Ranking', (

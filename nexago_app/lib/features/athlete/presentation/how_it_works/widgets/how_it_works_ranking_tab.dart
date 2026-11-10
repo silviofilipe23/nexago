@@ -141,9 +141,8 @@ class _HowItWorksRankingTabState extends ConsumerState<HowItWorksRankingTab> {
         ),
         const SizedBox(height: 20),
         const HowItWorksNote(
-          'Partidas casuais e reservas dão XP, não pontos de ranking. Beach '
-          'tennis ainda não pontua no ranking geral, e ligas podem ter tabela '
-          'própria.',
+          'Cada esporte tem o seu ranking. Partidas casuais e reservas dão XP, '
+          'não pontos. Ligas podem ter tabela própria.',
         ),
         if (widget.showRankingLink) ...[
           const SizedBox(height: 20),

@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/payment_card/application/payment_card_providers.dart';
+import 'package:nexago_app/features/payment_card/domain/saved_payment_card.dart';
 import 'package:nexago_app/features/schedule_plans/application/schedule_plans_providers.dart';
 import 'package:nexago_app/features/schedule_plans/domain/schedule_plan_models.dart';
 import 'package:nexago_app/features/schedule_plans/infrastructure/schedule_plans_repository.dart';
@@ -310,7 +312,8 @@ void main() {
         await subscribeAndLand(tester, online: true, pending: true),
         'PAGAR s1_2026-11_0',
       );
-      expect(find.textContaining('Horário reservado por 30 min'), findsOneWidget);
+      expect(
+          find.textContaining('Horário reservado por 30 min'), findsOneWidget);
     });
 
     testWidgets('assinatura já ativa (na arena / abaixo do mínimo): Meu plano',
@@ -321,6 +324,266 @@ void main() {
       );
     });
   });
+
+  group('assinar com débito automático', () {
+    const card = SavedPaymentCard(
+      brand: 'VISA',
+      last4: '4242',
+      expiryMonth: 12,
+      expiryYear: 2030,
+    );
+    const consent =
+        'Autorizo a nexaGO a debitar no cartão Visa final 4242, no dia do '
+        'vencimento, cada mensalidade do plano Fixo Noite 1x (Arena CFC), '
+        'mais a taxa do cartão (5,49% + R\$ 0,49). Posso desligar quando '
+        'quiser em Meu plano.';
+
+    Future<_AutopayRepo> run(
+      WidgetTester tester, {
+      SavedPaymentCard? saved,
+      bool flag = true,
+      bool optIn = true,
+      bool failPay = false,
+      bool failSet = false,
+    }) async {
+      tester.view.physicalSize = const Size(1170, 2532);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final a = SchedulePlanAvailability.fromMap({
+        'plan': {
+          'name': 'Fixo Noite 1x',
+          'timesPerWeek': 1,
+          'monthlyPriceReais': 180,
+          'billing': {
+            'methods': ['card', 'onsite'],
+          },
+        },
+        'days': [
+          {
+            'weekday': 2,
+            ...times([
+              ['19:00', '20:00', 2, 0],
+            ]),
+          },
+        ],
+        'onlineBilling': true,
+      }, arenaId: 'a1', planId: 'p1');
+      final repo = _AutopayRepo(failPay: failPay, failSet: failSet);
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, __) =>
+                const SchedulePlanSignupPage(arenaId: 'a1', planId: 'p1'),
+          ),
+          GoRoute(
+            path: AppRoutes.mySchedulePlans,
+            builder: (_, __) =>
+                const Text('MEU PLANO', textDirection: TextDirection.ltr),
+          ),
+          GoRoute(
+            path: AppRoutes.schedulePlanPayment,
+            builder: (_, state) => Text(
+              'PAGAR ${state.pathParameters['chargeId']}',
+              textDirection: TextDirection.ltr,
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.paymentCardNew,
+            builder: (context, _) {
+              repo.calls.add('cardForm');
+              return Scaffold(
+                body: TextButton(
+                  key: const Key('fake-card-save'),
+                  onPressed: () => context.pop(card),
+                  child: const Text('SALVAR CARTÃO'),
+                ),
+              );
+            },
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            schedulePlansUidProvider.overrideWith((ref) => 'u1'),
+            schedulePlanAvailabilityProvider
+                .overrideWith((ref, key) async => a),
+            schedulePlansRepositoryProvider.overrideWithValue(repo),
+            scheduleCardAutopayEnabledProvider
+                .overrideWith((ref) => Stream.value(flag)),
+            myPaymentCardProvider.overrideWith((ref) async => saved),
+            myScheduleSubscriptionsProvider.overrideWith(
+              (ref) async => MyScheduleSubscriptions.fromMap({
+                'subscriptions': [
+                  {
+                    'id': 's1',
+                    'arenaId': 'a1',
+                    'arenaName': 'Arena CFC',
+                    'planId': 'p1',
+                    'planName': 'Fixo Noite 1x',
+                  },
+                ],
+              }),
+            ),
+          ],
+          child: MaterialApp.router(
+            theme: AppTheme.dark,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('schedule-day-2')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('schedule-time-19:00')));
+      await tester.pump();
+      if (flag) {
+        final box = find.byKey(const Key('schedule-autopay-optin'));
+        await tester.ensureVisible(box);
+        expect(find.text('Debitar todo mês neste cartão'), findsOneWidget);
+        expect(tester.widget<CheckboxListTile>(box).value, isTrue);
+        if (!optIn) {
+          await tester.tap(box);
+          await tester.pump();
+        }
+      } else {
+        expect(find.byKey(const Key('schedule-autopay-optin')), findsNothing);
+      }
+      await tester.tap(find.byKey(const Key('schedule-signup-submit')));
+      for (var i = 0; i < 4; i++) {
+        await tester.pump();
+      }
+      await tester.pump(const Duration(milliseconds: 400));
+      if (repo.calls.contains('cardForm') && saved == null) {
+        await tester.tap(find.byKey(const Key('fake-card-save')));
+        for (var i = 0; i < 4; i++) {
+          await tester.pump();
+        }
+        await tester.pump(const Duration(milliseconds: 400));
+      }
+      return repo;
+    }
+
+    testWidgets('com cartão: paga a 1ª, liga o débito e vai para Meu plano',
+        (tester) async {
+      final repo = await run(tester, saved: card);
+      expect(repo.calls, [
+        'subscribe',
+        'pay:s1_2026-11_0',
+        'preview:s1',
+        'set:s1:true:$consent',
+      ]);
+      expect(find.text('MEU PLANO'), findsOneWidget);
+      expect(find.textContaining('PAGAR '), findsNothing);
+    });
+
+    testWidgets('sem cartão: abre o formulário antes de assinar',
+        (tester) async {
+      final repo = await run(tester);
+      expect(repo.calls.first, 'cardForm');
+      expect(repo.calls, contains('subscribe'));
+      expect(repo.calls, contains('set:s1:true:$consent'));
+      expect(find.text('MEU PLANO'), findsOneWidget);
+    });
+
+    testWidgets('falha ao pagar: cai na tela de pagar com o erro',
+        (tester) async {
+      final repo = await run(tester, saved: card, failPay: true);
+      expect(repo.calls.where((c) => c.startsWith('set')), isEmpty);
+      expect(find.text('PAGAR s1_2026-11_0'), findsOneWidget);
+      expect(find.textContaining('Não foi possível pagar no cartão'),
+          findsOneWidget);
+    });
+
+    testWidgets('pagou mas o débito falhou: Meu plano com o erro',
+        (tester) async {
+      final repo = await run(tester, saved: card, failSet: true);
+      expect(repo.calls, contains('pay:s1_2026-11_0'));
+      expect(find.text('MEU PLANO'), findsOneWidget);
+      expect(find.textContaining('Não foi possível ligar o débito automático'),
+          findsOneWidget);
+    });
+
+    testWidgets('desmarcado: fluxo de hoje (tela de pagar)', (tester) async {
+      final repo = await run(tester, saved: card, optIn: false);
+      expect(repo.calls, ['subscribe']);
+      expect(find.text('PAGAR s1_2026-11_0'), findsOneWidget);
+    });
+
+    testWidgets('flag desligada: sem o checkbox, fluxo de hoje',
+        (tester) async {
+      final repo = await run(tester, saved: card, flag: false);
+      expect(repo.calls, ['subscribe']);
+      expect(find.text('PAGAR s1_2026-11_0'), findsOneWidget);
+    });
+  });
+}
+
+class _AutopayRepo implements SchedulePlansRepository {
+  _AutopayRepo({this.failPay = false, this.failSet = false});
+
+  final bool failPay;
+  final bool failSet;
+  final calls = <String>[];
+
+  @override
+  Future<ScheduleSubscribeResult> subscribe({
+    required String arenaId,
+    required String planId,
+    required List<int> weekdays,
+    required String startTime,
+    required SchedulePlanCycle cycle,
+    required SchedulePaymentMethod paymentMethod,
+    List<String> memberAthleteIds = const [],
+  }) async {
+    calls.add('subscribe');
+    return ScheduleSubscribeResult.fromMap({
+      'subscriptionId': 's1',
+      'courtName': 'Quadra 1',
+      'firstCharge': {
+        'chargeId': 's1_2026-11_0',
+        'amountReais': 180,
+        'dueDate': '2026-11-10',
+      },
+      'status': 'pending_payment',
+      'paymentDeadline': '2026-11-03T13:30:00.000Z',
+    });
+  }
+
+  @override
+  Future<void> payWithSavedCard(String chargeId) async {
+    if (failPay) throw Exception('recusado');
+    calls.add('pay:$chargeId');
+  }
+
+  @override
+  Future<ScheduleAutopayPreview> autopayPreview(String id) async {
+    calls.add('preview:$id');
+    return const ScheduleAutopayPreview(
+      cardFeePercent: 1.5,
+      cardProcessingPercent: 3.99,
+      cardFixedReais: 0.49,
+    );
+  }
+
+  @override
+  Future<ScheduleAutopayConsent> setAutopay(
+    String subscriptionId, {
+    required bool enabled,
+    String? consentText,
+  }) async {
+    if (failSet) throw Exception('falhou');
+    calls.add('set:$subscriptionId:$enabled:$consentText');
+    return ScheduleAutopayConsent(enabled: enabled);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _SubscribeRepo implements SchedulePlansRepository {
@@ -351,6 +614,5 @@ class _SubscribeRepo implements SchedulePlansRepository {
       });
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

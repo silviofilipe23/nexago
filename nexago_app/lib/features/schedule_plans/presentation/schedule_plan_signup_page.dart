@@ -15,6 +15,8 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/nexa_async_view.dart';
 import '../../../core/ui/nexa_bottom_action_bar.dart';
 import '../../../core/ui/nexa_skeleton.dart';
+import '../../payment_card/application/payment_card_providers.dart';
+import '../../payment_card/domain/saved_payment_card.dart';
 import '../../arena/domain/aulas/arena_class_logic.dart'
     show arenaClassInitials;
 import '../../arena/presentation/aulas/widgets/arena_class_atoms.dart'
@@ -62,6 +64,9 @@ class _SchedulePlanSignupPageState
   final List<AppUserProfile> _members = [];
   bool _saving = false;
   String? _joiningTime;
+
+  /// "Debitar todo mês neste cartão": marcado por padrão.
+  bool _autopayOptIn = true;
 
   _Mode get _mode => widget.offerEntryId != null
       ? _Mode.offer
@@ -226,6 +231,23 @@ class _SchedulePlanSignupPageState
     );
   }
 
+  /// Opt-in de débito automático: flag ligada, cartão online, assinando ou
+  /// aceitando vaga, marcado.
+  bool _autopayOffered(SchedulePlanAvailability a) =>
+      (ref.watch(scheduleCardAutopayEnabledProvider).valueOrNull ?? false) &&
+      _mode != _Mode.change &&
+      _paysOnline(a) &&
+      _methodOf(a.plan) == SchedulePaymentMethod.card;
+
+  bool _wantsAutopay(SchedulePlan plan) =>
+      _autopayOptIn &&
+      (ref.read(scheduleCardAutopayEnabledProvider).valueOrNull ?? false) &&
+      _mode != _Mode.change &&
+      (ref.read(schedulePlanAvailabilityProvider(_key)).valueOrNull
+              ?.onlineBilling ??
+          false) &&
+      _methodOf(plan) == SchedulePaymentMethod.card;
+
   Future<void> _submit(SchedulePlan plan) async {
     if (_saving) return;
     setState(() => _saving = true);
@@ -235,7 +257,18 @@ class _SchedulePlanSignupPageState
     final memberIds = plan.rules.splitEnabled && _split
         ? [for (final m in _members) m.uid]
         : const <String>[];
+    final wantsAutopay = _wantsAutopay(plan);
     try {
+      SavedPaymentCard? card;
+      if (wantsAutopay) {
+        card = await ref.read(myPaymentCardProvider.future);
+        if (card == null) {
+          if (!mounted) return;
+          card = await context.push<SavedPaymentCard>(AppRoutes.paymentCardNew);
+          if (card == null || !mounted) return;
+          ref.invalidate(myPaymentCardProvider);
+        }
+      }
       final String message;
       ScheduleSubscribeResult? created;
       switch (_mode) {
@@ -275,8 +308,55 @@ class _SchedulePlanSignupPageState
       }
       // Assinou com Pix/cartão numa arena que cobra online: o servidor segura
       // o horário por 30 min até a 1ª mensalidade ser paga.
-      final payChargeId =
+      var payChargeId =
           created != null && created.pendingPayment ? created.firstChargeId : null;
+      String? errorMessage;
+      var autopayDone = false;
+      if (wantsAutopay && card != null && created != null) {
+        // Débito automático: paga a 1ª no cartão salvo e liga o débito.
+        var paid = payChargeId == null;
+        if (payChargeId != null) {
+          try {
+            await repo.payWithSavedCard(payChargeId);
+            paid = true;
+            payChargeId = null;
+          } catch (e) {
+            errorMessage = friendlyErrorMessage(
+              e,
+              action: 'Não foi possível pagar no cartão',
+              logReason: 'schedule_plan_signup_pay_saved_card',
+            );
+          }
+        }
+        if (paid) {
+          try {
+            final preview = await repo.autopayPreview(created.subscriptionId);
+            // Mesmos nomes de Meu plano (a tela de assinar não tem a arena).
+            ref.invalidate(myScheduleSubscriptionsProvider);
+            final mine = await ref.read(myScheduleSubscriptionsProvider.future);
+            final sub = mine.subscriptions
+                .where((x) => x.id == created!.subscriptionId)
+                .firstOrNull;
+            await repo.setAutopay(
+              created.subscriptionId,
+              enabled: true,
+              consentText: scheduleAutopayConsentText(
+                planName: sub?.planName ?? plan.name,
+                arenaName: sub?.arenaName ?? '',
+                cardLabel: card.label,
+                preview: preview,
+              ),
+            );
+            autopayDone = true;
+          } catch (e) {
+            errorMessage = friendlyErrorMessage(
+              e,
+              action: 'Não foi possível ligar o débito automático',
+              logReason: 'schedule_plan_signup_set_autopay',
+            );
+          }
+        }
+      }
       final pay = payChargeId != null;
       ref.invalidate(myScheduleSubscriptionsProvider);
       ref.invalidate(schedulePlanAvailabilityProvider(_key));
@@ -284,10 +364,14 @@ class _SchedulePlanSignupPageState
       if (!mounted) return;
       showAppSnackBar(
         context,
-        pay
-            ? 'Horário reservado por 30 min. Pague a 1ª mensalidade para '
-                'confirmar o plano.'
-            : message,
+        errorMessage ??
+            (pay
+                ? 'Horário reservado por 30 min. Pague a 1ª mensalidade para '
+                    'confirmar o plano.'
+                : autopayDone
+                    ? 'Plano assinado! Débito automático ligado.'
+                    : message),
+        isError: errorMessage != null,
       );
       if (_mode == _Mode.change) {
         popOrGo(context, AppRoutes.mySchedulePlans);
@@ -384,6 +468,23 @@ class _SchedulePlanSignupPageState
                 key: const Key('schedule-method-note'),
                 style: TextStyle(fontSize: 11.5, color: colors.onSurfaceMuted),
               ),
+              if (_autopayOffered(a)) ...[
+                const SizedBox(height: 4),
+                CheckboxListTile(
+                  key: const Key('schedule-autopay-optin'),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  dense: true,
+                  value: _autopayOptIn,
+                  onChanged: _saving
+                      ? null
+                      : (v) => setState(() => _autopayOptIn = v ?? false),
+                  title: Text(
+                    'Debitar todo mês neste cartão',
+                    style: TextStyle(fontSize: 13, color: colors.onSurface),
+                  ),
+                ),
+              ],
               if (a.plan.rules.splitEnabled) ...[
                 const SizedBox(height: 16),
                 _splitCard(a.plan),

@@ -225,6 +225,32 @@ void main() {
       expect(list.single.note, 'sua parte · na arena');
     });
 
+    test('mensalidade com débito agendado: selo com o dia', () {
+      List<AthleteCharge> build(String state) => buildOpenCharges(
+            uid: _uid,
+            todayKey: _today,
+            now: _now,
+            subscriptions: [
+              _sub(charges: [
+                ScheduleCharge(
+                  id: 'c',
+                  period: '2026-12',
+                  amountReais: 300,
+                  dueDate: DateTime(2026, 12, 5),
+                  payerAthleteId: _uid,
+                  billingMode: 'asaas',
+                  autopay: ScheduleChargeAutopay(
+                    state: state,
+                    scheduledFor: '2026-12-05',
+                  ),
+                ),
+              ]),
+            ],
+          );
+      expect(build('scheduled').single.note, 'Débito automático em 05/12');
+      expect(build('failed').single.note, isNull);
+    });
+
     test('assinatura cancelada não cobra', () {
       final list = buildOpenCharges(
         uid: _uid,

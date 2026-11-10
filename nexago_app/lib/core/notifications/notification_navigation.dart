@@ -130,6 +130,21 @@ const arenaWeatherRequestDecidedNotificationType =
 const arenaWeatherCreditExpiringNotificationType =
     'arena_weather_credit_expiring';
 
+/// Push "Como foi o jogo?" (`functions/src/arena-review-request.ts`).
+const arenaReviewRequestNotificationType = 'arena_review_request';
+
+/// Destino do push de avaliar a arena; `null` para outros tipos.
+String? arenaReviewRequestNotificationRoute(
+  String type,
+  Map<String, dynamic> data,
+) {
+  if (type != arenaReviewRequestNotificationType) return null;
+  final bookingId = (data['bookingId'] as String?)?.trim() ?? '';
+  if (bookingId.isEmpty) return AppRoutes.myBookings;
+  return AppRoutes.bookingArenaReview
+      .replaceAll(':bookingId', Uri.encodeComponent(bookingId));
+}
+
 /// Destino dos pushes de chuva; `null` para outros tipos.
 String? arenaWeatherNotificationRoute(String type, Map<String, dynamic> data) {
   if (!type.startsWith('arena_weather_')) return null;
@@ -363,6 +378,11 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   // da reserva — por isso o tipo vem antes da url.
   final weatherRoute = arenaWeatherNotificationRoute(type, data);
   if (weatherRoute != null) return weatherRoute;
+
+  // "Como foi o jogo?": o `url` é `/my-bookings` (app antigo); este build abre a
+  // tela de avaliar a reserva — por isso o tipo vem antes da url.
+  final reviewRoute = arenaReviewRequestNotificationRoute(type, data);
+  if (reviewRoute != null) return reviewRoute;
 
   // Resposta ao chamado da avaliação de aula: sempre "Minhas avaliações".
   if (type == classReviewReplyNotificationType) {

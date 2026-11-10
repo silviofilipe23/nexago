@@ -128,6 +128,8 @@ class PendingArenaReview {
     required this.dateRaw,
     required this.startTime,
     required this.endTime,
+    this.ownerUid = '',
+    this.rawStatus = '',
   });
 
   final String bookingId;
@@ -137,4 +139,11 @@ class PendingArenaReview {
   final String dateRaw;
   final String startTime;
   final String endTime;
+
+  /// Dono da reserva (`athleteId`/`bookingAthleteId`): só ele avalia. Vazio quando
+  /// o documento não diz — aí quem decide é o envio.
+  final String ownerUid;
+
+  /// `status` cru da reserva; vazio quando desconhecido.
+  final String rawStatus;
 }

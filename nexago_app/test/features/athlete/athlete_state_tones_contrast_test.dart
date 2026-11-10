@@ -32,7 +32,6 @@ import 'package:nexago_app/features/athlete/domain/athlete_profile_stats_logic.d
 import 'package:nexago_app/features/athlete/domain/athlete_profile_stats_providers.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_public_profile_models.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_public_profile_providers.dart';
-import 'package:nexago_app/features/athlete/domain/arena_review.dart';
 import 'package:nexago_app/features/athlete/domain/booking_invite_providers.dart';
 import 'package:nexago_app/features/athlete/domain/community/community_feed_providers.dart';
 import 'package:nexago_app/features/athlete/domain/gamification_models.dart';
@@ -74,7 +73,7 @@ import 'package:nexago_app/features/athlete/presentation/widgets/match_history/m
 import 'package:nexago_app/features/athlete/presentation/widgets/match_history/match_history_tournament_card.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/match_history/match_history_tournament_stats_row.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/profile_completion/profile_completion_widgets.dart';
-import 'package:nexago_app/features/athlete/presentation/widgets/rating_dialog.dart';
+import 'package:nexago_app/features/athlete/presentation/widgets/arena_review/arena_review_widgets.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/tournament_detail/tournament_detail_campaign_section.dart';
 import 'package:nexago_app/features/cashback/application/cashback_providers.dart';
 import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
@@ -1156,23 +1155,12 @@ final _screens = <_Screen>[
   ),
   _Screen(
     'Avaliação da arena: nota escolhida',
-    (tester, theme) => _pumpOpened(
+    (tester, theme) => _pumpPiece(
       tester,
       theme,
-      (context) => showRatingDialog(
-        context,
-        pending: const PendingArenaReview(
-          bookingId: 'b1',
-          arenaId: 'a1',
-          arenaName: 'Arena Sol',
-          courtName: 'Quadra 1',
-          dateRaw: '2026-10-19',
-          startTime: '18:00',
-          endTime: '19:00',
-        ),
-      ),
+      ArenaReviewStarHero(rating: 5, onChanged: (_) {}),
     ),
-    find.byType(Dialog),
+    find.byType(ArenaReviewStarHero),
     ['Excelente'],
   ),
   _Screen(

@@ -8,6 +8,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/arena_sport_codes.dart';
 import '../../domain/my_booking_item.dart';
+import '../../../athlete/presentation/widgets/arena_review/arena_review_widgets.dart';
 import 'my_bookings_status.dart';
 
 class BookingDetailsSheet extends StatelessWidget {
@@ -20,7 +21,13 @@ class BookingDetailsSheet extends StatelessWidget {
     required this.onCancelBooking,
     required this.canCancelBooking,
     this.cancelBlockedMessage,
+    this.canReview = false,
+    this.onReview,
   });
+
+  /// Reserva encerrada e avaliável: mostra "Avaliar experiência" (ou o selo "Avaliada").
+  final bool canReview;
+  final VoidCallback? onReview;
 
   final MyBookingItem item;
   final String dateLabel;
@@ -114,6 +121,10 @@ class BookingDetailsSheet extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (canReview) ...[
+                  SizedBox(height: 18),
+                  ArenaReviewEntryCard(bookingId: item.id, onOpen: onReview),
+                ],
                 SizedBox(height: 18),
                 Row(
                   children: [

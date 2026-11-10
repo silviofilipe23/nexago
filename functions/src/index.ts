@@ -693,6 +693,7 @@ export {elevateToAdmin} from "./admin-ops";
 export {submitContactMessageSecure} from "./contact-messages";
 
 export {onArenaReviewCreatedNotifyManager} from "./arena-review-notify";
+export {sendArenaReviewRequests} from "./arena-review-request";
 export {
   prepareArenaBookingReminder15m,
   sendArenaBookingReminders15m,

@@ -21,7 +21,9 @@ import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/presentation/widgets/booking_cancellation_confirm_dialog.dart';
 import '../../weather/domain/weather_models.dart' show WeatherRelease;
 import '../../weather/presentation/widgets/booking_weather_section.dart';
+import '../domain/arena_review_eligibility.dart';
 import '../domain/booking_attendance_providers.dart';
+import 'widgets/arena_review/arena_review_widgets.dart';
 import '../domain/booking_invite_status.dart' show bookingOwnerUidOf;
 import 'widgets/booking_details/booking_details_actions_section.dart';
 import 'widgets/booking_details/booking_details_app_bar.dart';
@@ -89,6 +91,14 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
   void dispose() {
     _ticker?.cancel();
     super.dispose();
+  }
+
+  /// Jogo encerrado (5 min depois do fim, ou concluído) e não cancelado: oferece avaliar.
+  bool _canReview(String rawStatus) {
+    final status = rawStatus.trim().toLowerCase();
+    if (status == 'canceled' || status == 'cancelled') return false;
+    if (status == 'completed' || status == 'finalizado') return true;
+    return _now.isAfter(widget.endAt.add(arenaReviewDelayAfterEnd));
   }
 
   @override
@@ -234,6 +244,12 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             now: _now,
             fallbackArenaId: widget.arenaId,
           ),
+          if (!isGuest &&
+              (widget.arenaId ?? '').trim().isNotEmpty &&
+              _canReview(rawStatus)) ...[
+            const SizedBox(height: 14),
+            ArenaReviewEntryCard(bookingId: widget.bookingId),
+          ],
           if (courtQr.stage != BookingCourtQrStage.hidden) ...[
             const SizedBox(height: 14),
             BookingDetailsCourtQrCard(

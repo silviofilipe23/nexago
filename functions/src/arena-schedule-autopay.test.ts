@@ -171,6 +171,32 @@ describe("setScheduleAutopayCore", () => {
   });
 });
 
+describe("skip safety and disableAll", () => {
+  it("disable leaves a charging charge and its autopay group alone", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    seedCharge(fake, "c1", {autopay: {state: "charging"}, asaas: {groupId: "g1", state: "autopay"}});
+    fake.seedDoc(`${GROUPS}/g1`, {chargeId: "c1", state: "autopay"});
+    await enable(db);
+    await setScheduleAutopayCore(db, "u1", {subscriptionId: "s1", enabled: false}, "sandbox");
+    assert.equal(autopay(fake, "c1")!["state"], "charging");
+    assert.equal(get(fake, `${GROUPS}/g1`)["state"], "autopay");
+  });
+
+  it("disableAll skips scheduled charges, ensures the link and keeps other athletes", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    seedCharge(fake, "c1");
+    await enable(db);
+    fake.seedDoc(`${SUBS}/s1`, {autopayAthleteIds: ["u1", "u2"]});
+    assert.equal(await disableAllScheduleAutopayCore(db, "u1"), 1);
+    assert.equal(autopay(fake, "c1")!["state"], "skipped");
+    const gid = ((get(fake, `${CHARGES}/c1`)["asaas"]) as Data)["groupId"] as string;
+    assert.equal(get(fake, `${GROUPS}/${gid}`)["state"], "pending");
+    assert.deepEqual(get(fake, `${SUBS}/s1`)["autopayAthleteIds"], ["u2"]);
+  });
+});
+
 describe("ensureScheduleChargeLinkGroup", () => {
   it("turns an autopay group into pending in place", async () => {
     const {fake, db} = makeDb();

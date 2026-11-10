@@ -168,15 +168,17 @@ async function scheduleOne(db: Firestore, chargeId: string, today: string, card:
 /** Tira da fila do débito (`scheduled`/`retry` → `skipped`) e devolve o link de pagamento. */
 async function skipOne(db: Firestore, chargeId: string): Promise<void> {
   const ref = db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId);
-  await db.runTransaction(async (tx: Transaction) => {
+  const skipped = await db.runTransaction(async (tx: Transaction) => {
     const snap = await tx.get(ref);
     const charge = snap.data() as Data | undefined;
-    if (!snap.exists || !charge || charge["status"] !== "open") return;
+    if (!snap.exists || !charge || charge["status"] !== "open") return false;
     const state = str(autopayOf(charge)["state"]);
-    if (state !== "scheduled" && state !== "retry") return;
+    if (state !== "scheduled" && state !== "retry") return false;
     tx.set(ref, {autopay: {state: "skipped"}}, {merge: true});
+    return true;
   });
-  await ensureScheduleChargeLinkGroup(db, chargeId);
+  // Só devolve o link se saiu da fila: em `charging` o débito está em curso (link = cobrança dupla).
+  if (skipped) await ensureScheduleChargeLinkGroup(db, chargeId);
 }
 
 /** Desliga o débito de todas as assinaturas do atleta (cartão apagado). Devolve quantas. */
@@ -184,13 +186,17 @@ export async function disableAllScheduleAutopayCore(db: Firestore, uid: string):
   const snap = await db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).where("autopayAthleteIds", "array-contains", uid).get();
   let count = 0;
   for (const doc of snap.docs) {
-    const sub = doc.data() as Data;
-    const ids = stringArray(sub["autopayAthleteIds"]);
-    if (!ids.includes(uid)) continue;
-    await doc.ref.set({
-      autopay: {[uid]: {enabled: false, updatedAt: FieldValue.serverTimestamp()}},
-      autopayAthleteIds: ids.filter((x) => x !== uid),
-    }, {merge: true});
+    const turnedOff = await db.runTransaction(async (tx: Transaction) => {
+      const fresh = (await tx.get(doc.ref)).data() as Data | undefined;
+      const ids = stringArray(fresh?.["autopayAthleteIds"]);
+      if (!ids.includes(uid)) return false;
+      tx.set(doc.ref, {
+        autopay: {[uid]: {enabled: false, updatedAt: FieldValue.serverTimestamp()}},
+        autopayAthleteIds: ids.filter((x) => x !== uid),
+      }, {merge: true});
+      return true;
+    });
+    if (!turnedOff) continue;
     for (const {id} of await payerOpenChargeIds(db, doc.id, uid)) await skipOne(db, id);
     count += 1;
   }

@@ -118,6 +118,8 @@ export interface ScheduleSubscription {
   endsOn: string | null;
   /** `athlete` quando o titular cancelou pelo app (sai no fim do período). */
   endRequestedBy: 'athlete' | null;
+  /** Uids com o débito automático no cartão ligado. */
+  autopayPayers: string[];
   pausedUntil: string | null;
   makeupBalance: number;
   startDate: string;
@@ -149,6 +151,16 @@ export interface ScheduleCharge {
   /** `PIX`, `CREDIT_CARD`, … (só quando pago online). */
   onlineBillingType: string | null;
   platformFeeReais: number | null;
+  /** Débito automático no cartão (ausente = mensalidade sem débito). */
+  autopay: ScheduleChargeAutopay | null;
+}
+
+export interface ScheduleChargeAutopay {
+  /** `scheduled`, `retry`, `charging`, `paid`, `failed`, `skipped`. */
+  state: string;
+  scheduledFor: string | null;
+  brand: string | null;
+  last4: string | null;
 }
 
 export interface ScheduleChargeAsaas {
@@ -367,6 +379,16 @@ export function settingsFromRaw(d: Raw | undefined): ScheduleSettings {
   };
 }
 
+/** Uids com `autopay.<uid>.enabled === true`; sem o mapa, cai no `autopayAthleteIds`. */
+function autopayPayersFromRaw(map: unknown, ids: unknown): string[] {
+  if (map != null && typeof map === 'object' && !Array.isArray(map)) {
+    return Object.entries(map as Raw)
+      .filter(([, v]) => v != null && typeof v === 'object' && (v as Raw)['enabled'] === true)
+      .map(([uid]) => uid);
+  }
+  return Array.isArray(ids) ? (ids as unknown[]).filter((v): v is string => typeof v === 'string' && v !== '') : [];
+}
+
 export function subscriptionFromRaw(id: string, d: Raw): ScheduleSubscription {
   const snapshot = obj(d['planSnapshot']);
   return {
@@ -402,6 +424,7 @@ export function subscriptionFromRaw(id: string, d: Raw): ScheduleSubscription {
     status: oneOf(d['status'], ['active', 'pending_payment', 'paused', 'suspended', 'canceled'] as const, 'active'),
     endsOn: optStr(d['endsOn']),
     endRequestedBy: d['endRequestedBy'] === 'athlete' ? 'athlete' : null,
+    autopayPayers: autopayPayersFromRaw(d['autopay'], d['autopayAthleteIds']),
     pausedUntil: optStr(d['pausedUntil']),
     makeupBalance: num(d['makeupBalance'], 0),
     startDate: str(d['startDate']),
@@ -437,7 +460,16 @@ export function chargeFromRaw(id: string, d: Raw): ScheduleCharge {
     paidVia: d['paidVia'] === 'asaas' ? 'asaas' : d['paidVia'] === 'manual' ? 'manual' : null,
     onlineBillingType: optStr(d['onlineBillingType']),
     platformFeeReais: optNum(d['platformFeeReais']),
+    autopay: chargeAutopayFromRaw(d['autopay']),
   };
+}
+
+function chargeAutopayFromRaw(v: unknown): ScheduleChargeAutopay | null {
+  if (v == null || typeof v !== 'object' || Array.isArray(v)) return null;
+  const a = v as Raw;
+  const state = str(a['state']);
+  if (!state) return null;
+  return { state, scheduledFor: optStr(a['scheduledFor']), brand: optStr(a['brand']), last4: optStr(a['last4']) };
 }
 
 function chargeAsaasFromRaw(v: unknown): ScheduleChargeAsaas | null {

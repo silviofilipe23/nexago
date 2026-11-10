@@ -1,5 +1,7 @@
 // Regras puras das telas do atleta dos Planos de horário (A1–A3).
 
+import '../../../core/formatting/app_currency_format.dart';
+import '../../tournaments/domain/tournament_service_fee.dart';
 import 'schedule_plan_models.dart';
 
 const _weekdayShort = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -97,7 +99,8 @@ String scheduleWindowsSummary(List<SchedulePlanWindow> windows) {
     groups.putIfAbsent('${w.startTime}|${w.endTime}', () => []).add(w.weekday);
   }
   final entries = groups.entries.toList()
-    ..sort((a, b) => (a.value..sort()).first.compareTo((b.value..sort()).first));
+    ..sort(
+        (a, b) => (a.value..sort()).first.compareTo((b.value..sort()).first));
   return entries.map((e) {
     final [start, end] = e.key.split('|');
     return '${_weekdayRange(e.value)}, '
@@ -220,8 +223,7 @@ List<ScheduleCombinedTime> scheduleTimesForWeekdays(
   final byDay = {for (final d in days) d.weekday: d};
   if (!chosen.every(byDay.containsKey)) return const [];
   final perDay = [
-    for (final w in chosen)
-      {for (final t in byDay[w]!.times) t.startTime: t},
+    for (final w in chosen) {for (final t in byDay[w]!.times) t.startTime: t},
   ];
   final starts = perDay.first.keys
       .where((s) => perDay.every((m) => m.containsKey(s)))
@@ -444,6 +446,120 @@ String? schedulePaidOnlineLabel(ScheduleCharge charge) {
   };
 }
 
+// ── Débito automático no cartão ──────────────────────────────────────────
+
+/// Linha da mensalidade sobre o débito no cartão; `null` sem `autopay` ou em
+/// estado sem mensagem (`skipped`).
+String? scheduleAutopayChargeLabel(ScheduleCharge c) {
+  final a = c.autopay;
+  if (a == null) return null;
+  final last4 = a.last4;
+  switch (a.state) {
+    case 'scheduled':
+    case 'retry':
+      final day = _isoDayMonth(a.scheduledFor);
+      if (day == null) return null;
+      return 'Será debitada em $day no cartão final $last4';
+    case 'charging':
+      return 'Debitando no cartão final $last4…';
+    case 'failed':
+      return 'Não conseguimos debitar. Pague por Pix ou cartão.';
+    case 'paid':
+      return 'Paga no cartão final $last4';
+    default:
+      return null;
+  }
+}
+
+/// `AAAA-MM-DD` → `DD/MM` (`null` se não for uma data).
+String? _isoDayMonth(String? iso) {
+  final m = RegExp(r'^\d{4}-(\d{2})-(\d{2})').firstMatch(iso ?? '');
+  return m == null ? null : '${m.group(2)}/${m.group(1)}';
+}
+
+/// `AAAA-MM-DD` → `DD/MM` para a tela (vazio se inválida).
+String scheduleAutopayDayLabel(String iso) => _isoDayMonth(iso) ?? '';
+
+String _commaNumber(double v, {int maxDecimals = 2}) {
+  var s = v.toStringAsFixed(maxDecimals);
+  if (s.contains('.')) {
+    s = s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+  }
+  return s.replaceAll('.', ',');
+}
+
+/// Taxa do cartão que não carregou: sem ela não há consentimento válido.
+const scheduleCardFeeUnavailableMessage =
+    'Não foi possível carregar a taxa do cartão. Tente de novo.';
+
+/// Assinatura reservada sem o valor da 1ª mensalidade do servidor: sem ele
+/// não há autorização à vista; o atleta paga pela tela de pagamento.
+const scheduleFirstChargeUnknownMessage =
+    'Não foi possível calcular a 1ª mensalidade. Pague pela tela de pagamento.';
+
+/// Linha do próximo débito na autorização de Meu plano (da prévia do
+/// servidor); sem mensalidade em aberto, o débito é no vencimento.
+String scheduleAutopayNextDetail(ScheduleAutopayPreview preview) {
+  final next = preview.next;
+  final day = next == null ? null : _isoDayMonth(next.dueDate);
+  if (next == null || day == null) {
+    return 'Débito no vencimento de cada mensalidade.';
+  }
+  return 'Próximo débito: $day · ${formatBRL(next.amountReais)} + taxa do '
+      'cartão ${formatBRL(next.cardFeeReais)} = ${formatBRL(next.chargedReais)}';
+}
+
+/// Texto da autorização, gravado como prova (`consentText`). Com os números
+/// da prévia do servidor (Meu plano).
+String scheduleAutopayConsentText({
+  required String planName,
+  required String arenaName,
+  required String cardLabel,
+  required ScheduleAutopayPreview preview,
+}) =>
+    scheduleAutopayConsentTextForTerms(
+      planName: planName,
+      arenaName: arenaName,
+      cardLabel: cardLabel,
+      terms: CardFeeTerms(
+        anticipationPercent: preview.cardFeePercent,
+        processingPercent: preview.cardProcessingPercent,
+        fixedReais: preview.cardFixedReais,
+      ),
+    );
+
+/// Mesmo texto a partir das taxas já conhecidas na tela (assinatura). Sem
+/// nome da arena, omite " (...)".
+String scheduleAutopayConsentTextForTerms({
+  required String planName,
+  required String arenaName,
+  required String cardLabel,
+  required CardFeeTerms terms,
+}) {
+  final percent = _commaNumber(
+    terms.anticipationPercent + terms.processingPercent,
+  );
+  final fixed = terms.fixedReais.toStringAsFixed(2).replaceAll('.', ',');
+  final arena = arenaName.trim().isEmpty ? '' : ' (${arenaName.trim()})';
+  return 'Autorizo a nexaGO a debitar no cartão $cardLabel, no dia do '
+      'vencimento, cada mensalidade do plano $planName$arena, mais a '
+      'taxa do cartão ($percent% + R\$ $fixed). Posso desligar quando quiser '
+      'em Meu plano.';
+}
+
+/// O card de débito automático aparece com a flag ligada, o atleta no plano,
+/// plano vivo e cobrança que não seja na arena.
+bool scheduleAutopayCardVisible(
+  ScheduleSubscription sub,
+  String uid, {
+  required bool flagOn,
+}) =>
+    flagOn &&
+    uid.isNotEmpty &&
+    sub.memberAthleteIds.contains(uid) &&
+    sub.status != ScheduleSubscriptionStatus.canceled &&
+    sub.paymentMethod != SchedulePaymentMethod.onsite;
+
 /// Última mensalidade paga do atleta (a de vencimento mais tarde; sem data,
 /// o período decide).
 ScheduleCharge? scheduleLastPaidCharge(
@@ -481,9 +597,14 @@ String scheduleChargeMethodLabel(
 String scheduleMethodNote(
   SchedulePaymentMethod method, {
   required bool onlineBilling,
+  bool autopay = false,
 }) {
   if (method == SchedulePaymentMethod.onsite) {
     return 'Você paga direto na arena, que dá baixa a cada mês.';
+  }
+  if (autopay && onlineBilling && method == SchedulePaymentMethod.card) {
+    return 'Cartão: ao assinar você autoriza o débito automático; a 1ª '
+        'mensalidade é cobrada agora e as próximas no vencimento.';
   }
   return onlineBilling
       ? 'Pix ou cartão: ao assinar você já paga a 1ª mensalidade. Depois, '

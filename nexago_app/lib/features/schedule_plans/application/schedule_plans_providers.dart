@@ -6,7 +6,8 @@ import '../../tournaments/domain/tournament_service_fee.dart';
 import '../domain/schedule_plan_models.dart';
 import '../infrastructure/schedule_plans_repository.dart';
 
-final schedulePlansRepositoryProvider = Provider<SchedulePlansRepository>((ref) {
+final schedulePlansRepositoryProvider =
+    Provider<SchedulePlansRepository>((ref) {
   return SchedulePlansRepository(firestore: ref.watch(firestoreProvider));
 });
 
@@ -49,6 +50,14 @@ final myScheduleSubscriptionsProvider =
   return ref.watch(schedulePlansRepositoryProvider).mySubscriptions();
 });
 
+/// Taxas e próxima mensalidade do débito automático (chave: assinatura).
+final scheduleAutopayPreviewProvider = FutureProvider.autoDispose
+    .family<ScheduleAutopayPreview, String>((ref, subscriptionId) {
+  return ref
+      .watch(schedulePlansRepositoryProvider)
+      .autopayPreview(subscriptionId);
+});
+
 /// Para a entrada da agenda: assinaturas vivas (titular ou membro). Erro
 /// (rules, Firebase ausente) vira zero — a entrada só some.
 final myLiveScheduleSubscriptionsCountProvider =
@@ -72,8 +81,8 @@ final myScheduleOffersCountProvider = StreamProvider.autoDispose<int>((ref) {
 });
 
 /// Mensalidade ao vivo na tela de pagamento.
-final scheduleChargeProvider = StreamProvider.autoDispose
-    .family<ScheduleCharge?, String>((ref, chargeId) {
+final scheduleChargeProvider =
+    StreamProvider.autoDispose.family<ScheduleCharge?, String>((ref, chargeId) {
   if (chargeId.isEmpty || ref.watch(schedulePlansUidProvider).isEmpty) {
     return Stream.value(null);
   }

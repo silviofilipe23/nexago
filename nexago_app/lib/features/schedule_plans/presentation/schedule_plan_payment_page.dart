@@ -20,6 +20,7 @@ import '../../arenas/presentation/widgets/booking_pix/booking_pix_generate_bar.d
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_qr_card.dart';
 import '../../arenas/presentation/widgets/booking_pix/booking_pix_waiting_card.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
+import '../../payment_card/application/payment_card_providers.dart';
 import '../../tournaments/domain/registration_payment_method.dart';
 import '../../tournaments/domain/tournament_service_fee.dart';
 import '../../tournaments/presentation/widgets/tournament_registration/registration_card_checkout_panel.dart';
@@ -60,6 +61,7 @@ class _SchedulePlanPaymentPageState
   String? _cpfError;
   bool _loading = false;
   String? _error;
+  bool _payingSaved = false;
 
   /// Cobrança aberta na tela e o meio dela.
   ScheduleCheckout? _checkout;
@@ -153,6 +155,31 @@ class _SchedulePlanPaymentPageState
           isError: true,
         );
       }
+    }
+  }
+
+  /// Debita no cartão salvo. No sucesso a tela segue girando até a baixa
+  /// chegar pelo doc da mensalidade (vira "Pagamento confirmado").
+  Future<void> _paySavedCard(ScheduleCharge charge) async {
+    if (_payingSaved) return;
+    setState(() => _payingSaved = true);
+    try {
+      await ref
+          .read(schedulePlansRepositoryProvider)
+          .payWithSavedCard(charge.id);
+      ref.invalidate(myScheduleSubscriptionsProvider);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _payingSaved = false);
+      showAppSnackBar(
+        context,
+        friendlyErrorMessage(
+          e,
+          action: 'Não foi possível pagar',
+          logReason: 'schedule_plan_pay_saved_card',
+        ),
+        isError: true,
+      );
     }
   }
 
@@ -255,10 +282,11 @@ class _SchedulePlanPaymentPageState
     final live = _live;
     final amount = checkout?.amountReais ?? charge.amountReais;
     // Cartão soma as taxas do cartão por cima; o Pix fica no valor do plano.
+    final cardFee = ref.watch(scheduleCardFeeTermsProvider).valueOrNull ??
+        CardFeeTerms.none;
     final quote = registrationMethodQuote(
       pixCents: (amount * 100).round(),
-      cardFee: ref.watch(scheduleCardFeeTermsProvider).valueOrNull ??
-          CardFeeTerms.none,
+      cardFee: cardFee,
     );
     final selectedTotal = quote.totalCents(_method) / 100;
     final sub = charge.subscriptionId.isEmpty
@@ -267,6 +295,10 @@ class _SchedulePlanPaymentPageState
             .watch(scheduleSubscriptionDocProvider(charge.subscriptionId))
             .valueOrNull;
     final pending = sub?.status == ScheduleSubscriptionStatus.pendingPayment;
+    final savedCard =
+        (ref.watch(scheduleCardAutopayEnabledProvider).valueOrNull ?? false)
+            ? ref.watch(myPaymentCardProvider).valueOrNull
+            : null;
     final deadline = pending ? sub?.pendingPaymentUntil : null;
     return Column(
       children: [
@@ -297,6 +329,27 @@ class _SchedulePlanPaymentPageState
                 _ChargeSummary(charge: charge, label: _chargeLabel(charge)),
                 const SizedBox(height: 20),
                 if (checkout == null || live == null) ...[
+                  if (savedCard != null) ...[
+                    OutlinedButton.icon(
+                      key: const Key('schedule-pay-saved-card'),
+                      // Sem a taxa do cartão o total na tela não seria o
+                      // cobrado: trava até ela carregar.
+                      onPressed: _payingSaved || _loading || cardFee.isZero
+                          ? null
+                          : () => _paySavedCard(charge),
+                      icon: _payingSaved
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.credit_card_rounded),
+                      label: Text(
+                        'Pagar ${formatBRL(quote.cardTotalCents / 100)} no '
+                        'cartão salvo (${savedCard.label})',
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                   RegistrationPaymentMethodPicker(
                     value: _method,
                     amountReais: amount,

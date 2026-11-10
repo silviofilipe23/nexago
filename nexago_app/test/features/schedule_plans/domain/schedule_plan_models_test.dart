@@ -14,8 +14,8 @@ void main() {
       expect(plan.referenceHourlyReais, isNull);
       expect(plan.windows, isEmpty);
       // Sem `cycles`: só o mensal ligado.
-      expect(plan.enabledCycles.map((c) => c.cycle),
-          [SchedulePlanCycle.monthly]);
+      expect(
+          plan.enabledCycles.map((c) => c.cycle), [SchedulePlanCycle.monthly]);
       // Sem `billing.methods`: na arena.
       expect(plan.billingMethods, [SchedulePaymentMethod.onsite]);
       expect(plan.dueDay, 5);

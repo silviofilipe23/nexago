@@ -26,9 +26,8 @@ class ArenaDetailSchedulePlansSection extends ConsumerWidget {
             const <SchedulePlan>[];
     if (plans.isEmpty) return const SizedBox.shrink();
     final colors = context.themeColors;
-    final cheapest = plans
-        .map((p) => p.monthlyPriceReais)
-        .reduce((a, b) => a < b ? a : b);
+    final cheapest =
+        plans.map((p) => p.monthlyPriceReais).reduce((a, b) => a < b ? a : b);
     final bestOff = plans
         .map(schedulePlanDiscountPercent)
         .whereType<int>()

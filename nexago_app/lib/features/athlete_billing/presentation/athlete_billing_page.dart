@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/router/navigation_helpers.dart';
@@ -16,6 +17,7 @@ import '../../athlete_training/presentation/widgets/training_widgets.dart'
 import '../../professor_links/presentation/widgets/professor_links_ui.dart';
 import '../../professor_mode/presentation/widgets/professor_students_widgets.dart'
     show ProfessorMutedText;
+import '../../payment_card/application/payment_card_providers.dart';
 import '../application/athlete_billing_providers.dart';
 import '../domain/athlete_billing.dart';
 import 'widgets/athlete_billing_widgets.dart';
@@ -75,6 +77,8 @@ class _AthleteBillingPageState extends ConsumerState<AthleteBillingPage> {
   @override
   Widget build(BuildContext context) {
     final summary = ref.watch(athleteChargesSummaryProvider);
+    final cardEnabled =
+        ref.watch(scheduleCardAutopayEnabledProvider).valueOrNull ?? false;
     return ProfessorLinksScaffold(
       title: 'Cobranças',
       subtitle: summary == null
@@ -106,6 +110,16 @@ class _AthleteBillingPageState extends ConsumerState<AthleteBillingPage> {
               onChanged: (t) => setState(() => _tab = t),
             ),
             const SizedBox(height: 14),
+            if (cardEnabled) ...[
+              ProfessorLinksSheetRow(
+                key: const Key('athlete-billing-saved-card'),
+                icon: Icons.credit_card_rounded,
+                title: 'Cartão salvo',
+                subtitle: 'Débito automático dos planos de horário',
+                onTap: () => context.push(AppRoutes.savedPaymentCard),
+              ),
+              const SizedBox(height: 14),
+            ],
             ...switch (_tab) {
               AthleteBillingTab.open => _open(),
               AthleteBillingTab.recurring => _recurring(),

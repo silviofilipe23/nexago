@@ -477,6 +477,11 @@ abstract final class AppRoutes {
   /// reservas e inscrições). `?aba=recorrentes|historico`, `?tipo=aulas|…`.
   static const String athleteBilling = '/cobrancas';
 
+  /// Cartão salvo do atleta (débito automático dos planos) e o formulário
+  /// de novo cartão (devolve `SavedPaymentCard` no pop).
+  static const String savedPaymentCard = '/cartao';
+  static const String paymentCardNew = '/cartao/novo';
+
   /// NexaSquad (embaixadores): telas internas, fora do shell (sem tab bar).
   /// Entrada pelo perfil e pela home; o push do convite abre [squadInvite].
   static const String squad = '/athlete/squad';
@@ -1278,6 +1283,8 @@ abstract final class AppRouteNames {
   static const String mySchedulePlans = 'mySchedulePlans';
   static const String schedulePlanPayment = 'schedulePlanPayment';
   static const String athleteBilling = 'athleteBilling';
+  static const String savedPaymentCard = 'savedPaymentCard';
+  static const String paymentCardNew = 'paymentCardNew';
   static const String squad = 'squad';
   static const String squadShare = 'squadShare';
   static const String squadEarnings = 'squadEarnings';

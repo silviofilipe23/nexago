@@ -1995,6 +1995,10 @@ service cloud.firestore {
       );
       allow create, update, delete: if false;
     }
+    // Cliente Asaas, cartão salvo (token) e contador: só servidor.
+    match /users/{userId}/asaas/{docId} {
+      allow read, write: if false;
+    }
     // Cobrança online das mensalidades (Asaas): o grupo de pagamento e o CPF do aluno são só do
     // servidor — portal e app leem o espelho `asaas` na mensalidade. O catch-all no fim já nega;
     // a regra explícita documenta que é de propósito (CPF de aluno sem conta, LGPD).

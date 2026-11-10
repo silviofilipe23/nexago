@@ -63,9 +63,8 @@ class SchedulePlansRepository {
         .collection('arenaScheduleSubscriptions')
         .where('memberAthleteIds', arrayContains: uid)
         .snapshots()
-        .map((snap) => snap.docs
-            .where((d) => d.data()['status'] != 'canceled')
-            .length);
+        .map((snap) =>
+            snap.docs.where((d) => d.data()['status'] != 'canceled').length);
   }
 
   /// Vagas oferecidas ao atleta na lista de espera (entrada da agenda).
@@ -94,6 +93,46 @@ class SchedulePlansRepository {
         code: e.code,
       );
     }
+  }
+
+  /// Liga/desliga o débito automático (ligar manda o texto autorizado).
+  Future<ScheduleAutopayConsent> setAutopay(
+    String subscriptionId, {
+    required bool enabled,
+    String? consentText,
+  }) async {
+    final data = await _call(
+      'setScheduleAutopay',
+      {
+        'subscriptionId': subscriptionId,
+        'enabled': enabled,
+        if (consentText != null) 'consentText': consentText,
+      },
+      fallback: 'Não foi possível alterar o débito automático.',
+    );
+    return ScheduleAutopayConsent(
+      enabled: data['enabled'] == true,
+      brand: spStr(data['brand']),
+      last4: spStr(data['last4']),
+    );
+  }
+
+  Future<ScheduleAutopayPreview> autopayPreview(String subscriptionId) async {
+    final data = await _call(
+      'getScheduleAutopayPreview',
+      {'subscriptionId': subscriptionId},
+      fallback: 'Não foi possível carregar o débito automático.',
+    );
+    return ScheduleAutopayPreview.fromMap(data);
+  }
+
+  /// Debita a mensalidade no cartão salvo; a baixa chega pelo webhook.
+  Future<void> payWithSavedCard(String chargeId) async {
+    await _call(
+      'payScheduleChargeWithSavedCard',
+      {'chargeId': chargeId},
+      fallback: 'Não foi possível pagar com o cartão salvo.',
+    );
   }
 
   Future<SchedulePlanAvailability> availability({
@@ -207,8 +246,7 @@ class SchedulePlansRepository {
       fallback: 'Não foi possível gerar o pagamento.',
     );
     final checkout = ScheduleCheckout.fromMap(data);
-    if (checkout.invoiceUrl.isEmpty ||
-        (method == 'pix' && !checkout.hasPix)) {
+    if (checkout.invoiceUrl.isEmpty || (method == 'pix' && !checkout.hasPix)) {
       throw SchedulePlanException(
         'O pagamento ainda está sendo gerado. Tente de novo em instantes.',
       );
@@ -280,7 +318,8 @@ class SchedulePlansRepository {
       fallback: 'Não foi possível buscar horários para a reposição.',
     );
     return [
-      for (final o in spMapList(data['options'])) ScheduleMakeupOption.fromMap(o),
+      for (final o in spMapList(data['options']))
+        ScheduleMakeupOption.fromMap(o),
     ];
   }
 

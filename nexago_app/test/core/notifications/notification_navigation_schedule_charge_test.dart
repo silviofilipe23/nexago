@@ -40,6 +40,24 @@ void main() {
     expect(externalNotificationUrl(_payload), isNull);
   });
 
+  test('pushes do débito automático abrem Meu plano', () {
+    for (final type in const [
+      'schedule_plan_autopay_upcoming',
+      'schedule_plan_autopay_paid',
+      'schedule_plan_autopay_failed',
+    ]) {
+      expect(
+        resolveNotificationRoute({
+          'type': type,
+          'subscriptionId': 's1',
+          'url': '/meus-planos-horario',
+        }),
+        AppRoutes.mySchedulePlans,
+        reason: type,
+      );
+    }
+  });
+
   test('sem url também vai para Meu plano, nunca a agenda do gestor', () {
     final route = resolveNotificationRoute({
       'type': 'schedule_plan_charge_link',

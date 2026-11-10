@@ -7,10 +7,13 @@ import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
+import 'package:nexago_app/features/payment_card/application/payment_card_providers.dart';
+import 'package:nexago_app/features/payment_card/domain/saved_payment_card.dart';
 import 'package:nexago_app/features/schedule_plans/application/schedule_plans_providers.dart';
 import 'package:nexago_app/features/schedule_plans/domain/schedule_plan_models.dart';
 import 'package:nexago_app/features/schedule_plans/infrastructure/schedule_plans_repository.dart';
 import 'package:nexago_app/features/schedule_plans/presentation/schedule_plan_payment_page.dart';
+import 'package:nexago_app/features/tournaments/domain/registration_payment_method.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_service_fee.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_registration/registration_payment_method_picker.dart';
 
@@ -27,6 +30,14 @@ class _FakeRepo implements SchedulePlansRepository {
   /// Taxas do cartão que o servidor devolve na cobrança de cartão.
   double cardFeeReais = 0;
   final canceled = <String>[];
+  final savedCardPays = <String>[];
+  Object? savedCardError;
+
+  @override
+  Future<void> payWithSavedCard(String chargeId) async {
+    savedCardPays.add(chargeId);
+    if (savedCardError != null) throw savedCardError!;
+  }
 
   @override
   Future<DateTime?> cancelMine(String subscriptionId) async {
@@ -52,8 +63,7 @@ class _FakeRepo implements SchedulePlansRepository {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 ScheduleCharge charge({String status = 'open', String? cancelReason}) =>
@@ -82,6 +92,8 @@ Future<_Harness> pumpPage(
   String? profileCpf,
   DateTime? pendingUntil,
   CardFeeTerms cardFee = CardFeeTerms.none,
+  bool autopayFlag = false,
+  SavedPaymentCard? savedCard,
 }) async {
   // 430pt: a fonte de teste (glifo quadrado) é mais larga que a Sora e o
   // botão "Copiar Pix Copia & Cola" da reserva estoura em 390pt só no teste.
@@ -97,6 +109,9 @@ Future<_Harness> pumpPage(
         schedulePlansUidProvider.overrideWith((ref) => 'u1'),
         schedulePlansRepositoryProvider.overrideWithValue(h.repo),
         scheduleCardFeeTermsProvider.overrideWith((ref) async => cardFee),
+        scheduleCardAutopayEnabledProvider
+            .overrideWith((ref) => Stream.value(autopayFlag)),
+        myPaymentCardProvider.overrideWith((ref) async => savedCard),
         scheduleChargeProvider.overrideWith((ref, id) => h.charges.stream),
         scheduleSubscriptionDocProvider
             .overrideWith((ref, id) => h.subs.stream),
@@ -124,6 +139,7 @@ Future<_Harness> pumpPage(
   }, id: 's1'));
   await tester.pump();
   await tester.pump();
+  await tester.pump();
   return h;
 }
 
@@ -135,8 +151,7 @@ Future<void> typeCpf(WidgetTester tester) async {
 Finder get generate => find.byType(FilledButton).last;
 
 void main() {
-  testWidgets('mostra a mensalidade e pede CPF antes de gerar',
-      (tester) async {
+  testWidgets('mostra a mensalidade e pede CPF antes de gerar', (tester) async {
     final h = await pumpPage(tester);
     expect(find.text('Fixo Noite 1x'), findsOneWidget);
     expect(find.textContaining('Mensalidade de novembro'), findsOneWidget);
@@ -206,7 +221,8 @@ void main() {
       find.byKey(RegistrationPaymentMethodPicker.pixSavingsKey),
       findsOneWidget,
     );
-    expect(find.text('${formatBRL(4.52)} a menos que no cartão'), findsOneWidget);
+    expect(
+        find.text('${formatBRL(4.52)} a menos que no cartão'), findsOneWidget);
     expect(find.text('Gerar PIX'), findsOneWidget);
 
     await tester.tap(find.byKey(RegistrationPaymentMethodPicker.cardKey));
@@ -263,5 +279,94 @@ void main() {
     await tester.pump();
     expect(find.textContaining('prazo de 30 minutos'), findsOneWidget);
     expect(find.text('Gerar PIX'), findsNothing);
+  });
+
+  const visa = SavedPaymentCard(
+    brand: 'VISA',
+    last4: '4242',
+    expiryMonth: 12,
+    expiryYear: 2030,
+  );
+
+  testWidgets('sem a flag ou sem cartão, não oferece o cartão salvo',
+      (tester) async {
+    await pumpPage(tester, savedCard: visa);
+    expect(find.byKey(const Key('schedule-pay-saved-card')), findsNothing);
+  });
+
+  const fees = CardFeeTerms(
+    anticipationPercent: 1.33,
+    processingPercent: 2.99,
+    fixedReais: 0.49,
+  );
+
+  testWidgets('cartão salvo: paga com ele e a baixa fecha a tela',
+      (tester) async {
+    final h = await pumpPage(
+      tester,
+      autopayFlag: true,
+      savedCard: visa,
+      cardFee: fees,
+    );
+    // O total com a taxa do cartão, o mesmo que o servidor cobra.
+    final total =
+        registrationMethodQuote(pixCents: 9000, cardFee: fees).cardTotalCents;
+    expect(total, greaterThan(9000));
+    expect(
+      find.text(
+        'Pagar ${formatBRL(total / 100)} no cartão salvo (Visa final 4242)',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('schedule-pay-saved-card')));
+    await tester.pump();
+    expect(h.repo.savedCardPays, ['c1']);
+    h.charges.add(charge(status: 'paid'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(const Key('schedule-payment-paid')), findsOneWidget);
+  });
+
+  testWidgets('cartão salvo sem a taxa do cartão carregada: botão travado',
+      (tester) async {
+    await pumpPage(tester, autopayFlag: true, savedCard: visa);
+    expect(
+      tester
+          .widget<OutlinedButton>(
+              find.byKey(const Key('schedule-pay-saved-card')))
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('cartão salvo recusado: mostra o erro e libera o botão',
+      (tester) async {
+    final h = await pumpPage(
+      tester,
+      autopayFlag: true,
+      savedCard: visa,
+      cardFee: fees,
+    );
+    h.repo.savedCardError = SchedulePlanException(
+      'O cartão foi recusado. Tente outro cartão ou pague com Pix.',
+    );
+    await tester.tap(find.byKey(const Key('schedule-pay-saved-card')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(
+      find.text(
+        'Não foi possível pagar. O cartão foi recusado. Tente outro cartão ou '
+        'pague com Pix.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(
+              find.byKey(const Key('schedule-pay-saved-card')))
+          .onPressed,
+      isNotNull,
+    );
   });
 }

@@ -321,7 +321,7 @@ export interface OnlineChargeBadge {
 export const ONLINE_BILLING_FEE_TEXT =
   'A NexaGO desconta a mesma taxa do aluguel online (6% no Pro, 5% no Elite, mínimo R$ 1,50) mais a taxa do cartão quando for cartão. O valor cai no caixa da arena.';
 
-type OnlineChargeFields = Pick<ScheduleCharge, 'status' | 'billingMode' | 'asaas' | 'paidVia' | 'onlineBillingType'>;
+type OnlineChargeFields = Pick<ScheduleCharge, 'status' | 'billingMode' | 'asaas' | 'paidVia' | 'onlineBillingType' | 'autopay'>;
 
 /** Grupo com pagamento vivo (ou a caminho) no Asaas — o mesmo conjunto que o backend anula na baixa manual. */
 const LIVE_ASAAS_STATES: readonly ScheduleAsaasState[] = ['pending', 'creating', 'open', 'failed'];
@@ -335,8 +335,18 @@ export function onlineBillingTypeLabel(type: string | null): string {
 
 /** Selo do estado online da mensalidade. `null` = manual (ou link já anulado), nada a mostrar. */
 export function onlineChargeBadge(charge: OnlineChargeFields): OnlineChargeBadge | null {
+  const autopay = charge.autopay?.state;
   if (charge.status === 'paid') {
+    if (autopay === 'paid') return { label: 'Pago no débito automático', tone: 'green' };
     return charge.paidVia === 'asaas' ? { label: `Pago online · ${onlineBillingTypeLabel(charge.onlineBillingType)}`, tone: 'green' } : null;
+  }
+  if (charge.status === 'open') {
+    if (autopay === 'scheduled' || autopay === 'retry') {
+      const day = charge.autopay?.scheduledFor ? ` ${shortDayMonth(charge.autopay.scheduledFor)}` : '';
+      return { label: `Débito automático · agendado${day}`, tone: 'blue' };
+    }
+    if (autopay === 'charging') return { label: 'Débito automático · debitando', tone: 'dim' };
+    if (autopay === 'failed' && hasLiveLink(charge.asaas?.state)) return { label: 'Débito recusado · link enviado', tone: 'red' };
   }
   if (charge.status !== 'open' || charge.billingMode !== 'asaas') return null;
   switch (charge.asaas?.state ?? 'pending') {
@@ -352,6 +362,21 @@ export function onlineChargeBadge(charge: OnlineChargeFields): OnlineChargeBadge
     default:
       return null;
   }
+}
+
+function hasLiveLink(state: ScheduleAsaasState | undefined): boolean {
+  return state === 'open' || state === 'pending' || state === 'creating';
+}
+
+/** `2026-12-05` → `05/12`. */
+function shortDayMonth(key: string): string {
+  const [, m, d] = key.split('-');
+  return m && d ? `${d}/${m}` : key;
+}
+
+/** Baixa manual ou cancelamento de mensalidade com débito agendado cancela o débito. */
+export function chargeVoidsAutopay(charge: Pick<ScheduleCharge, 'status' | 'autopay'>): boolean {
+  return charge.status === 'open' && (charge.autopay?.state === 'scheduled' || charge.autopay?.state === 'retry');
 }
 
 /** Link da fatura pronto para copiar (só com a mensalidade em aberto). */

@@ -393,9 +393,18 @@ AthleteCharge _fromScheduleCharge(
     note: [
       if (split) 'sua parte',
       if (!c.isOnline) 'na arena',
+      if (_autopayScheduledDay(c) case final day?) 'Débito automático em $day',
     ].join(' · ').ifEmptyNull,
     target: const SchedulePlansTarget(),
   );
+}
+
+/// Dia (`DD/MM`) do débito agendado no cartão; `null` sem débito agendado.
+String? _autopayScheduledDay(ScheduleCharge c) {
+  final a = c.autopay;
+  if (a == null || (a.state != 'scheduled' && a.state != 'retry')) return null;
+  final day = scheduleAutopayDayLabel(a.scheduledFor ?? '');
+  return day.isEmpty ? null : day;
 }
 
 /// Reserva própria segurando a quadra à espera do Pix (e ainda por vir).

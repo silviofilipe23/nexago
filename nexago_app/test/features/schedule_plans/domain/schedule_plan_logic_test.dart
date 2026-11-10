@@ -83,8 +83,7 @@ void main() {
 
     test('rótulos', () {
       expect(scheduleSpotsLabel(12), ('12 vagas', ScheduleSpotsTone.normal));
-      expect(scheduleSpotsLabel(6),
-          ('Últimas 6 vagas', ScheduleSpotsTone.few));
+      expect(scheduleSpotsLabel(6), ('Últimas 6 vagas', ScheduleSpotsTone.few));
       expect(scheduleSpotsLabel(1), ('Última vaga', ScheduleSpotsTone.few));
       expect(scheduleSpotsLabel(0),
           ('Lotado · entrar na fila', ScheduleSpotsTone.full));
@@ -94,7 +93,9 @@ void main() {
   group('preço por ciclo e rateio', () {
     test('desconto do ciclo sobre o mensal', () {
       const q = SchedulePlanCycleOption(
-          cycle: SchedulePlanCycle.quarterly, enabled: true, discountPercent: 5);
+          cycle: SchedulePlanCycle.quarterly,
+          enabled: true,
+          discountPercent: 5);
       expect(scheduleCycleMonthlyPrice(450, q), 427.5);
       const m = SchedulePlanCycleOption(
           cycle: SchedulePlanCycle.monthly, enabled: true, discountPercent: 30);
@@ -181,7 +182,8 @@ void main() {
       expect(
         scheduleWindowsSummary([
           for (var w = 1; w <= 5; w++)
-            SchedulePlanWindow(weekday: w, startTime: '18:00', endTime: '23:00'),
+            SchedulePlanWindow(
+                weekday: w, startTime: '18:00', endTime: '23:00'),
         ]),
         'Seg–Sex, 18h–23h',
       );
@@ -241,10 +243,10 @@ void main() {
       ];
       final skippable = scheduleSkippableOccurrences(list, now);
       expect(skippable.map((o) => o.bookingId), ['b', 'd']);
-      expect(scheduleIsLateNotice(skippable.first, now, noticeHours: 24),
-          isTrue);
-      expect(scheduleIsLateNotice(skippable.last, now, noticeHours: 24),
-          isFalse);
+      expect(
+          scheduleIsLateNotice(skippable.first, now, noticeHours: 24), isTrue);
+      expect(
+          scheduleIsLateNotice(skippable.last, now, noticeHours: 24), isFalse);
     });
 
     test('dias de pausa que sobram no ano', () {
@@ -294,8 +296,8 @@ void main() {
         ScheduleCredit(id: 'z', expiresOn: DateTime(2026, 11, 20)),
         const ScheduleCredit(id: 'w', status: 'used'),
       ];
-      expect(scheduleAvailableCredits(credits, now).map((c) => c.id),
-          ['z', 'y']);
+      expect(
+          scheduleAvailableCredits(credits, now).map((c) => c.id), ['z', 'y']);
       final charges = [
         ScheduleCharge(id: 'c2', dueDate: DateTime(2026, 12, 5)),
         ScheduleCharge(

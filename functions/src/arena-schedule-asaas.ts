@@ -22,13 +22,23 @@ import {
   ARENA_SCHEDULE_CHARGES,
   ARENA_SCHEDULE_SUBSCRIPTIONS,
   ATHLETE_PLANS_URL,
+  CPF_REQUIRED_MESSAGE,
   MIN_ONLINE_CHARGE_REAIS,
   PENDING_PAYMENT_STATUS,
   SCHEDULE_PAYMENT_REF_PREFIX,
+  autopayOf,
   parseScheduleSettings,
   str,
 } from "./arena-schedule-plan-constants";
-import {requireUid, rethrowSchedule, scheduleOnlineBillingOn, scheduleSettingsRef} from "./arena-schedule-plans";
+import {
+  notifyScheduleSafe,
+  requireUid,
+  rethrowSchedule,
+  scheduleOnlineBillingOn,
+  scheduleSettingsRef,
+} from "./arena-schedule-plans";
+import {scheduleAutopayFlagOn} from "./arena-schedule-autopay";
+import {defaultAutopayDeps, recoverScheduleAutopay, type AutopayDeps} from "./arena-schedule-autopay-charge";
 import {activatePendingSubscriptionCore, expirePendingSubscriptionCore} from "./arena-schedule-subscriptions";
 import {chargeAsaasMirror, type ClassAsaasState} from "./arena-class-asaas-model";
 import {monthLabelPt} from "./arena-class-billing";
@@ -47,7 +57,13 @@ import {
   getAsaasPayment,
   type AsaasPaymentDetails,
 } from "./asaas-booking-payment";
-import {getOrCreateAsaasCustomer, isValidCpfCnpj, normalizeCpfCnpj, resolveAthleteCpfCnpj} from "./asaas-customer";
+import {isValidCpfCnpj, normalizeCpfCnpj} from "./asaas-customer";
+import {
+  cardValidForDueDate,
+  readSavedCardTx,
+  registerScheduleCustomer,
+  resolveScheduleCustomer,
+} from "./asaas-saved-card";
 import {processArenaScheduleAsaasNotification} from "./asaas-arena-schedule-webhook";
 import {getFirebaseProjectId} from "./firebase-paths";
 import {dayKeyFromEventDate} from "./event-timezone";
@@ -60,7 +76,7 @@ type Data = Record<string, unknown>;
 export const SCHEDULE_CHARGE_LINK_TYPE = "schedule_plan_charge_link";
 /** Fatura UNDEFINED (Pix ou cartão) no Asaas não aceita menos que isso — abaixo fica manual. */
 export {MIN_ONLINE_CHARGE_REAIS};
-export const CPF_REQUIRED_MESSAGE = "Informe seu CPF para pagar online.";
+export {CPF_REQUIRED_MESSAGE, resolveScheduleCustomer};
 export const ONSITE_ONLY_MESSAGE = "Esta mensalidade é paga direto na arena.";
 export const LINK_PENDING_MESSAGE = "O link ainda está sendo gerado. Tente de novo em instantes.";
 
@@ -94,36 +110,15 @@ export interface ScheduleAsaasDeps {
 }
 
 /** No emulador, só sandbox: o projeto DEV aponta para o Asaas de produção. */
-function assertAsaasAllowed(): void {
+export function assertAsaasAllowed(): void {
   if (process.env.FUNCTIONS_EMULATOR === "true" && getAsaasEnvTag() !== "sandbox") {
     throw new Error("ASAAS_BLOCKED_IN_EMULATOR");
   }
 }
 
-async function athleteEmail(athleteId: string): Promise<string> {
-  return String((await getFirestore().collection("users").doc(athleteId).get()).data()?.["email"] ?? "");
-}
-
-async function resolveScheduleCustomer(athleteId: string): Promise<string | null> {
-  assertAsaasAllowed();
-  const cached = (await getFirestore().doc(`users/${athleteId}/asaas/customer`).get()).data();
-  let cpf = normalizeCpfCnpj(cached?.["cpfCnpj"] as string | undefined);
-  if (!isValidCpfCnpj(cpf)) {
-    try {
-      cpf = await resolveAthleteCpfCnpj(athleteId);
-    } catch {
-      return null;
-    }
-  }
-  return getOrCreateAsaasCustomer(athleteId, await athleteEmail(athleteId), undefined, cpf);
-}
-
 export const defaultScheduleAsaasDeps: ScheduleAsaasDeps = {
   resolveCustomer: resolveScheduleCustomer,
-  registerCustomer: async (athleteId, cpfCnpj) => {
-    assertAsaasAllowed();
-    return getOrCreateAsaasCustomer(athleteId, await athleteEmail(athleteId), undefined, cpfCnpj);
-  },
+  registerCustomer: registerScheduleCustomer,
   createPayment: async (input) => {
     assertAsaasAllowed();
     return createAsaasInvoiceCharge({
@@ -226,21 +221,29 @@ export function scheduleAsaasGroupData(
   };
 }
 
+export interface ScheduleBillingDecision {
+  billingMode: string | null;
+  groupId: string | null;
+  /** Mensalidade agendada para o débito automático (sem link de pagamento). */
+  autopay: boolean;
+}
+
 /** Decide a mensalidade aberta com `billingMode: null` (idempotente: decidida não muda). */
 export async function decideScheduleChargeBilling(
   db: Firestore,
   chargeId: string,
-): Promise<{billingMode: string | null; groupId: string | null}> {
+): Promise<ScheduleBillingDecision> {
   const chargeRef = db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId);
-  return db.runTransaction(async (tx: Transaction) => {
+  const out = await db.runTransaction(async (tx: Transaction) => {
     const snap = await tx.get(chargeRef);
     const charge = snap.data() as Data | undefined;
-    if (!snap.exists || !charge) return {billingMode: null, groupId: null};
+    if (!snap.exists || !charge) return {billingMode: null, groupId: null, autopay: false};
     if (charge["status"] !== "open" || charge["billingMode"] !== null) {
       return {billingMode: typeof charge["billingMode"] === "string" ? charge["billingMode"] : null,
-        groupId: str(asaasOf(charge)["groupId"]) || null};
+        groupId: str(asaasOf(charge)["groupId"]) || null, autopay: str(autopayOf(charge)["state"]) !== ""};
     }
     const arenaId = str(charge["arenaId"]);
+    const payerId = str(charge["payerAthleteId"]);
     const [subSnap, arenaSnap, settingsSnap] = await Promise.all([
       tx.get(db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).doc(str(charge["subscriptionId"]) || "_")),
       tx.get(db.collection("arenas").doc(arenaId || "_")),
@@ -252,12 +255,81 @@ export async function decideScheduleChargeBilling(
     const mode = decideScheduleBillingMode({onlineBilling: scheduleOnlineBillingOn(settings, arena), sub, charge});
     if (mode === "manual") {
       tx.set(chargeRef, {billingMode: "manual"}, {merge: true});
-      return {billingMode: "manual", groupId: null};
+      return {billingMode: "manual", groupId: null, autopay: false};
+    }
+    // Débito automático: chave ligada + consentimento do pagador + cartão salvo válido no vencimento.
+    let cardExpired: {last4: string; planName: string} | null = null;
+    const consent = (sub["autopay"] as Data | undefined)?.[payerId] as Data | undefined;
+    if (payerId && consent?.["enabled"] === true) {
+      const flagOn = await scheduleAutopayFlagOn(db, tx);
+      const card = flagOn ? await readSavedCardTx(tx, db, payerId, getAsaasEnvTag()) : null;
+      const dueDate = str(charge["dueDate"]);
+      if (card && cardValidForDueDate(card, dueDate)) {
+        tx.set(chargeRef, {
+          billingMode: "asaas",
+          autopay: {
+            state: "scheduled", scheduledFor: dueDate, attempts: 0, lastAttemptAt: null, lastError: null, needsLink: false,
+            brand: card.brand, last4: card.last4, chargedReais: null,
+          },
+        }, {merge: true});
+        return {billingMode: "asaas", groupId: null, autopay: true};
+      }
+      if (card) cardExpired = {last4: card.last4, planName: str(charge["planName"]) || "de horário"};
     }
     const groupRef = groupsCol(db).doc();
     tx.set(groupRef, scheduleAsaasGroupData(chargeId, charge, {customerAthleteId: null, arenaName: str(sub["arenaName"])}));
     tx.set(chargeRef, {billingMode: "asaas", asaas: chargeAsaasMirror(groupRef.id, "pending")}, {merge: true});
-    return {billingMode: "asaas", groupId: groupRef.id};
+    return {billingMode: "asaas", groupId: groupRef.id, autopay: false, cardExpired, payerId};
+  });
+  if ("cardExpired" in out && out.cardExpired) {
+    await notifyScheduleSafe(out.payerId, {
+      title: "Seu cartão venceu",
+      body: `O cartão final ${out.cardExpired.last4} venceu. Pague o plano ${out.cardExpired.planName} por Pix ou cartão e salve um cartão novo.`,
+      type: "schedule_plan_autopay_card_expired",
+    });
+  }
+  return {billingMode: out.billingMode, groupId: out.groupId, autopay: out.autopay};
+}
+
+/**
+ * Garante o grupo do link de pagamento de uma mensalidade online aberta (o débito automático
+ * deixa a mensalidade sem link; ao desligar ou falhar, o link volta). Sem grupo no espelho, ou com
+ * grupo `void`: cria um `pending` novo. Grupo `autopay`: passa a `pending` no mesmo id. Grupo vivo:
+ * nada a fazer. Devolve o id do grupo ou null (mensalidade fora de "aberta online").
+ */
+export async function ensureScheduleChargeLinkGroup(
+  db: Firestore,
+  chargeId: string,
+  /** `silentLink`: quem pediu o link é quem vai pagar (o "Pagar"); sem o push "mensalidade disponível". */
+  opts: {silentLink?: boolean} = {},
+): Promise<string | null> {
+  const chargeRef = db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId);
+  return db.runTransaction(async (tx: Transaction) => {
+    const chargeSnap = await tx.get(chargeRef);
+    const charge = chargeSnap.data() as Data | undefined;
+    if (!chargeSnap.exists || !charge) return null;
+    if (charge["status"] !== "open" || charge["billingMode"] !== "asaas") return null;
+    const mirror = asaasOf(charge);
+    const currentId = str(mirror["groupId"]);
+    let current: Data | undefined;
+    if (currentId) {
+      const groupSnap = await tx.get(groupsCol(db).doc(currentId));
+      current = groupSnap.exists ? groupSnap.data() as Data : undefined;
+    }
+    const subSnap = await tx.get(db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).doc(str(charge["subscriptionId"]) || "_"));
+    if (currentId && current && current["state"] === "autopay") {
+      tx.set(groupsCol(db).doc(currentId), {
+        state: "pending", ...(opts.silentLink ? {silentLink: true} : {}), updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+      tx.set(chargeRef, {asaas: {...mirror, state: "pending"}}, {merge: true});
+      return currentId;
+    }
+    if (currentId && current && current["state"] !== "void") return currentId;
+    const groupRef = groupsCol(db).doc();
+    const sub = (subSnap.data() ?? {}) as Data;
+    tx.set(groupRef, scheduleAsaasGroupData(chargeId, charge, {customerAthleteId: null, arenaName: str(sub["arenaName"])}));
+    tx.set(chargeRef, {asaas: chargeAsaasMirror(groupRef.id, "pending")}, {merge: true});
+    return groupRef.id;
   });
 }
 
@@ -294,7 +366,7 @@ export async function requestScheduleGroupVoid(db: Firestore, groupId: string): 
     const state = str(group["state"]);
     let next: "voiding" | "void";
     if (LIVE_STATES.has(state)) next = "voiding";
-    else if (state === "needs_cpf") next = "void";
+    else if (state === "needs_cpf" || state === "autopay") next = "void";
     else return null;
     tx.set(groupRef, {
       state: next, voidReason: voidReasonOf(charge, groupId),
@@ -556,18 +628,40 @@ export function activatesSubscription(before: Data | undefined, after: Data | un
     after["kind"] === "first" && Number(after["payerIndex"] ?? 0) === 0;
 }
 
+/** A mensalidade saiu de "em aberto" com o débito ainda na fila (`scheduled`/`retry`). */
+export function autopayLeftOpen(before: Data | undefined, after: Data | undefined): boolean {
+  if (before?.["status"] !== "open" || !after || after["status"] === "open") return false;
+  const state = str(autopayOf(after)["state"]);
+  return state === "scheduled" || state === "retry";
+}
+
+/** Tira o débito da fila (`scheduled`/`retry` → `skipped`). Devolve se mudou. */
+export async function skipScheduleAutopay(db: Firestore, chargeId: string, reason: string): Promise<boolean> {
+  const ref = db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId);
+  return db.runTransaction(async (tx: Transaction) => {
+    const snap = await tx.get(ref);
+    const charge = snap.data() as Data | undefined;
+    if (!snap.exists || !charge) return false;
+    const state = str(autopayOf(charge)["state"]);
+    if (state !== "scheduled" && state !== "retry") return false;
+    tx.set(ref, {autopay: {state: "skipped", lastError: reason}}, {merge: true});
+    return true;
+  });
+}
+
 export const onArenaScheduleChargeWritten = onDocumentWritten({
   document: `${ARENA_SCHEDULE_CHARGES}/{chargeId}`,
-  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+  // Decidir o débito lê o cartão salvo pelo ambiente (`getAsaasEnvTag()` precisa do ASAAS_ENV).
+  secrets: [...asaasArenaSecrets, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (event) => {
   const before = event.data?.before?.data();
   const after = event.data?.after?.data();
   const db = getFirestore();
   if (activatesSubscription(before, after)) await activatePendingSubscriptionCore(db, str(after?.["subscriptionId"]));
   const action = scheduleChargeTriggerAction(before, after);
-  if (!action) return;
   if (action === "decide") await decideScheduleChargeBilling(db, event.params.chargeId);
-  else await requestScheduleAsaasVoid(db, event.params.chargeId);
+  else if (action === "void") await requestScheduleAsaasVoid(db, event.params.chargeId);
+  if (autopayLeftOpen(before, after)) await skipScheduleAutopay(db, event.params.chargeId, "charge_resolved");
 });
 
 /** Gatilho: grupo novo/retentado → cria no Asaas; pedido de anulação → apaga. */
@@ -606,7 +700,11 @@ export async function reconcileScheduleAsaasPayments(
   db: Firestore,
   now: Date,
   deps: ScheduleAsaasDeps = defaultScheduleAsaasDeps,
-): Promise<{decided: number; staleVoided: number; created: number; voided: number; reconciled: number}> {
+  autopayDeps: AutopayDeps = defaultAutopayDeps,
+): Promise<{
+  decided: number; staleVoided: number; created: number; voided: number; reconciled: number;
+  autopayResumed: number; autopayLinked: number;
+}> {
   const col = groupsCol(db);
   let decided = 0;
   let staleVoided = 0;
@@ -626,12 +724,14 @@ export async function reconcileScheduleAsaasPayments(
   }
 
   // Grupos cuja mensalidade já foi resolvida (gatilho perdido/atrasado): anula.
-  for (const state of ["pending", "failed", "open", "needs_cpf"]) {
+  for (const state of ["pending", "failed", "open", "needs_cpf", "autopay"]) {
     const snap = await col.where("state", "==", state).limit(200).get();
     for (const doc of snap.docs) {
       const chargeId = str(doc.data()["chargeId"]);
       const charge = chargeId ? (await db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId).get()).data() : undefined;
       if (chargeStillBilledBy(charge, doc.id)) continue;
+      // Débito em voo: a tentativa decide (paga com a mensalidade resolvida, o webhook estorna).
+      if (state === "autopay" && str(autopayOf(charge)["state"]) === "charging") continue;
       try {
         if (await requestScheduleGroupVoid(db, doc.id)) staleVoided += 1;
       } catch (e) {
@@ -681,7 +781,14 @@ export async function reconcileScheduleAsaasPayments(
       logger.warn(`reconcileScheduleAsaasPayments: ${doc.id} falhou`, e);
     }
   }
-  return {decided, staleVoided, created, voided, reconciled};
+  // Débito automático: destrava `charging` antigas e põe o link nas agendadas esquecidas.
+  let autopay = {resumed: 0, linked: 0};
+  try {
+    autopay = await recoverScheduleAutopay(db, now, autopayDeps);
+  } catch (e) {
+    logger.warn("reconcileScheduleAsaasPayments: recuperação do débito automático falhou", e);
+  }
+  return {decided, staleVoided, created, voided, reconciled, autopayResumed: autopay.resumed, autopayLinked: autopay.linked};
 }
 
 export const reconcileArenaScheduleAsaasPayments = onSchedule({
@@ -690,7 +797,7 @@ export const reconcileArenaScheduleAsaasPayments = onSchedule({
   secrets: [...asaasArenaSecrets, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async () => {
   const result = await reconcileScheduleAsaasPayments(getFirestore(), new Date());
-  if (result.decided || result.staleVoided || result.created || result.voided || result.reconciled) {
+  if (Object.values(result).some((n) => n > 0)) {
     logger.info("reconcileArenaScheduleAsaasPayments", result);
   }
 });
@@ -739,9 +846,22 @@ async function firstChargePaidAtAsaas(db: Firestore, subscriptionId: string, dep
     const group = groupId ? (await groupsCol(db).doc(groupId).get()).data() ?? {} : {};
     if (group["state"] === "paid") return true;
     const paymentId = str(group["paymentId"]);
-    if (!paymentId) return false;
-    const payment = await deps.getPayment(paymentId);
-    return PAID_STATUSES.has(str(payment.status).toUpperCase());
+    if (paymentId) {
+      const payment = await deps.getPayment(paymentId);
+      if (PAID_STATUSES.has(str(payment.status).toUpperCase())) return true;
+    }
+    const tokenCharges = group["tokenCharges"];
+    if (tokenCharges != null && typeof tokenCharges === "object") {
+      for (const t of Object.values(tokenCharges as Data)) {
+        const tc = (t ?? {}) as Data;
+        if (tc["status"] === "paid") return true;
+        const tokenPaymentId = str(tc["paymentId"]);
+        if (!tokenPaymentId) continue;
+        const payment = await deps.getPayment(tokenPaymentId);
+        if (PAID_STATUSES.has(str(payment.status).toUpperCase())) return true;
+      }
+    }
+    return false;
   }
   return false;
 }
@@ -815,6 +935,12 @@ export async function getScheduleChargePaymentLinkCore(
     const invoiceUrl = str(group["invoiceUrl"]);
     if (state === "open" && invoiceUrl) return {invoiceUrl};
 
+    if (state === "autopay") {
+      // Débito agendado/recusado: o grupo vira `pending` no mesmo id e o link sai agora. Link e token
+      // convivem no grupo (o que pagar primeiro quita, o outro é estornado); `autopay.state` não muda.
+      await ensureScheduleChargeLinkGroup(db, chargeId, {silentLink: true});
+      continue;
+    }
     if (state === "pending" || state === "failed") {
       // Gera na hora (a disputa com o gatilho do grupo é decidida na transação do claim).
       const out = await ensureScheduleAsaasPayment(db, groupId, deps);
@@ -872,7 +998,7 @@ export const PAYMENT_WINDOW_CLOSED_MESSAGE =
   "O prazo de 30 minutos para pagar acabou e o horário foi liberado. Assine de novo.";
 
 /** Assinatura aguardando pagamento com o prazo vencido não gera mais cobrança. */
-async function assertPaymentWindowOpen(db: Firestore, chargeId: string): Promise<void> {
+export async function assertPaymentWindowOpen(db: Firestore, chargeId: string): Promise<void> {
   if (!chargeId || chargeId.includes("/")) return;
   const charge = (await db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId).get()).data();
   const subId = str(charge?.["subscriptionId"]);

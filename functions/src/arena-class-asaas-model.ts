@@ -13,7 +13,7 @@
  */
 import {FieldValue} from "firebase-admin/firestore";
 
-export type ClassAsaasState = "pending" | "creating" | "open" | "paid" | "voiding" | "void" | "failed" | "needs_cpf";
+export type ClassAsaasState = "pending" | "creating" | "open" | "paid" | "voiding" | "void" | "failed" | "needs_cpf" | "autopay";
 
 /** Estados em que ainda pode existir (ou vir a existir) um pagamento vivo no Asaas. */
 export const LIVE_ASAAS_STATES: readonly ClassAsaasState[] = ["pending", "creating", "open", "failed"];

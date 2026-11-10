@@ -187,3 +187,13 @@ Trava (`arenaSlotLocks`): `floating: true` enquanto a reserva estiver `unassigne
   horário ainda não mostra o mínimo do horário de pico (o servidor recusa na confirmação) nem a
   lista de espera. Telas no canvas do Claude Design, página do atleta ("Reservas por capacidade ·
   app do atleta").
+- **PR 4b** (portal web do atleta): mesma lógica do app, na lib compartilhada
+  `@nexago/arena-discovery` (`booking-allocation.ts`: leitura da config, candidatas, horários
+  livres na mesma quadra, duração, preço, `athleteSeesBookingCourt`). Reservar → horário vira
+  grade por horário (esporte, duração, "N quadras livres" / "Últimas vagas" / "Lotado", resumo com
+  "Quadra: definida na chegada"); modo misto com "Prefiro escolher a quadra". O pagamento abre com
+  `allocation=capacity&sport&date&time&minutes` (sem `courtId`), monta a cadeia numa quadra livre
+  com o preço do horário (`capacityChainFor`) e cota/cria sem quadra. Retomada do Pix e "Concluir
+  pagamento" casam pela reserva `unassigned`. Reserva confirmada, Minhas reservas e agenda mostram
+  "Quadra definida na chegada". Telas no canvas (página do atleta, abaixo das do app).
+

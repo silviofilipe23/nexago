@@ -15,6 +15,7 @@ import {
   type Timestamp,
 } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
+import { athleteVisibleCourtName } from '@nexago/arena-discovery';
 import { bookingParticipantsOf, type BookingParticipant } from './booking-invite-model';
 import { readCashbackCharge } from './cashback-preview';
 import { readSquadDiscount } from './squad-discount';
@@ -42,6 +43,14 @@ export interface ArenaBookingArgs {
   endTime: string;
   /** Inícios dos slots escolhidos na grade (ex.: `['18:00', '19:00']`). */
   selectedSlotStartTimes: string[];
+  /**
+   * Arena "a arena define a quadra": a reserva vai sem quadra (`allocation: 'capacity'`) e o
+   * servidor escolhe uma provisória; `courtId`/`courtName` ficam vazios. Ver
+   * `docs/product/reservas-por-capacidade.md`.
+   */
+  capacity?: boolean;
+  /** Esporte escolhido na grade por horário (no modo quadra o esporte sai da quadra). */
+  sport?: string | null;
 }
 
 export interface ArenaBookingQuoteLine {
@@ -105,7 +114,10 @@ export interface ArenaBookingDoc {
   arenaId: string;
   arenaName: string;
   courtId: string;
+  /** Nome que o atleta vê: "Quadra definida na chegada" enquanto a arena não mostra a quadra. */
   courtName: string;
+  /** `unassigned`: arena "a arena define a quadra" e a recepção ainda não definiu. */
+  allocationStatus: string | null;
   /** Esporte escolhido pelo atleta (código do catálogo) — `null` em reserva antiga. */
   sport: string | null;
   dateKey: string;
@@ -197,6 +209,9 @@ export function mapCallableError(err: unknown): ArenaBookingError {
       return new ArenaBookingError(detail ?? 'Não foi possível reservar este horário.');
     case 'already-exists':
       return new ArenaBookingError('Esse horário acabou de ser reservado. Escolha outro.', 'SLOT_CONFLICT');
+    case 'resource-exhausted':
+      // Arena "a arena define a quadra": todas as quadras do horário foram ocupadas.
+      return new ArenaBookingError(detail ?? 'Esse horário lotou. Escolha outro.', 'SLOT_CONFLICT');
     case 'internal':
       return new ArenaBookingError(detail ?? 'Erro no servidor. Tente novamente.');
     default:
@@ -204,12 +219,15 @@ export function mapCallableError(err: unknown): ArenaBookingError {
   }
 }
 
-function callablePayload(args: ArenaBookingArgs, couponCode?: string): Record<string, unknown> {
+export function callablePayload(args: ArenaBookingArgs, couponCode?: string): Record<string, unknown> {
   return {
     arenaId: args.arenaId,
     arenaName: args.arenaName,
-    courtId: args.courtId,
-    courtName: args.courtName,
+    // Sem quadra: o servidor escolhe a provisória e precisa do esporte já na cotação (o preço é
+    // o do horário daquele esporte).
+    ...(args.capacity
+      ? { allocation: 'capacity', sport: args.sport ?? null }
+      : { courtId: args.courtId, courtName: args.courtName }),
     date: args.dateKey,
     startTime: args.startTime,
     endTime: args.endTime,
@@ -547,7 +565,9 @@ export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): Arena
     arenaId: typeof data['arenaId'] === 'string' ? data['arenaId'] : '',
     arenaName: typeof data['arenaName'] === 'string' ? data['arenaName'] : 'Arena',
     courtId: typeof data['courtId'] === 'string' ? data['courtId'] : '',
-    courtName: typeof data['courtName'] === 'string' ? data['courtName'] : 'Quadra',
+    // Arena "a arena define a quadra": a provisória não aparece para o atleta.
+    courtName: athleteVisibleCourtName(data, typeof data['courtName'] === 'string' ? data['courtName'] : 'Quadra'),
+    allocationStatus: optionalStr(data['allocationStatus']),
     sport: optionalStr(data['sport']),
     dateKey: bookingDateKeyOf(data),
     startTime: normTime(data['startTime']),
@@ -619,15 +639,7 @@ export async function findResumablePixBooking(
       if (!isResumablePendingPix(data)) continue;
       const booking = bookingFromSnapshot(d);
       if (!booking) continue;
-      if (
-        booking.arenaId !== args.arenaId ||
-        booking.courtId !== args.courtId ||
-        booking.dateKey !== args.dateKey ||
-        booking.startTime !== normTime(args.startTime) ||
-        booking.endTime !== normTime(args.endTime)
-      ) {
-        continue;
-      }
+      if (!pendingBookingMatchesArgs(booking, args)) continue;
       candidates.set(d.id, booking);
     }
   }
@@ -641,6 +653,24 @@ export async function findResumablePixBooking(
     }
   }
   return best;
+}
+
+/** A reserva pendente é do mesmo horário escolhido? No modo capacidade a pendente segura uma
+ *  quadra provisória: casa pela reserva sem quadra definida do mesmo esporte. Exportado para o
+ *  spec. */
+export function pendingBookingMatchesArgs(booking: ArenaBookingDoc, args: ArenaBookingArgs): boolean {
+  if (booking.arenaId !== args.arenaId) return false;
+  if (args.capacity) {
+    if (booking.allocationStatus !== 'unassigned') return false;
+    if ((booking.sport ?? '') !== (args.sport ?? '')) return false;
+  } else if (booking.courtId !== args.courtId) {
+    return false;
+  }
+  return (
+    booking.dateKey === args.dateKey &&
+    booking.startTime === normTime(args.startTime) &&
+    booking.endTime === normTime(args.endTime)
+  );
 }
 
 function isResumablePendingPix(data: Record<string, unknown>): boolean {

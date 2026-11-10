@@ -1,4 +1,5 @@
 import { collection, getDocs, onSnapshot, query, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
+import { athleteVisibleCourtName } from '@nexago/arena-discovery';
 
 /** Reservas do próprio atleta em `arenaBookings` (coleção top-level) — espelha
  *  `BookingService.watchMyBookings`: 2 queries de campo único (`athleteId`/`bookingAthleteId`,
@@ -47,7 +48,8 @@ function bookingFromDoc(id: string, data: Record<string, unknown>): MyBooking {
     id,
     arenaId: optionalStr(data['arenaId']) ?? '',
     arenaName: optionalStr(data['arenaName']) ?? optionalStr(data['arena']) ?? 'Arena',
-    courtName: optionalStr(data['courtName']) ?? optionalStr(data['court']) ?? 'Quadra',
+    // Arena "a arena define a quadra": a provisória não aparece para o atleta.
+    courtName: athleteVisibleCourtName(data, optionalStr(data['courtName']) ?? optionalStr(data['court']) ?? 'Quadra'),
     dateKey: dateKeyFromDynamic(data['date']),
     startTime: timeStr(data['startTime']),
     endTime: timeStr(data['endTime']),

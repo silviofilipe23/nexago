@@ -1,6 +1,7 @@
 import type { DocumentData, DocumentSnapshot } from 'firebase/firestore';
 
 import { amenitiesFromFirestore, type ArenaAmenities } from './arena-amenities';
+import { bookingAllocationFromFirestore, type ArenaBookingAllocation } from './booking-allocation';
 
 export interface ArenaListItem {
   id: string;
@@ -35,6 +36,8 @@ export interface ArenaListItem {
    * Ausência do campo = parceira, então as arenas de hoje seguem iguais.
    */
   isUnclaimed: boolean;
+  /** Como o atleta reserva: escolhe a quadra (padrão) ou só o horário (a arena define a quadra). */
+  bookingAllocation: ArenaBookingAllocation;
 }
 
 export function arenaListItemFromFirestore(
@@ -112,6 +115,7 @@ export function arenaListItemFromFirestore(
     phone: readFirstString(data, ['phone', 'phoneNumber', 'telefone', 'mobile']),
     whatsapp: readFirstString(data, ['whatsapp', 'whatsApp', 'whatsappNumber']),
     isUnclaimed: data['unclaimed'] === true,
+    bookingAllocation: bookingAllocationFromFirestore(data['bookingAllocation']),
   };
 }
 

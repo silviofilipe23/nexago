@@ -10,8 +10,7 @@ import {
   type ArenaListItem,
   type ArenaSearchQueryFilters,
   type ArenaSearchResult,
-  type FilteredArenaSearchResult,
-} from '@nexago/arena-discovery';
+  type FilteredArenaSearchResult, COURT_BOOKING_ALLOCATION } from '@nexago/arena-discovery';
 
 function arena(overrides: Partial<ArenaListItem> = {}): ArenaListItem {
   return {
@@ -38,6 +37,7 @@ function arena(overrides: Partial<ArenaListItem> = {}): ArenaListItem {
     phone: null,
     whatsapp: null,
     isUnclaimed: false,
+    bookingAllocation: COURT_BOOKING_ALLOCATION,
     ...overrides,
   };
 }

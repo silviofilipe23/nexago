@@ -5,8 +5,7 @@ import {
   ARENA_AMENITIES_EMPTY,
   arenaListItemImageUrl,
   type ArenaListItem,
-  type ArenaSearchResult,
-} from '@nexago/arena-discovery';
+  type ArenaSearchResult, COURT_BOOKING_ALLOCATION } from '@nexago/arena-discovery';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
@@ -56,6 +55,7 @@ function arena(overrides: Partial<ArenaListItem> = {}): ArenaListItem {
     phone: null,
     whatsapp: null,
     isUnclaimed: false,
+    bookingAllocation: COURT_BOOKING_ALLOCATION,
     ...overrides,
   };
 }

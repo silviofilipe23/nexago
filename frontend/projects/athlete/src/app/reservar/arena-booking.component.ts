@@ -32,6 +32,16 @@ import {
   type PeakSelectionCheck,
   courtDocSportLabel,
   arenaSportLabels,
+  buildCapacityTimes,
+  capacityCandidateCourts,
+  capacityDurationOptions,
+  capacityPriceFor,
+  capacitySports,
+  capacityTimeIsFull,
+  capacityTimeIsLastSpots,
+  courtSportLabel,
+  shouldUseCapacityGrid,
+  type CapacityTime,
 } from '@nexago/arena-discovery';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
@@ -186,6 +196,111 @@ export class ArenaBookingComponent {
   protected readonly peakPrompt = signal<PeakPrompt | null>(null);
 
   protected readonly selectedDateKey = computed(() => slotsQueryDateKey(this.selectedDate()));
+
+  // ── Arena "a arena define a quadra" (`docs/product/reservas-por-capacidade.md`) ──────────
+  /** Modo misto: o atleta tocou "Prefiro escolher a quadra". */
+  protected readonly forceCourtChoice = signal(this.route.snapshot.queryParamMap.get('escolher') === 'quadra');
+  /** Grade por horário: esporte + horário + duração, sem quadra. */
+  protected readonly capacityMode = computed(() => {
+    const arena = this.arena();
+    if (!arena) return false;
+    return shouldUseCapacityGrid(arena.bookingAllocation, {
+      initialCourtId: this.route.snapshot.queryParamMap.get('courtId'),
+      forceCourtChoice: this.forceCourtChoice(),
+    });
+  });
+  protected readonly capacityAllowsCourtChoice = computed(
+    () => this.arena()?.bookingAllocation.allowCourtChoice === true,
+  );
+  protected readonly capacitySportList = computed(() => {
+    const arena = this.arena();
+    return arena ? capacitySports(arena.bookingAllocation, this.courts()) : [];
+  });
+  private readonly pickedCapacitySport = signal<string | null>(this.route.snapshot.queryParamMap.get('sport'));
+  protected readonly capacitySport = computed(() => {
+    const list = this.capacitySportList();
+    const picked = this.pickedCapacitySport();
+    return picked && list.includes(picked) ? picked : (list[0] ?? null);
+  });
+  private readonly capacityCandidates = computed(() => {
+    const arena = this.arena();
+    const sport = this.capacitySport();
+    return arena && sport ? capacityCandidateCourts(arena.bookingAllocation, this.courts(), sport) : [];
+  });
+  protected readonly capacityDurations = computed(() => capacityDurationOptions(this.capacityCandidates()));
+  private readonly pickedCapacityMinutes = signal<number | null>(null);
+  protected readonly capacityMinutes = computed(() => {
+    const options = this.capacityDurations();
+    const picked = this.pickedCapacityMinutes();
+    return picked && options.includes(picked) ? picked : (options[0] ?? 60);
+  });
+  protected readonly capacityTimes = computed<CapacityTime[]>(() =>
+    buildCapacityTimes({
+      daySlots: this.selectedDateSlots(),
+      candidates: this.capacityCandidates(),
+      durationMinutes: this.capacityMinutes(),
+      day: this.selectedDate(),
+      now: new Date(),
+    }),
+  );
+  private readonly pickedCapacityStart = signal<string | null>(null);
+  protected readonly capacitySelected = computed(
+    () => this.capacityTimes().find((t) => t.startTime === this.pickedCapacityStart() && !capacityTimeIsFull(t)) ?? null,
+  );
+  protected readonly capacityPrice = computed(() => {
+    const arena = this.arena();
+    const sport = this.capacitySport();
+    return arena && sport ? capacityPriceFor(arena.bookingAllocation, sport, this.capacityMinutes()) : null;
+  });
+  protected readonly isCapacityFull = capacityTimeIsFull;
+  protected readonly isCapacityLastSpots = capacityTimeIsLastSpots;
+  protected readonly sportLabel = courtSportLabel;
+
+  protected capacityFreeLabel(t: CapacityTime): string {
+    if (capacityTimeIsFull(t)) return 'todas as quadras ocupadas';
+    return t.freeCourts === 1 ? '1 quadra livre' : `${t.freeCourts} quadras livres`;
+  }
+
+  protected capacityDurationLabel(minutes: number): string {
+    if (minutes % 60 === 0) return `${minutes / 60}h`;
+    return `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, '0')}`;
+  }
+
+  protected selectCapacitySport(sport: string): void {
+    this.pickedCapacitySport.set(sport);
+    this.pickedCapacityStart.set(null);
+  }
+
+  protected selectCapacityMinutes(minutes: number): void {
+    this.pickedCapacityMinutes.set(minutes);
+    this.pickedCapacityStart.set(null);
+  }
+
+  protected selectCapacityTime(t: CapacityTime): void {
+    if (capacityTimeIsFull(t)) return;
+    this.pickedCapacityStart.set(t.startTime);
+  }
+
+  protected chooseCourtInstead(): void {
+    this.forceCourtChoice.set(true);
+    if (!this.selectedCourtId()) this.selectedCourtId.set(this.courts()[0]?.id ?? null);
+    void this.router.navigate([], { queryParams: { escolher: 'quadra' }, queryParamsHandling: 'merge', replaceUrl: true });
+  }
+
+  protected continueCapacityBooking(): void {
+    const t = this.capacitySelected();
+    const sport = this.capacitySport();
+    if (!t || !sport) return;
+    void this.router.navigate(['/reservar', this.arenaId(), 'agendar', 'pagamento'], {
+      queryParams: {
+        allocation: 'capacity',
+        sport,
+        date: this.selectedDateKey(),
+        time: t.startTime,
+        minutes: this.capacityMinutes(),
+      },
+    });
+  }
   protected readonly selectedDateSlots = computed(
     () => this.slotsByDateKey()[this.selectedDateKey()] ?? [],
   );
@@ -527,6 +642,7 @@ export class ArenaBookingComponent {
     this.selectedDate.set(date);
     this.selectedStartSlot.set(null);
     this.durationSlots.set(1);
+    this.pickedCapacityStart.set(null);
   }
 
   protected onDatePicked(rawValue: string): void {

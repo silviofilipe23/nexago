@@ -704,3 +704,75 @@
   color: var(--nx-text);
   margin: 0;
 }
+
+// Arena "a arena define a quadra" (grade por horário).
+.bk-capacity-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--nx-r-3);
+  border: 1px solid color-mix(in srgb, var(--nx-orange-500) 30%, transparent);
+  background: color-mix(in srgb, var(--nx-orange-500) 7%, transparent);
+  color: var(--nx-text-mute);
+  font-size: 13px;
+  line-height: 1.45;
+
+  svg {
+    flex: none;
+    margin-top: 1px;
+    color: var(--nx-orange-500);
+  }
+
+  strong {
+    color: var(--nx-text);
+  }
+}
+
+.bk-link-btn {
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--nx-orange-400);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.bk-capacity-list {
+  margin-top: 14px;
+
+  .bk-slot-row {
+    justify-content: flex-start;
+    gap: 12px;
+  }
+
+  .bk-slot-tag,
+  .bk-slot-price {
+    margin-left: auto;
+  }
+
+  .bk-slot-tag + .bk-slot-price {
+    margin-left: 0;
+  }
+}
+
+.bk-capacity-free {
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+
+  .bk-slot-row--selected & {
+    color: inherit;
+    opacity: 0.85;
+  }
+}
+
+.bk-summary-value--arrival {
+  color: var(--nx-pending);
+}
+

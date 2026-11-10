@@ -1,7 +1,7 @@
 import { Component, input, provideZonelessChangeDetection, signal, type WritableSignal } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { ARENA_AMENITIES_EMPTY, type ArenaListItem } from '@nexago/arena-discovery';
+import { ARENA_AMENITIES_EMPTY, type ArenaListItem, COURT_BOOKING_ALLOCATION } from '@nexago/arena-discovery';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import type { ArenaBookingDoc } from '../../data/arena-bookings-repository';
@@ -69,6 +69,7 @@ function booking(overrides: Partial<ArenaBookingDoc> = {}): ArenaBookingDoc {
     couponDiscountReais: 0,
     asaasPaymentId: null,
     cashbackAppliedReais: 0,
+    allocationStatus: null,
     ...overrides,
   };
 }
@@ -207,6 +208,7 @@ describe('AthleteBookingDetailComponent — equipe e convites', () => {
       phone: null,
       whatsapp: null,
       isUnclaimed: false,
+    bookingAllocation: COURT_BOOKING_ALLOCATION,
     });
 
     it('sem capa: herói no tom do status, sem foto quebrada', () => {

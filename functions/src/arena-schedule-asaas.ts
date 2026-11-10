@@ -22,6 +22,7 @@ import {
   ARENA_SCHEDULE_CHARGES,
   ARENA_SCHEDULE_SUBSCRIPTIONS,
   ATHLETE_PLANS_URL,
+  CPF_REQUIRED_MESSAGE,
   MIN_ONLINE_CHARGE_REAIS,
   PENDING_PAYMENT_STATUS,
   SCHEDULE_PAYMENT_REF_PREFIX,
@@ -47,7 +48,8 @@ import {
   getAsaasPayment,
   type AsaasPaymentDetails,
 } from "./asaas-booking-payment";
-import {getOrCreateAsaasCustomer, isValidCpfCnpj, normalizeCpfCnpj, resolveAthleteCpfCnpj} from "./asaas-customer";
+import {isValidCpfCnpj, normalizeCpfCnpj} from "./asaas-customer";
+import {registerScheduleCustomer, resolveScheduleCustomer} from "./asaas-saved-card";
 import {processArenaScheduleAsaasNotification} from "./asaas-arena-schedule-webhook";
 import {getFirebaseProjectId} from "./firebase-paths";
 import {dayKeyFromEventDate} from "./event-timezone";
@@ -60,7 +62,7 @@ type Data = Record<string, unknown>;
 export const SCHEDULE_CHARGE_LINK_TYPE = "schedule_plan_charge_link";
 /** Fatura UNDEFINED (Pix ou cartão) no Asaas não aceita menos que isso — abaixo fica manual. */
 export {MIN_ONLINE_CHARGE_REAIS};
-export const CPF_REQUIRED_MESSAGE = "Informe seu CPF para pagar online.";
+export {CPF_REQUIRED_MESSAGE, resolveScheduleCustomer};
 export const ONSITE_ONLY_MESSAGE = "Esta mensalidade é paga direto na arena.";
 export const LINK_PENDING_MESSAGE = "O link ainda está sendo gerado. Tente de novo em instantes.";
 
@@ -100,30 +102,9 @@ function assertAsaasAllowed(): void {
   }
 }
 
-async function athleteEmail(athleteId: string): Promise<string> {
-  return String((await getFirestore().collection("users").doc(athleteId).get()).data()?.["email"] ?? "");
-}
-
-async function resolveScheduleCustomer(athleteId: string): Promise<string | null> {
-  assertAsaasAllowed();
-  const cached = (await getFirestore().doc(`users/${athleteId}/asaas/customer`).get()).data();
-  let cpf = normalizeCpfCnpj(cached?.["cpfCnpj"] as string | undefined);
-  if (!isValidCpfCnpj(cpf)) {
-    try {
-      cpf = await resolveAthleteCpfCnpj(athleteId);
-    } catch {
-      return null;
-    }
-  }
-  return getOrCreateAsaasCustomer(athleteId, await athleteEmail(athleteId), undefined, cpf);
-}
-
 export const defaultScheduleAsaasDeps: ScheduleAsaasDeps = {
   resolveCustomer: resolveScheduleCustomer,
-  registerCustomer: async (athleteId, cpfCnpj) => {
-    assertAsaasAllowed();
-    return getOrCreateAsaasCustomer(athleteId, await athleteEmail(athleteId), undefined, cpfCnpj);
-  },
+  registerCustomer: registerScheduleCustomer,
   createPayment: async (input) => {
     assertAsaasAllowed();
     return createAsaasInvoiceCharge({

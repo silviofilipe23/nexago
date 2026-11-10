@@ -58,6 +58,8 @@ export const PENDING_PAYMENT_BLOCK_MESSAGE =
 /** Menor valor cobrado online (abaixo disso a mensalidade fica manual). */
 export const MIN_ONLINE_CHARGE_REAIS = 5;
 
+export const CPF_REQUIRED_MESSAGE = "Informe seu CPF para pagar online.";
+
 export interface PlanWindow {
   /** ISO 1 = segunda … 7 = domingo. */
   weekday: number;

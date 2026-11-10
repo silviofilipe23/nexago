@@ -33,8 +33,17 @@ abstract final class PendingPixBookingMatch {
     ArenaBookingConfirmArgs args,
   ) {
     final arenaId = (data['arenaId'] as String?)?.trim() ?? '';
-    final courtId = (data['courtId'] as String?)?.trim() ?? '';
-    if (arenaId != args.arenaId || courtId != args.courtId) return false;
+    if (arenaId != args.arenaId) return false;
+    if (args.capacity) {
+      // Sem quadra escolhida: a pendente segura uma provisória; casa pela reserva sem quadra
+      // definida do mesmo esporte e horário.
+      if (data['allocationStatus'] != 'unassigned') return false;
+      final sport = (data['sport'] as String?)?.trim() ?? '';
+      if (sport != (args.sport ?? '')) return false;
+    } else {
+      final courtId = (data['courtId'] as String?)?.trim() ?? '';
+      if (courtId != args.courtId) return false;
+    }
     if (bookingDateKey(data) != args.dateKey) return false;
     if (_normTime(data['startTime']) != _normTime(args.startTime)) {
       return false;

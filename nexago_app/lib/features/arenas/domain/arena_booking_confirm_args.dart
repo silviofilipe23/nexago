@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../../../core/formatting/app_date_format.dart';
+import 'arena_booking_allocation.dart';
 
 /// Estado enviado da seleção de horários para a confirmação (paridade com query params do web).
 @immutable
@@ -15,6 +16,8 @@ class ArenaBookingConfirmArgs {
     required this.endTime,
     required this.amountReais,
     this.selectedSlotStartTimes = const [],
+    this.capacity = false,
+    this.sport,
   });
 
   final String arenaId;
@@ -33,11 +36,21 @@ class ArenaBookingConfirmArgs {
   /// Inícios dos slots tocados na grade (`18:00`, `19:00`…). Define a cobrança no servidor.
   final List<String> selectedSlotStartTimes;
 
+  /// Arena "a arena define a quadra": a reserva vai sem quadra (`allocation: "capacity"`) e o
+  /// servidor escolhe uma provisória. [courtId] fica vazio e [courtName] não é mostrado.
+  final bool capacity;
+
+  /// Esporte escolhido na grade por horário (no modo quadra o esporte sai da quadra).
+  final String? sport;
+
+  /// Nome da quadra para o atleta: no modo capacidade ela é definida na chegada.
+  String get displayCourtName => capacity ? kCourtOnArrivalLabel : courtName;
+
   String get dateKey => calendarDateKey(date);
 
   bool get isValid =>
       arenaId.isNotEmpty &&
-      courtId.isNotEmpty &&
+      (courtId.isNotEmpty || (capacity && (sport ?? '').isNotEmpty)) &&
       startTime.length >= 4 &&
       endTime.length >= 4 &&
       amountReais >= 0;

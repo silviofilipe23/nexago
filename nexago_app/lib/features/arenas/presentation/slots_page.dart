@@ -13,6 +13,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_booking_confirm_args.dart';
+import '../domain/capacity_slots_logic.dart';
 import '../domain/arena_court.dart';
 import '../domain/arena_list_item.dart';
 import '../domain/arena_peak_rule.dart';
@@ -41,6 +42,7 @@ import 'widgets/slots/slots_day_strip.dart';
 import 'widgets/slots/slots_duration_picker.dart';
 import 'widgets/slots/slots_list_section.dart';
 import 'widgets/slots/slots_page_header.dart';
+import 'capacity_slots_view.dart';
 
 /// Seleção de horários: quadras (`arenas/.../courts`) + `arenaSlots` por dia (YYYY-MM-DD).
 class SlotsPage extends ConsumerWidget {
@@ -51,6 +53,7 @@ class SlotsPage extends ConsumerWidget {
     this.initialDate,
     this.initialCourtId,
     this.initialStartTime,
+    this.forceCourtChoice = false,
   });
 
   final String arenaId;
@@ -58,6 +61,33 @@ class SlotsPage extends ConsumerWidget {
   final DateTime? initialDate;
   final String? initialCourtId;
   final String? initialStartTime;
+
+  /// Modo misto: o atleta tocou "Prefiro escolher a quadra" na grade por horário.
+  final bool forceCourtChoice;
+
+  Widget _view(BuildContext context, ArenaListItem arena) {
+    final allocation = arena.bookingAllocation;
+    if (useCapacityGrid(allocation, initialCourtId: initialCourtId, forceCourtChoice: forceCourtChoice)) {
+      return CapacitySlotsView(
+        arena: arena,
+        initialDate: initialDate,
+        onChooseCourt: allocation.allowCourtChoice
+            ? () => context.pushNamed(
+                  AppRouteNames.arenaSlots,
+                  pathParameters: {'arenaId': arena.id},
+                  queryParameters: {'escolher': 'quadra'},
+                  extra: arena,
+                )
+            : null,
+      );
+    }
+    return _SlotsScheduleView(
+      arena: arena,
+      initialDate: initialDate,
+      initialCourtId: initialCourtId,
+      initialStartTime: initialStartTime,
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -84,25 +114,11 @@ class SlotsPage extends ConsumerWidget {
             ),
           );
         }
-        return FadeSlideIn(
-          child: _SlotsScheduleView(
-            arena: arena,
-            initialDate: initialDate,
-            initialCourtId: initialCourtId,
-            initialStartTime: initialStartTime,
-          ),
-        );
+        return FadeSlideIn(child: _view(context, arena));
       },
       loading: () {
         if (initialArena != null) {
-          return FadeSlideIn(
-            child: _SlotsScheduleView(
-              arena: initialArena!,
-              initialDate: initialDate,
-              initialCourtId: initialCourtId,
-              initialStartTime: initialStartTime,
-            ),
-          );
+          return FadeSlideIn(child: _view(context, initialArena!));
         }
         return AppScaffold(
           title: 'Horários',

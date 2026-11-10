@@ -202,6 +202,8 @@ export async function takeFirstFreeCourt(
 
 export const CAPACITY_FULL_MESSAGE = "Esse horário lotou. Escolha outro.";
 
+export {athleteSeesBookingCourt} from "./arena-booking-court-visibility";
+
 // ---------------------------------------------------------------------------
 // Configurar
 // ---------------------------------------------------------------------------

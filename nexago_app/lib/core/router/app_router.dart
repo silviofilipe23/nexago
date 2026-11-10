@@ -3391,6 +3391,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 (initialStartTime == null || initialStartTime.isEmpty)
                     ? null
                     : initialStartTime,
+            forceCourtChoice: query['escolher'] == 'quadra',
           );
         },
       ),

@@ -31,6 +31,7 @@ import {
   targetCourtBlockReason,
   writeBookingCourtMove,
 } from "./arena-floating-booking";
+import {athleteSeesBookingCourt} from "./arena-booking-allocation";
 
 export {targetCourtBlockReason};
 
@@ -331,7 +332,8 @@ export const changeArenaBookingCourt = onCall({
   try {
     const booking = (await db.collection(ARENA_BOOKINGS).doc(result.bookingId).get()).data() ?? {};
     const athleteId = str(booking["athleteId"]);
-    if (athleteId) {
+    // Arena que só mostra a quadra na chegada: a recepção definiu antes, o atleta não é avisado.
+    if (athleteId && athleteSeesBookingCourt(booking, Date.now())) {
       await deliverNotificationToUser({
         userId: athleteId,
         title: result.assigned ? "Sua quadra está definida" : "Sua quadra mudou",

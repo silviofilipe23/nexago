@@ -438,8 +438,15 @@ class BookingService {
     return <String, dynamic>{
       'arenaId': args.arenaId,
       'arenaName': args.arenaName,
-      'courtId': args.courtId,
-      'courtName': args.courtName,
+      // Arena "a arena define a quadra": sem quadra; o servidor escolhe a provisória e precisa
+      // do esporte já na cotação (o preço é o do horário daquele esporte).
+      if (args.capacity) ...<String, dynamic>{
+        'allocation': 'capacity',
+        'sport': args.sport,
+      } else ...<String, dynamic>{
+        'courtId': args.courtId,
+        'courtName': args.courtName,
+      },
       'date': args.dateKey,
       'startTime': args.startTime,
       'endTime': args.endTime,
@@ -453,6 +460,8 @@ class BookingService {
   static String? _functionsCode(FirebaseFunctionsException e) {
     switch (e.code) {
       case 'already-exists':
+      // Arena "a arena define a quadra": todas as quadras do horário foram ocupadas.
+      case 'resource-exhausted':
         return slotConflictCode;
       case 'permission-denied':
         final details = e.details;

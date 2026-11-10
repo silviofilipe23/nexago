@@ -3,6 +3,7 @@ import '../../../core/formatting/app_date_format.dart';
 
 import 'my_booking_confirmed_athlete.dart';
 import 'my_booking_payment.dart';
+import 'arena_booking_allocation.dart';
 
 /// Linha de `arenaBookings` para a lista “Minhas reservas”.
 class MyBookingItem {
@@ -122,8 +123,11 @@ class MyBookingItem {
     final arena = data['arenaName'] ?? data['arena'];
     final arenaName = arena is String && arena.trim().isNotEmpty ? arena.trim() : 'Arena';
     final courtRaw = data['courtName'] ?? data['court'];
-    final courtName =
-        courtRaw is String && courtRaw.trim().isNotEmpty ? courtRaw.trim() : null;
+    // Arena "a arena define a quadra": a provisória não aparece para o atleta.
+    final courtName = athleteVisibleCourtName(
+      data,
+      courtRaw is String && courtRaw.trim().isNotEmpty ? courtRaw.trim() : null,
+    );
 
     String? pickUrl(dynamic v) {
       if (v is! String) return null;

@@ -678,8 +678,14 @@ export const createArenaBooking = onCall({
         source: "platform",
         // Arena "a arena define a quadra": a flutuante espera a recepção; a escolhida pelo atleta
         // (modo misto) já nasce definida. Arena no modo de sempre não ganha os campos.
+        // `revealCourtBeforeArrival` copia a opção da arena na criação: a troca de opção vale
+        // para reservas novas, como a troca de modo.
         ...(resolved.floating ?
-          {allocationStatus: "unassigned", allocationSource: "auto"} :
+          {
+            allocationStatus: "unassigned",
+            allocationSource: "auto",
+            revealCourtBeforeArrival: resolved.allocation.revealBeforeArrival,
+          } :
           resolved.allocation.mode === "capacity" ? {allocationStatus: "assigned", allocationSource: "athlete"} : {}),
         ...(professorStamp ?? {}),
         appliedPromotionIds: total.appliedPromotionIds,

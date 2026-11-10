@@ -18,6 +18,7 @@ import {
   WEB_PUSH_PRIVATE_KEY,
   WEB_PUSH_SUBJECT,
 } from "./notification-delivery";
+import {athleteCourtLabel} from "./arena-booking-court-visibility";
 
 const ARENA_REMINDER_HOURS_BEFORE = 1;
 const ARENA_REMINDER_WINDOW_MIN = 55;
@@ -337,7 +338,7 @@ export const sendArenaBookingReminders = onSchedule({
           } else {
             const title = "Seu jogo está chegando! Confirme sua presença";
             const body = "Seu jogo começa em 1 hora";
-            const courtName = (booking.courtName || "Quadra").trim();
+            const courtName = athleteCourtLabel(booking, Date.now());
             const arenaName = (booking.arenaName || "Arena").trim();
             const endTime = (booking.endTime || "").trim();
             const inboxBody =

@@ -139,7 +139,8 @@ Trava (`arenaSlotLocks`): `floating: true` enquanto a reserva estiver `unassigne
    não há flutuante). Testes de fiação por fluxo, não só da função pura.
 3. **Modo capacidade na cotação e na criação** + card de configuração + recusa de app antigo.
    Ligado primeiro numa arena do DEV.
-4. **App:** grade por horário, confirmação, push, QR.
+4. **App:** grade por horário, confirmação, push, QR — em três partes: 4a app + textos do
+   servidor, 4b portal do atleta, 4c QR da quadra na reserva.
 5. **Painel:** visão por horário, check-in, quadro de alocação.
 6. **Relatórios.**
 
@@ -171,3 +172,18 @@ Trava (`arenaSlotLocks`): `floating: true` enquanto a reserva estiver `unassigne
 - O preço do horário é o mesmo para todas as quadras?
 - As 15 quadras são todas do mesmo esporte?
 - Se a recepção definir antes, o atleta pode ver a quadra, ou só na chegada?
+- **PR 4a** (app do atleta + servidor): numa arena "a arena define a quadra" a rota de horários
+  abre a grade por horário (`CapacitySlotsView`): esporte (os com preço), dia, duração e horários
+  com "N quadras livres" / "Últimas vagas" / "Lotado" — um horário tem vaga quando alguma quadra
+  da distribuição tem a duração inteira livre **na mesma quadra**. Modo misto: "Prefiro escolher a
+  quadra" (ou chegar com uma quadra, ex. lista de espera) abre a grade por quadra. Confirmação,
+  Pix e sucesso mostram "Quadra definida na chegada"; cotação e criação vão com
+  `allocation: "capacity"` + esporte, sem quadra; retomada do Pix casa pela reserva `unassigned`
+  do mesmo esporte e horário. **Quem vê a quadra** (`athleteSeesBookingCourt`, igual no app e nas
+  functions): `unassigned` nunca; definida pela recepção antes da chegada numa arena que só mostra
+  na chegada (`revealCourtBeforeArrival: false`, copiado na criação) só a partir do início; o resto
+  sim. Vale para Minhas reservas/agenda/home, push "Sua quadra está definida" (não sai se
+  escondida), lembretes de 1 h e 15 min, convite de jogadores e descrição do Pix. A grade por
+  horário ainda não mostra o mínimo do horário de pico (o servidor recusa na confirmação) nem a
+  lista de espera. Telas no canvas do Claude Design, página do atleta ("Reservas por capacidade ·
+  app do atleta").

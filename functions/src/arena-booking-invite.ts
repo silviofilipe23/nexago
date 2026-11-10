@@ -24,6 +24,7 @@ import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {awardPlayerInviteXp} from "./player-invite-gamification";
+import {athleteCourtLabel} from "./arena-booking-court-visibility";
 
 /** Dono + 3 — o mesmo `kBookingTeamSlots` (app) / `TEAM_SLOTS` (portal). */
 export const BOOKING_MAX_PLAYERS = 4;
@@ -247,7 +248,8 @@ function bookingCopy(bookingId: string, booking: Data, endMs: number): Data {
     arenaId: str(booking.arenaId),
     arenaName: str(booking.arenaName),
     courtId: str(booking.courtId) || null,
-    courtName: str(booking.courtName),
+    // Arena "a arena define a quadra": o convidado não vê a provisória.
+    courtName: athleteCourtLabel(booking, Date.now(), ""),
     date: str(booking.date).slice(0, 10),
     startTime: str(booking.startTime).slice(0, 5),
     endTime: str(booking.endTime).slice(0, 5),

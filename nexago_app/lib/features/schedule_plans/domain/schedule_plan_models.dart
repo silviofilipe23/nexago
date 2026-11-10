@@ -612,6 +612,7 @@ class ScheduleCharge {
     this.invoiceUrl,
     this.paidVia,
     this.onlineBillingType,
+    this.autopay,
   });
 
   final String id;
@@ -647,6 +648,9 @@ class ScheduleCharge {
   /// `PIX | CREDIT_CARD | …` (só paga online).
   final String? onlineBillingType;
 
+  /// Débito automático no cartão (`null` = mensalidade sem `autopay`).
+  final ScheduleChargeAutopay? autopay;
+
   bool get isOpen => status == 'open';
   bool get isPaid => status == 'paid';
 
@@ -673,6 +677,108 @@ class ScheduleCharge {
       invoiceUrl: spStrOrNull(asaas['invoiceUrl']),
       paidVia: spStrOrNull(m['paidVia']),
       onlineBillingType: spStrOrNull(m['onlineBillingType'])?.toUpperCase(),
+      autopay: m['autopay'] is Map
+          ? ScheduleChargeAutopay.fromMap(spMap(m['autopay']))
+          : null,
+    );
+  }
+}
+
+/// Espelho do débito automático da mensalidade (`autopay`):
+/// `scheduled | retry | charging | paid | failed | skipped`.
+class ScheduleChargeAutopay {
+  const ScheduleChargeAutopay({
+    required this.state,
+    this.scheduledFor,
+    this.attempts = 0,
+    this.brand = '',
+    this.last4 = '',
+    this.chargedReais,
+  });
+
+  final String state;
+
+  /// Dia do próximo débito (`AAAA-MM-DD`).
+  final String? scheduledFor;
+  final int attempts;
+  final String brand;
+  final String last4;
+  final double? chargedReais;
+
+  factory ScheduleChargeAutopay.fromMap(Map<String, dynamic> m) =>
+      ScheduleChargeAutopay(
+        state: spStr(m['state']),
+        scheduledFor: spStrOrNull(m['scheduledFor']),
+        attempts: spInt(m['attempts']),
+        brand: spStr(m['brand']),
+        last4: spStr(m['last4']),
+        chargedReais:
+            m['chargedReais'] == null ? null : spDouble(m['chargedReais']),
+      );
+}
+
+/// Autorização do atleta para debitar o cartão nesta assinatura.
+class ScheduleAutopayConsent {
+  const ScheduleAutopayConsent({
+    required this.enabled,
+    this.brand = '',
+    this.last4 = '',
+  });
+
+  final bool enabled;
+  final String brand;
+  final String last4;
+
+  factory ScheduleAutopayConsent.fromMap(Map<String, dynamic> m) =>
+      ScheduleAutopayConsent(
+        enabled: m['enabled'] == true,
+        brand: spStr(m['brand']),
+        last4: spStr(m['last4']),
+      );
+}
+
+/// Taxas do cartão e a próxima mensalidade a debitar (para o texto de
+/// autorização e para "próxima: dd/mm, R$ X").
+class ScheduleAutopayPreview {
+  const ScheduleAutopayPreview({
+    this.brand,
+    this.last4,
+    this.cardFeePercent = 0,
+    this.cardProcessingPercent = 0,
+    this.cardFixedReais = 0,
+    this.next,
+  });
+
+  final String? brand;
+  final String? last4;
+  final double cardFeePercent;
+  final double cardProcessingPercent;
+  final double cardFixedReais;
+  final ({
+    String chargeId,
+    String dueDate,
+    double amountReais,
+    double cardFeeReais,
+    double chargedReais,
+  })? next;
+
+  factory ScheduleAutopayPreview.fromMap(Map<String, dynamic> m) {
+    final n = m['next'] is Map ? spMap(m['next']) : null;
+    return ScheduleAutopayPreview(
+      brand: spStrOrNull(m['brand']),
+      last4: spStrOrNull(m['last4']),
+      cardFeePercent: spDouble(m['cardFeePercent']),
+      cardProcessingPercent: spDouble(m['cardProcessingPercent']),
+      cardFixedReais: spDouble(m['cardFixedReais']),
+      next: n == null
+          ? null
+          : (
+              chargeId: spStr(n['chargeId']),
+              dueDate: spStr(n['dueDate']),
+              amountReais: spDouble(n['amountReais']),
+              cardFeeReais: spDouble(n['cardFeeReais']),
+              chargedReais: spDouble(n['chargedReais']),
+            ),
     );
   }
 }
@@ -707,6 +813,7 @@ class ScheduleSubscription {
     this.occurrences = const [],
     this.credits = const [],
     this.charges = const [],
+    this.autopay = const {},
   });
 
   final String id;
@@ -741,6 +848,12 @@ class ScheduleSubscription {
   final List<ScheduleOccurrence> occurrences;
   final List<ScheduleCredit> credits;
   final List<ScheduleCharge> charges;
+
+  /// Autorizações de débito automático por atleta (o servidor devolve só a do
+  /// próprio atleta).
+  final Map<String, ScheduleAutopayConsent> autopay;
+
+  ScheduleAutopayConsent? autopayFor(String uid) => autopay[uid];
 
   factory ScheduleSubscription.fromMap(Map<String, dynamic> m, {String? id}) {
     final snapshot = spMap(m['planSnapshot']);
@@ -793,6 +906,11 @@ class ScheduleSubscription {
       charges: [
         for (final c in spMapList(m['charges'])) ScheduleCharge.fromMap(c),
       ],
+      autopay: {
+        for (final e in spMap(m['autopay']).entries)
+          if (e.value is Map)
+            e.key: ScheduleAutopayConsent.fromMap(spMap(e.value)),
+      },
     );
   }
 }

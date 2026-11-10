@@ -18,10 +18,12 @@ import '../../arena/domain/aulas/arena_class_logic.dart'
     show arenaClassInitials;
 import '../../arena/presentation/aulas/widgets/arena_class_atoms.dart'
     show ArenaClassAvatar;
+import '../../payment_card/application/payment_card_providers.dart';
 import '../application/schedule_plans_providers.dart';
 import '../domain/schedule_plan_logic.dart';
 import '../domain/schedule_plan_models.dart';
 import 'schedule_plans_routes.dart';
+import 'widgets/schedule_autopay_card.dart';
 import 'widgets/schedule_plan_sheets.dart';
 import 'widgets/schedule_plan_ui.dart';
 
@@ -442,6 +444,15 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
         now: now,
         onPay: _pay,
       ),
+      if (scheduleAutopayCardVisible(
+        sub,
+        uid,
+        flagOn: ref.watch(scheduleCardAutopayEnabledProvider).valueOrNull ??
+            false,
+      )) ...[
+        const SizedBox(height: 12),
+        ScheduleAutopayCard(subscription: sub, uid: uid),
+      ],
       if (scheduleCanCancel(sub, uid)) ...[
         const SizedBox(height: 8),
         Center(
@@ -1046,6 +1057,8 @@ class ScheduleChargeCard extends StatelessWidget {
     final paidLabel =
         lastPaid == null ? null : schedulePaidOnlineLabel(lastPaid);
     final paying = payable != null && payingChargeId == payable.id;
+    final autopayLabel =
+        charge == null ? null : scheduleAutopayChargeLabel(charge);
     final row = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1063,6 +1076,17 @@ class ScheduleChargeCard extends StatelessWidget {
                   color: colors.onSurface,
                 ),
               ),
+              if (autopayLabel != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  autopayLabel,
+                  key: const Key('schedule-charge-autopay-label'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.onSurfaceMuted,
+                  ),
+                ),
+              ],
               if (overdue > 0) ...[
                 const SizedBox(height: 4),
                 Text(

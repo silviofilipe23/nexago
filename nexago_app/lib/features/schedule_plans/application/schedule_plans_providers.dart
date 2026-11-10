@@ -49,6 +49,14 @@ final myScheduleSubscriptionsProvider =
   return ref.watch(schedulePlansRepositoryProvider).mySubscriptions();
 });
 
+/// Taxas e próxima mensalidade do débito automático (chave: assinatura).
+final scheduleAutopayPreviewProvider = FutureProvider.autoDispose
+    .family<ScheduleAutopayPreview, String>((ref, subscriptionId) {
+  return ref
+      .watch(schedulePlansRepositoryProvider)
+      .autopayPreview(subscriptionId);
+});
+
 /// Para a entrada da agenda: assinaturas vivas (titular ou membro). Erro
 /// (rules, Firebase ausente) vira zero — a entrada só some.
 final myLiveScheduleSubscriptionsCountProvider =

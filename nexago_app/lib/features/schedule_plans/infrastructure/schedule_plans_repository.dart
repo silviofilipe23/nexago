@@ -96,6 +96,46 @@ class SchedulePlansRepository {
     }
   }
 
+  /// Liga/desliga o débito automático (ligar manda o texto autorizado).
+  Future<ScheduleAutopayConsent> setAutopay(
+    String subscriptionId, {
+    required bool enabled,
+    String? consentText,
+  }) async {
+    final data = await _call(
+      'setScheduleAutopay',
+      {
+        'subscriptionId': subscriptionId,
+        'enabled': enabled,
+        if (consentText != null) 'consentText': consentText,
+      },
+      fallback: 'Não foi possível alterar o débito automático.',
+    );
+    return ScheduleAutopayConsent(
+      enabled: data['enabled'] == true,
+      brand: spStr(data['brand']),
+      last4: spStr(data['last4']),
+    );
+  }
+
+  Future<ScheduleAutopayPreview> autopayPreview(String subscriptionId) async {
+    final data = await _call(
+      'getScheduleAutopayPreview',
+      {'subscriptionId': subscriptionId},
+      fallback: 'Não foi possível carregar o débito automático.',
+    );
+    return ScheduleAutopayPreview.fromMap(data);
+  }
+
+  /// Debita a mensalidade no cartão salvo; a baixa chega pelo webhook.
+  Future<void> payWithSavedCard(String chargeId) async {
+    await _call(
+      'payScheduleChargeWithSavedCard',
+      {'chargeId': chargeId},
+      fallback: 'Não foi possível pagar com o cartão salvo.',
+    );
+  }
+
   Future<SchedulePlanAvailability> availability({
     required String arenaId,
     required String planId,

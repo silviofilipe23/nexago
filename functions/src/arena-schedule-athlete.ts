@@ -66,6 +66,16 @@ export function isVisibleOccurrence(booking: Data): boolean {
   return !SYSTEM_RELEASE_REASONS.has(reason) && !reason.startsWith("recurring_series_");
 }
 
+/**
+ * Débito automático: o atleta vê só a própria autorização (bandeira e final do cartão dele); a dos
+ * outros membros e a lista de quem autorizou não saem do servidor.
+ */
+export function ownAutopayOnly(data: Data, uid: string): Data {
+  const {autopay, autopayAthleteIds: _ids, ...rest} = data;
+  const own = autopay != null && typeof autopay === "object" ? (autopay as Data)[uid] : undefined;
+  return own == null ? rest : {...rest, autopay: {[uid]: own}};
+}
+
 export async function getMySubscriptionsCore(db: Firestore, uid: string, todayKey: string, nowMs: number) {
   const fromKey = firstDayOfMonth(monthKeyOf(todayKey));
   const untilKey = lastDayOfMonth(nextMonthKey(monthKeyOf(todayKey)));
@@ -98,7 +108,7 @@ export async function getMySubscriptionsCore(db: Firestore, uid: string, todayKe
       .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
     return {
       subscriptionId: doc.id,
-      ...(toPlain(doc.data()) as Data),
+      ...ownAutopayOnly(toPlain(doc.data()) as Data, uid),
       occurrences,
       credits: credits.docs
         .filter((c) => c.data()["status"] !== "expired")

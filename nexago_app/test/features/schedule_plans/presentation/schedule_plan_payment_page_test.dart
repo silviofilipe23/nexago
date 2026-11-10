@@ -7,6 +7,8 @@ import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
+import 'package:nexago_app/features/payment_card/application/payment_card_providers.dart';
+import 'package:nexago_app/features/payment_card/domain/saved_payment_card.dart';
 import 'package:nexago_app/features/schedule_plans/application/schedule_plans_providers.dart';
 import 'package:nexago_app/features/schedule_plans/domain/schedule_plan_models.dart';
 import 'package:nexago_app/features/schedule_plans/infrastructure/schedule_plans_repository.dart';
@@ -27,6 +29,14 @@ class _FakeRepo implements SchedulePlansRepository {
   /// Taxas do cartão que o servidor devolve na cobrança de cartão.
   double cardFeeReais = 0;
   final canceled = <String>[];
+  final savedCardPays = <String>[];
+  Object? savedCardError;
+
+  @override
+  Future<void> payWithSavedCard(String chargeId) async {
+    savedCardPays.add(chargeId);
+    if (savedCardError != null) throw savedCardError!;
+  }
 
   @override
   Future<DateTime?> cancelMine(String subscriptionId) async {
@@ -82,6 +92,8 @@ Future<_Harness> pumpPage(
   String? profileCpf,
   DateTime? pendingUntil,
   CardFeeTerms cardFee = CardFeeTerms.none,
+  bool autopayFlag = false,
+  SavedPaymentCard? savedCard,
 }) async {
   // 430pt: a fonte de teste (glifo quadrado) é mais larga que a Sora e o
   // botão "Copiar Pix Copia & Cola" da reserva estoura em 390pt só no teste.
@@ -97,6 +109,9 @@ Future<_Harness> pumpPage(
         schedulePlansUidProvider.overrideWith((ref) => 'u1'),
         schedulePlansRepositoryProvider.overrideWithValue(h.repo),
         scheduleCardFeeTermsProvider.overrideWith((ref) async => cardFee),
+        scheduleCardAutopayEnabledProvider
+            .overrideWith((ref) => Stream.value(autopayFlag)),
+        myPaymentCardProvider.overrideWith((ref) async => savedCard),
         scheduleChargeProvider.overrideWith((ref, id) => h.charges.stream),
         scheduleSubscriptionDocProvider
             .overrideWith((ref, id) => h.subs.stream),
@@ -122,6 +137,7 @@ Future<_Harness> pumpPage(
     if (pendingUntil != null)
       'pendingPaymentUntil': pendingUntil.toUtc().toIso8601String(),
   }, id: 's1'));
+  await tester.pump();
   await tester.pump();
   await tester.pump();
   return h;
@@ -263,5 +279,60 @@ void main() {
     await tester.pump();
     expect(find.textContaining('prazo de 30 minutos'), findsOneWidget);
     expect(find.text('Gerar PIX'), findsNothing);
+  });
+
+  const visa = SavedPaymentCard(
+    brand: 'VISA',
+    last4: '4242',
+    expiryMonth: 12,
+    expiryYear: 2030,
+  );
+
+  testWidgets('sem a flag ou sem cartão, não oferece o cartão salvo',
+      (tester) async {
+    await pumpPage(tester, savedCard: visa);
+    expect(find.byKey(const Key('schedule-pay-saved-card')), findsNothing);
+  });
+
+  testWidgets('cartão salvo: paga com ele e a baixa fecha a tela',
+      (tester) async {
+    final h = await pumpPage(tester, autopayFlag: true, savedCard: visa);
+    expect(
+      find.text('Pagar com cartão salvo (Visa final 4242)'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('schedule-pay-saved-card')));
+    await tester.pump();
+    expect(h.repo.savedCardPays, ['c1']);
+    h.charges.add(charge(status: 'paid'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byKey(const Key('schedule-payment-paid')), findsOneWidget);
+  });
+
+  testWidgets('cartão salvo recusado: mostra o erro e libera o botão',
+      (tester) async {
+    final h = await pumpPage(tester, autopayFlag: true, savedCard: visa);
+    h.repo.savedCardError = SchedulePlanException(
+      'O cartão foi recusado. Tente outro cartão ou pague com Pix.',
+    );
+    await tester.tap(find.byKey(const Key('schedule-pay-saved-card')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(
+      find.text(
+        'Não foi possível pagar. O cartão foi recusado. Tente outro cartão ou '
+        'pague com Pix.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(
+              find.byKey(const Key('schedule-pay-saved-card')))
+          .onPressed,
+      isNotNull,
+    );
   });
 }

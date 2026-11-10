@@ -444,6 +444,78 @@ String? schedulePaidOnlineLabel(ScheduleCharge charge) {
   };
 }
 
+// ── Débito automático no cartão ──────────────────────────────────────────
+
+/// Linha da mensalidade sobre o débito no cartão; `null` sem `autopay` ou em
+/// estado sem mensagem (`skipped`).
+String? scheduleAutopayChargeLabel(ScheduleCharge c) {
+  final a = c.autopay;
+  if (a == null) return null;
+  final last4 = a.last4;
+  switch (a.state) {
+    case 'scheduled':
+    case 'retry':
+      final day = _isoDayMonth(a.scheduledFor);
+      if (day == null) return null;
+      return 'Será debitada em $day no cartão final $last4';
+    case 'charging':
+      return 'Debitando no cartão final $last4…';
+    case 'failed':
+      return 'Não conseguimos debitar. Pague por Pix ou cartão.';
+    case 'paid':
+      return 'Paga no cartão final $last4';
+    default:
+      return null;
+  }
+}
+
+/// `AAAA-MM-DD` → `DD/MM` (`null` se não for uma data).
+String? _isoDayMonth(String? iso) {
+  final m = RegExp(r'^\d{4}-(\d{2})-(\d{2})').firstMatch(iso ?? '');
+  return m == null ? null : '${m.group(2)}/${m.group(1)}';
+}
+
+/// `AAAA-MM-DD` → `DD/MM` para a tela (vazio se inválida).
+String scheduleAutopayDayLabel(String iso) => _isoDayMonth(iso) ?? '';
+
+String _commaNumber(double v, {int maxDecimals = 2}) {
+  var s = v.toStringAsFixed(maxDecimals);
+  if (s.contains('.')) {
+    s = s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '');
+  }
+  return s.replaceAll('.', ',');
+}
+
+/// Texto da autorização, gravado como prova (`consentText`).
+String scheduleAutopayConsentText({
+  required String planName,
+  required String arenaName,
+  required String cardLabel,
+  required ScheduleAutopayPreview preview,
+}) {
+  final percent = _commaNumber(
+    preview.cardFeePercent + preview.cardProcessingPercent,
+  );
+  final fixed = preview.cardFixedReais.toStringAsFixed(2).replaceAll('.', ',');
+  return 'Autorizo a nexaGO a debitar no cartão $cardLabel, no dia do '
+      'vencimento, cada mensalidade do plano $planName ($arenaName), mais a '
+      'taxa do cartão ($percent% + R\$ $fixed). Posso desligar quando quiser '
+      'em Meu plano.';
+}
+
+/// O card de débito automático aparece com a flag ligada, o atleta no plano,
+/// plano vivo e cobrança que não seja na arena.
+bool scheduleAutopayCardVisible(
+  ScheduleSubscription sub,
+  String uid, {
+  required bool flagOn,
+}) =>
+    flagOn &&
+    uid.isNotEmpty &&
+    sub.memberAthleteIds.contains(uid) &&
+    sub.status != ScheduleSubscriptionStatus.canceled &&
+    sub.paymentMethod != SchedulePaymentMethod.onsite;
+
 /// Última mensalidade paga do atleta (a de vencimento mais tarde; sem data,
 /// o período decide).
 ScheduleCharge? scheduleLastPaidCharge(

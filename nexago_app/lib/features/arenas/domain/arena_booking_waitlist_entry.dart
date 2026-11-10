@@ -58,6 +58,17 @@ class ArenaBookingWaitlistEntry {
   bool get isWaiting => status == ArenaBookingWaitlistStatus.waiting;
   bool get isNotified => status == ArenaBookingWaitlistStatus.notified;
 
+  /// O horário da entrada já começou: a vaga não serve mais. O servidor encerra a
+  /// entrada em até 5 min (`expireArenaBookingWaitlistEntries`); até lá a Agenda esconde.
+  bool slotStarted(DateTime now) {
+    final day = dateKey.length >= 10 ? DateTime.tryParse(dateKey.substring(0, 10)) : null;
+    final parts = startTime.split(':');
+    final h = parts.isNotEmpty ? int.tryParse(parts[0]) : null;
+    final m = parts.length > 1 ? int.tryParse(parts[1]) : 0;
+    if (day == null || h == null || m == null) return false;
+    return !now.isBefore(DateTime(day.year, day.month, day.day, h, m));
+  }
+
   /// A entrada ainda importa para a UI (não é histórico morto).
   bool get isActive => isWaiting || isNotified;
 

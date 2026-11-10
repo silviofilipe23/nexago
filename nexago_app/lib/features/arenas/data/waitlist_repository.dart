@@ -8,7 +8,8 @@ import '../../../core/firebase/functions_region.dart';
 ///
 /// Domínio distinto da lista de espera de INSCRIÇÃO em torneio
 /// (`organizerMoveToWaitlist`) — esta é sobre reserva de quadra em arena.
-/// Escrita só via Cloud Function (`joinArenaBookingWaitlist`); o client só lê.
+/// Escrita só via Cloud Functions (`joinArenaBookingWaitlist` /
+/// `leaveArenaBookingWaitlist`); o client só lê.
 class WaitlistRepository {
   WaitlistRepository(
     this._firestore, {
@@ -55,6 +56,19 @@ class WaitlistRepository {
     } catch (e) {
       if (e is WaitlistException) rethrow;
       throw WaitlistException('Não foi possível entrar na lista de espera: $e');
+    }
+  }
+
+  /// Sai da fila (o servidor marca `expired` com `expiredReason: left_by_athlete`).
+  Future<void> leave(String waitlistId) async {
+    try {
+      await _functions
+          .httpsCallable('leaveArenaBookingWaitlist')
+          .call(<String, dynamic>{'waitlistId': waitlistId});
+    } on FirebaseFunctionsException catch (e) {
+      throw WaitlistException(
+        e.message ?? 'Não foi possível sair da lista de espera.',
+      );
     }
   }
 

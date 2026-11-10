@@ -11,7 +11,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {onDocumentUpdated} from "firebase-functions/v2/firestore";
 import {onSchedule} from "firebase-functions/v2/scheduler";
-import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
+import {getFirestore, FieldValue, Timestamp, type Firestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {
   WEB_PUSH_PUBLIC_KEY,
@@ -27,6 +27,7 @@ import {
   resolveCourtName,
 } from "./slot-vacancy-alerts";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {arenaBookingStartAt} from "./arena-booking-start-at";
 
 export const ARENA_BOOKING_WAITLIST = "arenaBookingWaitlist";
 const ARENA_BOOKING_WAITLIST_NOTIFY_LOCKS = "arenaBookingWaitlistNotifyLocks";
@@ -249,6 +250,95 @@ export const joinArenaBookingWaitlist = onCall({
   return {waitlistId: entryRef.id, status: "waiting"};
 });
 
+/** Ainda na fila: só `waiting` e `notified` podem sair (o resto já acabou). */
+export function isWaitlistEntryOpen(status: string): boolean {
+  return status === "waiting" || status === "notified";
+}
+
+/**
+ * O horário da entrada já começou (parede de São Paulo): a vaga não serve mais e a entrada
+ * `waiting` fica esquecida — antes ela ficava "aguardando" para sempre e aparecia na Agenda.
+ */
+export function waitlistSlotStarted(
+  entry: {date?: unknown; startTime?: unknown},
+  nowMs: number,
+): boolean {
+  const dateKey = typeof entry.date === "string" ? parseDateKey(entry.date) : "";
+  const startTime = typeof entry.startTime === "string" ? entry.startTime.trim() : "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !/^\d{1,2}:\d{2}/.test(startTime)) return false;
+  const startAt = arenaBookingStartAt(dateKey, startTime);
+  return !Number.isNaN(startAt.getTime()) && nowMs >= startAt.getTime();
+}
+
+/** Tira o atleta da fila (`expired` + `expiredReason: left_by_athlete`). Idempotente: sair de novo (ou de entrada já encerrada) não falha. */
+export async function leaveWaitlistCore(
+  db: Firestore,
+  athleteId: string,
+  waitlistId: string,
+): Promise<{waitlistId: string; status: string}> {
+  const ref = db.collection(ARENA_BOOKING_WAITLIST).doc(waitlistId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "Essa entrada da lista de espera não existe mais.");
+  }
+  const data = snap.data() ?? {};
+  if (data["athleteId"] !== athleteId) {
+    throw new HttpsError("permission-denied", "Só quem entrou na lista pode sair dela.");
+  }
+  const status = typeof data["status"] === "string" ? data["status"] : "";
+  if (!isWaitlistEntryOpen(status)) return {waitlistId, status};
+  // `expired` (não um status novo): os apps da loja tratam status desconhecido como
+  // `waiting` e mostrariam o atleta ainda na fila.
+  await ref.update({
+    status: "expired" as ArenaBookingWaitlistStatus,
+    expiredReason: "left_by_athlete",
+    expiredAt: FieldValue.serverTimestamp(),
+    leftAt: FieldValue.serverTimestamp(),
+  });
+  return {waitlistId, status: "expired"};
+}
+
+/** Atleta sai da lista de espera de um horário (botão "Sair da lista" na Agenda). */
+export const leaveArenaBookingWaitlist = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
+  const athleteId = request.auth?.uid;
+  if (!athleteId) {
+    throw new HttpsError("unauthenticated", "Faça login para sair da lista de espera.");
+  }
+  const waitlistId = String((request.data ?? {})["waitlistId"] ?? "").trim();
+  if (!waitlistId) {
+    throw new HttpsError("invalid-argument", "Informe a entrada da lista de espera.");
+  }
+  const result = await leaveWaitlistCore(getFirestore(), athleteId, waitlistId);
+  logger.info("leaveArenaBookingWaitlist", {waitlistId, status: result.status});
+  return result;
+});
+
+/**
+ * Encerra entradas `waiting` cujo horário já começou (`expired` + `expiredReason`).
+ * Consulta só por `status` — sem índice novo; as `waiting` são poucas porque as vencidas saem.
+ */
+export async function expirePastWaitingEntriesCore(db: Firestore, nowMs: number): Promise<number> {
+  const snap = await db
+    .collection(ARENA_BOOKING_WAITLIST)
+    .where("status", "==", "waiting")
+    .limit(500)
+    .get();
+  const past = snap.docs.filter((doc) => waitlistSlotStarted(doc.data() ?? {}, nowMs));
+  if (past.length === 0) return 0;
+  const batch = db.batch();
+  for (const doc of past) {
+    batch.update(doc.ref, {
+      status: "expired" as ArenaBookingWaitlistStatus,
+      expiredReason: "slot_started",
+      expiredAt: FieldValue.serverTimestamp(),
+    });
+  }
+  await batch.commit();
+  return past.length;
+}
+
 /**
  * Quando uma reserva em `arenaBookings` é cancelada, notifica o atleta mais
  * antigo (FIFO) da fila para o mesmo arenaId/courtId/date/startTime/endTime.
@@ -388,7 +478,7 @@ export const notifyArenaWaitlistOnSlotFreed = onDocumentUpdated(
 
 /**
  * Expira entradas `notified` cujo prazo de 15 minutos passou sem virar
- * reserva — mesmo padrão de `onSchedule` de `arena-recurring-materializer.ts`.
+ * reserva, e as `waiting` de horário que já começou — mesmo padrão de `onSchedule` de `arena-recurring-materializer.ts`.
  */
 export const expireArenaBookingWaitlistEntries = onSchedule(
   {
@@ -400,6 +490,11 @@ export const expireArenaBookingWaitlistEntries = onSchedule(
   async () => {
     const db = getFirestore();
     const now = Timestamp.now();
+
+    const pastWaiting = await expirePastWaitingEntriesCore(db, now.toMillis());
+    if (pastWaiting > 0) {
+      logger.info(`expireArenaBookingWaitlistEntries: ${pastWaiting} entrada(s) de horário já começado`);
+    }
 
     const snap = await db
       .collection(ARENA_BOOKING_WAITLIST)

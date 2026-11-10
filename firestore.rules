@@ -1141,6 +1141,43 @@ service cloud.firestore {
           (request.resource.data.updatedByName is string && request.resource.data.updatedByName.size() <= 120));
       allow delete: if false;
     }
+    // Quadro de tarefas da equipe do backoffice (kanban em /painel/tarefas). Interno: só a
+    // equipe da plataforma lê e grava, direto do cliente. Autor e data de criação não mudam;
+    // quem mexeu por último e quando saem do token e do relógio do servidor.
+    function backofficeTaskValid(d) {
+      return d.keys().hasOnly(['title', 'description', 'status', 'priority', 'area', 'assigneeUid',
+          'assigneeName', 'dueDate', 'checklist', 'order', 'archived', 'createdBy', 'createdByName',
+          'createdAt', 'updatedBy', 'updatedByName', 'updatedAt', 'doneAt']) &&
+        d.title is string && d.title.size() > 0 && d.title.size() <= 200 &&
+        d.description is string && d.description.size() <= 4000 &&
+        d.status in ['todo', 'doing', 'review', 'done'] &&
+        d.priority in ['low', 'medium', 'high', 'urgent'] &&
+        d.area in ['produto', 'comercial', 'operacao', 'marketing', 'financeiro', 'suporte'] &&
+        (d.assigneeUid == null || (d.assigneeUid is string && d.assigneeUid.size() <= 128)) &&
+        (d.assigneeName == null || (d.assigneeName is string && d.assigneeName.size() <= 120)) &&
+        (d.dueDate == null || (d.dueDate is string && d.dueDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))) &&
+        d.checklist is list && d.checklist.size() <= 50 &&
+        d.order is number &&
+        d.archived is bool &&
+        (d.doneAt == null || d.doneAt is timestamp) &&
+        d.updatedAt == request.time &&
+        d.updatedBy == request.auth.uid &&
+        d.updatedByName is string && d.updatedByName.size() <= 120;
+    }
+    match /backofficeTasks/{taskId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow create: if (isAdmin() || isSuperAdmin()) &&
+        backofficeTaskValid(request.resource.data) &&
+        request.resource.data.createdBy == request.auth.uid &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.createdByName is string && request.resource.data.createdByName.size() <= 120;
+      allow update: if (isAdmin() || isSuperAdmin()) &&
+        backofficeTaskValid(request.resource.data) &&
+        request.resource.data.createdBy == resource.data.createdBy &&
+        request.resource.data.createdByName == resource.data.createdByName &&
+        request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
     // Equipe da arena. Escrita SEMPRE via Cloud Function: criar vínculo exige
     // contar assentos e conferir plano, coisas que rules não fazem.
     match /arenas/{arenaId}/staff/{staffUserId} {

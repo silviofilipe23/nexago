@@ -26,10 +26,18 @@ import {
   MIN_ONLINE_CHARGE_REAIS,
   PENDING_PAYMENT_STATUS,
   SCHEDULE_PAYMENT_REF_PREFIX,
+  autopayOf,
   parseScheduleSettings,
   str,
 } from "./arena-schedule-plan-constants";
-import {requireUid, rethrowSchedule, scheduleOnlineBillingOn, scheduleSettingsRef} from "./arena-schedule-plans";
+import {
+  notifyScheduleSafe,
+  requireUid,
+  rethrowSchedule,
+  scheduleOnlineBillingOn,
+  scheduleSettingsRef,
+} from "./arena-schedule-plans";
+import {scheduleAutopayFlagOn} from "./arena-schedule-autopay";
 import {activatePendingSubscriptionCore, expirePendingSubscriptionCore} from "./arena-schedule-subscriptions";
 import {chargeAsaasMirror, type ClassAsaasState} from "./arena-class-asaas-model";
 import {monthLabelPt} from "./arena-class-billing";
@@ -49,7 +57,12 @@ import {
   type AsaasPaymentDetails,
 } from "./asaas-booking-payment";
 import {isValidCpfCnpj, normalizeCpfCnpj} from "./asaas-customer";
-import {registerScheduleCustomer, resolveScheduleCustomer} from "./asaas-saved-card";
+import {
+  cardValidForDueDate,
+  readSavedCardTx,
+  registerScheduleCustomer,
+  resolveScheduleCustomer,
+} from "./asaas-saved-card";
 import {processArenaScheduleAsaasNotification} from "./asaas-arena-schedule-webhook";
 import {getFirebaseProjectId} from "./firebase-paths";
 import {dayKeyFromEventDate} from "./event-timezone";
@@ -207,21 +220,29 @@ export function scheduleAsaasGroupData(
   };
 }
 
+export interface ScheduleBillingDecision {
+  billingMode: string | null;
+  groupId: string | null;
+  /** Mensalidade agendada para o débito automático (sem link de pagamento). */
+  autopay: boolean;
+}
+
 /** Decide a mensalidade aberta com `billingMode: null` (idempotente: decidida não muda). */
 export async function decideScheduleChargeBilling(
   db: Firestore,
   chargeId: string,
-): Promise<{billingMode: string | null; groupId: string | null}> {
+): Promise<ScheduleBillingDecision> {
   const chargeRef = db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId);
-  return db.runTransaction(async (tx: Transaction) => {
+  const out = await db.runTransaction(async (tx: Transaction) => {
     const snap = await tx.get(chargeRef);
     const charge = snap.data() as Data | undefined;
-    if (!snap.exists || !charge) return {billingMode: null, groupId: null};
+    if (!snap.exists || !charge) return {billingMode: null, groupId: null, autopay: false};
     if (charge["status"] !== "open" || charge["billingMode"] !== null) {
       return {billingMode: typeof charge["billingMode"] === "string" ? charge["billingMode"] : null,
-        groupId: str(asaasOf(charge)["groupId"]) || null};
+        groupId: str(asaasOf(charge)["groupId"]) || null, autopay: str(autopayOf(charge)["state"]) !== ""};
     }
     const arenaId = str(charge["arenaId"]);
+    const payerId = str(charge["payerAthleteId"]);
     const [subSnap, arenaSnap, settingsSnap] = await Promise.all([
       tx.get(db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).doc(str(charge["subscriptionId"]) || "_")),
       tx.get(db.collection("arenas").doc(arenaId || "_")),
@@ -233,13 +254,40 @@ export async function decideScheduleChargeBilling(
     const mode = decideScheduleBillingMode({onlineBilling: scheduleOnlineBillingOn(settings, arena), sub, charge});
     if (mode === "manual") {
       tx.set(chargeRef, {billingMode: "manual"}, {merge: true});
-      return {billingMode: "manual", groupId: null};
+      return {billingMode: "manual", groupId: null, autopay: false};
+    }
+    // Débito automático: chave ligada + consentimento do pagador + cartão salvo válido no vencimento.
+    let cardExpired: {last4: string; planName: string} | null = null;
+    const consent = (sub["autopay"] as Data | undefined)?.[payerId] as Data | undefined;
+    if (payerId && consent?.["enabled"] === true) {
+      const flagOn = await scheduleAutopayFlagOn(db, tx);
+      const card = flagOn ? await readSavedCardTx(tx, db, payerId, getAsaasEnvTag()) : null;
+      const dueDate = str(charge["dueDate"]);
+      if (card && cardValidForDueDate(card, dueDate)) {
+        tx.set(chargeRef, {
+          billingMode: "asaas",
+          autopay: {
+            state: "scheduled", scheduledFor: dueDate, attempts: 0, lastAttemptAt: null, lastError: null,
+            brand: card.brand, last4: card.last4, chargedReais: null,
+          },
+        }, {merge: true});
+        return {billingMode: "asaas", groupId: null, autopay: true};
+      }
+      if (card) cardExpired = {last4: card.last4, planName: str(charge["planName"]) || "de horário"};
     }
     const groupRef = groupsCol(db).doc();
     tx.set(groupRef, scheduleAsaasGroupData(chargeId, charge, {customerAthleteId: null, arenaName: str(sub["arenaName"])}));
     tx.set(chargeRef, {billingMode: "asaas", asaas: chargeAsaasMirror(groupRef.id, "pending")}, {merge: true});
-    return {billingMode: "asaas", groupId: groupRef.id};
+    return {billingMode: "asaas", groupId: groupRef.id, autopay: false, cardExpired, payerId};
   });
+  if ("cardExpired" in out && out.cardExpired) {
+    await notifyScheduleSafe(out.payerId, {
+      title: "Seu cartão venceu",
+      body: `O cartão final ${out.cardExpired.last4} venceu. Pague o plano ${out.cardExpired.planName} por Pix ou cartão e salve um cartão novo.`,
+      type: "schedule_plan_autopay_card_expired",
+    });
+  }
+  return {billingMode: out.billingMode, groupId: out.groupId, autopay: out.autopay};
 }
 
 /**
@@ -310,7 +358,7 @@ export async function requestScheduleGroupVoid(db: Firestore, groupId: string): 
     const state = str(group["state"]);
     let next: "voiding" | "void";
     if (LIVE_STATES.has(state)) next = "voiding";
-    else if (state === "needs_cpf") next = "void";
+    else if (state === "needs_cpf" || state === "autopay") next = "void";
     else return null;
     tx.set(groupRef, {
       state: next, voidReason: voidReasonOf(charge, groupId),
@@ -572,6 +620,27 @@ export function activatesSubscription(before: Data | undefined, after: Data | un
     after["kind"] === "first" && Number(after["payerIndex"] ?? 0) === 0;
 }
 
+/** A mensalidade saiu de "em aberto" com o débito ainda na fila (`scheduled`/`retry`). */
+export function autopayLeftOpen(before: Data | undefined, after: Data | undefined): boolean {
+  if (before?.["status"] !== "open" || !after || after["status"] === "open") return false;
+  const state = str(autopayOf(after)["state"]);
+  return state === "scheduled" || state === "retry";
+}
+
+/** Tira o débito da fila (`scheduled`/`retry` → `skipped`). Devolve se mudou. */
+export async function skipScheduleAutopay(db: Firestore, chargeId: string, reason: string): Promise<boolean> {
+  const ref = db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId);
+  return db.runTransaction(async (tx: Transaction) => {
+    const snap = await tx.get(ref);
+    const charge = snap.data() as Data | undefined;
+    if (!snap.exists || !charge) return false;
+    const state = str(autopayOf(charge)["state"]);
+    if (state !== "scheduled" && state !== "retry") return false;
+    tx.set(ref, {autopay: {state: "skipped", lastError: reason}}, {merge: true});
+    return true;
+  });
+}
+
 export const onArenaScheduleChargeWritten = onDocumentWritten({
   document: `${ARENA_SCHEDULE_CHARGES}/{chargeId}`,
   secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
@@ -581,9 +650,9 @@ export const onArenaScheduleChargeWritten = onDocumentWritten({
   const db = getFirestore();
   if (activatesSubscription(before, after)) await activatePendingSubscriptionCore(db, str(after?.["subscriptionId"]));
   const action = scheduleChargeTriggerAction(before, after);
-  if (!action) return;
   if (action === "decide") await decideScheduleChargeBilling(db, event.params.chargeId);
-  else await requestScheduleAsaasVoid(db, event.params.chargeId);
+  else if (action === "void") await requestScheduleAsaasVoid(db, event.params.chargeId);
+  if (autopayLeftOpen(before, after)) await skipScheduleAutopay(db, event.params.chargeId, "charge_resolved");
 });
 
 /** Gatilho: grupo novo/retentado → cria no Asaas; pedido de anulação → apaga. */
@@ -755,9 +824,22 @@ async function firstChargePaidAtAsaas(db: Firestore, subscriptionId: string, dep
     const group = groupId ? (await groupsCol(db).doc(groupId).get()).data() ?? {} : {};
     if (group["state"] === "paid") return true;
     const paymentId = str(group["paymentId"]);
-    if (!paymentId) return false;
-    const payment = await deps.getPayment(paymentId);
-    return PAID_STATUSES.has(str(payment.status).toUpperCase());
+    if (paymentId) {
+      const payment = await deps.getPayment(paymentId);
+      if (PAID_STATUSES.has(str(payment.status).toUpperCase())) return true;
+    }
+    const tokenCharges = group["tokenCharges"];
+    if (tokenCharges != null && typeof tokenCharges === "object") {
+      for (const t of Object.values(tokenCharges as Data)) {
+        const tc = (t ?? {}) as Data;
+        if (tc["status"] === "paid") return true;
+        const tokenPaymentId = str(tc["paymentId"]);
+        if (!tokenPaymentId) continue;
+        const payment = await deps.getPayment(tokenPaymentId);
+        if (PAID_STATUSES.has(str(payment.status).toUpperCase())) return true;
+      }
+    }
+    return false;
   }
   return false;
 }

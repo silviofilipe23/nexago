@@ -77,6 +77,7 @@ class _ScheduleAutopayCardState extends ConsumerState<ScheduleAutopayCard> {
       final ok = await showScheduleAutopayConsentSheet(
         context,
         consentText: text,
+        detail: scheduleAutopayNextDetail(preview),
       );
       if (ok != true || !mounted) return;
       await repo.setAutopay(_sub.id, enabled: true, consentText: text);

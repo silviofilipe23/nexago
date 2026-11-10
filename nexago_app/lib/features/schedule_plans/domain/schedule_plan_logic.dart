@@ -1,5 +1,6 @@
 // Regras puras das telas do atleta dos Planos de horário (A1–A3).
 
+import '../../../core/formatting/app_currency_format.dart';
 import '../../tournaments/domain/tournament_service_fee.dart';
 import 'schedule_plan_models.dart';
 
@@ -490,6 +491,23 @@ String _commaNumber(double v, {int maxDecimals = 2}) {
 /// Taxa do cartão que não carregou: sem ela não há consentimento válido.
 const scheduleCardFeeUnavailableMessage =
     'Não foi possível carregar a taxa do cartão. Tente de novo.';
+
+/// Assinatura reservada sem o valor da 1ª mensalidade do servidor: sem ele
+/// não há autorização à vista; o atleta paga pela tela de pagamento.
+const scheduleFirstChargeUnknownMessage =
+    'Não foi possível calcular a 1ª mensalidade. Pague pela tela de pagamento.';
+
+/// Linha do próximo débito na autorização de Meu plano (da prévia do
+/// servidor); sem mensalidade em aberto, o débito é no vencimento.
+String scheduleAutopayNextDetail(ScheduleAutopayPreview preview) {
+  final next = preview.next;
+  final day = next == null ? null : _isoDayMonth(next.dueDate);
+  if (next == null || day == null) {
+    return 'Débito no vencimento de cada mensalidade.';
+  }
+  return 'Próximo débito: $day · ${formatBRL(next.amountReais)} + taxa do '
+      'cartão ${formatBRL(next.cardFeeReais)} = ${formatBRL(next.chargedReais)}';
+}
 
 /// Texto da autorização, gravado como prova (`consentText`). Com os números
 /// da prévia do servidor (Meu plano).

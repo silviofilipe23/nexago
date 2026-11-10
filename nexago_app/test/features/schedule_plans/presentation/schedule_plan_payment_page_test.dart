@@ -13,6 +13,7 @@ import 'package:nexago_app/features/schedule_plans/application/schedule_plans_pr
 import 'package:nexago_app/features/schedule_plans/domain/schedule_plan_models.dart';
 import 'package:nexago_app/features/schedule_plans/infrastructure/schedule_plans_repository.dart';
 import 'package:nexago_app/features/schedule_plans/presentation/schedule_plan_payment_page.dart';
+import 'package:nexago_app/features/tournaments/domain/registration_payment_method.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_service_fee.dart';
 import 'package:nexago_app/features/tournaments/presentation/widgets/tournament_registration/registration_payment_method_picker.dart';
 
@@ -293,11 +294,28 @@ void main() {
     expect(find.byKey(const Key('schedule-pay-saved-card')), findsNothing);
   });
 
+  const fees = CardFeeTerms(
+    anticipationPercent: 1.33,
+    processingPercent: 2.99,
+    fixedReais: 0.49,
+  );
+
   testWidgets('cartão salvo: paga com ele e a baixa fecha a tela',
       (tester) async {
-    final h = await pumpPage(tester, autopayFlag: true, savedCard: visa);
+    final h = await pumpPage(
+      tester,
+      autopayFlag: true,
+      savedCard: visa,
+      cardFee: fees,
+    );
+    // O total com a taxa do cartão, o mesmo que o servidor cobra.
+    final total =
+        registrationMethodQuote(pixCents: 9000, cardFee: fees).cardTotalCents;
+    expect(total, greaterThan(9000));
     expect(
-      find.text('Pagar com cartão salvo (Visa final 4242)'),
+      find.text(
+        'Pagar ${formatBRL(total / 100)} no cartão salvo (Visa final 4242)',
+      ),
       findsOneWidget,
     );
     await tester.tap(find.byKey(const Key('schedule-pay-saved-card')));
@@ -309,9 +327,26 @@ void main() {
     expect(find.byKey(const Key('schedule-payment-paid')), findsOneWidget);
   });
 
+  testWidgets('cartão salvo sem a taxa do cartão carregada: botão travado',
+      (tester) async {
+    await pumpPage(tester, autopayFlag: true, savedCard: visa);
+    expect(
+      tester
+          .widget<OutlinedButton>(
+              find.byKey(const Key('schedule-pay-saved-card')))
+          .onPressed,
+      isNull,
+    );
+  });
+
   testWidgets('cartão salvo recusado: mostra o erro e libera o botão',
       (tester) async {
-    final h = await pumpPage(tester, autopayFlag: true, savedCard: visa);
+    final h = await pumpPage(
+      tester,
+      autopayFlag: true,
+      savedCard: visa,
+      cardFee: fees,
+    );
     h.repo.savedCardError = SchedulePlanException(
       'O cartão foi recusado. Tente outro cartão ou pague com Pix.',
     );

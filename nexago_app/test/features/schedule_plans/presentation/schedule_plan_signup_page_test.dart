@@ -356,6 +356,7 @@ void main() {
       bool cancelSheet = false,
       bool arenaLoaded = true,
       bool zeroFees = false,
+      double? firstChargeReais = _serverFirst,
     }) async {
       tester.view.physicalSize = const Size(1170, 2532);
       tester.view.devicePixelRatio = 3;
@@ -379,7 +380,11 @@ void main() {
         ],
         'onlineBilling': true,
       }, arenaId: 'a1', planId: 'p1');
-      final repo = _AutopayRepo(failPay: failPay, failSet: failSet);
+      final repo = _AutopayRepo(
+        failPay: failPay,
+        failSet: failSet,
+        firstChargeReais: firstChargeReais,
+      );
       final router = GoRouter(
         initialLocation: '/',
         routes: [
@@ -487,13 +492,16 @@ void main() {
       }
       final text = find.byKey(const Key('schedule-autopay-consent-text'));
       if (text.evaluate().isNotEmpty) {
-        // A folha aparece antes de qualquer chamada ao servidor.
-        expect(repo.calls.where((c) => c != 'cardForm'), isEmpty);
+        // A folha vem depois da reserva (nada cobrado) e antes de qualquer
+        // cobrança: só a assinatura foi criada.
+        expect(repo.calls.where((c) => c != 'cardForm'), ['subscribe']);
         shown = tester.widget<Text>(text).data;
         expect(find.textContaining('taxa do cartão'), findsNWidgets(2));
         expect(find.textContaining('Visa final 4242'), findsOneWidget);
+        // O valor é o da 1ª mensalidade do servidor (proporcional), não o
+        // mensal cheio da tela.
         final q = registrationMethodQuote(
-          pixCents: 18000,
+          pixCents: (_serverFirst * 100).round(),
           cardFee: const CardFeeTerms(
             anticipationPercent: 1.5,
             processingPercent: 3.99,
@@ -510,6 +518,7 @@ void main() {
           '(${formatBRL(q.pixCents / 100)} + taxa do cartão '
           '${formatBRL(q.cardFeeCents / 100)})',
         );
+        expect(detail, contains(formatBRL(123.45)));
         await tester.tap(cancelSheet
             ? find.text('Agora não')
             : find.byKey(const Key('schedule-autopay-authorize')));
@@ -540,7 +549,7 @@ void main() {
       await run(tester, saved: card);
       expect(detail, contains('taxa do cartão'));
       final q = registrationMethodQuote(
-        pixCents: 18000,
+        pixCents: 12345,
         cardFee: const CardFeeTerms(
           anticipationPercent: 1.5,
           processingPercent: 3.99,
@@ -562,10 +571,36 @@ void main() {
       expect(repo.calls, isEmpty);
     });
 
-    testWidgets('Agora não: nada é criado nem cobrado', (tester) async {
+    testWidgets('Agora não: nada é cobrado; fluxo de hoje (tela de pagar)',
+        (tester) async {
       final repo = await run(tester, saved: card, cancelSheet: true);
-      expect(repo.calls, isEmpty);
-      expect(find.text('MEU PLANO'), findsNothing);
+      expect(repo.calls, ['subscribe']);
+      expect(find.text('PAGAR s1_2026-11_0'), findsOneWidget);
+      expect(
+          find.textContaining('Horário reservado por 30 min'), findsOneWidget);
+    });
+
+    testWidgets('sem o valor da 1ª do servidor: sem folha, tela de pagar',
+        (tester) async {
+      final repo = await run(tester, saved: card, firstChargeReais: null);
+      expect(
+          find.byKey(const Key('schedule-autopay-consent-text')), findsNothing);
+      expect(repo.calls, ['subscribe']);
+      expect(find.text('PAGAR s1_2026-11_0'), findsOneWidget);
+      expect(
+        find.text('Não foi possível calcular a 1ª mensalidade. Pague pela '
+            'tela de pagamento.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('1ª de valor zero do servidor: sem folha, tela de pagar',
+        (tester) async {
+      final repo = await run(tester, saved: card, firstChargeReais: 0);
+      expect(
+          find.byKey(const Key('schedule-autopay-consent-text')), findsNothing);
+      expect(repo.calls, ['subscribe']);
+      expect(find.text('PAGAR s1_2026-11_0'), findsOneWidget);
     });
 
     testWidgets('arena ainda sem nome: o texto não escreve "()"',
@@ -626,11 +661,19 @@ void main() {
   });
 }
 
+/// 1ª mensalidade que o servidor devolve (proporcional ao mês).
+const _serverFirst = 123.45;
+
 class _AutopayRepo implements SchedulePlansRepository {
-  _AutopayRepo({this.failPay = false, this.failSet = false});
+  _AutopayRepo({
+    this.failPay = false,
+    this.failSet = false,
+    this.firstChargeReais = _serverFirst,
+  });
 
   final bool failPay;
   final bool failSet;
+  final double? firstChargeReais;
   final calls = <String>[];
 
   @override
@@ -649,7 +692,7 @@ class _AutopayRepo implements SchedulePlansRepository {
       'courtName': 'Quadra 1',
       'firstCharge': {
         'chargeId': 's1_2026-11_0',
-        'amountReais': 180,
+        if (firstChargeReais != null) 'amountReais': firstChargeReais,
         'dueDate': '2026-11-10',
       },
       'status': 'pending_payment',

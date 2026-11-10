@@ -17,6 +17,7 @@ import '../../../core/ui/nexa_bottom_action_bar.dart';
 import '../../../core/ui/nexa_skeleton.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../tournaments/domain/registration_payment_method.dart';
+import '../../tournaments/domain/tournament_service_fee.dart';
 import '../../payment_card/application/payment_card_providers.dart';
 import '../../payment_card/domain/saved_payment_card.dart';
 import '../../arena/domain/aulas/arena_class_logic.dart'
@@ -262,6 +263,29 @@ class _SchedulePlanSignupPageState
     return ref.read(arenaByIdProvider(widget.arenaId)).valueOrNull?.name ?? '';
   }
 
+  /// Folha de autorização com o valor da 1ª que o servidor vai cobrar (mais a
+  /// taxa do cartão). `true` = autorizou; `false` = "Agora não"; `null` = sem
+  /// o valor do servidor (não dá para mostrar a folha).
+  Future<bool?> _authorizeFirstCharge({
+    required double? firstChargeReais,
+    required CardFeeTerms terms,
+    required String consentText,
+  }) async {
+    if (firstChargeReais == null || firstChargeReais <= 0) return null;
+    final quote = registrationMethodQuote(
+      pixCents: (firstChargeReais * 100).round(),
+      cardFee: terms,
+    );
+    final ok = await showScheduleAutopayConsentSheet(
+      context,
+      consentText: consentText,
+      detail: '1ª mensalidade agora: ${formatBRL(quote.cardTotalCents / 100)} '
+          '(${formatBRL(quote.pixCents / 100)} + taxa do cartão '
+          '${formatBRL(quote.cardFeeCents / 100)})',
+    );
+    return ok == true;
+  }
+
   Future<void> _submit(SchedulePlan plan) async {
     if (_saving) return;
     setState(() => _saving = true);
@@ -275,6 +299,7 @@ class _SchedulePlanSignupPageState
     try {
       SavedPaymentCard? card;
       String? consentText;
+      CardFeeTerms? terms;
       if (wantsAutopay) {
         card = await ref.read(myPaymentCardProvider.future);
         if (card == null) {
@@ -283,39 +308,22 @@ class _SchedulePlanSignupPageState
           if (card == null || !mounted) return;
           ref.invalidate(myPaymentCardProvider);
         }
-        // Só com dados à vista: cartão, valor e taxa. Nada é criado antes.
-        final terms = await ref.read(scheduleCardFeeTermsProvider.future);
+        // Sem a taxa não há autorização válida: barra antes de reservar.
+        final loaded = await ref.read(scheduleCardFeeTermsProvider.future);
         if (!mounted) return;
-        if (terms.isZero) {
+        if (loaded.isZero) {
           // Falha ao carregar vira "sem taxa"; o servidor cobraria a taxa.
           showAppSnackBar(context, scheduleCardFeeUnavailableMessage,
               isError: true);
           return;
         }
-        final players = _players(plan);
-        final first = scheduleSharePerPlayer(
-          scheduleCycleMonthlyPrice(plan.monthlyPriceReais, _cycleOption(plan)),
-          players,
-        );
-        final quote = registrationMethodQuote(
-          pixCents: (first * 100).round(),
-          cardFee: terms,
-        );
+        terms = loaded;
         consentText = scheduleAutopayConsentTextForTerms(
           planName: plan.name,
           arenaName: _arenaNameForConsent(),
           cardLabel: card.label,
-          terms: terms,
+          terms: loaded,
         );
-        final ok = await showScheduleAutopayConsentSheet(
-          context,
-          consentText: consentText,
-          detail:
-              '1ª mensalidade agora: ${formatBRL(quote.cardTotalCents / 100)} '
-              '(${formatBRL(quote.pixCents / 100)} + taxa do cartão '
-              '${formatBRL(quote.cardFeeCents / 100)})',
-        );
-        if (ok != true || !mounted) return;
       }
       final String message;
       ScheduleSubscribeResult? created;
@@ -361,10 +369,26 @@ class _SchedulePlanSignupPageState
           : null;
       String? errorMessage;
       var autopayDone = false;
-      if (wantsAutopay && card != null && created != null) {
-        // Débito automático: paga a 1ª no cartão salvo e liga o débito.
-        var paid = payChargeId == null;
-        if (payChargeId != null) {
+      if (wantsAutopay &&
+          created != null &&
+          card != null &&
+          terms != null &&
+          consentText != null &&
+          payChargeId != null) {
+        // Débito automático: o horário está reservado (nada foi cobrado). A
+        // folha mostra o valor da 1ª que o servidor calculou; só "Autorizar"
+        // paga no cartão salvo e liga o débito. "Agora não" = fluxo de hoje.
+        final authorized = await _authorizeFirstCharge(
+          firstChargeReais: created.firstChargeReais,
+          terms: terms,
+          consentText: consentText,
+        );
+        if (!mounted) return;
+        if (authorized == null) {
+          errorMessage = scheduleFirstChargeUnknownMessage;
+        }
+        var paid = false;
+        if (authorized == true) {
           try {
             await repo.payWithSavedCard(payChargeId);
             paid = true;

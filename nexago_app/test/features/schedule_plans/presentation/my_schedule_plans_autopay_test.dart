@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/payment_card/application/payment_card_providers.dart';
@@ -186,6 +187,44 @@ void main() {
     expect(repo.sets.single.id, 's1');
     expect(repo.sets.single.enabled, isTrue);
     expect(repo.sets.single.text, _consentText);
+  });
+
+  testWidgets('a folha mostra o dia, o valor e a taxa do próximo débito',
+      (tester) async {
+    await pump(tester, subMap(), card: _card);
+    await tapKey(tester, 'schedule-autopay-enable');
+    expect(
+      tester
+          .widget<Text>(
+              find.byKey(const Key('schedule-autopay-consent-detail')))
+          .data,
+      'Próximo débito: 05/12 · ${formatBRL(300)} + taxa do cartão '
+      '${formatBRL(12.46)} = ${formatBRL(312.46)}',
+    );
+  });
+
+  testWidgets('sem próxima mensalidade: a folha diz que é no vencimento',
+      (tester) async {
+    await pump(
+      tester,
+      subMap(),
+      card: _card,
+      preview: const ScheduleAutopayPreview(
+        brand: 'VISA',
+        last4: '4242',
+        cardFeePercent: 1.5,
+        cardProcessingPercent: 3.99,
+        cardFixedReais: 0.49,
+      ),
+    );
+    await tapKey(tester, 'schedule-autopay-enable');
+    expect(
+      tester
+          .widget<Text>(
+              find.byKey(const Key('schedule-autopay-consent-detail')))
+          .data,
+      'Débito no vencimento de cada mensalidade.',
+    );
   });
 
   testWidgets('taxa zerada na prévia: avisa, sem folha nem setAutopay',

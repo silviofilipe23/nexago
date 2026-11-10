@@ -282,10 +282,11 @@ class _SchedulePlanPaymentPageState
     final live = _live;
     final amount = checkout?.amountReais ?? charge.amountReais;
     // Cartão soma as taxas do cartão por cima; o Pix fica no valor do plano.
+    final cardFee = ref.watch(scheduleCardFeeTermsProvider).valueOrNull ??
+        CardFeeTerms.none;
     final quote = registrationMethodQuote(
       pixCents: (amount * 100).round(),
-      cardFee: ref.watch(scheduleCardFeeTermsProvider).valueOrNull ??
-          CardFeeTerms.none,
+      cardFee: cardFee,
     );
     final selectedTotal = quote.totalCents(_method) / 100;
     final sub = charge.subscriptionId.isEmpty
@@ -331,7 +332,9 @@ class _SchedulePlanPaymentPageState
                   if (savedCard != null) ...[
                     OutlinedButton.icon(
                       key: const Key('schedule-pay-saved-card'),
-                      onPressed: _payingSaved || _loading
+                      // Sem a taxa do cartão o total na tela não seria o
+                      // cobrado: trava até ela carregar.
+                      onPressed: _payingSaved || _loading || cardFee.isZero
                           ? null
                           : () => _paySavedCard(charge),
                       icon: _payingSaved
@@ -341,7 +344,8 @@ class _SchedulePlanPaymentPageState
                             )
                           : const Icon(Icons.credit_card_rounded),
                       label: Text(
-                        'Pagar com cartão salvo (${savedCard.label})',
+                        'Pagar ${formatBRL(quote.cardTotalCents / 100)} no '
+                        'cartão salvo (${savedCard.label})',
                       ),
                     ),
                     const SizedBox(height: 20),

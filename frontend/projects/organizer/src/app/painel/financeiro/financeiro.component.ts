@@ -377,14 +377,14 @@ interface EventoArrecadacaoRow {
         } @else {
           <form [formGroup]="pixForm" (ngSubmit)="submitPixKey()" class="og-fin-pixform">
             <og-form-field label="Tipo de chave">
-              <select class="og-input" formControlName="pixKeyType">
+              <select class="og-select-el" formControlName="pixKeyType">
                 @for (t of pixKeyTypes; track t) {
                   <option [value]="t">{{ pixKeyTypeLabel[t] }}</option>
                 }
               </select>
             </og-form-field>
             <og-form-field label="Chave PIX">
-              <input class="og-input" type="text" formControlName="pixKey" autocomplete="off" [placeholder]="pixKeyHintFor(pixKeyTypeValue())" />
+              <input class="og-input-el" type="text" formControlName="pixKey" autocomplete="off" [placeholder]="pixKeyHintFor(pixKeyTypeValue())" />
             </og-form-field>
             @if (pixKeyErrorLive(); as err) {
               <p class="og-fin-error">{{ err }}</p>

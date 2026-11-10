@@ -6,12 +6,14 @@ import { Timestamp, type QueryDocumentSnapshot } from 'firebase/firestore';
 
 export type ArenaSlotStatus = 'available' | 'booked' | 'blocked';
 
-export type ArenaSlotBlockReason = 'manutencao' | 'evento' | 'aula' | 'outro';
+export type ArenaSlotBlockReason = 'manutencao' | 'torneio' | 'evento' | 'aula' | 'outro';
 
-export const ARENA_SLOT_BLOCK_REASONS: ArenaSlotBlockReason[] = ['manutencao', 'evento', 'aula', 'outro'];
+/** Todos tiram a quadra da capacidade do horário (arena que define a quadra). */
+export const ARENA_SLOT_BLOCK_REASONS: ArenaSlotBlockReason[] = ['manutencao', 'torneio', 'evento', 'aula', 'outro'];
 
 export const ARENA_SLOT_BLOCK_REASON_LABEL: Record<ArenaSlotBlockReason, string> = {
   manutencao: 'Manutenção',
+  torneio: 'Torneio',
   evento: 'Evento privado',
   aula: 'Aula',
   outro: 'Outro',

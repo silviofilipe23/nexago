@@ -28,6 +28,8 @@ import '../lesson_plans/lesson_plan_agenda_card.dart';
 import 'professor_agenda_widgets.dart';
 import 'professor_cancel_done_page.dart';
 import 'professor_cancel_sheet.dart';
+import 'professor_extend_card.dart';
+import '../../domain/professor_extend.dart';
 
 /// E4 Detalhe da aula de turma (equipe da arena): local, recorrência, alunos
 /// (quando o vínculo libera a chamada), "Abrir chamada" e "Cancelar" (com a
@@ -163,11 +165,20 @@ class ProfessorAgendaSessionPage extends ConsumerWidget {
     // "Cancelar".
     final canStory = isProfessorClassStoryAvailable(e, now);
     final showCancel = canCancel && !canStory;
+    // Emendar +1h: o fim muda nesta tela depois de emendar (a aula veio pelo `extra`).
+    final extendedEnd = ref.watch(professorSessionExtendedEndProvider(e.sessionId));
+    final endTime = extendedEnd ?? e.endTime;
+    final canExtend = canProfessorExtendSession(
+      e,
+      endTime: endTime,
+      canScheduleLessons: arena?.actions.canScheduleLessons ?? false,
+      now: now,
+    );
 
     return ProfessorLinksScaffold(
       title: e.className,
       subtitle: '${professorDayLabel(e.date, now.todayKey)} · '
-              '${e.startTime}–${e.endTime}'
+              '${e.startTime}–$endTime'
           .toUpperCase(),
       onBack: () => _back(context),
       body: Column(
@@ -198,6 +209,12 @@ class ProfessorAgendaSessionPage extends ConsumerWidget {
                               label: 'Cancelada',
                               color: AppColors.live,
                             ),
+                          if (extendedEnd != null)
+                            const ArenaClassTag(
+                              key: Key('professor-session-extended-tag'),
+                              label: '+1h emendada',
+                              color: AppColors.win,
+                            ),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -226,6 +243,14 @@ class ProfessorAgendaSessionPage extends ConsumerWidget {
                     ],
                   ),
                 ),
+                if (canExtend) ...[
+                  const SizedBox(height: 14),
+                  ProfessorExtendCard(
+                    sessionId: e.sessionId,
+                    courtName: e.courtName,
+                    endTime: endTime,
+                  ),
+                ],
                 if (!e.isCanceled) ...[
                   const SizedBox(height: 18),
                   LessonPlanAgendaCard(

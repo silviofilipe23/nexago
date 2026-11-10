@@ -435,12 +435,24 @@ export async function relocateFloatingFromBlock(
     byBooking.set(owner, [...(byBooking.get(owner) ?? []), snap.ref]);
   }
 
+  return relocateFloatingLocks(db, arenaId, courtId, byBooking, "Quadra bloqueada pela arena", nowMs);
+}
+
+/** Tira cada reserva flutuante das suas travas nesta quadra (uma transação por reserva). */
+async function relocateFloatingLocks(
+  db: Firestore,
+  arenaId: string,
+  courtId: string,
+  byBooking: Map<string, DocumentReference[]>,
+  reason: string,
+  nowMs: number,
+): Promise<{moved: string[]; stuck: string[]}> {
   const moved: string[] = [];
   const stuck: string[] = [];
   for (const [bookingId, lockRefs] of byBooking) {
     const ok = await db.runTransaction(async (tx) => {
       const claim = await claimCourtLocks(tx, db, {arenaId, courtId, lockRefs}, {
-        reason: "Quadra bloqueada pela arena",
+        reason,
         flowWritesTargetLocks: false,
         nowMs,
       });
@@ -451,4 +463,44 @@ export async function relocateFloatingFromBlock(
     (ok ? moved : stuck).push(bookingId);
   }
   return {moved, stuck};
+}
+
+/** A quadra passou a estar em manutenção nesta escrita (antes não estava). Puro. */
+export function courtEnteredMaintenance(before: DocumentData | undefined, after: DocumentData | undefined): boolean {
+  const inMaintenance = (d: DocumentData | undefined) =>
+    !!d && (str(d["status"]).toLowerCase() === "maintenance" || d["maintenance"] === true);
+  return inMaintenance(after) && !inMaintenance(before);
+}
+
+/**
+ * Quadra em manutenção: cada reserva flutuante dela, de [fromDateKey] em diante, vai para outra
+ * quadra livre do esporte (manutenção desconta da capacidade). Sem quadra livre, fica — a recepção
+ * resolve. Reserva com quadra definida não muda.
+ */
+export async function relocateFloatingOffCourt(
+  db: Firestore,
+  arenaId: string,
+  courtId: string,
+  fromDateKey: string,
+  nowMs: number,
+): Promise<{moved: string[]; stuck: string[]}> {
+  const snap = await db.collection(ARENA_BOOKINGS)
+    .where("arenaId", "==", arenaId)
+    .where("courtId", "==", courtId)
+    .where("allocationStatus", "==", "unassigned")
+    .get();
+  const byBooking = new Map<string, DocumentReference[]>();
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    const dateKey = parseDateKeyFromBooking(data["date"]);
+    if (!dateKey || dateKey < fromDateKey) continue;
+    const ids = computeSlotLockIds({
+      arenaId, courtId, dateKey, startTime: str(data["startTime"]), endTime: str(data["endTime"]),
+    });
+    const refs = ids.map((id) => db.collection(ARENA_SLOT_LOCKS).doc(id));
+    const locks = refs.length > 0 ? await db.getAll(...refs) : [];
+    const own = locks.filter((l) => l.exists && isFloatingLock(l.data()) && lockOwner(l) === doc.id);
+    if (own.length > 0) byBooking.set(doc.id, own.map((l) => l.ref));
+  }
+  return relocateFloatingLocks(db, arenaId, courtId, byBooking, "Quadra em manutenção", nowMs);
 }

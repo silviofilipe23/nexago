@@ -6,7 +6,9 @@ import '../../tournaments/data/tournament_partner_invite_service.dart'
     show callableErrorMessage;
 import '../domain/professor_actions.dart';
 import '../domain/professor_cancel.dart';
-import 'professor_students_repository.dart' show ProfessorStudentsException;
+import '../domain/professor_extend.dart';
+import 'professor_students_repository.dart'
+    show ProfessorNoVacancyException, ProfessorStudentsException;
 
 /// Aluno escolhido numa ação: com conta (`athleteId`) ou só da arena
 /// (`studentId`, sem conta) — o servidor resolve nome e foto.
@@ -94,6 +96,10 @@ abstract class ProfessorActionsRepository {
     required String bookingId,
     required String reason,
   });
+
+  /// Emenda a aula em +1h na mesma quadra (`extendArenaClassSession`). Sem vaga:
+  /// [ProfessorNoVacancyException].
+  Future<ProfessorSessionExtendResult> extendSession(String sessionId);
 }
 
 class ProfessorEnrollmentRequest {
@@ -289,6 +295,27 @@ class FirebaseProfessorActionsRepository implements ProfessorActionsRepository {
     );
     final n = out['notified'];
     return n is num ? n.toInt() : 0;
+  }
+
+  @override
+  Future<ProfessorSessionExtendResult> extendSession(String sessionId) async {
+    try {
+      final result = await _functions
+          .httpsCallable('extendArenaClassSession')
+          .call<Object?>({'sessionId': sessionId});
+      final raw = result.data;
+      return ProfessorSessionExtendResult.fromMap(raw is Map
+          ? raw.map((k, v) => MapEntry(k.toString(), v))
+          : const <String, Object?>{});
+    } on FirebaseFunctionsException catch (e) {
+      final message = callableErrorMessage(
+          e.code, e.message, 'Não foi possível emendar a aula.');
+      final details = e.details;
+      if (details is Map && details['reason'] == 'no_vacancy') {
+        throw ProfessorNoVacancyException(message);
+      }
+      throw ProfessorStudentsException(message);
+    }
   }
 
   @override

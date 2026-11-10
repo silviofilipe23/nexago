@@ -4,9 +4,11 @@ import type {DocumentReference, Firestore} from "firebase-admin/firestore";
 import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
 import {
   claimCourtLocks,
+  courtEnteredMaintenance,
   floatingCandidateCourts,
   isManagerCourtBlock,
   relocateFloatingFromBlock,
+  relocateFloatingOffCourt,
   SYSTEM_ACTOR,
   type TxReader,
   type TxWriter,
@@ -322,6 +324,33 @@ describe("bloqueio de quadra empurra reserva flutuante", () => {
       arenaId: ARENA, courtId: "c1", date, startTime: "18:00", endTime: "19:00", status: "blocked",
     }, NOW);
     assert.deepEqual(result.moved, ["flo"]);
+  });
+});
+
+describe("quadra em manutenção empurra reserva flutuante", () => {
+  it("courtEnteredMaintenance: só na passagem para manutenção", () => {
+    assert.equal(courtEnteredMaintenance({status: "active"}, {status: "maintenance"}), true);
+    assert.equal(courtEnteredMaintenance({}, {maintenance: true}), true);
+    assert.equal(courtEnteredMaintenance({status: "maintenance"}, {status: "maintenance", name: "Q"}), false);
+    assert.equal(courtEnteredMaintenance({status: "maintenance"}, {status: "active"}), false);
+  });
+
+  it("flutuantes de hoje em diante saem; definida e passada ficam; sem quadra livre, fica", async () => {
+    const fake = seedArena(2);
+    seedBooking(fake, "flo", {courtId: "c1", floating: true});
+    seedBooking(fake, "fixed", {courtId: "c1", startTime: "20:00", endTime: "21:00"});
+    seedBooking(fake, "old", {courtId: "c1", startTime: "08:00", endTime: "09:00", floating: true,
+      extra: {date: "2026-08-04"}});
+    seedBooking(fake, "full", {courtId: "c2", startTime: "10:00", endTime: "11:00"});
+    seedBooking(fake, "stuck", {courtId: "c1", startTime: "10:00", endTime: "11:00", floating: true});
+    fake.seedDoc(`arenas/${ARENA}/courts/c1`, {name: "Quadra 1", types: ["beachTennis"], status: "maintenance"});
+
+    const result = await relocateFloatingOffCourt(db(fake), ARENA, "c1", DATE, NOW);
+    assert.deepEqual(result, {moved: ["flo"], stuck: ["stuck"]});
+    assert.equal(fake.store.get("arenaBookings/flo")?.["courtId"], "c2");
+    assert.equal(fake.store.get("arenaBookings/fixed")?.["courtId"], "c1");
+    assert.equal(fake.store.get("arenaBookings/old")?.["courtId"], "c1");
+    assert.equal(fake.store.get("arenaBookings/stuck")?.["courtId"], "c1");
   });
 });
 

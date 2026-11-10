@@ -167,7 +167,7 @@ export async function changeArenaBookingCourtCore(
   if (fromCourtId === input.toCourtId) {
     // Reserva sem quadra definida confirmada na própria provisória: só marca como definida.
     if (booking["allocationStatus"] === "unassigned") {
-      return assignBookingInPlace(db, uid, input.bookingId, fromCourtId, nowMs);
+      return assignBookingInPlace(db, {bookingId: input.bookingId, courtId: fromCourtId, actor: {uid, source: "staff"}, nowMs});
     }
     return {
       changed: false,
@@ -178,11 +178,65 @@ export async function changeArenaBookingCourtCore(
     };
   }
 
+  const moved = await moveBookingToCourt(db, {
+    bookingId: input.bookingId,
+    booking,
+    toCourtId: input.toCourtId,
+    actor: {uid, source: "staff"},
+    reason: input.reason,
+    displacedReason: (toCourtName) => `Gestor moveu outra reserva para ${toCourtName}`,
+    nowMs,
+  });
+
+  return {
+    changed: true,
+    bookingId: input.bookingId,
+    courtId: input.toCourtId,
+    courtName: moved.courtName,
+    assigned: booking["allocationStatus"] === "unassigned",
+  };
+}
+
+/** Quem define a quadra: a recepção (painel) ou o próprio atleta lendo o QR da quadra. */
+export interface CourtAssignmentActor {
+  uid: string;
+  source: "staff" | "qr";
+}
+
+export interface MoveBookingToCourtParams {
+  bookingId: string;
+  /** Reserva lida antes da transação (a quadra de origem sai daqui). */
+  booking: DocumentData;
+  toCourtId: string;
+  actor: CourtAssignmentActor;
+  reason: string | null;
+  /** Motivo gravado na reserva flutuante empurrada para outra quadra (troca). */
+  displacedReason: (toCourtName: string) => string;
+  nowMs: number;
+  /** Confere a reserva fresca dentro da transação; lança para abortar. */
+  checkFresh?: (fresh: DocumentData) => void;
+  /** Campos gravados na reserva na mesma transação (ex.: check-in do QR). */
+  extra?: Record<string, unknown>;
+}
+
+/**
+ * Move a reserva para outra quadra numa transação: confere a quadra de destino (esporte,
+ * manutenção, bloqueio, reserva legada), empurra a flutuante que estiver nela e move travas,
+ * `arenaSlots` e a quadra da reserva. Quem chama confere a permissão antes.
+ */
+export async function moveBookingToCourt(
+  db: Firestore,
+  params: MoveBookingToCourtParams,
+): Promise<{courtName: string}> {
+  const {bookingId, booking, toCourtId, nowMs} = params;
   const blockReason = courtChangeBlockReason(booking, nowMs);
   if (blockReason) throw new HttpsError("failed-precondition", blockReason);
 
+  const arenaId = str(booking["arenaId"]);
+  const fromCourtId = str(booking["courtId"]);
+  const bookingRef = db.collection(ARENA_BOOKINGS).doc(bookingId);
   const courtSnap = await db.collection("arenas").doc(arenaId)
-    .collection("courts").doc(input.toCourtId).get();
+    .collection("courts").doc(toCourtId).get();
   const courtData = courtSnap.exists ? courtSnap.data() as DocumentData : undefined;
   const sport = str(booking["sport"]) || null;
   const targetReason = targetCourtBlockReason(courtData, sport);
@@ -195,18 +249,18 @@ export async function changeArenaBookingCourtCore(
   const startTime = str(booking["startTime"]);
   const endTime = str(booking["endTime"]);
 
-  const blocked = await hasBlockedSlotOverlap(db, {arenaId, courtId: input.toCourtId, startTime, endTime}, dateKey);
+  const blocked = await hasBlockedSlotOverlap(db, {arenaId, courtId: toCourtId, startTime, endTime}, dateKey);
   if (blocked) {
     throw new HttpsError("failed-precondition", "Essa quadra está bloqueada nesse horário.");
   }
   const legacyBooked = await hasBookedSlotOverlap(db, {
-    arenaId, courtId: input.toCourtId, dateKey, startTime, endTime, bookingId: input.bookingId,
+    arenaId, courtId: toCourtId, dateKey, startTime, endTime, bookingId,
   });
   if (legacyBooked) {
     throw new HttpsError("already-exists", "Essa quadra já está reservada nesse horário.");
   }
 
-  const toLockRefs = computeSlotLockIds({arenaId, courtId: input.toCourtId, dateKey, startTime, endTime})
+  const toLockRefs = computeSlotLockIds({arenaId, courtId: toCourtId, dateKey, startTime, endTime})
     .map((id) => db.collection(ARENA_SLOT_LOCKS).doc(id));
   if (toLockRefs.length === 0) {
     throw new HttpsError("failed-precondition", "Não foi possível calcular os horários.");
@@ -222,53 +276,56 @@ export async function changeArenaBookingCourtCore(
     }
     const freshReason = courtChangeBlockReason(freshData, nowMs);
     if (freshReason) throw new HttpsError("failed-precondition", freshReason);
+    params.checkFresh?.(freshData);
 
     // Quadra de destino com reserva flutuante: ela vai para outra quadra livre — inclusive a que
     // esta reserva está deixando (troca).
-    const claim = await claimCourtLocks(tx, db, {arenaId, courtId: input.toCourtId, lockRefs: toLockRefs}, {
-      ownBookingId: input.bookingId,
-      freeBookingIds: [input.bookingId],
-      reason: `Gestor moveu outra reserva para ${toCourtName}`,
+    const claim = await claimCourtLocks(tx, db, {arenaId, courtId: toCourtId, lockRefs: toLockRefs}, {
+      ownBookingId: bookingId,
+      freeBookingIds: [bookingId],
+      reason: params.displacedReason(toCourtName),
       nowMs,
     });
     if (!claim.ok) {
       throw new HttpsError("already-exists", "Essa quadra já está reservada nesse horário.");
     }
-    const move = await readBookingMove(tx, db, input.bookingId, {courtId: input.toCourtId, courtName: toCourtName}, fresh);
+    const move = await readBookingMove(tx, db, bookingId, {courtId: toCourtId, courtName: toCourtName}, fresh);
     if (!move) throw new HttpsError("failed-precondition", "Esta reserva não tem horário válido.");
 
     // Escritas.
     writeBookingCourtMove(tx, db, move, {
-      by: uid,
-      reason: input.reason,
+      by: params.actor.uid,
+      reason: params.reason,
       nowMs,
-      assignedBy: {uid, source: "staff"},
+      assignedBy: params.actor,
       // Travas que a flutuante empurrada vai ocupar (troca) não podem ser apagadas aqui.
       skipDeletePaths: claim.relocatedLockPaths,
     });
+    if (params.extra) tx.set(bookingRef, params.extra, {merge: true});
     claim.commit(tx);
   });
 
-  return {
-    changed: true,
-    bookingId: input.bookingId,
-    courtId: input.toCourtId,
-    courtName: toCourtName,
-    assigned: booking["allocationStatus"] === "unassigned",
-  };
+  return {courtName: toCourtName};
+}
+
+export interface AssignInPlaceParams {
+  bookingId: string;
+  courtId: string;
+  actor: CourtAssignmentActor;
+  nowMs: number;
+  checkFresh?: (fresh: DocumentData) => void;
+  extra?: Record<string, unknown>;
 }
 
 /**
- * Recepção confirma a quadra provisória: a reserva passa a `assigned` (fonte `staff`) e as travas
- * dela deixam de flutuar — ninguém mais empurra essa reserva.
+ * A quadra provisória vira a definitiva (recepção confirma, ou o atleta lê o QR dela): a reserva
+ * passa a `assigned` e as travas dela deixam de flutuar — ninguém mais empurra essa reserva.
  */
-async function assignBookingInPlace(
+export async function assignBookingInPlace(
   db: Firestore,
-  uid: string,
-  bookingId: string,
-  courtId: string,
-  nowMs: number,
+  params: AssignInPlaceParams,
 ): Promise<ChangeBookingCourtResult> {
+  const {bookingId, courtId, actor, nowMs} = params;
   const bookingRef = db.collection(ARENA_BOOKINGS).doc(bookingId);
   return db.runTransaction(async (tx) => {
     const fresh = await tx.get(bookingRef);
@@ -280,7 +337,9 @@ async function assignBookingInPlace(
     }
     const reason = courtChangeBlockReason(data, nowMs);
     if (reason) throw new HttpsError("failed-precondition", reason);
+    params.checkFresh?.(data);
     if (data["allocationStatus"] !== "unassigned") {
+      if (params.extra) tx.set(bookingRef, params.extra, {merge: true});
       return {changed: false, bookingId, courtId, courtName, assigned: false};
     }
 
@@ -302,9 +361,10 @@ async function assignBookingInPlace(
     }
     tx.set(bookingRef, {
       allocationStatus: "assigned",
-      allocationSource: "staff",
+      allocationSource: actor.source,
       allocatedAt: FieldValue.serverTimestamp(),
-      allocatedBy: uid,
+      allocatedBy: actor.uid,
+      ...params.extra,
     }, {merge: true});
     return {changed: true, bookingId, courtId, courtName, assigned: true};
   });

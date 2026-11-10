@@ -123,6 +123,7 @@ class BookingDetailsAttendanceContent extends StatelessWidget {
     required this.onConfirmAttendance,
     required this.onLocationVerifiedChanged,
     required this.onCheckIn,
+    this.showCheckIn = true,
   });
 
   final BookingAttendanceState? attendance;
@@ -136,6 +137,9 @@ class BookingDetailsAttendanceContent extends StatelessWidget {
   final VoidCallback onConfirmAttendance;
   final ValueChanged<bool> onLocationVerifiedChanged;
   final VoidCallback onCheckIn;
+
+  /// Arena que define a quadra: o check-in é o do QR da quadra (card próprio).
+  final bool showCheckIn;
 
   @override
   Widget build(BuildContext context) {
@@ -156,7 +160,8 @@ class BookingDetailsAttendanceContent extends StatelessWidget {
         bookingStatus == BookingDetailsStatus.canceled;
     final confirmedPlayers =
         attendance?.confirmedPlayers ?? confirmedParticipantsFallback;
-    final canCheckIn = attendance?.checkInAllowed == true && !isCheckedIn;
+    final canCheckIn =
+        showCheckIn && attendance?.checkInAllowed == true && !isCheckedIn;
 
     Widget body;
     if (isCheckedIn) {

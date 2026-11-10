@@ -824,6 +824,31 @@ class BookingService {
     });
   }
 
+  /// Check-in pelo QR da quadra (reserva de arena que define a quadra): a quadra lida vira a da
+  /// reserva e o check-in é marcado no servidor (`checkInArenaBookingByCourtQr`). Devolve a quadra.
+  Future<String> checkInByCourtQr({
+    required String bookingId,
+    required String qr,
+  }) async {
+    try {
+      final result = await _functions
+          .httpsCallable('checkInArenaBookingByCourtQr')
+          .call(<String, dynamic>{'bookingId': bookingId.trim(), 'qr': qr.trim()});
+      final data = result.data;
+      final court = data is Map ? data['courtName'] : null;
+      return court is String && court.trim().isNotEmpty ? court.trim() : 'Quadra';
+    } on FirebaseFunctionsException catch (e) {
+      final details = e.details;
+      final reason = details is Map ? details['reason'] : null;
+      throw BookingException(
+        e.message?.trim().isNotEmpty == true
+            ? e.message!.trim()
+            : 'Não foi possível fazer o check-in agora.',
+        code: reason is String ? reason : e.code,
+      );
+    }
+  }
+
   /// Bloqueia um atleta para novas reservas na arena.
   Future<void> blockUser({
     required String arenaId,

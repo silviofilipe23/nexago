@@ -197,3 +197,17 @@ Trava (`arenaSlotLocks`): `floating: true` enquanto a reserva estiver `unassigne
   pagamento" casam pela reserva `unassigned`. Reserva confirmada, Minhas reservas e agenda mostram
   "Quadra definida na chegada". Telas no canvas (página do atleta, abaixo das do app).
 
+- **PR 4c** (QR da quadra na reserva): callable `checkInArenaBookingByCourtQr` (`bookingId`, `qr`
+  lido). Usa o QR impresso por quadra das aulas (`arena-court-checkin-qr.ts`). Só o dono da
+  reserva, de 20 min antes do início até o fim. Reserva `unassigned`: a quadra lida vira a da
+  reserva (`allocationSource: "qr"`, `allocatedBy` = atleta); se for outra que a provisória, a
+  reserva muda para ela pela mesma transação da troca do gestor (`moveBookingToCourt`, empurrando
+  uma flutuante). Quadra ocupada por reserva definida, bloqueada, de outro esporte ou em
+  manutenção: recusa e nada muda. Reserva já definida: o QR tem que ser da quadra dela. Nos dois
+  casos marca o check-in (`attendanceStatus: "checked_in"`, `checkInMethod: "qr"`,
+  `locationVerified: true`), que credita a gamificação pelo trigger de sempre. Recusas trazem
+  `details.reason` (`qr_unknown`, `qr_invalid`, `qr_other_arena`, `court_taken`, `wrong_court`,
+  `already_checked_in`, `not_allowed`). No app, a reserva numa arena que define a quadra ganha o
+  card "Chegou? Leia o QR da quadra" (leitor das aulas) no lugar do "Fazer check-in"; depois
+  mostra "Check-in feito" com a quadra. O topo da reserva lê a quadra do doc vivo. Telas no
+  canvas (05–08, página do atleta). O portal web não lê QR (sem câmera no fluxo).

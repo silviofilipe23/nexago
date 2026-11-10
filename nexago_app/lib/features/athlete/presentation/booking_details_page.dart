@@ -13,7 +13,9 @@ import '../../../core/auth/auth_providers.dart';
 import '../../arena/domain/arena_booking_labels.dart';
 import '../../arena_orders/presentation/arena_app_orders_catalog_page.dart';
 import '../../arenas/domain/arena_booking_cancellation_policy.dart';
+import '../../arenas/domain/arena_booking_allocation.dart';
 import '../../arenas/domain/arena_booking_success_actions.dart';
+import '../../arenas/domain/booking_court_qr.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/presentation/widgets/booking_cancellation_confirm_dialog.dart';
@@ -23,6 +25,7 @@ import '../domain/booking_attendance_providers.dart';
 import '../domain/booking_invite_status.dart' show bookingOwnerUidOf;
 import 'widgets/booking_details/booking_details_actions_section.dart';
 import 'widgets/booking_details/booking_details_app_bar.dart';
+import 'widgets/booking_details/booking_details_court_qr_card.dart';
 import 'widgets/booking_details/booking_details_policy_cards.dart';
 import 'widgets/booking_details/booking_details_hero_card.dart';
 import 'widgets/booking_details/booking_details_location_section.dart';
@@ -109,11 +112,20 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       widget.endAt,
       rawStatus,
     );
+    // Doc vivo manda na quadra: o check-in pelo QR (ou a recepção) pode defini-la com a tela aberta.
+    final liveCourtName = bookingData == null
+        ? widget.courtName
+        : athleteVisibleCourtName(
+              bookingData,
+              (bookingData['courtName'] as String?) ?? widget.courtName,
+              now: _now,
+            ) ??
+            widget.courtName;
     final hero = buildBookingDetailsHeroModel(
       now: _now,
       bookingId: widget.bookingId,
       arenaName: widget.arenaName,
-      courtName: widget.courtName,
+      courtName: liveCourtName,
       startAt: widget.startAt,
       endAt: widget.endAt,
       rawStatus: rawStatus,
@@ -169,6 +181,16 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     final weatherChoicePending =
         WeatherRelease.fromBooking(bookingData)?.isPendingChoice ?? false;
 
+    // Arena que define a quadra: o check-in é pelo QR da quadra (que também define a quadra).
+    final courtQr = isGuest
+        ? const BookingCourtQrState(BookingCourtQrStage.hidden)
+        : bookingCourtQrState(
+            bookingData,
+            startAt: widget.startAt,
+            endAt: widget.endAt,
+            now: _now,
+          );
+
     final cancellation = ArenaBookingCancellationPolicy.athleteCancellation(
       bookingStart: widget.startAt,
       now: _now,
@@ -212,6 +234,14 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             now: _now,
             fallbackArenaId: widget.arenaId,
           ),
+          if (courtQr.stage != BookingCourtQrStage.hidden) ...[
+            const SizedBox(height: 14),
+            BookingDetailsCourtQrCard(
+              bookingId: widget.bookingId,
+              state: courtQr,
+              startAt: widget.startAt,
+            ),
+          ],
           const SizedBox(height: 14),
           BookingDetailsTeamSection(
             bookingId: widget.bookingId,
@@ -250,6 +280,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
               onLocationVerifiedChanged: (v) =>
                   setState(() => _locationVerified = v),
               onCheckIn: _checkInNow,
+              showCheckIn: !isCapacityBooking(bookingData),
             ),
             if (isRecurring || !weatherChoicePending)
               const SizedBox(height: 14),

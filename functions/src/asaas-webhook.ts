@@ -30,6 +30,7 @@ import {processArenaClassAsaasNotification} from "./asaas-arena-class-webhook";
 import {CLASS_PAYMENT_REF_PREFIX} from "./arena-class-constants";
 import {processArenaScheduleAsaasNotification} from "./asaas-arena-schedule-webhook";
 import {SCHEDULE_PAYMENT_REF_PREFIX} from "./arena-schedule-plan-constants";
+import {CRM_PAYMENT_REF_PREFIX, processArenaCrmAsaasNotification} from "./arena-crm-billing";
 import {ARENA_CLUB_SESSION_PAYMENT_REF_PREFIX} from "./arena-club-constants";
 import {reverseCashbackForPayment} from "./cashback-reversal";
 import {
@@ -205,6 +206,9 @@ export const asaasWebhook = onRequest({
     } else if (externalRef.startsWith(SCHEDULE_PAYMENT_REF_PREFIX)) {
       // Mensalidade de plano de horário — também antes do ramo genérico de assinatura.
       await processArenaScheduleAsaasNotification(db, paymentId, payment, processedRef);
+    } else if (externalRef.startsWith(CRM_PAYMENT_REF_PREFIX)) {
+      // Parcelas de contrato do CRM da arena (link gerado pelo time).
+      await processArenaCrmAsaasNotification(db, paymentId, payment, processedRef);
     } else if (externalRef.startsWith(ARENA_BOOKING_SHARE_PAYMENT_REF_PREFIX)) {
       await processArenaBookingShareAsaasNotification(db, paymentId, payment, processedRef);
     } else if (externalRef.startsWith(ARENA_BOOKING_PAYMENT_REF_PREFIX)) {

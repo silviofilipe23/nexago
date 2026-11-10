@@ -10,6 +10,7 @@ import { CrmContractModalComponent } from './crm-contract-modal.component';
 import { CrmConversionComponent } from './crm-conversion.component';
 import { CrmCustomerDrawerComponent } from './crm-customer-drawer.component';
 import { CrmCustomersComponent } from './crm-customers.component';
+import { CrmChargeModalComponent } from './crm-charge-modal.component';
 import { CrmPaymentModalComponent } from './crm-payment-modal.component';
 import { CrmTodayComponent } from './crm-today.component';
 import { CrmUiService } from './crm-ui.service';
@@ -33,6 +34,7 @@ type CrmTab = 'hoje' | 'clientes' | 'conversao';
     CrmCustomerDrawerComponent,
     CrmContractModalComponent,
     CrmPaymentModalComponent,
+    CrmChargeModalComponent,
   ],
   template: `
     <ar-panel-shell>
@@ -87,6 +89,9 @@ type CrmTab = 'hoje' | 'clientes' | 'conversao';
     }
     @if (ui.paymentFor(); as c) {
       <ar-crm-payment-modal [customer]="c" />
+    }
+    @if (ui.chargeFor(); as c) {
+      <ar-crm-charge-modal [customer]="c" />
     }
     @if (ui.toast(); as msg) {
       <div class="toast" role="status">{{ msg }}</div>

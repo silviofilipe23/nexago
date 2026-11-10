@@ -22,6 +22,8 @@ export class CrmUiService {
   readonly drawerKey = signal<string | null>(null);
   readonly contractForm = signal<ContractFormState | null>(null);
   readonly paymentFor = signal<CrmCustomer | null>(null);
+  /** Modal "Cobrar online" (link Pix/cartão). */
+  readonly chargeFor = signal<CrmCustomer | null>(null);
   readonly toast = signal<string | null>(null);
 
   readonly canWrite = (): boolean => this.access.canWrite('agenda');

@@ -127,6 +127,21 @@ export class CrmStore {
     void this.reload();
   }
 
+  async createPaymentLink(contractId: string, installments: number, cpf: string | null): Promise<{ invoiceUrl: string; amountReais: number; installments: number }> {
+    const r = await this.update<{ invoiceUrl: string; amountReais: number; installments: number }>('createPaymentLink', {
+      contractId,
+      installments,
+      ...(cpf ? { cpf } : {}),
+    });
+    void this.reload();
+    return r;
+  }
+
+  async cancelPaymentLink(contractId: string): Promise<void> {
+    await this.update('cancelPaymentLink', { contractId });
+    void this.reload();
+  }
+
   async saveReminders(reminders: ReminderSettings): Promise<void> {
     await this.update('saveSettings', { reminders: { ...reminders } });
     void this.reload();

@@ -38,6 +38,18 @@ export interface CrmContractView {
   renewedFromId: string | null;
   renewedToId: string | null;
   note: string | null;
+  /** Link de pagamento online aberto (Pix ou cartão no Asaas). */
+  onlineLink?: CrmOnlineLink | null;
+}
+
+export interface CrmOnlineLink {
+  linkId: string;
+  invoiceUrl: string;
+  fromInstallment: number;
+  installments: number;
+  amountReais: number;
+  createdAt: string;
+  byName: string | null;
 }
 
 export interface CrmMonth {
@@ -258,6 +270,12 @@ export const PAYMENT_METHODS: ReadonlyArray<{ id: CrmPaymentMethod; label: strin
   { id: 'transfer', label: 'Transferência' },
 ];
 
+/** Rótulo da forma do pagamento na linha do tempo (inclui o online, que não é escolha manual). */
+export function paymentMethodLabel(method: string): string {
+  if (method === 'online') return 'Online (Pix ou cartão)';
+  return PAYMENT_METHODS.find((m) => m.id === method)?.label ?? method;
+}
+
 const WEEKDAY_SHORT: Record<number, string> = { 1: 'Seg', 2: 'Ter', 3: 'Qua', 4: 'Qui', 5: 'Sex', 6: 'Sáb', 7: 'Dom' };
 const WEEKDAY_PLURAL: Record<number, string> = { 1: 'segunda', 2: 'terça', 3: 'quarta', 4: 'quinta', 5: 'sexta', 6: 'sábado', 7: 'domingo' };
 const MONTH_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -435,16 +453,34 @@ export function queueMessage(queue: CrmQueueId, c: CrmCustomer, item: CrmQueueIt
   const plan = v?.planName ?? 'seu plano';
   switch (queue) {
   case 'overdue':
-    return `Oi, ${name}! Tudo bem? Aqui é da ${arenaName}. Passando pra lembrar que a mensalidade do ${plan} está em aberto (${money(v?.overdueReais ?? item.amountReais)}). Se já pagou, me avisa que eu dou baixa. Pode ser por Pix ou aqui na recepção.`;
+    return `Oi, ${name}! Tudo bem? Aqui é da ${arenaName}. Passando pra lembrar que a mensalidade do ${plan} está em aberto (${money(v?.overdueReais ?? item.amountReais)}). Se já pagou, me avisa que eu dou baixa. ${payLine(v)}`;
   case 'dueThisWeek':
     return item.kind === 'term_end'
       ? `Oi, ${name}! Aqui é da ${arenaName}. Seu contrato do ${plan} termina em ${dayMonth(item.date)}. Bora renovar e manter seu horário garantido? Posso deixar tudo pronto pra você.`
-      : `Oi, ${name}! Aqui é da ${arenaName}. A mensalidade do ${plan} (${money(item.amountReais)}) vence em ${dayMonth(item.date)}. Pode pagar por Pix ou na recepção. Qualquer coisa, é só chamar!`;
+      : `Oi, ${name}! Aqui é da ${arenaName}. A mensalidade do ${plan} (${money(item.amountReais)}) vence em ${dayMonth(item.date)}. ${payLine(v)} Qualquer coisa, é só chamar!`;
   case 'notRenewed':
     return `Oi, ${name}! Sentimos sua falta aqui na ${arenaName}. Seu ${plan} terminou em ${dayMonth(item.date)} e dá pra voltar com as mesmas condições. Quer que eu renove pra você?`;
   case 'absent':
     return `Oi, ${name}! Faz ${c.daysSinceVisit ?? 'alguns'} dias que você não aparece na ${arenaName}. Está tudo bem? Seu horário do ${plan} continua garantido, te esperamos na quadra!`;
   }
+}
+
+/** Com link aberto, a mensagem manda o link; sem, Pix ou recepção. */
+function payLine(v: CrmContractView | null | undefined): string {
+  return v?.onlineLink ? `Dá pra pagar por Pix ou cartão por aqui: ${v.onlineLink.invoiceUrl}` : 'Pode ser por Pix ou aqui na recepção.';
+}
+
+/** Mensagem do WhatsApp com o link recém-gerado. */
+export function linkMessage(c: CrmCustomer, arenaName: string, link: { invoiceUrl: string; amountReais: number; installments: number }): string {
+  const what = link.installments === 1 ? 'a mensalidade' : `${link.installments} mensalidades`;
+  return `Oi, ${firstName(c.name)}! Aqui é da ${arenaName}. Segue o link para pagar ${what} do ${c.contract?.planName ?? 'seu plano'} (${money(link.amountReais)}) por Pix ou cartão: ${link.invoiceUrl}`;
+}
+
+/** Contrato do CRM com atleta do app e parcela a pagar: pode cobrar online. */
+export function canChargeOnline(c: CrmCustomer): boolean {
+  const v = c.contract;
+  if (!v || v.source !== 'contract' || !c.athleteId || v.status === 'canceled') return false;
+  return v.totalInstallments === null || v.paidInstallments < v.totalInstallments;
 }
 
 export function whatsappUrl(digits: string, text: string): string {
@@ -516,7 +552,7 @@ export function customersCsv(customers: readonly CrmCustomer[]): string {
 /** Semanas ativas (das últimas 8) para virar oportunidade — igual ao servidor. */
 export const CONVERT_MIN_WEEKS = 4;
 
-export type InstallmentState = 'paid' | 'late' | 'open' | 'future';
+export type InstallmentState = 'paid' | 'late' | 'open' | 'future' | 'link';
 
 /** Parcelas do contrato em volta de hoje: as 2 últimas pagas, as atrasadas e as próximas (até 6). */
 export function installmentStrip(c: CrmContractView, today: string): Array<{ month: string; due: string; state: InstallmentState }> {
@@ -529,7 +565,8 @@ export function installmentStrip(c: CrmContractView, today: string): Array<{ mon
     const month = `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, '0')}`;
     const lastDay = new Date(Date.UTC(Math.floor(idx / 12), (idx % 12) + 1, 0)).getUTCDate();
     const due = k === 0 ? c.startDate : `${month}-${String(Math.min(c.dueDay, lastDay)).padStart(2, '0')}`;
-    const state: InstallmentState = k < c.paidInstallments ? 'paid' : due < today ? 'late' : out.some((i) => i.state === 'open') ? 'future' : 'open';
+    const inLink = !!c.onlineLink && k >= c.onlineLink.fromInstallment && k < c.onlineLink.fromInstallment + c.onlineLink.installments;
+    const state: InstallmentState = k < c.paidInstallments ? 'paid' : inLink ? 'link' : due < today ? 'late' : out.some((i) => i.state === 'open') ? 'future' : 'open';
     out.push({ month, due, state });
   }
   return out;

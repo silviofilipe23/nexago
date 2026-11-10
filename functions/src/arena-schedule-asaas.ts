@@ -37,7 +37,8 @@ import {
   scheduleOnlineBillingOn,
   scheduleSettingsRef,
 } from "./arena-schedule-plans";
-import {defaultAutopayDeps, recoverScheduleAutopay, scheduleAutopayFlagOn, type AutopayDeps} from "./arena-schedule-autopay";
+import {scheduleAutopayFlagOn} from "./arena-schedule-autopay";
+import {defaultAutopayDeps, recoverScheduleAutopay, type AutopayDeps} from "./arena-schedule-autopay-charge";
 import {activatePendingSubscriptionCore, expirePendingSubscriptionCore} from "./arena-schedule-subscriptions";
 import {chargeAsaasMirror, type ClassAsaasState} from "./arena-class-asaas-model";
 import {monthLabelPt} from "./arena-class-billing";

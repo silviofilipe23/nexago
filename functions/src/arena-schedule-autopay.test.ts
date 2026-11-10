@@ -1,7 +1,7 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {HttpsError} from "firebase-functions/v2/https";
-import type {Firestore} from "firebase-admin/firestore";
+import {Timestamp, type Firestore} from "firebase-admin/firestore";
 import type {FakeFirestore} from "./fake-firestore.test-helper";
 import {addDaysToDateKey} from "./arena-recurring-booking";
 import {DEFAULT_PLAN_RULES} from "./arena-schedule-plan-constants";
@@ -13,15 +13,18 @@ import {
   AUTOPAY_NO_CARD_MESSAGE,
   AUTOPAY_SUB_ENDED_MESSAGE,
   AUTOPAY_UNAVAILABLE_MESSAGE,
-  chargeScheduleAutopayDue,
-  defaultAutopayDeps,
   disableAllScheduleAutopayCore,
   getScheduleAutopayPreviewCore,
+  setScheduleAutopayCore,
+} from "./arena-schedule-autopay";
+import {
+  chargeScheduleAutopayDue,
+  defaultAutopayDeps,
   recoverScheduleAutopay,
   runScheduleTokenCharge,
-  setScheduleAutopayCore,
+  scheduleProcessedRef,
   type AutopayDeps,
-} from "./arena-schedule-autopay";
+} from "./arena-schedule-autopay-charge";
 import {cardSurcharge} from "./card-anticipation-fee";
 import {AsaasApiError} from "./asaas-client";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
@@ -326,7 +329,7 @@ describe("débito com token no vencimento", () => {
       },
       getPayment: async (id) => payments.get(id) ?? {id, status: "PENDING"},
       settle: (d, id, p) => processArenaScheduleAsaasNotification(
-        d, id, p, d.doc(`artifacts/p/public/data/asaas_processed_payments/${id}`), {
+        d, id, p, scheduleProcessedRef(d, id), {
           refund: async (pid: string) => {
             calls.refunds.push(pid);
           },
@@ -626,5 +629,151 @@ describe("débito com token no vencimento", () => {
     assert.equal(charge(fake)["status"], "paid");
     const written = JSON.stringify([...docsIn(fake, `${CHARGES}/`), ...docsIn(fake, `${GROUPS}/`), ...docsIn(fake, "artifacts/")]);
     assert.equal(written.includes(TOKEN), false);
+  });
+
+  // ---- achados da revisão ----
+
+  const autopayGroup = (fake: FakeFirestore, id: string, over: Data = {}) => fake.seedDoc(`${GROUPS}/${id}`, {
+    chargeId: "c1", arenaId: ARENA, subscriptionId: "s1", state: "autopay", amountReais: 300,
+    description: "Plano Fixo 1x · dez/2026", paymentId: null, ...over,
+  });
+  const mirrorTo = (id: string) => ({asaas: {groupId: id, state: "autopay", invoiceUrl: null, status: null}});
+
+  it("review 1: stuck without outcome resumes with the same key, then becomes a refusal after 24 h", async () => {
+    const {fake, db} = makeDb();
+    seedAuto(fake);
+    const {deps, calls} = autopayDeps({respond: () => Promise.reject(new AsaasApiError("Unauthorized", 401))});
+    assert.equal((await chargeScheduleAutopayDue(db, NOW, deps)).failed, 1);
+    const at0 = (attempt(fake, "a1")["at"] as Timestamp).toMillis();
+    await recoverScheduleAutopay(db, new Date(NOW.getTime() + 16 * MIN), deps);
+    assert.equal(calls.created.length, 2);
+    assert.equal(calls.created[1]!.attemptId, "a1");
+    assert.equal((charge(fake)["autopay"] as Data)["state"], "charging");
+    assert.equal((attempt(fake, "a1")["at"] as Timestamp).toMillis(), at0, "a retomada não reescreve o `at`");
+
+    const dayAfter = new Date(NOW.getTime() + 25 * 60 * MIN);
+    assert.deepEqual(await recoverScheduleAutopay(db, dayAfter, deps), {resumed: 1, linked: 0});
+    assert.equal(calls.created.length, 2);
+    const ap = charge(fake)["autopay"] as Data;
+    assert.equal(ap["state"], "retry");
+    assert.equal(ap["scheduledFor"], addDaysToDateKey(dayKeyFromEventDate(dayAfter), 1));
+    assert.equal(attempt(fake, "a1")["status"], "refused");
+  });
+
+  it("review 1: charging with no attempt in flight becomes a refusal (2nd → failed + link)", async () => {
+    const {fake, db} = makeDb();
+    seedAuto(fake, {
+      autopay: {state: "charging", attempts: 2, attemptId: "gone", chargedReais: CHARGED, lastAttemptAt: null},
+      charge: mirrorTo("g1"),
+    });
+    autopayGroup(fake, "g1", {tokenCharges: {gone: {status: "refused", source: "autopay"}}});
+    const {deps, calls} = autopayDeps();
+    assert.deepEqual(await recoverScheduleAutopay(db, NOW, deps), {resumed: 1, linked: 0});
+    assert.equal((charge(fake)["autopay"] as Data)["state"], "failed");
+    assert.equal(get(fake, `${GROUPS}/g1`)["state"], "pending");
+    assert.equal(calls.created.length, 0);
+    assert.deepEqual(calls.pushes.map((p) => p.type), ["schedule_plan_autopay_failed"]);
+  });
+
+  it("review 2: safety net gives the link to an open charge left with an autopay group", async () => {
+    const {fake, db} = makeDb();
+    seedAuto(fake, {autopay: {state: "failed", attempts: 2}, charge: mirrorTo("g1")});
+    autopayGroup(fake, "g1");
+    seedCharge(fake, "c2", {
+      dueDate: TODAY, ...mirrorTo("g2"), autopay: {state: "scheduled", scheduledFor: addDaysToDateKey(TODAY, 1)},
+    });
+    autopayGroup(fake, "g2", {chargeId: "c2"});
+    const {deps} = autopayDeps();
+    assert.deepEqual(await recoverScheduleAutopay(db, NOW, deps), {resumed: 0, linked: 1});
+    assert.equal(get(fake, `${GROUPS}/g1`)["state"], "pending");
+    assert.equal((charge(fake)["asaas"] as Data)["state"], "pending");
+    assert.equal(get(fake, `${GROUPS}/g2`)["state"], "autopay", "ainda na janela do débito: sem link");
+  });
+
+  it("review 3: settle that neither paid nor refunded keeps charging; recovery re-checks the token payment", async () => {
+    const {fake, db} = makeDb();
+    seedAuto(fake);
+    const {deps} = autopayDeps();
+    const realSettle = deps.settle;
+    deps.settle = async () => undefined;
+    assert.deepEqual(await runScheduleTokenCharge(db, "c1", "autopay", deps), {outcome: "busy"});
+    assert.equal((charge(fake)["autopay"] as Data)["state"], "charging");
+    assert.equal(attempt(fake, "a1")["status"], "charging");
+    assert.equal(attempt(fake, "a1")["paymentId"], "pay_1");
+    assert.equal(groupOf(fake)["paymentId"], null, "a cobrança com token fica em tokenCharges, não no paymentId do grupo");
+
+    deps.settle = realSettle;
+    assert.deepEqual(await recoverScheduleAutopay(db, new Date(NOW.getTime() + 16 * MIN), deps), {resumed: 1, linked: 0});
+    assert.equal(charge(fake)["status"], "paid");
+    assert.equal((charge(fake)["autopay"] as Data)["state"], "paid");
+    assert.equal(attempt(fake, "a1")["status"], "paid");
+  });
+
+  it("review 4: a manual refusal gives the link to the autopay group it created outside the debit window", async () => {
+    const {fake, db} = makeDb();
+    seedAuto(fake);
+    seedCharge(fake, "c1", {dueDate: TODAY, asaas: {groupId: "gv", state: "void", invoiceUrl: null, status: null}});
+    fake.seedDoc(`${GROUPS}/gv`, {chargeId: "c1", state: "void"});
+    const {deps} = autopayDeps({respond: refusal});
+    assert.deepEqual(await runScheduleTokenCharge(db, "c1", "manual", deps, {uid: "u1"}),
+      {outcome: "refused", message: "Saldo insuficiente."});
+    const groupId = (charge(fake)["asaas"] as Data)["groupId"];
+    assert.notEqual(groupId, "gv");
+    assert.equal(groupOf(fake)["state"], "pending");
+    assert.equal(attempt(fake, "a1")["status"], "refused");
+
+    // Agendada para débito: a recusa na mão não tira da fila nem põe link.
+    const other = makeDb();
+    seedAuto(other.fake);
+    const second = autopayDeps({respond: refusal});
+    await runScheduleTokenCharge(other.db, "c1", "manual", second.deps, {uid: "u1"});
+    assert.equal(groupOf(other.fake)["state"], "autopay");
+    assert.equal((charge(other.fake)["autopay"] as Data)["state"], "scheduled");
+  });
+
+  it("review 5: an old attempt finishing after the pause rewrote the charge leaves the new autopay alone", async () => {
+    const {fake, db} = makeDb();
+    seedAuto(fake);
+    const fresh = {state: "charging", attemptId: "other", attempts: 1, last4: "4242", chargedReais: CHARGED};
+    const {deps} = autopayDeps({respond: async () => {
+      // Pausa cancelou e a volta regravou a mensalidade no mesmo id, já com outra tentativa.
+      const rewritten = {...charge(fake), autopay: fresh} as Data;
+      delete rewritten["asaas"];
+      fake.seedDoc(`${CHARGES}/c1`, rewritten);
+      return refusal();
+    }});
+    assert.equal((await runScheduleTokenCharge(db, "c1", "autopay", deps)).outcome, "refused");
+    assert.deepEqual(charge(fake)["autopay"], fresh);
+    const oldGroup = docsIn(fake, `${GROUPS}/`)[0]![1];
+    assert.equal(((oldGroup["tokenCharges"] as Data)["a1"] as Data)["status"], "refused");
+  });
+
+  it("review 6: manual attempt in flight + job → one charge", async () => {
+    const {fake, db} = makeDb();
+    seedAuto(fake);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    let started!: () => void;
+    const inFlight = new Promise<void>((r) => {
+      started = r;
+    });
+    const {deps, calls} = autopayDeps({respond: async (_i, n) => {
+      if (n === 1) {
+        started();
+        await gate;
+      }
+      return {paymentId: `pay_${n}`, status: "CONFIRMED"};
+    }});
+    const manual = runScheduleTokenCharge(db, "c1", "manual", deps, {uid: "u1"});
+    await inFlight;
+    const job = await chargeScheduleAutopayDue(db, NOW, deps);
+    assert.equal(job.failed, 1, "o débito espera (busy)");
+    release();
+    assert.deepEqual(await manual, {outcome: "paid"});
+    assert.equal(calls.created.length, 1);
+    assert.equal(charge(fake)["status"], "paid");
+    assert.equal((charge(fake)["autopay"] as Data)["state"], "paid");
   });
 });

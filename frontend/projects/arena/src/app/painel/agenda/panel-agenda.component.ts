@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
@@ -25,6 +26,10 @@ import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
 
 type AgendaView = 'Dia' | 'Semana';
+
+/** `?visao=quadras`: fica na grade por quadra mesmo numa arena que define a quadra. */
+export const AGENDA_VIEW_PARAM = 'visao';
+export const AGENDA_VIEW_COURTS = 'quadras';
 
 interface AgendaListRow {
   id: string;
@@ -486,6 +491,7 @@ function timeToMinutes(time: string): number {
 })
 export class PanelAgendaComponent {
   private readonly router = inject(Router);
+  private readonly queryParams = toSignal(inject(ActivatedRoute).queryParamMap);
   protected readonly arenaContext = inject(ArenaContextService);
   private readonly access = inject(ArenaAccessService);
 
@@ -686,6 +692,14 @@ export class PanelAgendaComponent {
   });
 
   constructor() {
+    // Arena "a arena define a quadra": a Agenda abre na visão por horário. "Quadras" de lá volta
+    // com `?visao=quadras`, que mantém a grade por quadra.
+    effect(() => {
+      if (!this.capacityMode()) return;
+      if (this.queryParams()?.get(AGENDA_VIEW_PARAM) === AGENDA_VIEW_COURTS) return;
+      void this.router.navigate(['/painel/agenda/horarios'], { replaceUrl: true });
+    });
+
     effect(() => {
       const arenaId = this.arenaContext.arenaId();
       if (!arenaId) return;

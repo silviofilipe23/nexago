@@ -62,7 +62,7 @@ type HoursTab = 'Lista' | 'Quadro';
       <ar-page-header title="Agenda de quadras" [subtitle]="subtitle()">
         <div class="header-actions">
           <nav class="seg" aria-label="Visão da agenda">
-            <a routerLink="/painel/agenda">Quadras</a>
+            <a routerLink="/painel/agenda" [queryParams]="{ visao: 'quadras' }">Quadras</a>
             <a class="on" aria-current="page">Por horário</a>
           </nav>
           <button type="button" class="ar-ghost-btn nav-btn" (click)="goToday()">Hoje</button>

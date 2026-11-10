@@ -212,7 +212,8 @@ Trava (`arenaSlotLocks`): `floating: true` enquanto a reserva estiver `unassigne
   mostra "Check-in feito" com a quadra. O topo da reserva lê a quadra do doc vivo. Telas no
   canvas (05–08, página do atleta). O portal web não lê QR (sem câmera no fluxo).
 - **PR 5** (painel da arena, só portal; sem function nova): Agenda → **Por horário**
-  (`/painel/agenda/horarios`; atalho na Agenda quando a arena está no modo capacidade). Horários do
+  (`/painel/agenda/horarios`; numa arena no modo capacidade a Agenda já abre nela, e "Quadras" volta
+  para a grade por quadra com `?visao=quadras`). Horários do
   dia com ocupação das quadras da distribuição (reservadas / capacidade, "N sem quadra", vagas;
   capacidade não conta bloqueio, manutenção nem quadra fechada na hora). No horário escolhido:
   **Lista** (provisórias primeiro; Definir quadra/Trocar pela `changeArenaBookingCourt`; Chegou na

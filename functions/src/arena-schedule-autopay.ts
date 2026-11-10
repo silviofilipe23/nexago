@@ -250,6 +250,7 @@ export async function getScheduleAutopayPreviewCore(
   input: unknown,
   env: AsaasEnv,
   terms: CardFeeTerms,
+  now: Date = new Date(),
 ): Promise<{
   brand: string | null; last4: string | null;
   cardFeePercent: number; cardProcessingPercent: number; cardFixedReais: number;
@@ -263,8 +264,11 @@ export async function getScheduleAutopayPreviewCore(
     throw new HttpsError("permission-denied", AUTOPAY_NOT_MEMBER_MESSAGE);
   }
   const card = await readSavedCard(db, uid, env);
+  const today = dayKeyFromEventDate(now);
+  // O próximo débito: aberta online, ainda não vencida e que o cartão salvo cobre.
   const open = (await payerOpenChargeIds(db, subscriptionId, uid))
-    .filter((c) => c.data["billingMode"] === "asaas")
+    .filter((c) => c.data["billingMode"] === "asaas" && str(c.data["dueDate"]) >= today &&
+      card != null && cardValidForDueDate(card, str(c.data["dueDate"])))
     .sort((a, b) => str(a.data["dueDate"]).localeCompare(str(b.data["dueDate"])));
   const first = open[0];
   let next = null;
@@ -283,7 +287,11 @@ export async function getScheduleAutopayPreviewCore(
 // Callables
 // ---------------------------------------------------------------------------
 
-export const setScheduleAutopay = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
+export const setScheduleAutopay = onCall({
+  region: CLIENT_FACING_REGIONS,
+  // `getAsaasEnvTag()` sem o ASAAS_ENV ligado vira "production" (e o cartão do sandbox some).
+  secrets: [...asaasArenaSecrets],
+}, async (request) => {
   const uid = requireUid(request.auth);
   try {
     return await setScheduleAutopayCore(getFirestore(), uid, request.data ?? {}, getAsaasEnvTag());

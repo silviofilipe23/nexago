@@ -491,6 +491,36 @@ describe("planos de horário online — webhook e caixa", () => {
     assert.equal(charge(fake)["platformFeeReais"], 18);
     assert.equal(fake.store.get(`arenaWallets/${ARENA}`)!["awaitingSettlementReais"], 282);
   });
+
+  it("token: deleted/OVERDUE/negativo de uma cobrança :t… não anula nem carimba o grupo do link", async () => {
+    const {fake, db} = makeDb();
+    seedOnline(fake, {charge: {
+      billingMode: "asaas", asaas: {groupId: "g1", state: "open", invoiceUrl: "https://asaas.test/i/g1", status: "PENDING"},
+      autopay: {state: "retry", attempts: 1},
+    }});
+    fake.seedDoc(`${GROUPS}/g1`, {
+      chargeId: "c1", arenaId: ARENA, subscriptionId: "s1", state: "open", amountReais: 300, paymentId: "pay_g1",
+      invoiceUrl: "https://asaas.test/i/g1", asaasStatus: "PENDING",
+      tokenCharges: {abc: {paymentId: "pay_t", source: "autopay", status: "refused", chargedReais: 312.46}},
+    });
+    const base = {id: "pay_t", billingType: "CREDIT_CARD", value: 312.46, externalReference: "arenaSchedulePayment:g1:tabc"};
+    for (const [i, p] of [
+      {...base, status: "PENDING", deleted: true},
+      {...base, status: "OVERDUE"},
+      {...base, status: "REFUNDED"},
+    ].entries()) {
+      await processArenaScheduleAsaasNotification(db, "pay_t", p, processedRef(db, `pay_t${i}`), webhookDeps());
+    }
+    const g = group(fake, "g1");
+    assert.equal(g["state"], "open");
+    assert.equal(g["asaasStatus"], "PENDING");
+    assert.equal(g["voidReason"], undefined);
+    assert.equal(((g["tokenCharges"] as Data)["abc"] as Data)["asaasStatus"], "REFUNDED");
+    assert.equal(((g["tokenCharges"] as Data)["abc"] as Data)["status"], "refused");
+    assert.equal(mirror(fake)["state"], "open");
+    assert.equal(mirror(fake)["status"], "PENDING");
+    assert.equal(charge(fake)["status"], "open");
+  });
 });
 
 describe("planos de horário online — varredura", () => {
@@ -962,6 +992,27 @@ describe("planos de horário online — débito automático", () => {
     fake.seedDoc(`${GROUPS}/g1`, {chargeId: "c1", state: "autopay"});
     assert.equal(await requestScheduleGroupVoid(db, "g1"), "void");
     assert.equal(group(fake, "g1")["state"], "void");
+  });
+
+  it("Pagar with an autopay group: link now, the scheduled debit stays (retry)", async () => {
+    const {fake, db} = makeDb();
+    seedAuto(fake, {sub: {autopay: {}}});
+    const {groupId} = await decideScheduleChargeBilling(db, "c1");
+    fake.seedDoc(`${GROUPS}/${groupId}`, {...group(fake, groupId!), state: "autopay", customerAthleteId: "u1"});
+    fake.seedDoc(`${CHARGES}/c1`, {
+      ...charge(fake), asaas: {...mirror(fake), state: "autopay"},
+      autopay: {state: "retry", scheduledFor: "2026-12-06", attempts: 1, lastError: "Saldo insuficiente.", needsLink: false},
+    });
+    const {deps, calls} = fakeDeps();
+    const out = await getScheduleChargePaymentLinkCore(db, "u1", "c1", undefined, deps);
+    assert.equal(out.invoiceUrl, `https://asaas.test/i/${groupId}`);
+    assert.deepEqual(calls.created, [groupId]);
+    assert.equal(group(fake, groupId!)["state"], "open");
+    assert.equal(mirror(fake)["groupId"], groupId);
+    assert.equal((charge(fake)["autopay"] as Data)["state"], "retry");
+    assert.equal((charge(fake)["autopay"] as Data)["scheduledFor"], "2026-12-06");
+    // Quem está pagando não recebe push "mensalidade disponível".
+    assert.equal(calls.pushes.length, 0);
   });
 
   it("autopay group does not trigger the Asaas worker", async () => {

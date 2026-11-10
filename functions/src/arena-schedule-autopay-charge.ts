@@ -165,7 +165,7 @@ function ownsAutopay(charge: Data | undefined, attemptId: string): boolean {
   return ap["state"] === "charging" && str(ap["attemptId"]) === attemptId;
 }
 
-/** Outra tentativa (manual) ainda em voo no grupo. */
+/** Outra tentativa ainda em voo no grupo. */
 function attemptInFlight(group: Data | undefined, nowMs: number, except?: string): boolean {
   return Object.entries(mapOf(group?.["tokenCharges"])).some(([id, t]) =>
     id !== except && mapOf(t)["status"] === "charging" && nowMs - millisOf(mapOf(t)["at"]) < STUCK_CHARGING_MS);
@@ -252,8 +252,8 @@ async function claimTokenCharge(
     const group = currentGroupId && groupSnap.exists ? groupSnap.data() as Data : undefined;
     const live = group != null && LIVE_GROUP_STATES.has(str(group["state"]));
 
-    // Pagamento na mão em voo neste grupo: o débito espera a próxima rodada (sem gravar nada).
-    if (source === "autopay" && live && attemptInFlight(group, now.getTime(), resumeId)) return {kind: "busy"};
+    // Outra tentativa (débito ou na mão) em voo neste grupo: espera a próxima rodada (sem gravar nada).
+    if (live && attemptInFlight(group, now.getTime(), resumeId)) return {kind: "busy"};
     const resumed = resumeId ? mapOf(mapOf(group?.["tokenCharges"])[resumeId]) : undefined;
     if (resumed && (resumed["status"] !== "charging" || str(resumed["paymentId"]))) {
       return {kind: "skip", reason: "not_charging", link: false};

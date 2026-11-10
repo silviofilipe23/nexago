@@ -5,7 +5,12 @@ import {Timestamp, type Firestore} from "firebase-admin/firestore";
 import type {FakeFirestore} from "./fake-firestore.test-helper";
 import {addDaysToDateKey} from "./arena-recurring-booking";
 import {DEFAULT_PLAN_RULES} from "./arena-schedule-plan-constants";
-import {ensureScheduleChargeLinkGroup} from "./arena-schedule-asaas";
+import {
+  ensureScheduleChargeLinkGroup,
+  getArenaScheduleChargePaymentLink,
+  onArenaScheduleChargeWritten,
+  reconcileArenaScheduleAsaasPayments,
+} from "./arena-schedule-asaas";
 import {
   AUTOPAY_ARENA_OFFLINE_MESSAGE,
   AUTOPAY_CONSENT_MESSAGE,
@@ -14,18 +19,22 @@ import {
   AUTOPAY_SUB_ENDED_MESSAGE,
   AUTOPAY_UNAVAILABLE_MESSAGE,
   disableAllScheduleAutopayCore,
+  getScheduleAutopayPreview,
   getScheduleAutopayPreviewCore,
   refreshScheduleAutopayCardCore,
   removeMyPaymentCardCore,
+  setScheduleAutopay,
   setScheduleAutopayCore,
 } from "./arena-schedule-autopay";
 import {
   AUTOPAY_BUSY_MESSAGE,
   CARD_REFUSED_MESSAGE,
+  payScheduleChargeWithSavedCard,
   payScheduleChargeWithSavedCardCore,
 } from "./arena-schedule-autopay-pay";
 import {PAYMENT_WINDOW_CLOSED_MESSAGE} from "./arena-schedule-asaas";
 import {
+  chargeArenaScheduleAutopay,
   chargeScheduleAutopayDue,
   defaultAutopayDeps,
   recoverScheduleAutopay,
@@ -37,6 +46,7 @@ import {cardSurcharge} from "./card-anticipation-fee";
 import {AsaasApiError} from "./asaas-client";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 import {processArenaScheduleAsaasNotification} from "./asaas-arena-schedule-webhook";
+import {getMyPaymentCard, saveMyPaymentCard} from "./asaas-saved-card";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {ARENA, MANAGER, docsIn, makeDb, seedArena, today} from "./arena-schedule.test-helper";
 
@@ -94,6 +104,22 @@ async function rejectsWith(p: Promise<unknown>, code: string, message: string): 
 
 const enable = (db: Firestore, over: Data = {}) =>
   setScheduleAutopayCore(db, "u1", {subscriptionId: "s1", enabled: true, consentText: CONSENT, ...over}, "sandbox");
+
+describe("ASAAS_ENV ligado em toda função que lê o ambiente do cartão", () => {
+  // Sem o segredo, `getAsaasEnvTag()` vira "production" e o cartão salvo no sandbox some.
+  const fns: Record<string, unknown> = {
+    setScheduleAutopay, getScheduleAutopayPreview, payScheduleChargeWithSavedCard, chargeArenaScheduleAutopay,
+    onArenaScheduleChargeWritten, reconcileArenaScheduleAsaasPayments, getArenaScheduleChargePaymentLink,
+    saveMyPaymentCard, getMyPaymentCard,
+  };
+  for (const [name, fn] of Object.entries(fns)) {
+    it(name, () => {
+      const secrets = (fn as {__endpoint: {secretEnvironmentVariables?: Array<{key: string}>}})
+        .__endpoint.secretEnvironmentVariables ?? [];
+      assert.ok(secrets.some((s) => s.key === "ASAAS_ENV"), `${name} sem ASAAS_ENV`);
+    });
+  }
+});
 
 describe("setScheduleAutopayCore", () => {
   it("enable schedules open online charges of the payer", async () => {
@@ -297,6 +323,28 @@ describe("getScheduleAutopayPreviewCore", () => {
     assert.equal(out.next!.chargeId, "c1");
     assert.equal(out.next!.amountReais, 300);
     assert.equal(out.next!.chargedReais, 300 + cardSurcharge(300, terms).totalCents / 100);
+  });
+
+  it("overdue charges don't count: next is the closest one due today or later", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    seedCharge(fake, "c0", {dueDate: addDaysToDateKey(today(), -3)});
+    seedCharge(fake, "c1", {dueDate: addDaysToDateKey(today(), 10)});
+    seedCharge(fake, "c2", {dueDate: today(), billingMode: "manual"});
+    const out = await getScheduleAutopayPreviewCore(db, "u1", {subscriptionId: "s1"}, "sandbox", terms);
+    assert.equal(out.next!.chargeId, "c1");
+  });
+
+  it("a charge the saved card doesn't cover (expires before the due month) is not next", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    const [y, m] = today().split("-").map(Number);
+    fake.seedDoc("users/u1/asaas/savedCard", {
+      ...get(fake, "users/u1/asaas/savedCard"), expiryMonth: m, expiryYear: y,
+    });
+    seedCharge(fake, "c1", {dueDate: addDaysToDateKey(today(), 40)});
+    const out = await getScheduleAutopayPreviewCore(db, "u1", {subscriptionId: "s1"}, "sandbox", terms);
+    assert.equal(out.next, null);
   });
 
   it("next is null without an open charge", async () => {
@@ -519,6 +567,22 @@ describe("débito com token no vencimento", () => {
     const {deps, calls} = autopayDeps();
     assert.deepEqual(await runScheduleTokenCharge(db, "c1", "manual", deps, {uid: "u1"}), {outcome: "busy"});
     assert.equal(calls.created.length, 0);
+  });
+
+  it("two manual payments at once → one charge, the other busy", async () => {
+    const {fake, db} = makeDb();
+    seedAuto(fake);
+    serializeTransactions(fake);
+    const {deps, calls} = autopayDeps({respond: async (_i, n) => {
+      await new Promise((resolve) => setImmediate(resolve));
+      return {paymentId: `pay_${n}`, status: "CONFIRMED"};
+    }});
+    const outs = await Promise.all([
+      runScheduleTokenCharge(db, "c1", "manual", deps, {uid: "u1"}),
+      runScheduleTokenCharge(db, "c1", "manual", deps, {uid: "u1"}),
+    ]);
+    assert.equal(calls.created.length, 1);
+    assert.deepEqual(outs.map((o) => o.outcome).sort(), ["busy", "paid"]);
   });
 
   it("resolved after claim → refund", async () => {

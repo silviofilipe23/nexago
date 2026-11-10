@@ -8,7 +8,8 @@
  * - PIX `RECEIVED`: mensalidade paga + crédito no caixa da arena + reativa a assinatura suspensa;
  * - cartão `CONFIRMED`: mensalidade paga + líquido no "a liberar"; `RECEIVED` (~D+32): crédito.
  * Pago com o grupo já anulado (baixa manual, cancelamento, pausa, encerramento) ou mensalidade fora
- * de "em aberto" vira estorno — cobrar duas vezes é pior que devolver. `OVERDUE` só atualiza o espelho.
+ * de "em aberto" vira estorno — cobrar duas vezes é pior que devolver. `OVERDUE` só atualiza o espelho
+ * (na cobrança com token, só a tentativa: o grupo também é o do link e não é anulado por ela).
  */
 import * as logger from "firebase-functions/logger";
 import {FieldValue, type DocumentReference, type Firestore, type Transaction} from "firebase-admin/firestore";
@@ -109,6 +110,7 @@ export async function processArenaScheduleAsaasNotification(
   });
 
   const groupRef = db.collection(ARENA_SCHEDULE_ASAAS_PAYMENTS).doc(groupId);
+  const tokenAttemptId = parseScheduleTokenAttempt((payment.externalReference || "").trim());
 
   if (NEGATIVE_STATUSES.has(status)) {
     if (alreadyConfirmed) {
@@ -122,12 +124,16 @@ export async function processArenaScheduleAsaasNotification(
         groupId, paymentId, status, billingType,
       });
     }
-    await mirrorStatus(db, groupId, status);
+    if (tokenAttemptId) await mirrorTokenStatus(db, groupId, tokenAttemptId, status);
+    else await mirrorStatus(db, groupId, status);
     return;
   }
 
   if (status === "OVERDUE" || payment.deleted === true) {
-    await mirrorStatus(db, groupId, payment.deleted ? "DELETED" : status, payment.deleted === true);
+    const mirrored = payment.deleted ? "DELETED" : status;
+    // Cobrança com token: o grupo é também o do link — não anula nem carimba; só a tentativa.
+    if (tokenAttemptId) await mirrorTokenStatus(db, groupId, tokenAttemptId, mirrored);
+    else await mirrorStatus(db, groupId, mirrored, payment.deleted === true);
     return;
   }
 
@@ -140,7 +146,7 @@ export async function processArenaScheduleAsaasNotification(
   // cartão salvo, `tokenCharges` da tentativa, gravado antes do POST) — a mensalidade, a taxa da
   // NexaGO e o caixa da arena ficam no valor do plano.
   const groupNow = (await groupRef.get()).data() ?? {};
-  const attemptId = parseScheduleTokenAttempt((payment.externalReference || "").trim());
+  const attemptId = tokenAttemptId;
   const {feeCents: cardFeeCents, processingCents: cardProcessingCents} = cardChargeOf(
     (groupNow["cardCharges"] as Record<string, unknown> | undefined)?.[paymentId] ??
       (attemptId ? (groupNow["tokenCharges"] as Record<string, unknown> | undefined)?.[attemptId] : undefined),
@@ -298,6 +304,19 @@ export function cardChargeOf(raw: unknown): {feeCents: number; processingCents: 
 }
 
 /** Espelha o status do Asaas no grupo e na mensalidade; removido no Asaas anula o grupo. */
+/** Status de uma cobrança com token que não pagou: fica na tentativa (`tokenCharges.{id}.asaasStatus`). */
+async function mirrorTokenStatus(db: Firestore, groupId: string, attemptId: string, status: string): Promise<void> {
+  const groupRef = db.collection(ARENA_SCHEDULE_ASAAS_PAYMENTS).doc(groupId);
+  await db.runTransaction(async (tx: Transaction) => {
+    const snap = await tx.get(groupRef);
+    const tokenCharges = (snap.data()?.["tokenCharges"] ?? {}) as Record<string, unknown>;
+    if (!snap.exists || tokenCharges[attemptId] == null) return;
+    tx.set(groupRef, {
+      tokenCharges: {[attemptId]: {asaasStatus: status}}, updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+  });
+}
+
 async function mirrorStatus(db: Firestore, groupId: string, status: string, voidGroup = false): Promise<void> {
   const groupRef = db.collection(ARENA_SCHEDULE_ASAAS_PAYMENTS).doc(groupId);
   await db.runTransaction(async (tx: Transaction) => {

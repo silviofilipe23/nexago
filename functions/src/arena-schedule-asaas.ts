@@ -297,7 +297,12 @@ export async function decideScheduleChargeBilling(
  * grupo `void`: cria um `pending` novo. Grupo `autopay`: passa a `pending` no mesmo id. Grupo vivo:
  * nada a fazer. Devolve o id do grupo ou null (mensalidade fora de "aberta online").
  */
-export async function ensureScheduleChargeLinkGroup(db: Firestore, chargeId: string): Promise<string | null> {
+export async function ensureScheduleChargeLinkGroup(
+  db: Firestore,
+  chargeId: string,
+  /** `silentLink`: quem pediu o link é quem vai pagar (o "Pagar"); sem o push "mensalidade disponível". */
+  opts: {silentLink?: boolean} = {},
+): Promise<string | null> {
   const chargeRef = db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId);
   return db.runTransaction(async (tx: Transaction) => {
     const chargeSnap = await tx.get(chargeRef);
@@ -313,7 +318,9 @@ export async function ensureScheduleChargeLinkGroup(db: Firestore, chargeId: str
     }
     const subSnap = await tx.get(db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).doc(str(charge["subscriptionId"]) || "_"));
     if (currentId && current && current["state"] === "autopay") {
-      tx.set(groupsCol(db).doc(currentId), {state: "pending", updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+      tx.set(groupsCol(db).doc(currentId), {
+        state: "pending", ...(opts.silentLink ? {silentLink: true} : {}), updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
       tx.set(chargeRef, {asaas: {...mirror, state: "pending"}}, {merge: true});
       return currentId;
     }
@@ -644,7 +651,8 @@ export async function skipScheduleAutopay(db: Firestore, chargeId: string, reaso
 
 export const onArenaScheduleChargeWritten = onDocumentWritten({
   document: `${ARENA_SCHEDULE_CHARGES}/{chargeId}`,
-  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+  // Decidir o débito lê o cartão salvo pelo ambiente (`getAsaasEnvTag()` precisa do ASAAS_ENV).
+  secrets: [...asaasArenaSecrets, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async (event) => {
   const before = event.data?.before?.data();
   const after = event.data?.after?.data();
@@ -927,6 +935,12 @@ export async function getScheduleChargePaymentLinkCore(
     const invoiceUrl = str(group["invoiceUrl"]);
     if (state === "open" && invoiceUrl) return {invoiceUrl};
 
+    if (state === "autopay") {
+      // Débito agendado/recusado: o grupo vira `pending` no mesmo id e o link sai agora. Link e token
+      // convivem no grupo (o que pagar primeiro quita, o outro é estornado); `autopay.state` não muda.
+      await ensureScheduleChargeLinkGroup(db, chargeId, {silentLink: true});
+      continue;
+    }
     if (state === "pending" || state === "failed") {
       // Gera na hora (a disputa com o gatilho do grupo é decidida na transação do claim).
       const out = await ensureScheduleAsaasPayment(db, groupId, deps);

@@ -268,7 +268,7 @@ export async function decideScheduleChargeBilling(
         tx.set(chargeRef, {
           billingMode: "asaas",
           autopay: {
-            state: "scheduled", scheduledFor: dueDate, attempts: 0, lastAttemptAt: null, lastError: null,
+            state: "scheduled", scheduledFor: dueDate, attempts: 0, lastAttemptAt: null, lastError: null, needsLink: false,
             brand: card.brand, last4: card.last4, chargedReais: null,
           },
         }, {merge: true});

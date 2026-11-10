@@ -159,7 +159,7 @@ async function scheduleOne(db: Firestore, chargeId: string, today: string, card:
     if (!cardValidForDueDate(card, dueDate)) return;
     tx.set(ref, {
       autopay: {
-        state: "scheduled", scheduledFor: dueDate, attempts: 0, lastAttemptAt: null, lastError: null,
+        state: "scheduled", scheduledFor: dueDate, attempts: 0, lastAttemptAt: null, lastError: null, needsLink: false,
         brand: card.brand, last4: card.last4, chargedReais: null,
       },
     }, {merge: true});

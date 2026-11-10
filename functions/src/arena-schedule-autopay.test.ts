@@ -935,6 +935,20 @@ describe("débito com token no vencimento", () => {
       assert.equal(autopay(fake, "c1")!["needsLink"], false);
     });
 
+    it("re-enabling a failed charge with a stale needsLink creates no link", async () => {
+      const {fake, db} = makeDb();
+      seed(fake);
+      seedCharge(fake, "c1", {autopay: {state: "failed", needsLink: true}});
+      await enable(db);
+      assert.equal(autopay(fake, "c1")!["state"], "scheduled");
+      assert.equal(autopay(fake, "c1")!["needsLink"], false);
+      // Defesa em profundidade: mesmo com a marca velha, a janela do débito não ganha link.
+      fake.seedDoc(`${CHARGES}/c1`, {...get(fake, `${CHARGES}/c1`), autopay: {...autopay(fake, "c1"), needsLink: true}});
+      assert.deepEqual(await recoverScheduleAutopay(db, NOW, autopayDeps().deps), {resumed: 0, linked: 0});
+      assert.equal(docsIn(fake, `${GROUPS}/`).length, 0);
+      assert.equal(autopay(fake, "c1")!["needsLink"], false);
+    });
+
     it("every skip/failed write marks needsLink", async () => {
       const {fake, db} = makeDb();
       seed(fake);

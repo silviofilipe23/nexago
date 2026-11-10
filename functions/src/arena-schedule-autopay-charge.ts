@@ -631,6 +631,11 @@ export async function recoverScheduleAutopay(
   // Fila `needsLink`: quem saiu do débito (`skipped`/`failed`) e ainda não ganhou o link. Esvazia sozinha.
   const linkless = await col.where("autopay.needsLink", "==", true).limit(200).get();
   for (const doc of linkless.docs) {
+    // Voltou para a fila do débito: link agora seria cobrança dupla. Só limpa a marca.
+    if (inWindow(doc.data() as Data)) {
+      await doc.ref.set({autopay: {needsLink: false}}, {merge: true});
+      continue;
+    }
     if (await ensureLinkQuietly(db, doc.id)) linked += 1;
   }
 

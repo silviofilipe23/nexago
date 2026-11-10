@@ -8,6 +8,7 @@ export type PanelIconName =
   | 'cash'
   | 'shield'
   | 'team'
+  | 'kanban'
   | 'gear'
   | 'bell'
   | 'search'
@@ -92,6 +93,10 @@ export type PanelIconName =
         }
         @case ('shield') {
           <path d="M12 3 4.5 6v5.5c0 4.6 3.2 7.8 7.5 9.5 4.3-1.7 7.5-4.9 7.5-9.5V6L12 3z" />
+        }
+        @case ('kanban') {
+          <rect x="3.5" y="4" width="5" height="16" rx="1.5" /><rect x="10" y="4" width="5" height="11" rx="1.5" />
+          <rect x="16.5" y="4" width="4" height="7" rx="1.5" />
         }
         @case ('team') {
           <circle cx="12" cy="7.5" r="3.5" /><path d="M5 21c0-3.9 3.1-7 7-7s7 3.1 7 7" />

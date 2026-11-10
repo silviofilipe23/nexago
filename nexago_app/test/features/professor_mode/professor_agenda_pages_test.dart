@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/teacher_class_roster.dart';
 import 'package:nexago_app/features/professor_links/domain/arena_professor_link.dart';
+import 'package:nexago_app/features/professor_mode/infrastructure/professor_students_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/professor_shell_page.dart';
 
 import '../professor_links/professor_links_test_support.dart'
@@ -303,6 +304,88 @@ void main() {
           findsNothing);
       await tap(tester, find.byKey(const Key('professor-agenda-session-story')));
       expect(find.text('encerrado manha'), findsOneWidget);
+    });
+
+    group('Emendar +1h', () {
+      Future<FakeProfessorActionsRepository> open(
+        WidgetTester tester, {
+        bool canSchedule = true,
+      }) async {
+        final actions = FakeProfessorActionsRepository();
+        await pumpProfessorAgendaApp(
+          tester,
+          agenda: agendaRepo(),
+          location: AppRoutes.professorAgenda,
+          actions: actions,
+          snapshot: professorStudentsSnapshot(arenas: [
+            {
+              ...arenaMap(),
+              'actions': {'canScheduleLessons': canSchedule},
+            },
+          ]),
+        );
+        await tap(tester,
+            find.byKey(const Key('professor-agenda-item-session:noite')));
+        return actions;
+      }
+
+      testWidgets('confirma, emenda e a aula passa a terminar 21:00',
+          (tester) async {
+        final actions = await open(tester);
+        expect(find.byKey(const Key('professor-session-extend')), findsOneWidget);
+        expect(find.textContaining('Até 21:00'), findsOneWidget);
+
+        await tap(tester, find.byKey(const Key('professor-session-extend')));
+        expect(find.text('Emendar a aula até 21:00?'), findsOneWidget);
+        await tap(tester, find.byKey(const Key('professor-extend-confirm')));
+
+        expect(actions.extends_, ['noite']);
+        expect(find.byKey(const Key('professor-session-extended-tag')),
+            findsOneWidget);
+        expect(find.textContaining('19:00–21:00'), findsOneWidget);
+        // Dá para emendar de novo, a partir do fim novo.
+        expect(find.textContaining('Até 22:00'), findsOneWidget);
+      });
+
+      testWidgets('sem vaga: explica e nada muda', (tester) async {
+        final actions = await open(tester);
+        actions.error = const ProfessorNoVacancyException(
+            'Sem vaga das 20:00 às 21:00: a quadra está ocupada e não há outra livre. A aula não foi emendada.');
+
+        await tap(tester, find.byKey(const Key('professor-session-extend')));
+        await tap(tester, find.byKey(const Key('professor-extend-confirm')));
+
+        expect(find.byKey(const Key('professor-extend-no-vacancy')),
+            findsOneWidget);
+        expect(find.text('Sem vaga das 20:00 às 21:00'), findsOneWidget);
+        await tap(
+            tester, find.byKey(const Key('professor-extend-no-vacancy-ok')));
+        expect(find.byKey(const Key('professor-session-extended-tag')),
+            findsNothing);
+        expect(find.textContaining('19:00–20:00'), findsOneWidget);
+      });
+
+      testWidgets('sem a chave "Agendar aulas": sem o card', (tester) async {
+        await open(tester, canSchedule: false);
+        expect(find.byKey(const Key('professor-session-extend')), findsNothing);
+      });
+
+      testWidgets('aula que já terminou: sem o card', (tester) async {
+        await pumpProfessorAgendaApp(
+          tester,
+          agenda: agendaRepo(),
+          location: AppRoutes.professorAgenda,
+          snapshot: professorStudentsSnapshot(arenas: [
+            {
+              ...arenaMap(),
+              'actions': {'canScheduleLessons': true},
+            },
+          ]),
+        );
+        await tap(tester,
+            find.byKey(const Key('professor-agenda-item-session:manha')));
+        expect(find.byKey(const Key('professor-session-extend')), findsNothing);
+      });
     });
 
     testWidgets('aula de mais tarde: sem "Story"', (tester) async {

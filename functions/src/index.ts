@@ -11,6 +11,7 @@ import {
 import {changeArenaBookingCourt} from "./arena-booking-court-change";
 import {setArenaBookingAllocation} from "./arena-booking-allocation";
 import {onArenaCourtBlockedRelocateFloating} from "./arena-court-block-floating";
+import {onArenaCourtMaintenanceRelocateFloating} from "./arena-court-maintenance-floating";
 import {
   cancelPendingArenaBookingPayment,
   createArenaBookingCardPayment,
@@ -457,6 +458,7 @@ export {
   moveArenaClassStudent,
   sendArenaClassNotice,
 } from "./arena-class-professor-actions";
+export {extendArenaClassSession} from "./arena-class-extend";
 export {getMyClassCharges} from "./arena-class-athlete-charges";
 
 export {
@@ -511,6 +513,7 @@ export {
   changeArenaBookingCourt,
   setArenaBookingAllocation,
   onArenaCourtBlockedRelocateFloating,
+  onArenaCourtMaintenanceRelocateFloating,
   cancelPendingArenaBookingPayment,
   createArenaBookingCardPayment,
   createArenaBookingPixPayment,

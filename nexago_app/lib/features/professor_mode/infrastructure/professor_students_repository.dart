@@ -18,6 +18,12 @@ class ProfessorStudentsException implements Exception {
   String toString() => message;
 }
 
+/// O servidor recusou porque não há vaga no horário (a quadra está ocupada e não há outra
+/// livre): a tela mostra "Sem vaga" em vez do erro genérico.
+class ProfessorNoVacancyException extends ProfessorStudentsException {
+  const ProfessorNoVacancyException(super.message);
+}
+
 /// Alunos do professor (callable `getMyProfessorStudents` — as coleções das
 /// Aulas são só da equipe da arena) e as anotações privadas dele
 /// (`users/{uid}/professorStudentNotes/{arenaId}_{studentId}`, só o dono lê).

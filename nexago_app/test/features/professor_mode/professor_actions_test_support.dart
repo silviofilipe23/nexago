@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_actions.dart';
 import 'package:nexago_app/features/professor_mode/domain/professor_cancel.dart';
+import 'package:nexago_app/features/professor_mode/domain/professor_extend.dart';
 import 'package:nexago_app/features/professor_mode/infrastructure/professor_actions_repository.dart';
 import 'package:nexago_app/features/professor_mode/presentation/actions/professor_add_student_page.dart';
 import 'package:nexago_app/features/professor_mode/presentation/actions/professor_convert_trial_page.dart';
@@ -338,6 +339,20 @@ class FakeProfessorActionsRepository implements ProfessorActionsRepository {
   );
 
   final lessonCancelNotices = <({String bookingId, String reason})>[];
+
+  final extends_ = <String>[];
+  ProfessorSessionExtendResult extendResult = const ProfessorSessionExtendResult(
+    endTime: '21:00',
+    previousEndTime: '20:00',
+    relocatedBookings: 0,
+  );
+
+  @override
+  Future<ProfessorSessionExtendResult> extendSession(String sessionId) async {
+    await _maybeFail();
+    extends_.add(sessionId);
+    return extendResult;
+  }
 
   @override
   Future<bool> notifyLessonCanceled({

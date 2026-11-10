@@ -224,3 +224,22 @@ Trava (`arenaSlotLocks`): `floating: true` enquanto a reserva estiver `unassigne
   **Confirmar todas** fixa as provisórias do horário na quadra que já seguram (uma chamada por
   reserva; falhas listadas no modal). Lógica pura em `painel/agenda/capacity-hours.ts`. Telas no
   canvas (04–06, página da arena).
+- **O que desconta da capacidade do horário** (regra do dono, 10/11): aula fixa, reposição de
+  aula, emenda de +1h, torneio e manutenção. Todos ocupam quadra específica pela trava, pelo
+  bloqueio ou pela manutenção da quadra, e a capacidade é o que sobra.
+  - Aula fixa e aula nova do professor (`createArenaClassLesson`) já passavam pelo
+    `claimCourtLocks` (PR 2). Reposição que encaixa o aluno numa aula que já existe não usa
+    quadra nova, então não desconta de novo.
+  - **Emendar a aula (+1h)**: a callable `extendArenaClassSession` (`arena-class-extend.ts`)
+    estica a aula na mesma quadra. Ela trava a hora a mais, estica a reserva e o `arenaSlots` da
+    aula e grava `extendedMinutes`. Uma provisória na hora seguinte vai para outra quadra livre.
+    Recusa com `reason: "no_vacancy"` quando há reserva definida, provisória sem outra quadra,
+    bloqueio ou quadra em manutenção: **sem vaga, não marca**. Só a equipe ou o professor da
+    aula com a chave "Agendar aulas" podem emendar. No app do professor fica o card "Emendar
+    +1h" na aula (canvas, página Ecossistema).
+  - **Torneio** virou motivo de bloqueio (`blockReason: "torneio"`, app e portal). O app antigo
+    lê o valor como "Outro". O bloqueio continua tirando a quadra da capacidade e empurrando
+    provisórias (`onArenaCourtBlockedRelocateFloating`).
+  - **Manutenção**: o trigger `onArenaCourtMaintenanceRelocateFloating` roda quando a quadra
+    passa a `maintenance`. Ele leva as provisórias dela, de hoje em diante, para outra quadra
+    livre. Sem quadra livre, ficam e o log avisa.

@@ -37,6 +37,7 @@ class ArenaBookingWaitlistEntry {
     this.createdAt,
     this.notifiedAt,
     this.expiresAt,
+    this.expiredReason,
   });
 
   final String id;
@@ -54,6 +55,10 @@ class ArenaBookingWaitlistEntry {
   final DateTime? createdAt;
   final DateTime? notifiedAt;
   final DateTime? expiresAt;
+
+  /// Por que a entrada foi encerrada (`left_by_athlete`, `slot_started`); null quando o
+  /// prazo de 15 min acabou ou a entrada é antiga.
+  final String? expiredReason;
 
   bool get isWaiting => status == ArenaBookingWaitlistStatus.waiting;
   bool get isNotified => status == ArenaBookingWaitlistStatus.notified;
@@ -105,6 +110,7 @@ class ArenaBookingWaitlistEntry {
       createdAt: asDate(data['createdAt']),
       notifiedAt: asDate(data['notifiedAt']),
       expiresAt: asDate(data['expiresAt']),
+      expiredReason: asOptionalTrimmed(data['expiredReason']),
     );
   }
 }

@@ -22,7 +22,6 @@ import '../domain/athlete_notifications_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import 'widgets/agenda/agenda_day_strip.dart';
 import 'widgets/agenda/agenda_review_prompt_card.dart';
-import 'widgets/agenda/agenda_waitlist_section.dart';
 import 'widgets/agenda/agenda_empty_day_view.dart';
 import 'widgets/agenda/agenda_empty_state.dart';
 import 'widgets/agenda/agenda_filter_chips.dart';
@@ -31,6 +30,7 @@ import 'widgets/agenda/agenda_month_view.dart';
 import 'widgets/agenda/agenda_tabs.dart';
 import 'widgets/agenda/agenda_timeline_widgets.dart';
 import 'widgets/athlete_home/athlete_account_sheet.dart';
+import '../../arenas/domain/waitlist_providers.dart';
 
 /// Agenda unificada do atleta (aluguéis, torneios, desafios).
 class AthleteAgendaPage extends ConsumerStatefulWidget {
@@ -199,6 +199,7 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
     // Sem seção na tela: só mantém o snapshot das mensalidades em aberto para
     // a espera de pagamento do [_onResume].
     ref.watch(myClassChargesProvider);
+    final waitlistView = ref.watch(myWaitlistViewProvider);
     final unreadNotifications = ref.watch(
       athleteUnreadNotificationsCountProvider,
     );
@@ -330,6 +331,10 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                     onNotificationsTap: () => context.pushNamed(
                       AppRouteNames.athleteNotifications,
                     ),
+                    waitlistActiveCount: waitlistView.activeCount,
+                    waitlistHasOffer: waitlistView.hasOffer,
+                    onWaitlistTap: () =>
+                        context.pushNamed(AppRouteNames.athleteWaitlist),
                   ),
                   child: RefreshIndicator(
                     onRefresh: _refresh,
@@ -357,10 +362,6 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                         // "Como foi o jogo?" da reserva concluída mais recente.
                         const SliverToBoxAdapter(
                           child: AgendaReviewPromptCard(),
-                        ),
-                        // Lista de espera (vinha de Minhas reservas).
-                        const SliverToBoxAdapter(
-                          child: AgendaWaitlistSection(),
                         ),
                         SliverToBoxAdapter(
                           child: AgendaTabs(

@@ -866,6 +866,7 @@ export {
 export {
   joinArenaBookingWaitlist,
   leaveArenaBookingWaitlist,
+  convertArenaWaitlistOnBooking,
   notifyArenaWaitlistOnSlotFreed,
   expireArenaBookingWaitlistEntries,
 } from "./arena-booking-waitlist";

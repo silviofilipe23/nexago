@@ -26,12 +26,11 @@ import 'package:nexago_app/features/arenas/domain/my_booking_item.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_payment.dart';
 import 'package:nexago_app/features/arenas/domain/slots_page_logic.dart';
 import 'package:nexago_app/features/arenas/domain/slots_page_providers.dart';
-import 'package:nexago_app/features/arenas/domain/waitlist_providers.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_page.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_score_page.dart';
 import 'package:nexago_app/features/arenas/presentation/club_session_detail_page.dart';
 import 'package:nexago_app/features/arenas/presentation/club_session_pix_page.dart';
-import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_waitlist_section.dart';
+import 'package:nexago_app/features/athlete/presentation/athlete_waitlist_page.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_club_section.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_court_card.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/booking_confirm/booking_confirm_cancellation_card.dart';
@@ -298,35 +297,29 @@ List<Override> _resultOverrides() => [
 
 final _screens = <_Screen>[
   _Screen(
-    'Agenda: vaga liberada na lista de espera',
+    'Listas de espera: vaga liberada',
     (tester, theme) => _pumpPiece(
       tester,
       theme,
-      const AgendaWaitlistSection(),
-      overrides: [
-        myWaitlistStreamProvider.overrideWith(
-          (ref) => Stream.value([
-            ArenaBookingWaitlistEntry(
-              id: 'w1',
-              arenaId: 'a1',
-              courtId: 'q1',
-              // Amanhã: horário já começado some da Agenda.
-              dateKey: _tomorrowKey,
-              startTime: '18:00',
-              endTime: '19:00',
-              athleteId: 'u1',
-              status: ArenaBookingWaitlistStatus.notified,
-              arenaName: 'Arena Sol',
-              courtName: 'Quadra 1',
-              notifiedAt: _today,
-              expiresAt: _today.add(const Duration(minutes: 40)),
-            ),
-          ]),
+      WaitlistEntryCard(
+        entry: ArenaBookingWaitlistEntry(
+          id: 'w1',
+          arenaId: 'a1',
+          courtId: 'q1',
+          dateKey: _tomorrowKey,
+          startTime: '18:00',
+          endTime: '19:00',
+          athleteId: 'u1',
+          status: ArenaBookingWaitlistStatus.notified,
+          arenaName: 'Arena Sol',
+          courtName: 'Quadra 1',
+          notifiedAt: _today,
+          expiresAt: _today.add(const Duration(minutes: 40)),
         ),
-      ],
+      ),
     ),
-    find.byType(AgendaWaitlistSection),
-    [Icons.notifications_active_rounded],
+    find.byType(WaitlistEntryCard),
+    ['● Vaga liberada para você'],
   ),
   _Screen(
     'Clubinho: você está na lista',

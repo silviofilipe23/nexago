@@ -17,8 +17,7 @@ import 'package:nexago_app/features/arenas/domain/booking_story_providers.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_guests_providers.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_item.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_payment.dart';
-import 'package:nexago_app/features/arenas/domain/waitlist_providers.dart';
-import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_waitlist_section.dart';
+import 'package:nexago_app/features/athlete/presentation/athlete_waitlist_page.dart';
 import 'package:nexago_app/features/arenas/presentation/pelada_detail_page.dart';
 import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_models.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_home_dashboard_logic.dart';
@@ -347,7 +346,8 @@ final _screens = <_Screen>[
       theme,
       Column(
         children: [
-          const AthleteHomeSectionHeader(title: 'Missões', trailingAccent: '2/3'),
+          const AthleteHomeSectionHeader(
+              title: 'Missões', trailingAccent: '2/3'),
           CompeteHubSectionHeader(
             title: 'Competições',
             actionLabel: 'VER COMPLETO',
@@ -625,36 +625,30 @@ final _screens = <_Screen>[
     ],
   ),
   _Screen(
-    'Agenda: lista de espera',
+    'Listas de espera: aguardando',
     (tester, theme) => _pump(
       tester,
       theme,
-      const AgendaWaitlistSection(),
-      overrides: [
-        myWaitlistStreamProvider.overrideWith(
-          (ref) => Stream.value([
-            // Amanhã: horário já começado some da Agenda.
-            ArenaBookingWaitlistEntry(
-              id: 'w1',
-              arenaId: 'a1',
-              courtId: 'q1',
-              dateKey: DateTime.now()
-                  .add(const Duration(days: 1))
-                  .toIso8601String()
-                  .substring(0, 10),
-              startTime: '18:00',
-              endTime: '19:00',
-              athleteId: 'u1',
-              status: ArenaBookingWaitlistStatus.waiting,
-              arenaName: 'Arena Sol',
-              courtName: 'Quadra 1',
-            ),
-          ]),
+      WaitlistEntryCard(
+        entry: ArenaBookingWaitlistEntry(
+          id: 'w1',
+          arenaId: 'a1',
+          courtId: 'q1',
+          dateKey: DateTime.now()
+              .add(const Duration(days: 1))
+              .toIso8601String()
+              .substring(0, 10),
+          startTime: '18:00',
+          endTime: '19:00',
+          athleteId: 'u1',
+          status: ArenaBookingWaitlistStatus.waiting,
+          arenaName: 'Arena Sol',
+          courtName: 'Quadra 1',
         ),
-      ],
+      ),
     ),
     _pieceFinder,
-    [Icons.hourglass_top_rounded],
+    ['Aguardando vaga · avisamos por notificação'],
   ),
   // Peladas
   _Screen(
@@ -803,7 +797,8 @@ void main() {
         final checked = expectStateTonesLegible(tester, _pieceFinder);
         expect(
           checked,
-          containsAll(<Object>['+2', 'Confirmada', '5', Icons.arrow_upward_rounded]),
+          containsAll(
+              <Object>['+2', 'Confirmada', '5', Icons.arrow_upward_rounded]),
         );
       });
     });

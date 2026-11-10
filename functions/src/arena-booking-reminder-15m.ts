@@ -4,6 +4,7 @@ import {
   deliverNotificationToUser,
   loadUserNotificationPrefs,
 } from "./notification-delivery";
+import {athleteCourtLabel} from "./arena-booking-court-visibility";
 
 export const BOOKING_REMINDER_15M_TYPE = "arena_booking_15m_reminder";
 export const BOOKING_REMINDER_15M_MINUTES_BEFORE = 15;
@@ -154,7 +155,8 @@ export async function collectConfirmedAthleteIds(
 
 export function buildBooking15mReminderBody(booking: Record<string, unknown>): string {
   const arenaName = pickString(booking["arenaName"]) ?? "Arena";
-  const courtName = pickString(booking["courtName"]) ?? pickString(booking["court"]);
+  // Arena "a arena define a quadra": a provisória não vai para o atleta.
+  const courtName = athleteCourtLabel(booking, Date.now(), "");
   const startTime = pickString(booking["startTime"]) ?? "";
   const dateKey = parseDateKeyFromBookingDate(booking["date"]);
 
@@ -202,7 +204,7 @@ export async function sendBooking15mReminderToAthletes(
   const dateKey = parseDateKeyFromBookingDate(booking["date"]) ?? "";
   const startTime = pickString(booking["startTime"]) ?? "";
   const arenaId = pickString(booking["arenaId"]) ?? "";
-  const courtName = pickString(booking["courtName"]) ?? pickString(booking["court"]) ?? "";
+  const courtName = athleteCourtLabel(booking, Date.now(), "");
 
   const data: Record<string, string> = {
     bookingId,

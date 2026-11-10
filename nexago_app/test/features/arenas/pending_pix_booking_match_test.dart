@@ -61,4 +61,41 @@ void main() {
       expect(PendingPixBookingMatch.matchesConfirmArgs(data, args), isFalse);
     });
   });
+
+  group('PendingPixBookingMatch — arena "a arena define a quadra"', () {
+    final capacityArgs = ArenaBookingConfirmArgs(
+      arenaId: 'arena1',
+      arenaName: 'Arena',
+      courtId: '',
+      courtName: '',
+      date: DateTime(2026, 5, 21),
+      startTime: '18:00',
+      endTime: '19:00',
+      amountReais: 120,
+      capacity: true,
+      sport: 'beachTennis',
+    );
+    Map<String, dynamic> pending(Map<String, dynamic> extra) => {
+          'arenaId': 'arena1',
+          'courtId': 'court7',
+          'date': '2026-05-21',
+          'startTime': '18:00',
+          'endTime': '19:00',
+          'sport': 'beachTennis',
+          'allocationStatus': 'unassigned',
+          ...extra,
+        };
+
+    test('casa a pendente sem quadra definida do mesmo esporte e horário, seja qual for a provisória', () {
+      expect(PendingPixBookingMatch.matchesConfirmArgs(pending({}), capacityArgs), isTrue);
+    });
+
+    test('outro esporte ou reserva com quadra escolhida não casam', () {
+      expect(PendingPixBookingMatch.matchesConfirmArgs(pending({'sport': 'footvolley'}), capacityArgs), isFalse);
+      expect(
+        PendingPixBookingMatch.matchesConfirmArgs(pending({'allocationStatus': 'assigned'}), capacityArgs),
+        isFalse,
+      );
+    });
+  });
 }

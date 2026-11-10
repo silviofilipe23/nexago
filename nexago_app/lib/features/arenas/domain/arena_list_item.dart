@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/location/br_locations_data.dart';
 import 'arena_amenities.dart';
+import 'arena_booking_allocation.dart';
 
 /// Quem recebe o PIX online: conta NexaGO (padrão) ou Mercado Pago do gestor.
 enum ArenaPaymentReceiver {
@@ -54,6 +55,7 @@ class ArenaListItem {
     this.reviewResponseRate = 0,
     this.amenities = ArenaAmenities.empty,
     this.isUnclaimed = false,
+    this.bookingAllocation = ArenaBookingAllocation.court,
   });
 
   final String id;
@@ -103,6 +105,9 @@ class ArenaListItem {
   /// preço nem reserva. Ausência do campo = parceira, então as arenas de hoje
   /// seguem iguais.
   final bool isUnclaimed;
+
+  /// Como o atleta reserva: escolhe a quadra (padrão) ou só o horário (a arena define a quadra).
+  final ArenaBookingAllocation bookingAllocation;
 
   /// URLs extras (Firestore: `galleryImageUrls` ou lista `images`).
   final List<String> galleryImageUrls;
@@ -284,6 +289,7 @@ class ArenaListItem {
       reviewResponseRate: reviewResponseRate,
       amenities: amenities,
       isUnclaimed: data['unclaimed'] == true,
+      bookingAllocation: ArenaBookingAllocation.fromMap(data['bookingAllocation']),
     );
   }
 }

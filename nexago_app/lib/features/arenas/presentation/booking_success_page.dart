@@ -9,6 +9,7 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../domain/arena_booking_allocation.dart';
 import '../../cashback/presentation/widgets/cashback_earned_note.dart';
 import '../domain/arena_booking_labels.dart';
 import '../domain/arena_booking_success_actions.dart';
@@ -116,6 +117,10 @@ class BookingSuccessPage extends ConsumerWidget {
                       locationLabel: locationLabel,
                       qrPayload: bookingId,
                     ),
+                    if (resolved.courtName == kCourtOnArrivalLabel) ...[
+                      SizedBox(height: 16),
+                      const CourtOnArrivalNote(),
+                    ],
                     // Só PIX pago pelo app tem lote de cashback para ouvir.
                     if (resolved.paymentId != null)
                       CashbackEarnedNote(paymentId: resolved.paymentId!),
@@ -330,6 +335,49 @@ class BookingSuccessPage extends ConsumerWidget {
       paymentLabel: extra.paymentLabel,
       headline: extra.headline,
       paymentId: extra.paymentId ?? _paymentIdFrom(query),
+    );
+  }
+}
+
+/// Arena "a arena define a quadra": orienta o atleta a procurar a recepção na chegada.
+class CourtOnArrivalNote extends StatelessWidget {
+  const CourtOnArrivalNote({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.pending.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.pending.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.place_outlined, color: AppColors.pending, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  kCourtOnArrivalLabel,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: AppColors.pending,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Ao chegar, fale com a recepção: ela indica a sua quadra.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: AppColors.onSurfaceMuted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

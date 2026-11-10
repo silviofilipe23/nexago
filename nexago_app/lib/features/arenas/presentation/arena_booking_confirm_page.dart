@@ -445,7 +445,7 @@ class _ArenaBookingConfirmPageState
         'payment': 'paid',
         'bookingId': created.bookingId,
         'arenaName': args.arenaName,
-        'courtName': args.courtName,
+        'courtName': args.displayCourtName,
       },
     );
     context.go(
@@ -453,7 +453,7 @@ class _ArenaBookingConfirmPageState
       extra: BookingSuccessArgs(
         arenaId: widget.arenaId,
         arenaName: args.arenaName,
-        courtName: args.courtName,
+        courtName: args.displayCourtName,
         dateKey: args.dateKey,
         startTime: args.startTime,
         endTime: args.endTime,
@@ -536,7 +536,10 @@ class _ArenaBookingConfirmPageState
     final courtsReady = courtsAsync.hasValue || courtsAsync.hasError;
     final arenaReady = arena != null || !arenaAsync.isLoading;
     List<String>? sportOptions;
-    if (courtsReady && arenaReady) {
+    if (args.capacity && (args.sport ?? '').isNotEmpty) {
+      // Arena "a arena define a quadra": o esporte veio da grade por horário.
+      sportOptions = [args.sport!];
+    } else if (courtsReady && arenaReady) {
       final court = courtsAsync.asData?.value
           .where((c) => c.id == args.courtId)
           .firstOrNull;
@@ -644,7 +647,7 @@ class _ArenaBookingConfirmPageState
                                   dateKey: args.dateKey,
                                   timeRange: timeRange,
                                   arenaName: args.arenaName,
-                                  courtName: args.courtName,
+                                  courtName: args.displayCourtName,
                                   courtSubtitle: args.courtSubtitle,
                                 ),
                               ),

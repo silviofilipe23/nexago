@@ -75,6 +75,7 @@ import {
 } from "./cashback-checkout";
 import {bookingCashbackLabel} from "./cashback-intent";
 import {attachHoldPayment} from "./athlete-wallet";
+import {athleteCourtLabel} from "./arena-booking-court-visibility";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_WITHDRAWALS = "arenaWithdrawals";
@@ -338,7 +339,7 @@ async function prepareArenaBookingCharge(
   }
 
   const arenaName = (booking.arenaName as string) || (arena.name as string) || "Arena";
-  const courtName = (booking.courtName as string) || "Quadra";
+  const courtName = athleteCourtLabel(booking, Date.now());
   const dateStr = (booking.date as string) || "";
   const startTime = (booking.startTime as string) || "";
   const endTime = (booking.endTime as string) || "";

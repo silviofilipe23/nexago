@@ -229,6 +229,80 @@ void main() {
       expect(functions.calledPayloads.first?.containsKey('sport'), isFalse);
     });
   });
+
+  group('BookingService — arena "a arena define a quadra"', () {
+    final capacityArgs = ArenaBookingConfirmArgs(
+      arenaId: 'arena1',
+      arenaName: 'Arena Beach',
+      courtId: '',
+      courtName: '',
+      date: DateTime(2026, 8, 10),
+      startTime: '19:00',
+      endTime: '20:00',
+      amountReais: 120,
+      selectedSlotStartTimes: const ['19:00'],
+      capacity: true,
+      sport: 'beachTennis',
+    );
+
+    test('cotação vai sem quadra, com allocation e esporte', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'quoteArenaBooking': {'amountReais': 120.0, 'lineItems': <dynamic>[]},
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      await service.quoteBooking(args: capacityArgs);
+
+      final payload = functions.calledPayloads.single!;
+      expect(payload['allocation'], 'capacity');
+      expect(payload['sport'], 'beachTennis');
+      expect(payload.containsKey('courtId'), isFalse);
+      expect(payload.containsKey('courtName'), isFalse);
+    });
+
+    test('criação vai sem quadra', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'createArenaBooking': {'bookingId': 'b1', 'amountReais': 120.0},
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      await service.createBookingAtomically(args: capacityArgs, athleteId: 'u1', sport: 'beachTennis');
+
+      final payload = functions.calledPayloads.first!;
+      expect(payload['allocation'], 'capacity');
+      expect(payload.containsKey('courtId'), isFalse);
+    });
+
+    test('reserva comum segue mandando a quadra e sem allocation', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'quoteArenaBooking': {'amountReais': 100.0, 'lineItems': <dynamic>[]},
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      await service.quoteBooking(args: args);
+
+      final payload = functions.calledPayloads.single!;
+      expect(payload['courtId'], 'court1');
+      expect(payload.containsKey('allocation'), isFalse);
+    });
+
+    test('args sem quadra e sem esporte são inválidos', () {
+      final noSport = ArenaBookingConfirmArgs(
+        arenaId: 'arena1',
+        arenaName: 'Arena',
+        courtId: '',
+        courtName: '',
+        date: DateTime(2026, 8, 10),
+        startTime: '19:00',
+        endTime: '20:00',
+        amountReais: 120,
+        capacity: true,
+      );
+      expect(noSport.isValid, isFalse);
+      expect(capacityArgs.isValid, isTrue);
+      expect(capacityArgs.displayCourtName, 'Quadra definida na chegada');
+    });
+  });
 }
 
 /// Fake mínimo de [FirebaseFunctions]: registra o payload de toda callable

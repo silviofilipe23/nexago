@@ -456,7 +456,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
         'payment': 'pix_ok',
         'bookingId': widget.args.bookingId,
         'arenaName': confirm.arenaName,
-        'courtName': confirm.courtName,
+        'courtName': confirm.displayCourtName,
         if (paymentId.isNotEmpty) 'paymentId': paymentId,
       },
     );
@@ -465,7 +465,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
       extra: BookingSuccessArgs(
         arenaId: widget.arenaId,
         arenaName: confirm.arenaName,
-        courtName: confirm.courtName,
+        courtName: confirm.displayCourtName,
         dateKey: confirm.dateKey,
         startTime: confirm.startTime,
         endTime: confirm.endTime,

@@ -56,6 +56,13 @@ export const routes: Routes = [
       import('./painel/agenda/panel-agenda.component').then((m) => m.PanelAgendaComponent),
   },
   {
+    path: 'painel/agenda/horarios',
+    title: 'Agenda por horário — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/agenda/panel-agenda-hours.component').then((m) => m.PanelAgendaHoursComponent),
+  },
+  {
     path: 'painel/agenda/chuva',
     title: 'Modo chuva — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],

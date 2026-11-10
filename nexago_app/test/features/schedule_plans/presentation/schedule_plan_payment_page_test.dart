@@ -62,8 +62,7 @@ class _FakeRepo implements SchedulePlansRepository {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 ScheduleCharge charge({String status = 'open', String? cancelReason}) =>
@@ -151,8 +150,7 @@ Future<void> typeCpf(WidgetTester tester) async {
 Finder get generate => find.byType(FilledButton).last;
 
 void main() {
-  testWidgets('mostra a mensalidade e pede CPF antes de gerar',
-      (tester) async {
+  testWidgets('mostra a mensalidade e pede CPF antes de gerar', (tester) async {
     final h = await pumpPage(tester);
     expect(find.text('Fixo Noite 1x'), findsOneWidget);
     expect(find.textContaining('Mensalidade de novembro'), findsOneWidget);
@@ -222,7 +220,8 @@ void main() {
       find.byKey(RegistrationPaymentMethodPicker.pixSavingsKey),
       findsOneWidget,
     );
-    expect(find.text('${formatBRL(4.52)} a menos que no cartão'), findsOneWidget);
+    expect(
+        find.text('${formatBRL(4.52)} a menos que no cartão'), findsOneWidget);
     expect(find.text('Gerar PIX'), findsOneWidget);
 
     await tester.tap(find.byKey(RegistrationPaymentMethodPicker.cardKey));

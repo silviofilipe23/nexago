@@ -108,15 +108,16 @@ void main() {
       expect(schedulePaidOnlineLabel(paid(null)), 'Pago online');
       // Baixa manual não ganha selo online.
       expect(schedulePaidOnlineLabel(charge('m', status: 'paid')), isNull);
-      expect(schedulePaidOnlineLabel(charge('o', billingMode: 'asaas')), isNull);
+      expect(
+          schedulePaidOnlineLabel(charge('o', billingMode: 'asaas')), isNull);
     });
 
     test('última paga do atleta (vencimento mais tarde)', () {
       final charges = [
         charge('out', status: 'paid', due: DateTime(2026, 11, 5), payer: 'u1'),
         charge('oct', status: 'paid', due: DateTime(2026, 10, 5), payer: 'u1'),
-        charge('other', status: 'paid', due: DateTime(2026, 12, 5),
-            payer: 'u2'),
+        charge('other',
+            status: 'paid', due: DateTime(2026, 12, 5), payer: 'u2'),
         charge('open', due: DateTime(2026, 12, 5), payer: 'u1'),
       ];
       expect(scheduleLastPaidCharge(charges, 'u1')?.id, 'out');
@@ -165,4 +166,3 @@ void main() {
     });
   });
 }
-

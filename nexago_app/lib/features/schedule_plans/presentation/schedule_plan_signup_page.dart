@@ -15,6 +15,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/nexa_async_view.dart';
 import '../../../core/ui/nexa_bottom_action_bar.dart';
 import '../../../core/ui/nexa_skeleton.dart';
+import '../../arenas/domain/arenas_providers.dart';
 import '../../payment_card/application/payment_card_providers.dart';
 import '../../payment_card/domain/saved_payment_card.dart';
 import '../../arena/domain/aulas/arena_class_logic.dart'
@@ -27,6 +28,7 @@ import '../application/schedule_plans_providers.dart';
 import '../domain/schedule_plan_logic.dart';
 import '../domain/schedule_plan_models.dart';
 import 'schedule_plans_routes.dart';
+import 'widgets/schedule_autopay_consent_sheet.dart';
 import 'widgets/schedule_plan_ui.dart';
 
 /// A2 · Montar o horário fixo: dias, horário que vale para todos, ciclo,
@@ -157,13 +159,14 @@ class _SchedulePlanSignupPageState
     if (_joiningTime != null) return;
     setState(() => _joiningTime = startTime);
     try {
-      final position = await ref.read(schedulePlansRepositoryProvider).joinWaitlist(
-            arenaId: widget.arenaId,
-            planId: widget.planId,
-            weekdays: [..._days]..sort(),
-            startTime: startTime,
-            playersCount: _players(plan),
-          );
+      final position =
+          await ref.read(schedulePlansRepositoryProvider).joinWaitlist(
+                arenaId: widget.arenaId,
+                planId: widget.planId,
+                weekdays: [..._days]..sort(),
+                startTime: startTime,
+                playersCount: _players(plan),
+              );
       ref.invalidate(schedulePlanAvailabilityProvider(_key));
       if (!mounted) return;
       showAppSnackBar(
@@ -243,10 +246,20 @@ class _SchedulePlanSignupPageState
       _autopayOptIn &&
       (ref.read(scheduleCardAutopayEnabledProvider).valueOrNull ?? false) &&
       _mode != _Mode.change &&
-      (ref.read(schedulePlanAvailabilityProvider(_key)).valueOrNull
+      (ref
+              .read(schedulePlanAvailabilityProvider(_key))
+              .valueOrNull
               ?.onlineBilling ??
           false) &&
       _methodOf(plan) == SchedulePaymentMethod.card;
+
+  /// Nome da arena para o texto da autorização: da vaga oferecida ou da
+  /// arena já carregada; vazio se ainda não chegou (o texto omite).
+  String _arenaNameForConsent() {
+    final fromOffer = _offer()?.arenaName ?? '';
+    if (fromOffer.isNotEmpty) return fromOffer;
+    return ref.read(arenaByIdProvider(widget.arenaId)).valueOrNull?.name ?? '';
+  }
 
   Future<void> _submit(SchedulePlan plan) async {
     if (_saving) return;
@@ -260,6 +273,7 @@ class _SchedulePlanSignupPageState
     final wantsAutopay = _wantsAutopay(plan);
     try {
       SavedPaymentCard? card;
+      String? consentText;
       if (wantsAutopay) {
         card = await ref.read(myPaymentCardProvider.future);
         if (card == null) {
@@ -268,6 +282,26 @@ class _SchedulePlanSignupPageState
           if (card == null || !mounted) return;
           ref.invalidate(myPaymentCardProvider);
         }
+        // Só com dados à vista: cartão, valor e taxa. Nada é criado antes.
+        final terms = await ref.read(scheduleCardFeeTermsProvider.future);
+        if (!mounted) return;
+        final players = _players(plan);
+        final first = scheduleSharePerPlayer(
+          scheduleCycleMonthlyPrice(plan.monthlyPriceReais, _cycleOption(plan)),
+          players,
+        );
+        consentText = scheduleAutopayConsentTextForTerms(
+          planName: plan.name,
+          arenaName: _arenaNameForConsent(),
+          cardLabel: card.label,
+          terms: terms,
+        );
+        final ok = await showScheduleAutopayConsentSheet(
+          context,
+          consentText: consentText,
+          detail: '1ª mensalidade agora: ${formatBRL(first)}',
+        );
+        if (ok != true || !mounted) return;
       }
       final String message;
       ScheduleSubscribeResult? created;
@@ -308,8 +342,9 @@ class _SchedulePlanSignupPageState
       }
       // Assinou com Pix/cartão numa arena que cobra online: o servidor segura
       // o horário por 30 min até a 1ª mensalidade ser paga.
-      var payChargeId =
-          created != null && created.pendingPayment ? created.firstChargeId : null;
+      var payChargeId = created != null && created.pendingPayment
+          ? created.firstChargeId
+          : null;
       String? errorMessage;
       var autopayDone = false;
       if (wantsAutopay && card != null && created != null) {
@@ -330,22 +365,10 @@ class _SchedulePlanSignupPageState
         }
         if (paid) {
           try {
-            final preview = await repo.autopayPreview(created.subscriptionId);
-            // Mesmos nomes de Meu plano (a tela de assinar não tem a arena).
-            ref.invalidate(myScheduleSubscriptionsProvider);
-            final mine = await ref.read(myScheduleSubscriptionsProvider.future);
-            final sub = mine.subscriptions
-                .where((x) => x.id == created!.subscriptionId)
-                .firstOrNull;
             await repo.setAutopay(
               created.subscriptionId,
               enabled: true,
-              consentText: scheduleAutopayConsentText(
-                planName: sub?.planName ?? plan.name,
-                arenaName: sub?.arenaName ?? '',
-                cardLabel: card.label,
-                preview: preview,
-              ),
+              consentText: consentText,
             );
             autopayDone = true;
           } catch (e) {
@@ -406,6 +429,8 @@ class _SchedulePlanSignupPageState
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final availabilityAsync = ref.watch(schedulePlanAvailabilityProvider(_key));
+    // Mantém a arena carregada: o nome entra no texto da autorização.
+    ref.watch(arenaByIdProvider(widget.arenaId));
     final availability = availabilityAsync.valueOrNull;
     final plan = availability?.plan;
     final offer = _offer();
@@ -433,9 +458,8 @@ class _SchedulePlanSignupPageState
           overflow: TextOverflow.ellipsis,
         ),
       ),
-      bottomNavigationBar: availability == null
-          ? null
-          : _bottomBar(availability, offer),
+      bottomNavigationBar:
+          availability == null ? null : _bottomBar(availability, offer),
       body: NexaAsyncView<SchedulePlanAvailability>(
         value: availabilityAsync,
         onRetry: () => ref.invalidate(schedulePlanAvailabilityProvider(_key)),
@@ -464,6 +488,7 @@ class _SchedulePlanSignupPageState
                 scheduleMethodNote(
                   _methodOf(a.plan),
                   onlineBilling: a.onlineBilling,
+                  autopay: _autopayOffered(a) && _autopayOptIn,
                 ),
                 key: const Key('schedule-method-note'),
                 style: TextStyle(fontSize: 11.5, color: colors.onSurfaceMuted),
@@ -911,14 +936,12 @@ class _SchedulePlanSignupPageState
 
   /// Botão promete o pagamento: a arena cobra online e a forma não é na arena.
   bool _paysOnline(SchedulePlanAvailability a) =>
-      a.onlineBilling &&
-      _methodOf(a.plan) != SchedulePaymentMethod.onsite;
+      a.onlineBilling && _methodOf(a.plan) != SchedulePaymentMethod.onsite;
 
   bool _readyForSlots(SchedulePlanAvailability a) {
     if (_days.length != a.plan.timesPerWeek || _time == null) return false;
     return scheduleTimesForWeekdays(a.days, _days).any((t) =>
-        t.startTime == _time &&
-        t.bookable(primeCapReached: a.primeCapReached));
+        t.startTime == _time && t.bookable(primeCapReached: a.primeCapReached));
   }
 }
 

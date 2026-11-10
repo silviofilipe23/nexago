@@ -88,7 +88,8 @@ void main() {
     );
     await tester.pump();
     expect(
-      find.descendant(of: cancel, matching: find.text('Desistir da assinatura')),
+      find.descendant(
+          of: cancel, matching: find.text('Desistir da assinatura')),
       findsOneWidget,
     );
     final pay = find.byKey(const Key('schedule-pending-pay'));

@@ -63,9 +63,8 @@ class SchedulePlansRepository {
         .collection('arenaScheduleSubscriptions')
         .where('memberAthleteIds', arrayContains: uid)
         .snapshots()
-        .map((snap) => snap.docs
-            .where((d) => d.data()['status'] != 'canceled')
-            .length);
+        .map((snap) =>
+            snap.docs.where((d) => d.data()['status'] != 'canceled').length);
   }
 
   /// Vagas oferecidas ao atleta na lista de espera (entrada da agenda).
@@ -247,8 +246,7 @@ class SchedulePlansRepository {
       fallback: 'Não foi possível gerar o pagamento.',
     );
     final checkout = ScheduleCheckout.fromMap(data);
-    if (checkout.invoiceUrl.isEmpty ||
-        (method == 'pix' && !checkout.hasPix)) {
+    if (checkout.invoiceUrl.isEmpty || (method == 'pix' && !checkout.hasPix)) {
       throw SchedulePlanException(
         'O pagamento ainda está sendo gerado. Tente de novo em instantes.',
       );
@@ -320,7 +318,8 @@ class SchedulePlansRepository {
       fallback: 'Não foi possível buscar horários para a reposição.',
     );
     return [
-      for (final o in spMapList(data['options'])) ScheduleMakeupOption.fromMap(o),
+      for (final o in spMapList(data['options']))
+        ScheduleMakeupOption.fromMap(o),
     ];
   }
 

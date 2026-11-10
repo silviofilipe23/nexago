@@ -86,8 +86,7 @@ class _ScheduleAutopayCardState extends ConsumerState<ScheduleAutopayCard> {
 
   Future<void> _changeCard() async {
     if (_busy) return;
-    final card =
-        await context.push<SavedPaymentCard>(AppRoutes.paymentCardNew);
+    final card = await context.push<SavedPaymentCard>(AppRoutes.paymentCardNew);
     if (!mounted) return;
     ref.invalidate(myPaymentCardProvider);
     if (card != null) {

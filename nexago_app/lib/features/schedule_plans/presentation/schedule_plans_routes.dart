@@ -66,11 +66,11 @@ String schedulePlanSignupLocation({
 }
 
 /// Tela de pagamento de uma mensalidade do plano.
-String schedulePlanPaymentLocation(String chargeId) => AppRoutes
-    .schedulePlanPayment
-    .replaceAll(':chargeId', Uri.encodeComponent(chargeId));
+String schedulePlanPaymentLocation(String chargeId) =>
+    AppRoutes.schedulePlanPayment
+        .replaceAll(':chargeId', Uri.encodeComponent(chargeId));
 
 /// Caminho do A1 da arena.
-String arenaSchedulePlansLocation(String arenaId) => AppRoutes
-    .arenaSchedulePlans
-    .replaceAll(':arenaId', Uri.encodeComponent(arenaId));
+String arenaSchedulePlansLocation(String arenaId) =>
+    AppRoutes.arenaSchedulePlans
+        .replaceAll(':arenaId', Uri.encodeComponent(arenaId));

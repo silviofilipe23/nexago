@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_service_fee.dart';
 import 'package:nexago_app/features/schedule_plans/domain/schedule_plan_logic.dart';
 import 'package:nexago_app/features/schedule_plans/domain/schedule_plan_models.dart';
 
@@ -50,7 +51,8 @@ void main() {
     expect(label('scheduled'), 'Será debitada em 05/12 no cartão final 4242');
     expect(label('retry'), 'Será debitada em 05/12 no cartão final 4242');
     expect(label('charging'), 'Debitando no cartão final 4242…');
-    expect(label('failed'), 'Não conseguimos debitar. Pague por Pix ou cartão.');
+    expect(
+        label('failed'), 'Não conseguimos debitar. Pague por Pix ou cartão.');
     expect(label('paid'), 'Paga no cartão final 4242');
     expect(label('skipped'), isNull);
     expect(scheduleAutopayChargeLabel(chargeWith(null)), isNull);
@@ -74,6 +76,21 @@ void main() {
       'a taxa do cartão (5,49% + R\$ 0,49). Posso desligar quando quiser em '
       'Meu plano.',
     );
+  });
+
+  test('texto da autorização sem arena omite os parênteses', () {
+    final text = scheduleAutopayConsentTextForTerms(
+      planName: 'Fixo Noite 1x',
+      arenaName: ' ',
+      cardLabel: 'Visa final 4242',
+      terms: const CardFeeTerms(
+        anticipationPercent: 1.5,
+        processingPercent: 3.99,
+        fixedReais: 0.49,
+      ),
+    );
+    expect(text, contains('plano Fixo Noite 1x, mais a taxa do cartão '));
+    expect(text, isNot(contains('()')));
   });
 
   test('preview lê a próxima mensalidade', () {

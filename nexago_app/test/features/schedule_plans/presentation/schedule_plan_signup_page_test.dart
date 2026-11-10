@@ -4,6 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/arenas/domain/arena_list_item.dart';
+import 'package:nexago_app/features/arenas/domain/arenas_providers.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_service_fee.dart';
 import 'package:nexago_app/features/payment_card/application/payment_card_providers.dart';
 import 'package:nexago_app/features/payment_card/domain/saved_payment_card.dart';
 import 'package:nexago_app/features/schedule_plans/application/schedule_plans_providers.dart';
@@ -338,6 +341,8 @@ void main() {
         'mais a taxa do cartão (5,49% + R\$ 0,49). Posso desligar quando '
         'quiser em Meu plano.';
 
+    String? shown;
+
     Future<_AutopayRepo> run(
       WidgetTester tester, {
       SavedPaymentCard? saved,
@@ -345,6 +350,8 @@ void main() {
       bool optIn = true,
       bool failPay = false,
       bool failSet = false,
+      bool cancelSheet = false,
+      bool arenaLoaded = true,
     }) async {
       tester.view.physicalSize = const Size(1170, 2532);
       tester.view.devicePixelRatio = 3;
@@ -415,18 +422,24 @@ void main() {
             scheduleCardAutopayEnabledProvider
                 .overrideWith((ref) => Stream.value(flag)),
             myPaymentCardProvider.overrideWith((ref) async => saved),
-            myScheduleSubscriptionsProvider.overrideWith(
-              (ref) async => MyScheduleSubscriptions.fromMap({
-                'subscriptions': [
-                  {
-                    'id': 's1',
-                    'arenaId': 'a1',
-                    'arenaName': 'Arena CFC',
-                    'planId': 'p1',
-                    'planName': 'Fixo Noite 1x',
-                  },
-                ],
-              }),
+            scheduleCardFeeTermsProvider.overrideWith(
+              (ref) async => const CardFeeTerms(
+                anticipationPercent: 1.5,
+                processingPercent: 3.99,
+                fixedReais: 0.49,
+              ),
+            ),
+            arenaByIdProvider.overrideWith(
+              (ref, id) => Stream.value(
+                arenaLoaded
+                    ? const ArenaListItem(
+                        id: 'a1',
+                        name: 'Arena CFC',
+                        locationLabel: 'Goiânia',
+                        pricePerHourReais: 100,
+                      )
+                    : null,
+              ),
             ),
           ],
           child: MaterialApp.router(
@@ -466,6 +479,23 @@ void main() {
         }
         await tester.pump(const Duration(milliseconds: 400));
       }
+      final text = find.byKey(const Key('schedule-autopay-consent-text'));
+      if (text.evaluate().isNotEmpty) {
+        // A folha aparece antes de qualquer chamada ao servidor.
+        expect(repo.calls.where((c) => c != 'cardForm'), isEmpty);
+        shown = tester.widget<Text>(text).data;
+        expect(find.textContaining('taxa do cartão'), findsOneWidget);
+        expect(find.textContaining('Visa final 4242'), findsOneWidget);
+        expect(find.textContaining('1ª mensalidade agora: R\$'), findsOneWidget);
+        expect(find.textContaining('180,00'), findsWidgets);
+        await tester.tap(cancelSheet
+            ? find.text('Agora não')
+            : find.byKey(const Key('schedule-autopay-authorize')));
+        for (var i = 0; i < 4; i++) {
+          await tester.pump();
+        }
+        await tester.pump(const Duration(milliseconds: 400));
+      }
       return repo;
     }
 
@@ -475,11 +505,35 @@ void main() {
       expect(repo.calls, [
         'subscribe',
         'pay:s1_2026-11_0',
-        'preview:s1',
         'set:s1:true:$consent',
       ]);
       expect(find.text('MEU PLANO'), findsOneWidget);
       expect(find.textContaining('PAGAR '), findsNothing);
+      expect(repo.calls.last, 'set:s1:true:$shown');
+      expect(shown, consent);
+      expect(repo.calls, isNot(contains('preview:s1')));
+    });
+
+    testWidgets('Agora não: nada é criado nem cobrado', (tester) async {
+      final repo = await run(tester, saved: card, cancelSheet: true);
+      expect(repo.calls, isEmpty);
+      expect(find.text('MEU PLANO'), findsNothing);
+    });
+
+    testWidgets('arena ainda sem nome: o texto não escreve "()"',
+        (tester) async {
+      await run(tester, saved: card, arenaLoaded: false);
+      expect(shown, isNot(contains('()')));
+      expect(shown, contains('plano Fixo Noite 1x, mais a taxa'));
+    });
+
+    testWidgets('nota da forma de pagamento com o opt-in', (tester) async {
+      await run(tester, saved: card, cancelSheet: true);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('schedule-method-note'))).data,
+        'Cartão: ao assinar você autoriza o débito automático; a 1ª '
+        'mensalidade é cobrada agora e as próximas no vencimento.',
+      );
     });
 
     testWidgets('sem cartão: abre o formulário antes de assinar',

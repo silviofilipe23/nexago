@@ -75,7 +75,9 @@ List<int> spIntList(Object? raw) {
   if (raw is! List) return <int>[];
   return [
     for (final e in raw)
-      if (e is num) e.round() else if (e is String && int.tryParse(e) != null)
+      if (e is num)
+        e.round()
+      else if (e is String && int.tryParse(e) != null)
         int.parse(e),
   ];
 }
@@ -439,7 +441,8 @@ class SchedulePlanAvailability {
     required String planId,
   }) {
     final days = [
-      for (final d in spMapList(m['days'])) SchedulePlanDayAvailability.fromMap(d),
+      for (final d in spMapList(m['days']))
+        SchedulePlanDayAvailability.fromMap(d),
     ]..removeWhere((d) => d.weekday < 1 || d.weekday > 7);
     days.sort((a, b) => a.weekday.compareTo(b.weekday));
     return SchedulePlanAvailability(
@@ -859,13 +862,15 @@ class ScheduleSubscription {
     final snapshot = spMap(m['planSnapshot']);
     final pauseUsed = spMap(m['pauseDaysUsed']);
     final occurrences = [
-      for (final o in spMapList(m['occurrences'])) ScheduleOccurrence.fromMap(o),
+      for (final o in spMapList(m['occurrences']))
+        ScheduleOccurrence.fromMap(o),
     ]..sort((a, b) {
         final byDate = a.date.compareTo(b.date);
         return byDate != 0 ? byDate : a.startTime.compareTo(b.startTime);
       });
     final slots = [
-      for (final s in spMapList(m['slots'])) ScheduleSubscriptionSlot.fromMap(s),
+      for (final s in spMapList(m['slots']))
+        ScheduleSubscriptionSlot.fromMap(s),
     ]..sort((a, b) => a.weekday.compareTo(b.weekday));
     return ScheduleSubscription(
       id: id ?? spStr(m['id'] ?? m['subscriptionId']),
@@ -873,7 +878,8 @@ class ScheduleSubscription {
       arenaName: spStr(m['arenaName']),
       planId: spStr(m['planId']),
       planName: spStr(m['planName'], 'Plano de horário'),
-      timesPerWeek: spInt(snapshot['timesPerWeek'], slots.isEmpty ? 1 : slots.length),
+      timesPerWeek:
+          spInt(snapshot['timesPerWeek'], slots.isEmpty ? 1 : slots.length),
       durationMinutes: spInt(snapshot['durationMinutes'], 60),
       rules: SchedulePlanRules.fromMap(spMap(snapshot['rules'])),
       holderAthleteId: spStrOrNull(m['holderAthleteId']),
@@ -978,7 +984,8 @@ class MyScheduleSubscriptions {
             ScheduleSubscription.fromMap(s),
         ],
         offers: [
-          for (final o in spMapList(m['offers'])) ScheduleWaitlistOffer.fromMap(o),
+          for (final o in spMapList(m['offers']))
+            ScheduleWaitlistOffer.fromMap(o),
         ]..removeWhere((o) => !o.isOffered),
       );
 }

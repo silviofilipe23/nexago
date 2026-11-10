@@ -280,16 +280,14 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           tooltip: 'Voltar',
-          onPressed: () =>
-              popOrGo(context, '${AppRoutes.discover}?tab=agenda'),
+          onPressed: () => popOrGo(context, '${AppRoutes.discover}?tab=agenda'),
         ),
         title: const Text('Meu plano'),
       ),
       body: NexaAsyncView<MyScheduleSubscriptions>(
         value: dataAsync,
         onRetry: () => ref.invalidate(myScheduleSubscriptionsProvider),
-        errorMessage:
-            'Não foi possível carregar seus planos. Tente novamente.',
+        errorMessage: 'Não foi possível carregar seus planos. Tente novamente.',
         skeleton: const _MyPlanSkeleton(),
         emptyWhen: (d) => d.isEmpty,
         empty: const _EmptyMyPlans(),
@@ -327,8 +325,7 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
           ),
           const SizedBox(height: 12),
         ],
-        if (sub != null)
-          ..._subscriptionSection(sub, uid: uid, now: now),
+        if (sub != null) ..._subscriptionSection(sub, uid: uid, now: now),
       ],
     );
   }
@@ -352,7 +349,8 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
         key: const Key('schedule-action-skip'),
         icon: Icons.skip_next_rounded,
         title: 'Não vou nesta semana',
-        subtitle: sub.rules.makeupEnabled ? 'Vira reposição' : 'Libera o horário',
+        subtitle:
+            sub.rules.makeupEnabled ? 'Vira reposição' : 'Libera o horário',
         onTap: live && skippable.isNotEmpty && !_busy ? () => _skip(sub) : null,
       ),
       ScheduleActionTile(
@@ -447,8 +445,8 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
       if (scheduleAutopayCardVisible(
         sub,
         uid,
-        flagOn: ref.watch(scheduleCardAutopayEnabledProvider).valueOrNull ??
-            false,
+        flagOn:
+            ref.watch(scheduleCardAutopayEnabledProvider).valueOrNull ?? false,
       )) ...[
         const SizedBox(height: 12),
         ScheduleAutopayCard(subscription: sub, uid: uid),
@@ -565,7 +563,8 @@ class _OfferBanner extends StatelessWidget {
       key: ValueKey('schedule-offer-${offer.entryId}'),
       icon: Icons.celebration_rounded,
       title: 'Vaga liberada · ${offer.planName}',
-      message: '${parts.isEmpty ? 'Abriu vaga no horário que você queria.' : '$parts.'}'
+      message:
+          '${parts.isEmpty ? 'Abriu vaga no horário que você queria.' : '$parts.'}'
           '$deadline',
       tone: AppColors.win,
       action: SizedBox(
@@ -632,9 +631,8 @@ class _SubscriptionSelector extends StatelessWidget {
                   style: AppTypography.soraRegular(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: s.id == selectedId
-                        ? AppColors.black
-                        : colors.onSurface,
+                    color:
+                        s.id == selectedId ? AppColors.black : colors.onSurface,
                   ),
                 ),
                 onSelected: (_) => onSelect(s.id),
@@ -668,8 +666,8 @@ class ScheduleHeroCard extends StatelessWidget {
     final String time;
     final String court;
     if (next != null) {
-      final isToday = scheduleOccurrenceState(next, now) ==
-          ScheduleOccurrenceState.today;
+      final isToday =
+          scheduleOccurrenceState(next, now) == ScheduleOccurrenceState.today;
       kicker = isToday
           ? 'Hoje · ${scheduleWeekdayLong(next.date.weekday)}'
           : 'Próximo · ${scheduleWeekdayLong(next.date.weekday)}, '
@@ -839,7 +837,8 @@ class _OccurrenceCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final (Color bg, Color? border, Color dayInk, Color wdInk) = switch (state) {
+    final (Color bg, Color? border, Color dayInk, Color wdInk) =
+        switch (state) {
       ScheduleOccurrenceState.today => (
           AppColors.brand,
           null,

@@ -21,10 +21,18 @@ Map<String, dynamic> subscription({
       'holderAthleteId': 'holder',
       'memberAthleteIds': ['holder', 'member'],
       'members': [
-        {'athleteId': 'holder', 'name': 'Marina Lopes', 'role': 'holder',
-            'shareReais': 225},
-        {'athleteId': 'member', 'name': 'Thaís Souza', 'role': 'member',
-            'shareReais': 225},
+        {
+          'athleteId': 'holder',
+          'name': 'Marina Lopes',
+          'role': 'holder',
+          'shareReais': 225
+        },
+        {
+          'athleteId': 'member',
+          'name': 'Thaís Souza',
+          'role': 'member',
+          'shareReais': 225
+        },
       ],
       'planSnapshot': {
         'timesPerWeek': 2,
@@ -36,32 +44,73 @@ Map<String, dynamic> subscription({
         },
       },
       'slots': [
-        {'weekday': 2, 'startTime': '19:00', 'endTime': '20:00',
-            'courtName': 'Quadra 2'},
-        {'weekday': 4, 'startTime': '19:00', 'endTime': '20:00',
-            'courtName': 'Quadra 2'},
+        {
+          'weekday': 2,
+          'startTime': '19:00',
+          'endTime': '20:00',
+          'courtName': 'Quadra 2'
+        },
+        {
+          'weekday': 4,
+          'startTime': '19:00',
+          'endTime': '20:00',
+          'courtName': 'Quadra 2'
+        },
       ],
       'paymentMethod': 'pix_auto',
       'status': status,
       'pausedUntil': pausedUntil,
       'pauseDaysUsed': {'year': '2026', 'days': 0},
       'occurrences': [
-        {'bookingId': 'b1', 'date': '2026-11-03', 'startTime': '19:00',
-            'endTime': '20:00', 'courtName': 'Quadra 2', 'status': 'today'},
-        {'bookingId': 'b2', 'date': '2026-11-05', 'startTime': '19:00',
-            'endTime': '20:00', 'courtName': 'Quadra 2', 'status': 'next'},
-        {'bookingId': 'b3', 'date': '2026-11-10', 'startTime': '19:00',
-            'endTime': '20:00', 'courtName': 'Quadra 2', 'status': 'skipped'},
+        {
+          'bookingId': 'b1',
+          'date': '2026-11-03',
+          'startTime': '19:00',
+          'endTime': '20:00',
+          'courtName': 'Quadra 2',
+          'status': 'today'
+        },
+        {
+          'bookingId': 'b2',
+          'date': '2026-11-05',
+          'startTime': '19:00',
+          'endTime': '20:00',
+          'courtName': 'Quadra 2',
+          'status': 'next'
+        },
+        {
+          'bookingId': 'b3',
+          'date': '2026-11-10',
+          'startTime': '19:00',
+          'endTime': '20:00',
+          'courtName': 'Quadra 2',
+          'status': 'skipped'
+        },
       ],
       'credits': [
-        {'id': 'b3', 'reason': 'skip', 'status': 'available',
-            'sourceDate': '2026-11-10', 'expiresOn': '2026-12-10'},
+        {
+          'id': 'b3',
+          'reason': 'skip',
+          'status': 'available',
+          'sourceDate': '2026-11-10',
+          'expiresOn': '2026-12-10'
+        },
       ],
       'charges': [
-        {'id': 'c1', 'amountReais': 225, 'dueDate': '2026-11-05',
-            'status': 'open', 'payerAthleteId': 'holder'},
-        {'id': 'c2', 'amountReais': 225, 'dueDate': '2026-11-05',
-            'status': 'open', 'payerAthleteId': 'member'},
+        {
+          'id': 'c1',
+          'amountReais': 225,
+          'dueDate': '2026-11-05',
+          'status': 'open',
+          'payerAthleteId': 'holder'
+        },
+        {
+          'id': 'c2',
+          'amountReais': 225,
+          'dueDate': '2026-11-05',
+          'status': 'open',
+          'payerAthleteId': 'member'
+        },
       ],
     };
 
@@ -97,7 +146,9 @@ void main() {
     await pumpPage(
       tester,
       uid: 'holder',
-      response: {'subscriptions': [subscription()]},
+      response: {
+        'subscriptions': [subscription()]
+      },
     );
     expect(find.text('HOJE · TERÇA'), findsOneWidget);
     expect(find.text('19:00 – 20:00'), findsOneWidget);
@@ -121,7 +172,9 @@ void main() {
     await pumpPage(
       tester,
       uid: 'member',
-      response: {'subscriptions': [subscription()]},
+      response: {
+        'subscriptions': [subscription()]
+      },
     );
     expect(find.byKey(const Key('schedule-action-skip')), findsOneWidget);
     expect(find.byKey(const Key('schedule-action-makeup')), findsOneWidget);

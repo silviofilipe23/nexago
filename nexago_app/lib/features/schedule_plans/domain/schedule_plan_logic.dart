@@ -1,5 +1,6 @@
 // Regras puras das telas do atleta dos Planos de horário (A1–A3).
 
+import '../../tournaments/domain/tournament_service_fee.dart';
 import 'schedule_plan_models.dart';
 
 const _weekdayShort = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -97,7 +98,8 @@ String scheduleWindowsSummary(List<SchedulePlanWindow> windows) {
     groups.putIfAbsent('${w.startTime}|${w.endTime}', () => []).add(w.weekday);
   }
   final entries = groups.entries.toList()
-    ..sort((a, b) => (a.value..sort()).first.compareTo((b.value..sort()).first));
+    ..sort(
+        (a, b) => (a.value..sort()).first.compareTo((b.value..sort()).first));
   return entries.map((e) {
     final [start, end] = e.key.split('|');
     return '${_weekdayRange(e.value)}, '
@@ -220,8 +222,7 @@ List<ScheduleCombinedTime> scheduleTimesForWeekdays(
   final byDay = {for (final d in days) d.weekday: d};
   if (!chosen.every(byDay.containsKey)) return const [];
   final perDay = [
-    for (final w in chosen)
-      {for (final t in byDay[w]!.times) t.startTime: t},
+    for (final w in chosen) {for (final t in byDay[w]!.times) t.startTime: t},
   ];
   final starts = perDay.first.keys
       .where((s) => perDay.every((m) => m.containsKey(s)))
@@ -486,19 +487,40 @@ String _commaNumber(double v, {int maxDecimals = 2}) {
   return s.replaceAll('.', ',');
 }
 
-/// Texto da autorização, gravado como prova (`consentText`).
+/// Texto da autorização, gravado como prova (`consentText`). Com os números
+/// da prévia do servidor (Meu plano).
 String scheduleAutopayConsentText({
   required String planName,
   required String arenaName,
   required String cardLabel,
   required ScheduleAutopayPreview preview,
+}) =>
+    scheduleAutopayConsentTextForTerms(
+      planName: planName,
+      arenaName: arenaName,
+      cardLabel: cardLabel,
+      terms: CardFeeTerms(
+        anticipationPercent: preview.cardFeePercent,
+        processingPercent: preview.cardProcessingPercent,
+        fixedReais: preview.cardFixedReais,
+      ),
+    );
+
+/// Mesmo texto a partir das taxas já conhecidas na tela (assinatura). Sem
+/// nome da arena, omite " (...)".
+String scheduleAutopayConsentTextForTerms({
+  required String planName,
+  required String arenaName,
+  required String cardLabel,
+  required CardFeeTerms terms,
 }) {
   final percent = _commaNumber(
-    preview.cardFeePercent + preview.cardProcessingPercent,
+    terms.anticipationPercent + terms.processingPercent,
   );
-  final fixed = preview.cardFixedReais.toStringAsFixed(2).replaceAll('.', ',');
+  final fixed = terms.fixedReais.toStringAsFixed(2).replaceAll('.', ',');
+  final arena = arenaName.trim().isEmpty ? '' : ' (${arenaName.trim()})';
   return 'Autorizo a nexaGO a debitar no cartão $cardLabel, no dia do '
-      'vencimento, cada mensalidade do plano $planName ($arenaName), mais a '
+      'vencimento, cada mensalidade do plano $planName$arena, mais a '
       'taxa do cartão ($percent% + R\$ $fixed). Posso desligar quando quiser '
       'em Meu plano.';
 }
@@ -553,9 +575,14 @@ String scheduleChargeMethodLabel(
 String scheduleMethodNote(
   SchedulePaymentMethod method, {
   required bool onlineBilling,
+  bool autopay = false,
 }) {
   if (method == SchedulePaymentMethod.onsite) {
     return 'Você paga direto na arena, que dá baixa a cada mês.';
+  }
+  if (autopay && onlineBilling && method == SchedulePaymentMethod.card) {
+    return 'Cartão: ao assinar você autoriza o débito automático; a 1ª '
+        'mensalidade é cobrada agora e as próximas no vencimento.';
   }
   return onlineBilling
       ? 'Pix ou cartão: ao assinar você já paga a 1ª mensalidade. Depois, '

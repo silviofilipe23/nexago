@@ -8,6 +8,7 @@ import 'schedule_plan_ui.dart';
 Future<bool?> showScheduleAutopayConsentSheet(
   BuildContext context, {
   required String consentText,
+  String? detail,
 }) {
   return showScheduleSheet<bool>(
     context,
@@ -21,6 +22,18 @@ Future<bool?> showScheduleAutopayConsentSheet(
           children: [
             const ScheduleSheetHeader(title: 'Autorizar débito automático'),
             const SizedBox(height: 12),
+            if (detail != null) ...[
+              Text(
+                detail,
+                key: const Key('schedule-autopay-consent-detail'),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: sheetContext.themeColors.onSurface,
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             Text(
               consentText,
               key: const Key('schedule-autopay-consent-text'),

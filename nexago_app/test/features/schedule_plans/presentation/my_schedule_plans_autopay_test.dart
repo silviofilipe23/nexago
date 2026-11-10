@@ -53,8 +53,7 @@ class _FakeRepo implements SchedulePlansRepository {
   Future<ScheduleAutopayPreview> autopayPreview(String id) async => _preview;
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 Map<String, dynamic> subMap({

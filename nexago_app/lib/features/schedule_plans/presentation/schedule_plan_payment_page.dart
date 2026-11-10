@@ -337,8 +337,7 @@ class _SchedulePlanPaymentPageState
                       icon: _payingSaved
                           ? const SizedBox.square(
                               dimension: 16,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.credit_card_rounded),
                       label: Text(

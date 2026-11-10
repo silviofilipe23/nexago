@@ -15,6 +15,9 @@ class AgendaHeader extends StatelessWidget {
     required this.onSearchTap,
     required this.onCalendarTap,
     required this.onNotificationsTap,
+    this.waitlistActiveCount = 0,
+    this.waitlistHasOffer = false,
+    this.onWaitlistTap,
     this.leading,
   });
 
@@ -26,6 +29,15 @@ class AgendaHeader extends StatelessWidget {
   final VoidCallback onSearchTap;
   final VoidCallback onCalendarTap;
   final VoidCallback onNotificationsTap;
+
+  /// Filas de espera ativas (aguardando + vaga liberada): o número da ampulheta.
+  final int waitlistActiveCount;
+
+  /// Vaga liberada para o atleta: a ampulheta fica verde.
+  final bool waitlistHasOffer;
+
+  /// Abre "Listas de espera"; null esconde a ampulheta.
+  final VoidCallback? onWaitlistTap;
 
   /// À esquerda do título. Ex.: o botão da conta do atleta.
   final Widget? leading;
@@ -76,6 +88,14 @@ class AgendaHeader extends StatelessWidget {
           //   active: searchVisible,
           //   onTap: onSearchTap,
           // ),
+          if (onWaitlistTap case final onWaitlistTap?) ...[
+            SizedBox(width: 4),
+            _WaitlistButton(
+              activeCount: waitlistActiveCount,
+              hasOffer: waitlistHasOffer,
+              onTap: onWaitlistTap,
+            ),
+          ],
           SizedBox(width: 4),
           _HeaderIconButton(
             icon: Icons.calendar_month_rounded,
@@ -191,6 +211,73 @@ class _HeaderIconButton extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       icon: Icon(icon, size: 22),
+    );
+  }
+}
+
+/// Ampulheta das listas de espera: número de filas ativas; verde com vaga liberada.
+class _WaitlistButton extends StatelessWidget {
+  const _WaitlistButton({
+    required this.activeCount,
+    required this.hasOffer,
+    required this.onTap,
+  });
+
+  final int activeCount;
+  final bool hasOffer;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final badgeColor = hasOffer ? colors.win : AppColors.brand;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          key: const ValueKey('agenda-waitlist-button'),
+          tooltip: hasOffer
+              ? 'Listas de espera · vaga liberada'
+              : 'Listas de espera',
+          onPressed: onTap,
+          style: IconButton.styleFrom(
+            foregroundColor: hasOffer ? colors.win : colors.onSurfaceMuted,
+            backgroundColor:
+                hasOffer ? AppColors.win.withValues(alpha: 0.08) : null,
+            side: hasOffer
+                ? BorderSide(color: colors.win, width: 1.5)
+                : BorderSide(color: colors.surfaceRaised),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          icon: const Icon(Icons.hourglass_top_rounded, size: 22),
+        ),
+        if (activeCount > 0)
+          Positioned(
+            right: -2,
+            top: -2,
+            child: Container(
+              key: const ValueKey('agenda-waitlist-badge'),
+              constraints: const BoxConstraints(minWidth: 18),
+              height: 18,
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: badgeColor,
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: colors.canvas, width: 2),
+              ),
+              child: Text(
+                activeCount > 9 ? '9+' : '$activeCount',
+                style: AppTypography.mono(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.black,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

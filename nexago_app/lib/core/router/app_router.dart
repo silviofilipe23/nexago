@@ -176,6 +176,7 @@ import '../../features/blog/presentation/blog_post_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
 import '../../features/weather/presentation/booking_weather_choice_page.dart';
 import '../../features/athlete/presentation/arena_review_page.dart';
+import '../../features/athlete/presentation/athlete_waitlist_page.dart';
 import '../../features/athlete/presentation/booking_details_by_id_page.dart';
 import '../../features/athlete_billing/presentation/athlete_billing_routes.dart';
 import '../../features/payment_card/presentation/payment_card_routes.dart';
@@ -1697,6 +1698,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => BookingDetailsByIdPage(
           bookingId: state.pathParameters['bookingId']?.trim() ?? '',
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteWaitlist,
+        name: AppRouteNames.athleteWaitlist,
+        builder: (context, state) => const AthleteWaitlistPage(),
       ),
       GoRoute(
         path: AppRoutes.athleteWeatherCredits,

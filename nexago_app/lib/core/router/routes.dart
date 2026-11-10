@@ -464,6 +464,9 @@ abstract final class AppRoutes {
   /// Créditos de chuva do atleta (saldo por arena, validade, usados/vencidos).
   static const String athleteWeatherCredits = '/weather-credits';
 
+  /// Listas de espera de quadra do atleta (aberta pela ampulheta da Agenda).
+  static const String athleteWaitlist = '/athlete/lista-de-espera';
+
   /// Planos de horário da arena (atleta) — A1. Fora de `/arena/...` para não
   /// disputar com as rotas literais do gestor antes de [arenaDetail].
   static const String arenaSchedulePlans = '/planos-horario/:arenaId';
@@ -1288,6 +1291,7 @@ abstract final class AppRouteNames {
   static const String bookingArenaReview = 'bookingArenaReview';
   static const String bookingDetailsById = 'bookingDetailsById';
   static const String athleteWeatherCredits = 'athleteWeatherCredits';
+  static const String athleteWaitlist = 'athleteWaitlist';
   static const String arenaSchedulePlans = 'arenaSchedulePlans';
   static const String arenaSchedulePlanSignup = 'arenaSchedulePlanSignup';
   static const String mySchedulePlans = 'mySchedulePlans';

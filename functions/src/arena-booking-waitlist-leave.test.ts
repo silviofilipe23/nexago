@@ -4,6 +4,7 @@ import type {Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   ARENA_BOOKING_WAITLIST,
+  convertWaitlistOnBookingCore,
   expirePastWaitingEntriesCore,
   leaveWaitlistCore,
   waitlistSlotStarted,
@@ -99,5 +100,52 @@ describe("expirePastWaitingEntriesCore", () => {
     assert.equal(fake.store.get(`${ARENA_BOOKING_WAITLIST}/futura`)?.["status"], "waiting");
     // `notified` segue a janela de 15 min do sweeper original.
     assert.equal(fake.store.get(`${ARENA_BOOKING_WAITLIST}/chamada`)?.["status"], "notified");
+  });
+});
+
+describe("convertWaitlistOnBookingCore", () => {
+  const booking = (extra: Record<string, unknown> = {}) => ({
+    arenaId: "a1",
+    courtId: "q1",
+    date: "2026-11-10",
+    startTime: "19:00",
+    endTime: "20:00",
+    athleteId: "uid1",
+    status: "active",
+    ...extra,
+  });
+  const entryPath = `${ARENA_BOOKING_WAITLIST}/a1_q1_2026-11-10_19:00-20:00_uid1`;
+
+  it("a reserva do atleta avisado vira `converted`", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(entryPath, entry({status: "notified"}));
+    assert.equal(await convertWaitlistOnBookingCore(db(fake), undefined, booking()), true);
+    assert.equal(fake.store.get(entryPath)?.["status"], "converted");
+  });
+
+  it("Pix pendente só converte quando a reserva é paga", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(entryPath, entry({status: "notified"}));
+    const pending = booking({status: "pending_payment"});
+    assert.equal(await convertWaitlistOnBookingCore(db(fake), undefined, pending), false);
+    assert.equal(fake.store.get(entryPath)?.["status"], "notified");
+    assert.equal(await convertWaitlistOnBookingCore(db(fake), pending, booking()), true);
+  });
+
+  it("reserva de outro horário ou entrada já encerrada não muda nada", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(entryPath, entry({status: "expired"}));
+    assert.equal(await convertWaitlistOnBookingCore(db(fake), undefined, booking()), false);
+    assert.equal(
+      await convertWaitlistOnBookingCore(db(fake), undefined, booking({startTime: "18:00"})),
+      false,
+    );
+    assert.equal(fake.store.get(entryPath)?.["status"], "expired");
+  });
+
+  it("edição de reserva já ativa não reprocessa", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(entryPath, entry());
+    assert.equal(await convertWaitlistOnBookingCore(db(fake), booking(), booking()), false);
   });
 });

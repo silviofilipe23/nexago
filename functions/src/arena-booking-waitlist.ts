@@ -9,7 +9,7 @@
  * INSCRIÇÃO em torneio (categoria lotada) — não reaproveita essa coleção.
  */
 import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {onDocumentUpdated} from "firebase-functions/v2/firestore";
+import {onDocumentUpdated, onDocumentWritten} from "firebase-functions/v2/firestore";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {getFirestore, FieldValue, Timestamp, type Firestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
@@ -314,6 +314,67 @@ export const leaveArenaBookingWaitlist = onCall({
   logger.info("leaveArenaBookingWaitlist", {waitlistId, status: result.status});
   return result;
 });
+
+/** Status de reserva que segura o horário (a vaga foi de fato tomada). */
+const HELD_BOOKING_STATUSES = new Set(["active", "confirmed", "booked", "paid", "completed"]);
+
+function bookingHoldsSlot(data: Record<string, unknown> | undefined): boolean {
+  if (!data) return false;
+  const status = typeof data["status"] === "string" ? data["status"].trim().toLowerCase() : "active";
+  return HELD_BOOKING_STATUSES.has(status || "active");
+}
+
+/** Id da entrada do atleta para o horário exato — o mesmo que `joinArenaBookingWaitlist` grava. */
+export function waitlistEntryIdFor(booking: Record<string, unknown>): string | null {
+  const match = extractBookingSlotMatch(booking);
+  const athleteId =
+    (typeof booking["athleteId"] === "string" && booking["athleteId"].trim()) ||
+    (typeof booking["bookingAthleteId"] === "string" && booking["bookingAthleteId"].trim()) ||
+    "";
+  if (!match || !athleteId || !match.startTime || !match.endTime) return null;
+  return [
+    safeIdPart(match.arenaId),
+    safeIdPart(match.courtId),
+    match.dateKey,
+    `${match.startTime}-${match.endTime}`,
+    safeIdPart(athleteId),
+  ].join("_");
+}
+
+/**
+ * A reserva passou a segurar o horário (criada ativa ou paga depois): a entrada do mesmo
+ * atleta para esse horário vira `converted` ("Virou reserva"). Antes ninguém gravava
+ * `converted`, e quem reservava pela fila aparecia como "prazo acabou".
+ */
+export async function convertWaitlistOnBookingCore(
+  db: Firestore,
+  before: Record<string, unknown> | undefined,
+  after: Record<string, unknown> | undefined,
+): Promise<boolean> {
+  if (!after || !bookingHoldsSlot(after) || (before && bookingHoldsSlot(before))) return false;
+  const entryId = waitlistEntryIdFor(after);
+  if (!entryId) return false;
+  const ref = db.collection(ARENA_BOOKING_WAITLIST).doc(entryId);
+  const snap = await ref.get();
+  const status = (snap.data()?.["status"] as string | undefined) ?? "";
+  if (!snap.exists || !isWaitlistEntryOpen(status)) return false;
+  await ref.update({
+    status: "converted" as ArenaBookingWaitlistStatus,
+    convertedAt: FieldValue.serverTimestamp(),
+  });
+  return true;
+}
+
+export const convertArenaWaitlistOnBooking = onDocumentWritten(
+  "arenaBookings/{bookingId}",
+  async (event) => {
+    const before = event.data?.before.data() as Record<string, unknown> | undefined;
+    const after = event.data?.after.data() as Record<string, unknown> | undefined;
+    if (await convertWaitlistOnBookingCore(getFirestore(), before, after)) {
+      logger.info(`arenaBookingWaitlist: reserva ${event.params.bookingId} converteu a entrada da fila`);
+    }
+  },
+);
 
 /**
  * Encerra entradas `waiting` cujo horário já começou (`expired` + `expiredReason`).

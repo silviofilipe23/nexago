@@ -1071,7 +1071,7 @@ service cloud.firestore {
         !request.resource.data.keys().hasAny([
           'planTier', 'planStatus', 'planActiveUntil',
           'unclaimed', 'contactClicksTotal', 'contactAthletesCount', 'contactLastClickAt',
-          'bookingAllocation'
+          'bookingAllocation', 'athletePricing'
         ]);
       // Campos de plano (planTier/planStatus/planActiveUntil) só as Cloud Functions
       // gravam (Admin SDK ignora rules); o gestor não pode se auto-promover.
@@ -1095,6 +1095,8 @@ service cloud.firestore {
           // "Como o atleta reserva" (reservas por capacidade): só `setArenaBookingAllocation`
           // grava — valida quadras e preços. Todo save do cliente usa merge e não manda o campo.
           request.resource.data.get('bookingAllocation', null) == resource.data.get('bookingAllocation', null) &&
+          // Preço por perfil do atleta (aluno/professor): só `setArenaAthletePricing` grava.
+          request.resource.data.get('athletePricing', null) == resource.data.get('athletePricing', null) &&
           (
             isArenaOwner(arenaId) || (
               request.resource.data.get('payoutPixKey', null) == resource.data.get('payoutPixKey', null) &&
@@ -1280,6 +1282,18 @@ service cloud.firestore {
     // `{arenaId}_{professorUserId}`. Lê o próprio professor (nunca os vínculos de
     // outro) e a arena dona do vínculo — dono ou gestor (área `perfil`). Status,
     // tipo e permissões só mudam por Cloud Function, que valida a transição.
+    // Preço por perfil do atleta: quem a arena validou como aluno/professor. Só as Cloud
+    // Functions gravam (`setArenaAthletePricingMember`). `resource == null`: o atleta lê o
+    // próprio par `{arenaId}_{uid}` antes de existir — a inexistência não vaza para outros.
+    match /arenaAthletePricingMembers/{memberId} {
+      allow read: if request.auth != null && (
+        (resource == null && memberId.matches('^.+_' + request.auth.uid + '$')) ||
+        resource.data.athleteId == request.auth.uid ||
+        arenaCanRead(resource.data.arenaId, 'promocoes') ||
+        isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+    }
     match /arenaProfessors/{linkId} {
       // `resource == null`: a página da arena lê o par `{arenaId}_{uid}` antes de
       // existir vínculo — só o próprio professor, então a inexistência não vaza.

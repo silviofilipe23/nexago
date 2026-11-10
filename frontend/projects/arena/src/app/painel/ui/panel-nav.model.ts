@@ -38,6 +38,7 @@ export const NAV_ITEMS: readonly PanelNavItem[] = [
   { id: 'comandas', label: 'Comandas', icon: 'bookmark', route: '/painel/comandas', badge: null, area: 'comandas', group: 'vendas' },
   { id: 'estoque', label: 'Estoque', icon: 'box', route: '/painel/estoque', badge: null, area: 'estoque', group: 'vendas' },
   { id: 'promocoes', label: 'Promoções', icon: 'tag', route: '/painel/promocoes', badge: null, area: 'promocoes', group: 'vendas' },
+  { id: 'preco-por-perfil', label: 'Preço por perfil', icon: 'tag', route: '/painel/preco-por-perfil', badge: null, area: 'promocoes', group: 'vendas' },
   { id: 'cupons', label: 'Cupons', icon: 'tag', route: '/painel/cupons', badge: null, area: 'promocoes', group: 'vendas' },
   { id: 'horarios-pico', label: 'Horários de pico', icon: 'tag', route: '/painel/horarios-pico', badge: null, area: 'promocoes', group: 'vendas' },
 

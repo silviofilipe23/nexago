@@ -265,4 +265,32 @@ void main() {
     );
     expect(find.text('Desconto professor \u221220%'), findsOneWidget);
   });
+
+  group('arenaBookingAthletePricingLabel', () {
+    test('mostra o nome do perfil gravado na reserva', () {
+      expect(
+        arenaBookingAthletePricingLabel(const {
+          'athletePricingTier': 'professor',
+          'athletePricingLabel': 'Professor de outro esporte',
+        }),
+        'Preço Professor de outro esporte',
+      );
+    });
+
+    test('sem nome: usa o padrão do perfil', () {
+      expect(
+        arenaBookingAthletePricingLabel(const {'athletePricingTier': 'student'}),
+        'Preço Aluno',
+      );
+    });
+
+    test('avulso ou dado inválido: null', () {
+      expect(arenaBookingAthletePricingLabel(const {}), isNull);
+      expect(
+        arenaBookingAthletePricingLabel(const {'athletePricingTier': 'vip'}),
+        isNull,
+      );
+      expect(arenaBookingAthletePricingLabel(null), isNull);
+    });
+  });
 }

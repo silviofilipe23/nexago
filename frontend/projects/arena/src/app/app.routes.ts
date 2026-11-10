@@ -410,6 +410,13 @@ export const routes: Routes = [
       import('./painel/promotions/panel-promotions.component').then((m) => m.PanelPromotionsComponent),
   },
   {
+    path: 'painel/preco-por-perfil',
+    title: 'Preço por perfil — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('promocoes')],
+    loadComponent: () =>
+      import('./painel/athlete-pricing/panel-athlete-pricing.component').then((m) => m.PanelAthletePricingComponent),
+  },
+  {
     path: 'painel/promocoes/nova',
     title: 'Nova promoção — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('promocoes')],

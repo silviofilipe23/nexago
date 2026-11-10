@@ -240,6 +240,9 @@ export class ArenaPaymentComponent {
    *  vale, o servidor cota sem os dois (vale o menor preço). */
   protected readonly professorDiscountPercent = signal(0);
   protected readonly professorDiscountReais = signal(0);
+  /** Preço por perfil da arena (aluno/professor validado) — `null` no avulso. */
+  protected readonly athletePricingLabel = signal<string | null>(null);
+  protected readonly athletePricingDiscountReais = signal(0);
   protected readonly professorDiscountLabel = computed(() => professorDiscountSummaryLabel(this.professorDiscountPercent()));
   /** Só a cotação mais recente vale — ligar/desligar "como professor" rápido dispara várias. */
   private quoteSeq = 0;
@@ -565,7 +568,9 @@ export class ArenaPaymentComponent {
         this.couponError.set(
           quote.professorDiscountReais > 0
             ? 'O desconto de professor já sai mais barato que este cupom.'
-            : 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.',
+            : quote.athletePricingLabel
+              ? `O seu preço de ${quote.athletePricingLabel} já sai mais barato que este cupom.`
+              : 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.',
         );
       }
     } catch (err) {
@@ -599,7 +604,9 @@ export class ArenaPaymentComponent {
         this.couponError.set(
           quote.professorDiscountReais > 0
             ? 'O desconto de professor já sai mais barato que este cupom.'
-            : 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.',
+            : quote.athletePricingLabel
+              ? `O seu preço de ${quote.athletePricingLabel} já sai mais barato que este cupom.`
+              : 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.',
         );
       }
     } catch (err) {
@@ -616,6 +623,8 @@ export class ArenaPaymentComponent {
     this.quotedTotal.set(quote.amountReais);
     this.professorDiscountPercent.set(quote.professorDiscountPercent);
     this.professorDiscountReais.set(quote.professorDiscountReais);
+    this.athletePricingLabel.set(quote.athletePricingLabel ?? null);
+    this.athletePricingDiscountReais.set(quote.athletePricingDiscountReais ?? 0);
   }
 
   protected removeCoupon(): void {

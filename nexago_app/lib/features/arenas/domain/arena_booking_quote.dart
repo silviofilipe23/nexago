@@ -25,6 +25,9 @@ class ArenaBookingQuote {
     this.couponDiscountReais = 0,
     this.professorDiscountPercent = 0,
     this.professorDiscountReais = 0,
+    this.athletePricingTier,
+    this.athletePricingLabel,
+    this.athletePricingDiscountReais = 0,
     this.weatherCreditAvailableReais = 0,
     this.weatherCreditNextExpiresAt,
     this.weatherCreditAppliedReais = 0,
@@ -46,6 +49,17 @@ class ArenaBookingQuote {
   /// soma com promoção nem cupom: incide sobre o preço cheio.
   final int professorDiscountPercent;
   final double professorDiscountReais;
+
+  /// Preço por perfil da arena (`student` | `professor`) — `null` quando o
+  /// atleta paga o avulso ou o perfil não venceu promoção/cupom. Servidor
+  /// antigo não devolve o campo.
+  final String? athletePricingTier;
+
+  /// Nome do perfil dado pela arena ("Aluno", "Professor de outro esporte").
+  final String? athletePricingLabel;
+
+  /// Quanto o preço do perfil tirou do preço cheio.
+  final double athletePricingDiscountReais;
 
   /// Saldo de crédito de chuva do atleta nesta arena (0 sem crédito ou com
   /// servidor antigo, que não devolve o campo).
@@ -72,6 +86,25 @@ class ArenaBookingQuote {
 
   bool get hasProfessorDiscount =>
       professorDiscountPercent > 0 && professorDiscountReais > 0;
+
+  bool get hasAthletePricing =>
+      athletePricingTier != null && athletePricingDiscountReais > 0;
+
+  /// Preço cheio antes do preço do perfil (total + desconto).
+  double get amountBeforeAthletePricingReais =>
+      ((amountReais + athletePricingDiscountReais) * 100).roundToDouble() / 100;
+
+  /// "Preço Aluno" — `null` sem preço de perfil.
+  String? get athletePricingLineLabel {
+    if (!hasAthletePricing) return null;
+    final label = athletePricingLabel?.trim();
+    return 'Preço ${label == null || label.isEmpty ? 'especial' : label}';
+  }
+
+  /// "−R$ 50,00" — `null` sem preço de perfil.
+  String? get athletePricingValueLabel => hasAthletePricing
+      ? '\u2212${formatBRL(athletePricingDiscountReais)}'
+      : null;
 
   /// Preço cheio antes do desconto do professor (total + desconto).
   double get amountBeforeProfessorDiscountReais =>

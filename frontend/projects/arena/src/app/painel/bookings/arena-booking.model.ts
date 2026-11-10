@@ -65,6 +65,10 @@ export interface ArenaBooking {
    *  0 sem desconto ou em reserva de atleta. */
   professorDiscountPercent: number;
   professorDiscountReais: number | null;
+  /** Preço por perfil (aluno/professor validado pela arena) — nome do perfil quando venceu
+   *  promoção/cupom; `null` no preço avulso. */
+  athletePricingLabel?: string | null;
+  athletePricingDiscountReais?: number | null;
 }
 
 function timeStr(v: unknown): string {
@@ -125,6 +129,7 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     couponCode: optionalTrimmed(d['couponCode']),
     couponDiscountReais: typeof d['couponDiscountReais'] === 'number' ? d['couponDiscountReais'] : null,
     ...professorBookingFields(d),
+    ...athletePricingFields(d),
   };
 }
 
@@ -132,6 +137,17 @@ type ProfessorBookingFields = Pick<
   ArenaBooking,
   'bookedAsProfessor' | 'professorRelationshipType' | 'professorDiscountPercent' | 'professorDiscountReais'
 >;
+
+function athletePricingFields(d: Record<string, unknown>): Pick<ArenaBooking, 'athletePricingLabel' | 'athletePricingDiscountReais'> {
+  const tier = d['athletePricingTier'];
+  if (tier !== 'student' && tier !== 'professor') return { athletePricingLabel: null, athletePricingDiscountReais: null };
+  const label = d['athletePricingLabel'];
+  const reais = d['athletePricingDiscountReais'];
+  return {
+    athletePricingLabel: typeof label === 'string' && label.trim() ? label.trim() : tier === 'student' ? 'Aluno' : 'Professor',
+    athletePricingDiscountReais: typeof reais === 'number' && reais > 0 ? reais : null,
+  };
+}
 
 function professorBookingFields(d: Record<string, unknown>): ProfessorBookingFields {
   if (d['bookedAs'] !== 'professor') {

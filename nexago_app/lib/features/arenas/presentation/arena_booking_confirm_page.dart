@@ -150,6 +150,8 @@ class _ArenaBookingConfirmPageState
   static String _couponNotBetterMessage(ArenaBookingQuote quote) =>
       quote.hasProfessorDiscount
           ? 'O desconto de professor já deixa esta reserva mais barata que o cupom.'
+          : quote.hasAthletePricing
+          ? 'O seu preço de ${quote.athletePricingLabel ?? 'perfil'} já deixa esta reserva mais barata que o cupom.'
           : 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.';
 
   Future<void> _loadQuote(ArenaBookingConfirmArgs args) async {
@@ -596,6 +598,12 @@ class _ArenaBookingConfirmPageState
         asProfessor &&
         quote != null &&
         quote.hasProfessorDiscount;
+    // Preço por perfil (aluno/professor validado pela arena): vale em
+    // qualquer cotação — não depende do interruptor de professor.
+    final athletePricing = !_quoting &&
+        !professorDiscount &&
+        quote != null &&
+        quote.hasAthletePricing;
     final durationCompact = formatCourtDurationLabel(args);
     final courtLineLabel = durationCompact.isEmpty
         ? 'Quadra'
@@ -713,13 +721,20 @@ class _ArenaBookingConfirmPageState
                                           professorDiscount
                                               ? quote
                                                   .amountBeforeProfessorDiscountReais
+                                              : athletePricing
+                                              ? quote
+                                                  .amountBeforeAthletePricingReais
                                               : displayTotal,
                                         ),
                                   discountLineLabel: professorDiscount
                                       ? quote.professorDiscountLabel
+                                      : athletePricing
+                                      ? quote.athletePricingLineLabel
                                       : null,
                                   discountAmountLabel: professorDiscount
                                       ? quote.professorDiscountValueLabel
+                                      : athletePricing
+                                      ? quote.athletePricingValueLabel
                                       : null,
                                   weatherCreditAmountLabel: creditApplied > 0
                                       ? '\u2212 ${formatBRL(creditApplied)}'
@@ -727,7 +742,9 @@ class _ArenaBookingConfirmPageState
                                   totalLineLabel:
                                       creditApplied > 0 ? 'A pagar' : 'Total',
                                   totalAmountLabel:
-                                      professorDiscount || creditApplied > 0
+                                      professorDiscount ||
+                                          athletePricing ||
+                                          creditApplied > 0
                                       ? formatBRL(amountDue)
                                       : null,
                                 ),

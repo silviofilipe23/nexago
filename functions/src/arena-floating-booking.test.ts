@@ -324,3 +324,33 @@ describe("bloqueio de quadra empurra reserva flutuante", () => {
     assert.deepEqual(result.moved, ["flo"]);
   });
 });
+
+describe("recepção confirma a quadra provisória", () => {
+  it("mesma quadra: vira assigned, trava para de flutuar, nada se move", async () => {
+    const fake = seedArena(2);
+    seedBooking(fake, "flo", {courtId: "c1", floating: true});
+    const result = await changeArenaBookingCourtCore(db(fake), "mgr", {bookingId: "flo", toCourtId: "c1", reason: null}, NOW);
+    assert.deepEqual(result, {changed: true, bookingId: "flo", courtId: "c1", courtName: "Quadra 1", assigned: true});
+    const booking = fake.store.get("arenaBookings/flo");
+    assert.equal(booking?.["allocationStatus"], "assigned");
+    assert.equal(booking?.["allocationSource"], "staff");
+    const lock = fake.store.get(`arenaSlotLocks/${lockIds("c1", "18:00", "19:00")[0]}`);
+    assert.equal(lock?.["bookingId"], "flo");
+    assert.equal("floating" in (lock ?? {}), false);
+  });
+
+  it("reserva comum na mesma quadra continua sem mudança", async () => {
+    const fake = seedArena(2);
+    seedBooking(fake, "a", {courtId: "c1"});
+    const result = await changeArenaBookingCourtCore(db(fake), "mgr", {bookingId: "a", toCourtId: "c1", reason: null}, NOW);
+    assert.equal(result.changed, false);
+    assert.equal(result.assigned, false);
+  });
+
+  it("mover uma flutuante para outra quadra também conta como definida", async () => {
+    const fake = seedArena(2);
+    seedBooking(fake, "flo", {courtId: "c1", floating: true});
+    const result = await changeArenaBookingCourtCore(db(fake), "mgr", {bookingId: "flo", toCourtId: "c2", reason: null}, NOW);
+    assert.equal(result.assigned, true);
+  });
+});

@@ -143,7 +143,7 @@ describe("changeArenaBookingCourtCore", () => {
     const fake = seed();
     const result = await move(fake);
 
-    assert.deepEqual(result, {changed: true, bookingId: BOOKING_ID, courtId: "court2", courtName: "Quadra 2"});
+    assert.deepEqual(result, {changed: true, bookingId: BOOKING_ID, courtId: "court2", courtName: "Quadra 2", assigned: false});
     for (const id of locksOf("court1")) assert.equal(fake.store.has(`arenaSlotLocks/${id}`), false);
     for (const id of locksOf("court2")) {
       const lock = fake.store.get(`arenaSlotLocks/${id}`);
@@ -247,6 +247,10 @@ describe("courtChangedPushBody", () => {
     assert.equal(
       courtChangedPushBody(bookingData(), "Quadra 7"),
       "Sua reserva das 18:00 em Arena X agora é na Quadra 7.",
+    );
+    assert.equal(
+      courtChangedPushBody(bookingData(), "Quadra 7", true),
+      "Sua quadra para as 18:00 em Arena X: Quadra 7.",
     );
   });
 });

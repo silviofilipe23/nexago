@@ -3,8 +3,8 @@ import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
+import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
-import { PanelCardComponent } from '../ui/panel-card.component';
 import {
   bookingAllocationError,
   bookingAllocationFromArena,
@@ -22,80 +22,119 @@ function todayKey(): string {
 }
 
 /** Card "Como o atleta reserva" da tela Quadras: a arena escolhe se o atleta escolhe a quadra ou
- *  se a recepção define na chegada (reservas por capacidade). */
+ *  se a recepção define na chegada (reservas por capacidade). Desenho: canvas NexaGO, página
+ *  Arena › "Reservas por capacidade" › 01 · Quadras. */
 @Component({
   selector: 'ar-booking-allocation-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelCardComponent, ModalComponent],
+  imports: [IconComponent, ModalComponent],
   template: `
-    <ar-panel-card title="Como o atleta reserva" pad="lg">
-      <div class="modes" role="radiogroup" aria-label="Como o atleta reserva">
-        <label class="mode" [class.selected]="form().mode === 'court'">
+    <section class="card" aria-labelledby="como-reserva-title">
+      <h2 class="card-title" id="como-reserva-title">Como o atleta reserva</h2>
+      <p class="card-desc">Vale para as próximas reservas. As que já existem continuam como estão.</p>
+
+      <div class="modes" role="radiogroup" aria-labelledby="como-reserva-title">
+        <label class="mode" [class.on]="form().mode === 'court'">
           <input type="radio" name="allocation-mode" [checked]="form().mode === 'court'" [disabled]="readOnly()" (change)="setMode('court')" />
-          <span class="mode-text">
+          <span>
             <span class="mode-title">O atleta escolhe a quadra</span>
-            <span class="mode-desc">Como sempre: a reserva já sai com a quadra.</span>
+            <span class="mode-desc">Como sempre: a reserva já sai com a quadra escolhida.</span>
           </span>
         </label>
-        <label class="mode" [class.selected]="form().mode === 'capacity'">
+        <label class="mode" [class.on]="form().mode === 'capacity'">
           <input type="radio" name="allocation-mode" [checked]="form().mode === 'capacity'" [disabled]="readOnly()" (change)="setMode('capacity')" />
-          <span class="mode-text">
+          <span>
             <span class="mode-title">A arena define a quadra</span>
-            <span class="mode-desc">O atleta reserva o horário e a recepção direciona na chegada.</span>
+            <span class="mode-desc">O atleta reserva o horário. A recepção direciona cada grupo na chegada.</span>
           </span>
         </label>
       </div>
 
       @if (form().mode === 'capacity') {
-        <div class="section">
-          <div class="field-label">Quadras da distribuição</div>
-          <div class="courts">
-            @for (court of courts(); track court.id) {
-              <label class="check">
-                <input type="checkbox" [checked]="form().courtIds.includes(court.id)" [disabled]="readOnly()" (change)="toggleCourt(court.id)" />
-                <span>{{ court.name }}@if (court.status === 'maintenance') { <span class="muted"> · em manutenção</span>}</span>
-              </label>
-            }
-          </div>
+        <div class="sep"></div>
+        <p class="label" id="distribuicao-label">Quadras da distribuição</p>
+        <div class="chips" role="group" aria-labelledby="distribuicao-label">
+          @for (court of courts(); track court.id) {
+            <label class="chip" [class.on]="form().courtIds.includes(court.id)" [class.dim]="court.status === 'maintenance'">
+              <input type="checkbox" [checked]="form().courtIds.includes(court.id)" [disabled]="readOnly()" (change)="toggleCourt(court.id)" />
+              @if (form().courtIds.includes(court.id)) {
+                <ar-icon name="check" [size]="14" />
+              }
+              {{ court.name }}
+              @if (court.status === 'maintenance') {
+                <small>manutenção</small>
+              }
+            </label>
+          }
         </div>
+        <p class="hint">
+          {{ selectedCount() }} de {{ courts().length }} quadras · o sistema tenta nesta ordem e prefere a quadra que encosta em outra reserva
+        </p>
 
         @if (sports().length > 0) {
-          <div class="section">
-            <div class="field-label">Preço do horário (por hora)</div>
-            <div class="prices">
-              @for (sport of sports(); track sport.code) {
-                <label class="price">
-                  <span>{{ sport.label }}</span>
-                  <span class="price-input">
-                    <span class="currency">R$</span>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      inputmode="decimal"
-                      [value]="form().priceBySport[sport.code] ?? ''"
-                      [disabled]="readOnly()"
-                      (input)="setPrice(sport.code, $any($event.target).value)"
-                    />
-                  </span>
-                </label>
-              }
-            </div>
+          <div class="sep"></div>
+          <p class="label">Preço do horário (por hora)</p>
+          <div class="prices">
+            @for (sport of sports(); track sport.code) {
+              <div>
+                <label class="field-label" [attr.for]="'preco-' + sport.code">{{ sport.label }}</label>
+                <div class="money">
+                  <span>R$</span>
+                  <input
+                    [id]="'preco-' + sport.code"
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputmode="decimal"
+                    [value]="form().priceBySport[sport.code] ?? ''"
+                    [disabled]="readOnly()"
+                    (input)="setPrice(sport.code, $any($event.target).value)"
+                  />
+                </div>
+              </div>
+            }
           </div>
+          <p class="hint">Promoções e regras de horário de pico continuam valendo em cima deste preço.</p>
         }
 
-        <div class="section toggles">
-          <label class="check">
-            <input type="checkbox" [checked]="form().revealBeforeArrival" [disabled]="readOnly()" (change)="toggle('revealBeforeArrival')" />
-            <span>Mostrar a quadra ao atleta quando a recepção definir antes da chegada</span>
-          </label>
-          <label class="check">
-            <input type="checkbox" [checked]="form().allowCourtChoice" [disabled]="readOnly()" (change)="toggle('allowCourtChoice')" />
-            <span>O atleta pode escolher a quadra, se quiser</span>
-          </label>
+        <div class="sep"></div>
+        <div class="toggle">
+          <div>
+            <div class="toggle-title" id="reveal-label">Mostrar a quadra ao atleta antes da chegada</div>
+            <div class="toggle-desc">Quando a recepção definir a quadra antes, o atleta vê no app.</div>
+          </div>
+          <button
+            type="button"
+            class="switch"
+            role="switch"
+            aria-labelledby="reveal-label"
+            [class.on]="form().revealBeforeArrival"
+            [attr.aria-checked]="form().revealBeforeArrival"
+            [disabled]="readOnly()"
+            (click)="toggle('revealBeforeArrival')"
+          ></button>
+        </div>
+        <div class="toggle">
+          <div>
+            <div class="toggle-title" id="choice-label">O atleta pode escolher a quadra, se quiser</div>
+            <div class="toggle-desc">Quem não escolher entra na distribuição.</div>
+          </div>
+          <button
+            type="button"
+            class="switch"
+            role="switch"
+            aria-labelledby="choice-label"
+            [class.on]="form().allowCourtChoice"
+            [attr.aria-checked]="form().allowCourtChoice"
+            [disabled]="readOnly()"
+            (click)="toggle('allowCourtChoice')"
+          ></button>
         </div>
 
-        <p class="note">Quem estiver com uma versão antiga do app vai ver "Atualize o app" ao reservar nesta arena.</p>
+        <p class="notice">
+          <ar-icon name="alert-triangle" [size]="14" />
+          <span>Quem estiver com uma versão antiga do app vai ver “Atualize o app” ao reservar nesta arena.</span>
+        </p>
       }
 
       @if (errorMessage(); as err) {
@@ -107,15 +146,16 @@ function todayKey(): string {
 
       @if (!readOnly()) {
         <div class="actions">
-          <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="saving() || !dirty() || !!formError()" (click)="requestSave()">
+          <button type="button" class="ar-mini-btn ar-mini-btn-primary save-btn" [disabled]="saving() || !dirty() || !!formError()" (click)="requestSave()">
+            <ar-icon name="check" [size]="14" />
             {{ saving() ? 'Salvando…' : 'Salvar' }}
           </button>
-          @if (dirty() && formError(); as err) {
-            <span class="hint">{{ err }}</span>
+          @if (dirty()) {
+            <span class="hint inline">{{ formError() ?? 'Alterações não salvas' }}</span>
           }
         </div>
       }
-    </ar-panel-card>
+    </section>
 
     @if (pendingSwitch(); as count) {
       <ar-modal (close)="pendingSwitch.set(null)">
@@ -132,114 +172,244 @@ function todayKey(): string {
     }
   `,
   styles: `
+    .card {
+      background: var(--nx-surface-0, #0b0b0c);
+      border: 1px solid var(--nx-line);
+      border-radius: 16px;
+      padding: 20px 22px;
+    }
+    .card-title {
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--nx-text);
+      margin: 0;
+    }
+    .card-desc {
+      font-size: 13px;
+      color: var(--nx-text-mute);
+      margin: 4px 0 0;
+      line-height: 1.5;
+    }
     .modes {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
+      gap: 12px;
+      margin-top: 18px;
     }
     .mode {
       display: flex;
-      gap: 10px;
+      gap: 12px;
       align-items: flex-start;
-      padding: 12px 14px;
-      border-radius: var(--nx-r-2);
+      padding: 16px;
+      border-radius: 14px;
       border: 1px solid var(--nx-line);
       background: var(--nx-surface-1);
       cursor: pointer;
     }
-    .mode.selected {
+    .mode.on {
       border-color: var(--nx-orange-500);
+      background: rgba(255, 106, 26, 0.06);
     }
-    .mode-text {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
+    .mode input {
+      accent-color: var(--nx-orange-500);
+      margin: 3px 0 0;
+      width: 16px;
+      height: 16px;
+      flex: none;
     }
     .mode-title {
+      display: block;
       font-weight: 700;
-      font-size: 13.5px;
+      font-size: 14px;
       color: var(--nx-text);
     }
-    .mode-desc,
-    .note,
-    .hint,
-    .muted {
+    .mode-desc {
+      display: block;
       font-size: 12.5px;
       color: var(--nx-text-mute);
+      margin-top: 4px;
+      line-height: 1.45;
     }
-    .section {
-      margin-top: 18px;
+    .sep {
+      height: 1px;
+      background: var(--nx-line);
+      margin: 20px 0;
     }
-    .field-label {
+    .label {
       font-family: var(--nx-font-mono);
-      font-size: 9px;
-      letter-spacing: 0.14em;
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
-      margin-bottom: 10px;
+      margin: 0 0 10px;
     }
-    .courts {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 8px;
-    }
-    .check {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 32px;
-      font-size: 13px;
-      color: var(--nx-text);
-      cursor: pointer;
-    }
-    .toggles {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .prices {
+    .chips {
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 8px;
     }
-    .price {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: 13px;
-      color: var(--nx-text);
-    }
-    .price-input {
+    .chip {
+      position: relative;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      height: 40px;
-      padding: 0 12px;
-      border-radius: var(--nx-r-2);
+      min-height: 36px;
+      padding: 0 14px;
+      border-radius: 999px;
       border: 1px solid var(--nx-line);
       background: var(--nx-surface-1);
+      color: var(--nx-text-mute);
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
     }
-    .price-input input {
-      width: 90px;
-      border: none;
-      background: transparent;
+    .chip input {
+      position: absolute;
+      opacity: 0;
+      width: 1px;
+      height: 1px;
+    }
+    .chip:focus-within {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 2px;
+    }
+    .chip.on {
+      background: rgba(255, 106, 26, 0.12);
+      border-color: rgba(255, 106, 26, 0.55);
+      color: var(--nx-orange-400, #ff8a4a);
+    }
+    .chip.dim:not(.on) {
+      opacity: 0.55;
+    }
+    .chip small {
+      font-family: var(--nx-font-mono);
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0.8;
+    }
+    .hint {
+      font-size: 12px;
+      color: var(--nx-text-dim);
+      margin: 10px 0 0;
+    }
+    .hint.inline {
+      margin: 0;
+    }
+    .prices {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .field-label {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 600;
       color: var(--nx-text);
-      font-family: var(--nx-font-ui);
+      margin-bottom: 8px;
+    }
+    .money {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 44px;
+      padding: 0 14px;
+      border-radius: 10px;
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      font-family: var(--nx-font-mono);
       font-size: 14px;
     }
-    .price-input input:focus {
+    .money:focus-within {
+      border-color: var(--nx-orange-500);
+    }
+    .money span {
+      color: var(--nx-text-dim);
+    }
+    .money input {
+      flex: 1;
+      min-width: 0;
+      background: transparent;
+      border: none;
+      color: var(--nx-text);
+      font: inherit;
       outline: none;
     }
-    .currency {
-      color: var(--nx-text-dim);
-      font-size: 13px;
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 0;
     }
-    .note {
-      margin: 16px 0 0;
+    .toggle + .toggle {
+      border-top: 1px solid var(--nx-line);
+    }
+    .toggle-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--nx-text);
+    }
+    .toggle-desc {
+      font-size: 12px;
+      color: var(--nx-text-mute);
+      margin-top: 3px;
+    }
+    .switch {
+      position: relative;
+      width: 40px;
+      height: 22px;
+      flex: none;
+      padding: 0;
+      border-radius: 999px;
+      background: var(--nx-surface-2, #1b1b1f);
+      border: 1px solid var(--nx-line);
+      cursor: pointer;
+    }
+    .switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--nx-text-mute);
+      transition: left 160ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .switch.on {
+      background: var(--nx-orange-500);
+      border-color: var(--nx-orange-500);
+    }
+    .switch.on::after {
+      left: 20px;
+      background: #0a0a0a;
+    }
+    .switch:focus-visible {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 2px;
+    }
+    .switch:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
+    .notice {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin: 14px 0 0;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(244, 197, 67, 0.3);
+      background: rgba(244, 197, 67, 0.06);
+      color: var(--nx-text-mute);
+      font-size: 12.5px;
+      line-height: 1.5;
     }
     .banner {
       margin-top: 16px;
-      border-radius: var(--nx-r-2);
+      border-radius: 10px;
       padding: 10px 14px;
       font-size: 12.5px;
       color: var(--nx-text);
@@ -250,14 +420,19 @@ function todayKey(): string {
       color: var(--nx-live);
     }
     .banner-ok {
-      border: 1px solid var(--nx-success);
+      border: 1px solid var(--nx-win);
       background: rgba(47, 179, 107, 0.1);
     }
     .actions {
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin-top: 18px;
+      gap: 14px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+    .save-btn {
+      height: 40px;
+      padding: 0 18px;
     }
     .confirm-title {
       font-family: var(--nx-font-display);
@@ -304,6 +479,9 @@ export class BookingAllocationCardComponent {
 
   protected readonly sports = computed(() => sportsOfCourts(this.courts(), this.form().courtIds));
   protected readonly formError = computed(() => bookingAllocationError(this.form(), this.courts()));
+  protected readonly selectedCount = computed(
+    () => this.form().courtIds.filter((id) => this.courts().some((c) => c.id === id)).length,
+  );
 
   constructor() {
     // Sem edição em curso, o formulário acompanha o que está salvo.
@@ -343,6 +521,7 @@ export class BookingAllocationCardComponent {
   }
 
   protected toggle(field: 'revealBeforeArrival' | 'allowCourtChoice'): void {
+    if (this.readOnly()) return;
     this.patch({ [field]: !this.form()[field] } as Partial<BookingAllocationForm>);
   }
 

@@ -10,7 +10,9 @@ import '../../../../core/ui/app_snackbar.dart';
 import '../../../../core/ui/app_status_views.dart';
 import '../../../../core/ui/fade_slide_in.dart';
 import '../../../athlete/domain/achievements/achievement_catalog.dart';
+import '../../../athlete/domain/arena_review_eligibility.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
+import '../../../athlete/presentation/widgets/arena_review/arena_review_widgets.dart';
 import '../../domain/arena_booking_cancellation_policy.dart';
 import '../../domain/arenas_providers.dart';
 import '../../domain/booking_providers.dart';
@@ -25,6 +27,7 @@ import 'widgets/my_bookings_booking_card.dart';
 import 'widgets/my_bookings_date_header.dart';
 import 'widgets/my_bookings_empty_hero.dart';
 import 'widgets/my_bookings_nearby_section.dart';
+import 'widgets/my_bookings_review_prompt_card.dart';
 import 'widgets/my_bookings_streak_banner.dart';
 import 'widgets/my_bookings_tabs.dart';
 import 'widgets/my_bookings_waitlist_section.dart';
@@ -159,6 +162,7 @@ class _BookingsListBody extends ConsumerWidget {
         : split.history;
 
     final children = <Widget>[
+      const MyBookingsReviewPromptCard(),
       const MyBookingsWaitlistSection(),
       MyBookingsTabs(
         selected: tab,
@@ -274,6 +278,11 @@ class _BookingsListBody extends ConsumerWidget {
         return BookingDetailsSheet(
           item: item,
           dateLabel: formatBookingDateHeader(item.dateRaw),
+          canReview: canOfferArenaReview(item, DateTime.now()),
+          onReview: () {
+            Navigator.of(sheetContext).pop();
+            openArenaReview(context, item.id);
+          },
           onOpenMaps: () async {
             final q = Uri.encodeComponent(locationQuery);
             final uri = Uri.parse(

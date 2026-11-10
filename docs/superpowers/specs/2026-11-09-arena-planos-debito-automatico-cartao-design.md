@@ -226,3 +226,24 @@ Se o Asaas confirmar que a fatura paga com cartão devolve `creditCardToken`, tr
 Índice → functions (callables novas, `chargeArenaScheduleAutopay`, gatilhos e varredura alterados, webhook) → rules
 → portal → app. A chave `scheduleCardAutopay` só liga depois que o Asaas habilitar a tokenização e de um teste com
 cartão real no DEV. Desligar a chave para os débitos novos. Os que estão em `charging` terminam.
+
+## Desvios da implementação
+- `saveMyPaymentCard` aceita `cpfCnpj?` (atleta sem CPF no cadastro).
+- A assinatura guarda `autopayAthleteIds` (quem tem o débito ligado) ao lado de `autopay.{uid}`.
+- `externalReference` da cobrança com token: `arenaSchedulePayment:{groupId}:t{attemptId}`.
+- Callable `getScheduleAutopayPreview`: cartão, taxas e o próximo débito (mensalidade online aberta, não vencida,
+  que o cartão cobre).
+- Mensalidade ganha `autopay.attemptId` (toda escrita confere a tentativa) e `autopay.needsLink` (fila autodrenante
+  da rede de segurança da varredura).
+- Motor da cobrança em `arena-schedule-autopay-charge.ts`; pagar com o cartão salvo em `arena-schedule-autopay-pay.ts`.
+- Tentativa travada sem desfecho por 24 h vira recusa (`retry`/`failed` + link).
+- O aviso D-3 sai no job das 06:00 (`chargeArenaScheduleAutopay`).
+- `getMyArenaScheduleSubscriptions` devolve só `autopay[uid]` de quem pede.
+- Trocar o cartão atualiza bandeira e final nos planos com débito ligado (`refreshScheduleAutopayCardCore`).
+- Assinar com o opt-in: reserva (30 min, nada cobrado) → autorização com o valor da 1ª calculado pelo servidor + taxa
+  → cobrança no cartão salvo → `setScheduleAutopay(true)`. "Agora não" = tela de pagar.
+- Taxa do cartão zerada (falha ao carregar) bloqueia a autorização.
+- Recusa do token não anula o grupo do link, e o webhook não espelha no grupo o status de uma cobrança com token
+  (vai só para `tokenCharges.{attemptId}.asaasStatus`).
+- "Pagar" com o grupo em `autopay` vira o grupo em `pending` no mesmo id e gera o link na hora; o débito agendado
+  continua (link e token convivem; o que pagar primeiro quita, o outro é estornado).

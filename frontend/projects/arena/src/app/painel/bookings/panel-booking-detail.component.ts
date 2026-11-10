@@ -24,7 +24,7 @@ import {
   professorDiscountLabel,
   type ArenaBooking,
 } from './arena-booking.model';
-import { bookingCanChangeCourt, changeBookingCourt, courtChangeOptions } from './booking-court-change';
+import { bookingCanChangeCourt, changeBookingCourt, courtAssignOptions } from './booking-court-change';
 import { cancelBookingByManager, checkInBookingByManager, resolveAthleteLabel, restoreBookingByManager, watchBooking } from './bookings-repository';
 
 const ATTENDANCE_TONE: Record<string, PillTone | undefined> = {
@@ -105,21 +105,23 @@ export function bookingChannelLabel(channel: string | null): string {
 
             <ar-panel-card title="Horário">
               <div class="row"><span class="label">Data</span><span class="value">{{ booking()!.dateKey }}</span></div>
-              <div class="row">
-                <span class="label">Quadra</span>
-                <span class="value">
-                  @if (resolvedBooking()!.allocationStatus === 'unassigned') {
-                    <ar-pill tone="yellow">A definir</ar-pill> provisória: {{ resolvedBooking()!.courtName }}
-                  } @else {
-                    {{ resolvedBooking()!.courtName }}
-                  }
-                </span>
-              </div>
+              @if (unassigned()) {
+                <div class="row"><span class="label">Quadra</span><span class="value"><ar-pill tone="yellow">A definir</ar-pill></span></div>
+                <div class="row"><span class="label">Provisória</span><span class="value">{{ resolvedBooking()!.courtName }}</span></div>
+              } @else {
+                <div class="row"><span class="label">Quadra</span><span class="value">{{ resolvedBooking()!.courtName }}</span></div>
+              }
               @if (booking()!.sportLabel; as sport) {
                 <div class="row"><span class="label">Esporte</span><span class="value">{{ sport }}</span></div>
               }
               <div class="row"><span class="label">Horário</span><span class="value">{{ booking()!.startTime }}–{{ booking()!.endTime }}</span></div>
               <div class="row"><span class="label">Código</span><span class="value">{{ displayBookingCode(booking()!.id) }}</span></div>
+              @if (unassigned()) {
+                <p class="notice">
+                  <ar-icon name="alert-triangle" [size]="14" />
+                  <span>A recepção define a quadra na chegada. Até lá a reserva segura a <strong>{{ resolvedBooking()!.courtName }}</strong> como provisória — o sistema pode trocá-la se uma aula, um plano ou outra reserva precisar dela.</span>
+                </p>
+              }
             </ar-panel-card>
 
             <ar-panel-card title="Pagamento">
@@ -152,9 +154,15 @@ export function bookingChannelLabel(channel: string | null): string {
                   </button>
                 }
                 @if (canChangeCourt()) {
-                  <button type="button" class="ar-mini-btn" [disabled]="readOnly()" (click)="openCourtChange()">
+                  <button
+                    type="button"
+                    class="ar-mini-btn"
+                    [class.ar-mini-btn-primary]="unassigned()"
+                    [disabled]="readOnly()"
+                    (click)="openCourtChange()"
+                  >
                     <ar-icon name="courts" [size]="14" />
-                    Trocar quadra
+                    {{ unassigned() ? 'Definir quadra' : 'Trocar quadra' }}
                   </button>
                 }
                 @if (booking()!.classSessionId; as classSessionId) {
@@ -174,29 +182,37 @@ export function bookingChannelLabel(channel: string | null): string {
 
       @if (showCourtChange()) {
         <ar-modal (close)="closeCourtChange()">
-          <h2 class="confirm-title">Trocar quadra</h2>
-          <p class="confirm-body">
-            A reserva continua a mesma — horário, valor e pagamento. Só a quadra muda@if (booking()!.athleteId) {, e o atleta recebe um aviso}.
+          <h2 class="confirm-title">{{ unassigned() ? 'Definir quadra' : 'Trocar quadra' }}</h2>
+          <p class="confirm-body modal-sub">
+            {{ booking()!.startTime }}–{{ booking()!.endTime }}@if (booking()!.sportLabel; as sport) { · {{ sport }}} · {{ customerLabel() }}
           </p>
 
           @if (courtOptions().length === 0) {
             <p class="confirm-body">Nenhuma outra quadra ativa deste esporte.</p>
           } @else {
-            <div class="field-label">Nova quadra</div>
-            <div class="court-options" role="radiogroup" aria-label="Nova quadra">
-              @for (court of courtOptions(); track court.id) {
-                <label class="court-option" [class.selected]="targetCourtId() === court.id">
+            <div class="field-label">{{ booking()!.sportLabel ? 'Quadras de ' + booking()!.sportLabel : 'Quadras' }}</div>
+            <div class="court-grid" role="radiogroup" [attr.aria-label]="unassigned() ? 'Quadra' : 'Nova quadra'">
+              @for (option of courtOptions(); track option.court.id) {
+                <label
+                  class="court-tile"
+                  [class.provisional]="option.provisional"
+                  [class.selected]="targetCourtId() === option.court.id"
+                >
                   <input
                     type="radio"
                     name="target-court"
-                    [value]="court.id"
-                    [checked]="targetCourtId() === court.id"
-                    (change)="targetCourtId.set(court.id)"
+                    [value]="option.court.id"
+                    [checked]="targetCourtId() === option.court.id"
+                    (change)="targetCourtId.set(option.court.id)"
                   />
-                  <span>{{ court.name }}</span>
+                  <span class="tile-name">{{ option.court.name }}</span>
+                  <span class="tile-tag">{{ targetCourtId() === option.court.id ? 'selecionada' : option.provisional ? 'provisória' : '' }}</span>
                 </label>
               }
             </div>
+            <p class="modal-hint">
+              Se a quadra estiver ocupada nesse horário, o sistema avisa ao confirmar. Outra reserva sem quadra definida que estiver nela vai para uma quadra livre.
+            </p>
           }
 
           <div class="field-label">Motivo (opcional)</div>
@@ -208,6 +224,13 @@ export function bookingChannelLabel(channel: string | null): string {
             (input)="courtChangeReason.set($any($event.target).value)"
           />
 
+          @if (booking()!.athleteId && targetCourtName(); as name) {
+            <p class="notice notice-info">
+              <ar-icon name="bell" [size]="14" />
+              <span>O atleta recebe um aviso: “Sua quadra: {{ name }}”.</span>
+            </p>
+          }
+
           @if (courtChangeError(); as err) {
             <div class="error-banner modal-error">{{ err }}</div>
           }
@@ -215,7 +238,8 @@ export function bookingChannelLabel(channel: string | null): string {
           <div class="confirm-actions">
             <button type="button" class="ar-ghost-btn" [disabled]="changingCourt()" (click)="closeCourtChange()">Voltar</button>
             <button type="button" class="ar-mini-btn ar-mini-btn-primary confirm-btn" [disabled]="changingCourt() || !targetCourtId()" (click)="changeCourt()">
-              {{ changingCourt() ? 'Trocando…' : 'Trocar quadra' }}
+              <ar-icon name="check" [size]="14" />
+              {{ changingCourt() ? 'Salvando…' : targetCourtName() ? 'Confirmar ' + targetCourtName() : 'Confirmar' }}
             </button>
           </div>
         </ar-modal>
@@ -275,7 +299,7 @@ export function bookingChannelLabel(channel: string | null): string {
     }
 
     .success-banner {
-      border: 1px solid var(--nx-success);
+      border: 1px solid var(--nx-win);
       background: rgba(47, 179, 107, 0.1);
       color: var(--nx-text);
     }
@@ -284,29 +308,104 @@ export function bookingChannelLabel(channel: string | null): string {
       margin-bottom: 16px;
     }
 
-    .court-options {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 8px;
-      margin-bottom: 22px;
+    .modal-sub {
+      margin-bottom: 18px;
     }
 
-    .court-option {
-      display: flex;
-      align-items: center;
+    .court-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
       gap: 8px;
-      min-height: 44px;
+    }
+
+    .court-tile {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2px;
+      min-height: 56px;
       padding: 0 12px;
-      border-radius: var(--nx-r-2);
+      border-radius: 12px;
       border: 1px solid var(--nx-line);
       background: var(--nx-surface-1);
       color: var(--nx-text);
-      font-size: 13.5px;
       cursor: pointer;
     }
 
-    .court-option.selected {
+    .court-tile input {
+      position: absolute;
+      opacity: 0;
+      width: 1px;
+      height: 1px;
+    }
+
+    .court-tile:focus-within {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 2px;
+    }
+
+    .tile-name {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .tile-tag {
+      font-family: var(--nx-font-mono);
+      font-size: 8.5px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+
+    .court-tile.provisional {
+      border-style: dashed;
+      border-color: rgba(244, 197, 67, 0.55);
+    }
+
+    .court-tile.provisional .tile-tag {
+      color: #f4c543;
+    }
+
+    .court-tile.selected {
+      background: var(--nx-orange-500);
       border-color: var(--nx-orange-500);
+      color: #0a0a0a;
+    }
+
+    .court-tile.selected .tile-tag {
+      color: rgba(10, 10, 10, 0.7);
+    }
+
+    .modal-hint {
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--nx-text-dim);
+      margin: 10px 0 18px;
+    }
+
+    .notice {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin: 14px 0 0;
+      padding: 12px 14px;
+      border-radius: var(--nx-r-2);
+      border: 1px solid rgba(244, 197, 67, 0.3);
+      background: rgba(244, 197, 67, 0.06);
+      color: var(--nx-text-mute);
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+
+    .notice strong {
+      color: var(--nx-text);
+    }
+
+    .notice-info {
+      margin: 0 0 18px;
+      border-color: var(--nx-line);
+      background: var(--nx-surface-1);
     }
 
     .confirm-btn {
@@ -526,9 +625,17 @@ export class PanelBookingDetailComponent {
     return b != null && bookingCanChangeCourt(b) && this.undoDeadlineMs() == null;
   });
 
+  /** Reserva no modo "a arena define a quadra" ainda sem quadra definida. */
+  protected readonly unassigned = computed(() => this.booking()?.allocationStatus === 'unassigned');
+
   protected readonly courtOptions = computed(() => {
     const b = this.booking();
-    return b ? courtChangeOptions(b, this.courts()) : [];
+    return b ? courtAssignOptions(b, this.courts()) : [];
+  });
+
+  protected readonly targetCourtName = computed(() => {
+    const id = this.targetCourtId();
+    return this.courtOptions().find((o) => o.court.id === id)?.court.name ?? null;
   });
 
   protected readonly undoSecondsLeft = computed(() => {
@@ -545,7 +652,9 @@ export class PanelBookingDetailComponent {
 
   protected readonly headerSubtitle = computed(() => {
     const b = this.resolvedBooking();
-    return b ? `${b.courtName} · ${b.dateKey} · ${b.startTime}–${b.endTime}` : '';
+    if (!b) return '';
+    const court = b.allocationStatus === 'unassigned' ? 'Quadra a definir' : b.courtName;
+    return `${court} · ${b.dateKey} · ${b.startTime}–${b.endTime}`;
   });
 
   /** Reserva feita como professor: "Professor · equipe da arena" / "Professor · independente". */
@@ -638,7 +747,7 @@ export class PanelBookingDetailComponent {
   protected openCourtChange(): void {
     if (this.readOnly()) return;
     const options = this.courtOptions();
-    this.targetCourtId.set(options.length === 1 ? options[0]!.id : null);
+    this.targetCourtId.set(options.length === 1 ? options[0]!.court.id : null);
     this.courtChangeReason.set('');
     this.courtChangeError.set(null);
     this.successMessage.set(null);
@@ -663,9 +772,8 @@ export class PanelBookingDetailComponent {
         reason: this.courtChangeReason().trim() || null,
       });
       this.showCourtChange.set(false);
-      this.successMessage.set(
-        b.athleteId ? `Reserva movida para ${result.courtName}. O atleta foi avisado.` : `Reserva movida para ${result.courtName}.`,
-      );
+      const done = result.assigned ? `Quadra definida: ${result.courtName}.` : `Reserva movida para ${result.courtName}.`;
+      this.successMessage.set(b.athleteId && result.changed ? `${done} O atleta foi avisado.` : done);
     } catch (err) {
       this.courtChangeError.set(err instanceof Error ? err.message : 'Não foi possível trocar a quadra.');
     } finally {

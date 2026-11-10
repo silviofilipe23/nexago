@@ -16,7 +16,7 @@
  * O valor da reserva não muda (já foi cotado e, às vezes, pago).
  */
 import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {getFirestore, type Firestore, type DocumentData} from "firebase-admin/firestore";
+import {getFirestore, FieldValue, type Firestore, type DocumentData, type DocumentSnapshot} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {assertArenaAreaAccess} from "./arena-area-access";
 import {computeSlotLockIds} from "./arena-booking-waitlist";
@@ -54,6 +54,8 @@ export interface ChangeBookingCourtResult {
   bookingId: string;
   courtId: string;
   courtName: string;
+  /** A reserva estava sem quadra definida (modo "arena define a quadra") e agora tem. */
+  assigned: boolean;
 }
 
 function str(v: unknown): string {
@@ -162,11 +164,16 @@ export async function changeArenaBookingCourtCore(
 
   const fromCourtId = str(booking["courtId"]);
   if (fromCourtId === input.toCourtId) {
+    // Reserva sem quadra definida confirmada na própria provisória: só marca como definida.
+    if (booking["allocationStatus"] === "unassigned") {
+      return assignBookingInPlace(db, uid, input.bookingId, fromCourtId, nowMs);
+    }
     return {
       changed: false,
       bookingId: input.bookingId,
       courtId: fromCourtId,
       courtName: str(booking["courtName"]) || "Quadra",
+      assigned: false,
     };
   }
 
@@ -241,12 +248,71 @@ export async function changeArenaBookingCourtCore(
     claim.commit(tx);
   });
 
-  return {changed: true, bookingId: input.bookingId, courtId: input.toCourtId, courtName: toCourtName};
+  return {
+    changed: true,
+    bookingId: input.bookingId,
+    courtId: input.toCourtId,
+    courtName: toCourtName,
+    assigned: booking["allocationStatus"] === "unassigned",
+  };
 }
 
-export function courtChangedPushBody(booking: DocumentData, toCourtName: string): string {
+/**
+ * Recepção confirma a quadra provisória: a reserva passa a `assigned` (fonte `staff`) e as travas
+ * dela deixam de flutuar — ninguém mais empurra essa reserva.
+ */
+async function assignBookingInPlace(
+  db: Firestore,
+  uid: string,
+  bookingId: string,
+  courtId: string,
+  nowMs: number,
+): Promise<ChangeBookingCourtResult> {
+  const bookingRef = db.collection(ARENA_BOOKINGS).doc(bookingId);
+  return db.runTransaction(async (tx) => {
+    const fresh = await tx.get(bookingRef);
+    if (!fresh.exists) throw new HttpsError("not-found", "Reserva não encontrada.");
+    const data = fresh.data() as DocumentData;
+    const courtName = str(data["courtName"]) || "Quadra";
+    if (str(data["courtId"]) !== courtId) {
+      throw new HttpsError("aborted", "A reserva mudou enquanto você definia a quadra. Tente de novo.");
+    }
+    const reason = courtChangeBlockReason(data, nowMs);
+    if (reason) throw new HttpsError("failed-precondition", reason);
+    if (data["allocationStatus"] !== "unassigned") {
+      return {changed: false, bookingId, courtId, courtName, assigned: false};
+    }
+
+    const lockIds = computeSlotLockIds({
+      arenaId: str(data["arenaId"]),
+      courtId,
+      dateKey: parseDateKeyFromBooking(data["date"]) ?? "",
+      startTime: str(data["startTime"]),
+      endTime: str(data["endTime"]),
+    });
+    const locks: DocumentSnapshot[] = [];
+    for (const id of lockIds) locks.push(await tx.get(db.collection(ARENA_SLOT_LOCKS).doc(id)));
+
+    for (const lock of locks) {
+      if (!lock.exists || lock.data()?.["bookingId"] !== bookingId) continue;
+      const lockData = {...lock.data() as DocumentData};
+      delete lockData["floating"];
+      tx.set(lock.ref, lockData);
+    }
+    tx.set(bookingRef, {
+      allocationStatus: "assigned",
+      allocationSource: "staff",
+      allocatedAt: FieldValue.serverTimestamp(),
+      allocatedBy: uid,
+    }, {merge: true});
+    return {changed: true, bookingId, courtId, courtName, assigned: true};
+  });
+}
+
+export function courtChangedPushBody(booking: DocumentData, toCourtName: string, assigned = false): string {
   const startTime = str(booking["startTime"]);
   const arenaName = str(booking["arenaName"]) || "a arena";
+  if (assigned) return `Sua quadra para as ${startTime} em ${arenaName}: ${toCourtName}.`;
   return `Sua reserva das ${startTime} em ${arenaName} agora é na ${toCourtName}.`;
 }
 
@@ -268,8 +334,8 @@ export const changeArenaBookingCourt = onCall({
     if (athleteId) {
       await deliverNotificationToUser({
         userId: athleteId,
-        title: "Sua quadra mudou",
-        body: courtChangedPushBody(booking, result.courtName),
+        title: result.assigned ? "Sua quadra está definida" : "Sua quadra mudou",
+        body: courtChangedPushBody(booking, result.courtName, result.assigned),
         type: BOOKING_COURT_CHANGED_PUSH_TYPE,
         data: {
           type: BOOKING_COURT_CHANGED_PUSH_TYPE,

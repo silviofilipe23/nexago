@@ -9,7 +9,7 @@ import type { ArenaBooking } from './arena-booking.model';
 type CourtChangeBooking = Pick<
   ArenaBooking,
   'status' | 'courtId' | 'sportCode' | 'classSessionId' | 'clubSessionId' | 'scheduleSubscriptionId'
->;
+> & Partial<Pick<ArenaBooking, 'allocationStatus'>>;
 
 /** Aula, clubinho e plano de horário trocam de quadra pela própria tela (a série manda nas travas). */
 export function bookingCanChangeCourt(booking: CourtChangeBooking): boolean {
@@ -29,11 +29,28 @@ export function courtChangeOptions(booking: CourtChangeBooking, courts: readonly
   });
 }
 
+export interface CourtChangeOption {
+  court: ArenaCourt;
+  /** Quadra provisória de uma reserva sem quadra definida — escolher ela só confirma. */
+  provisional: boolean;
+}
+
+/** Opções do modal: reserva sem quadra definida oferece também a provisória (primeiro); as
+ *  outras, como em `courtChangeOptions`. */
+export function courtAssignOptions(booking: CourtChangeBooking, courts: readonly ArenaCourt[]): CourtChangeOption[] {
+  const others = courtChangeOptions(booking, courts).map((court) => ({ court, provisional: false }));
+  if (booking.allocationStatus !== 'unassigned') return others;
+  const current = courts.find((c) => c.id === booking.courtId);
+  return current ? [{ court: current, provisional: true }, ...others] : others;
+}
+
 export interface ChangeBookingCourtResult {
   changed: boolean;
   bookingId: string;
   courtId: string;
   courtName: string;
+  /** A reserva estava sem quadra definida e agora tem. */
+  assigned?: boolean;
 }
 
 export class BookingCourtChangeError extends Error {}

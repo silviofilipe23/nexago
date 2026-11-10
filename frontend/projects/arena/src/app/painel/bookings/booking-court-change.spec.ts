@@ -1,5 +1,5 @@
 import type { ArenaCourt } from '../courts/court.model';
-import { bookingCanChangeCourt, courtChangeOptions } from './booking-court-change';
+import { bookingCanChangeCourt, courtAssignOptions, courtChangeOptions } from './booking-court-change';
 
 function booking(overrides: Partial<Parameters<typeof bookingCanChangeCourt>[0]> = {}) {
   return {
@@ -59,5 +59,18 @@ describe('courtChangeOptions', () => {
   it('reserva sem esporte aceita quadra de qualquer esporte', () => {
     const courts = [court('c2', { types: ['beachVolleyball'] })];
     expect(courtChangeOptions(booking({ sportCode: null }), courts).map((c) => c.id)).toEqual(['c2']);
+  });
+});
+
+describe('courtAssignOptions', () => {
+  it('reserva sem quadra definida oferece a provisória primeiro', () => {
+    const courts = [court('c1'), court('c2'), court('c3', { status: 'maintenance' })];
+    const options = courtAssignOptions(booking({ allocationStatus: 'unassigned' } as never), courts);
+    expect(options.map((o) => [o.court.id, o.provisional])).toEqual([['c1', true], ['c2', false]]);
+  });
+
+  it('reserva com quadra definida não oferece a atual', () => {
+    const options = courtAssignOptions(booking({ allocationStatus: 'assigned' } as never), [court('c1'), court('c2')]);
+    expect(options.map((o) => o.court.id)).toEqual(['c2']);
   });
 });

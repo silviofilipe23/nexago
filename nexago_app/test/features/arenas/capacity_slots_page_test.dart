@@ -14,6 +14,8 @@ import 'package:nexago_app/features/arenas/domain/arenas_providers.dart';
 import 'package:nexago_app/features/arenas/domain/slots_providers.dart';
 import 'package:nexago_app/features/arenas/presentation/capacity_slots_view.dart';
 import 'package:nexago_app/features/arenas/presentation/slots_page.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 
 /// Fiação da tela de horários numa arena "a arena define a quadra": a rota de sempre abre a
 /// grade por horário e a confirmação recebe a reserva sem quadra.
@@ -41,7 +43,27 @@ ArenaSlot slot(String courtId, String start, String end, String status) => Arena
       rawStatus: status,
     );
 
-Future<List<Object?>> pumpSlots(WidgetTester tester) async {
+const _oneSportCourts = [
+  ArenaCourt(id: 'q1', name: 'Quadra 1', sportTypes: ['beachTennis']),
+  ArenaCourt(id: 'q2', name: 'Quadra 2', sportTypes: ['beachTennis']),
+  ArenaCourt(id: 'q3', name: 'Quadra 3', sportTypes: ['beachTennis']),
+];
+
+AthleteProfile athlete(String? primarySport) => AthleteProfile(
+      id: 'u1',
+      name: 'Atleta',
+      sport: '',
+      level: '',
+      city: '',
+      primarySportFirestoreId: primarySport,
+    );
+
+Future<List<Object?>> pumpSlots(
+  WidgetTester tester, {
+  ArenaListItem arenaItem = arena,
+  List<ArenaCourt> courts = _oneSportCourts,
+  String? primarySport,
+}) async {
   tester.view.physicalSize = const Size(900, 2400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -71,14 +93,9 @@ Future<List<Object?>> pumpSlots(WidgetTester tester) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        arenaByIdProvider.overrideWith((ref, id) => Stream.value(arena)),
-        courtsStreamProvider.overrideWith(
-          (ref, id) => Stream.value(const [
-            ArenaCourt(id: 'q1', name: 'Quadra 1', sportTypes: ['beachTennis']),
-            ArenaCourt(id: 'q2', name: 'Quadra 2', sportTypes: ['beachTennis']),
-            ArenaCourt(id: 'q3', name: 'Quadra 3', sportTypes: ['beachTennis']),
-          ]),
-        ),
+        arenaByIdProvider.overrideWith((ref, id) => Stream.value(arenaItem)),
+        courtsStreamProvider.overrideWith((ref, id) => Stream.value(courts)),
+        athleteProfileProvider.overrideWith((ref) => Stream.value(athlete(primarySport))),
         arenaDaySlotsProvider.overrideWith(
           (ref, params) => Stream.value([
             slot('q1', '18:00', '19:00', 'available'),
@@ -137,5 +154,88 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(extras, isEmpty);
+  });
+
+  group('esportes', () {
+    const multiArena = ArenaListItem(
+      id: 'a1',
+      name: 'Arena CFC',
+      locationLabel: 'Goiânia, GO',
+      pricePerHourReais: 70,
+      bookingAllocation: ArenaBookingAllocation(
+        isCapacity: true,
+        courtIds: ['q1', 'q2', 'q3'],
+        priceBySport: {
+          'beachTennis': 120,
+          'beachVolleyball': 100,
+          'footvolley': 90,
+          'padel': 150,
+          'tennis': 110,
+        },
+      ),
+    );
+    const multiCourts = [
+      ArenaCourt(id: 'q1', name: 'Quadra 1'),
+      ArenaCourt(id: 'q2', name: 'Quadra 2'),
+      ArenaCourt(id: 'q3', name: 'Quadra 3'),
+    ];
+
+    List<String> chipLabels(WidgetTester tester) => [
+          for (final chip in tester.widgetList<ChoiceChip>(
+            find.descendant(of: find.byKey(const Key('capacity-sports')), matching: find.byType(ChoiceChip)),
+          ))
+            ((chip.label as Text).data ?? ''),
+        ];
+
+    ChoiceChip chip(WidgetTester tester, String label) =>
+        tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, label));
+
+    testWidgets('todos numa linha com rolagem horizontal', (tester) async {
+      await pumpSlots(tester, arenaItem: multiArena, courts: multiCourts);
+      tester.view.physicalSize = const Size(360, 2400);
+      await tester.pump();
+
+      final scroll = tester.widget<SingleChildScrollView>(find.byKey(const Key('capacity-sports')));
+      expect(scroll.scrollDirection, Axis.horizontal);
+      expect(chipLabels(tester), hasLength(5));
+      final ys = {
+        for (final c in find.descendant(of: find.byKey(const Key('capacity-sports')), matching: find.byType(ChoiceChip)).evaluate())
+          tester.getTopLeft(find.byWidget(c.widget)).dy,
+      };
+      expect(ys, hasLength(1), reason: 'uma linha só');
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('esporte principal do atleta vem primeiro e selecionado', (tester) async {
+      // Grafia do perfil (`primarySportId`), não o código da reserva.
+      final extras = await pumpSlots(tester, arenaItem: multiArena, courts: multiCourts, primarySport: 'PADEL');
+
+      expect(chipLabels(tester).first, 'Padel');
+      expect(chip(tester, 'Padel').selected, isTrue);
+      expect(chip(tester, 'Beach tennis').selected, isFalse);
+      expect(find.textContaining('150 · '), findsWidgets);
+
+      await tester.tap(find.text('18:00 - 19:00'));
+      await tester.pump();
+      await tester.tap(find.text('Continuar'));
+      await tester.pumpAndSettle();
+      expect((extras.single as ArenaBookingConfirmArgs).sport, 'padel');
+    });
+
+    testWidgets('principal que a arena não oferece: fica o primeiro da arena', (tester) async {
+      await pumpSlots(tester, arenaItem: multiArena, courts: multiCourts, primarySport: 'VOLEI_QUADRA');
+
+      expect(chipLabels(tester).first, 'Beach tennis');
+      expect(chip(tester, 'Beach tennis').selected, isTrue);
+    });
+
+    testWidgets('trocar o esporte continua valendo', (tester) async {
+      await pumpSlots(tester, arenaItem: multiArena, courts: multiCourts, primarySport: 'PADEL');
+
+      await tester.tap(find.widgetWithText(ChoiceChip, 'Beach tennis'));
+      await tester.pump();
+      expect(chip(tester, 'Beach tennis').selected, isTrue);
+      expect(chip(tester, 'Padel').selected, isFalse);
+    });
   });
 }

@@ -58,6 +58,15 @@ List<String> capacitySports(ArenaBookingAllocation allocation, List<ArenaCourt> 
   ];
 }
 
+/// Esportes da grade na ordem do seletor: o esporte principal do atleta (`primarySportId` do
+/// perfil, em qualquer grafia do catálogo) na frente — é o que vem selecionado —, os outros na
+/// ordem da arena.
+List<String> capacitySportsForAthlete(List<String> sports, String? primarySport) {
+  final primary = bookingSportCode(primarySport);
+  if (primary == null || !sports.contains(primary)) return sports;
+  return [primary, for (final s in sports) if (s != primary) s];
+}
+
 /// Um horário da grade por horário.
 class CapacityTime {
   const CapacityTime({

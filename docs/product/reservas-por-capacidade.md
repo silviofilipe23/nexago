@@ -211,3 +211,15 @@ Trava (`arenaSlotLocks`): `floating: true` enquanto a reserva estiver `unassigne
   card "Chegou? Leia o QR da quadra" (leitor das aulas) no lugar do "Fazer check-in"; depois
   mostra "Check-in feito" com a quadra. O topo da reserva lê a quadra do doc vivo. Telas no
   canvas (05–08, página do atleta). O portal web não lê QR (sem câmera no fluxo).
+- **PR 5** (painel da arena, só portal; sem function nova): Agenda → **Por horário**
+  (`/painel/agenda/horarios`; atalho na Agenda quando a arena está no modo capacidade). Horários do
+  dia com ocupação das quadras da distribuição (reservadas / capacidade, "N sem quadra", vagas;
+  capacidade não conta bloqueio, manutenção nem quadra fechada na hora). No horário escolhido:
+  **Lista** (provisórias primeiro; Definir quadra/Trocar pela `changeArenaBookingCourt`; Chegou na
+  janela do check-in da recepção; Faltou depois do início, escrita direta `attendanceStatus:
+  "no_show"` que a rule da equipe já permite) e **Quadro** (quadras do horário; arrastar uma
+  reserva para outra quadra chama a mesma callable — com provisória no destino, trocam de lugar;
+  quadra definida, bloqueada, em manutenção, fechada ou de outro esporte recusa no cliente).
+  **Confirmar todas** fixa as provisórias do horário na quadra que já seguram (uma chamada por
+  reserva; falhas listadas no modal). Lógica pura em `painel/agenda/capacity-hours.ts`. Telas no
+  canvas (04–06, página da arena).

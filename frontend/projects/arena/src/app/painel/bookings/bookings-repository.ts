@@ -132,6 +132,27 @@ export async function checkInBookingByManager(db: Firestore, bookingId: string):
   });
 }
 
+/** "Faltou" pela recepção: marca `no_show` depois do início do horário. O mesmo veredito que o
+ *  servidor dá sozinho depois do horário (`sendArenaBookingReminders`); a rule da equipe permite. */
+export async function markNoShowByManager(db: Firestore, bookingId: string): Promise<void> {
+  const ref = doc(db, 'arenaBookings', bookingId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new BookingRepositoryError('Reserva não encontrada.');
+  const booking = arenaBookingFromDoc(snap);
+  const status = booking.status.toLowerCase().trim();
+  if (status === 'canceled' || status === 'cancelled') {
+    throw new BookingRepositoryError('Reserva cancelada não recebe falta.');
+  }
+  if (booking.attendanceStatus === 'checked_in') throw new BookingRepositoryError('Esta reserva já tem check-in.');
+  if (booking.attendanceStatus === 'no_show') return;
+  const window = bookingStartEnd(booking);
+  if (!window) throw new BookingRepositoryError('Esta reserva não tem horário válido.');
+  if (Date.now() < window.start.getTime()) {
+    throw new BookingRepositoryError('A falta só pode ser marcada depois do início do horário.');
+  }
+  await updateDoc(ref, { attendanceStatus: 'no_show' });
+}
+
 /** Cancelamento pelo gestor — guarda snapshot de status/attendance pra permitir desfazer em 60s. */
 export async function cancelBookingByManager(db: Firestore, bookingId: string, arenaId: string, cancelReason?: string): Promise<void> {
   const ref = doc(db, 'arenaBookings', bookingId);

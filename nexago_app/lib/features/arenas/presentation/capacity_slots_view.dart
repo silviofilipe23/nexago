@@ -8,6 +8,7 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_status_views.dart';
+import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/arena_booking_confirm_args.dart';
 import '../domain/arena_court.dart';
 import '../domain/arena_list_item.dart';
@@ -106,7 +107,11 @@ class _CapacitySlotsViewState extends ConsumerState<CapacitySlotsView> {
     final courtsAsync = ref.watch(courtsStreamProvider(arena.id));
     final slotsAsync = ref.watch(arenaDaySlotsProvider((arenaId: arena.id, day: _selectedDay)));
     final courts = courtsAsync.valueOrNull ?? const <ArenaCourt>[];
-    final sports = capacitySports(allocation, courts);
+    final primarySport = ref.watch(
+      athleteProfileProvider.select((p) => p.valueOrNull?.primarySportFirestoreId),
+    );
+    // O principal do atleta vem na frente e já selecionado.
+    final sports = capacitySportsForAthlete(capacitySports(allocation, courts), primarySport);
     final sport = (_sport != null && sports.contains(_sport)) ? _sport : (sports.isNotEmpty ? sports.first : null);
     final candidates = sport == null ? const <ArenaCourt>[] : capacityCandidateCourts(allocation, courts, sport);
     final durations = capacityDurationOptions(candidates);
@@ -160,22 +165,28 @@ class _CapacitySlotsViewState extends ConsumerState<CapacitySlotsView> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                     children: [
-                      if (sports.length > 1) ...[
+                      if (sports.isNotEmpty) ...[
                         _SectionLabel('Esporte'),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final s in sports)
-                              ChoiceChip(
-                                label: Text(courtSportLabel(s)),
-                                selected: s == sport,
-                                onSelected: (_) => setState(() {
-                                  _sport = s;
-                                  _selectedStart = null;
-                                }),
-                              ),
-                          ],
+                        // Todos numa linha só, rolando para o lado (sem quebrar em várias linhas).
+                        SingleChildScrollView(
+                          key: const Key('capacity-sports'),
+                          scrollDirection: Axis.horizontal,
+                          clipBehavior: Clip.none,
+                          child: Row(
+                            children: [
+                              for (final (i, s) in sports.indexed) ...[
+                                if (i > 0) const SizedBox(width: 8),
+                                ChoiceChip(
+                                  label: Text(courtSportLabel(s)),
+                                  selected: s == sport,
+                                  onSelected: (_) => setState(() {
+                                    _sport = s;
+                                    _selectedStart = null;
+                                  }),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 12),
                       ],

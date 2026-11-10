@@ -11,6 +11,7 @@ import { PillComponent } from '../ui/pill.component';
 import { brl, monthLong, monthYear } from './ph-format';
 import { PhIconComponent } from './planos-horario-ui';
 import {
+  chargeVoidsAutopay,
   chargeVoidsOnlineLink,
   durationLabel,
   onlineChargeBadge,
@@ -105,7 +106,7 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
         <div class="charge">
           <ar-avatar [name]="c.payerName" [size]="24" />
           <div class="charge-who">
-            <span>{{ c.payerName }}{{ c.payerIndex === 0 && s.members.length > 1 ? ' · titular' : '' }}</span>
+            <span>{{ c.payerName }}{{ c.payerIndex === 0 && s.members.length > 1 ? ' · titular' : '' }}@if (hasAutopay(s, c)) { <ar-pill tone="blue">Débito automático ligado</ar-pill> }</span>
             <small>{{ periodLabel(c) }}</small>
           </div>
           <span class="amount">{{ brl(c.amountReais) }}</span>
@@ -229,6 +230,9 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
         <p class="modal-title">Registrar pagamento</p>
         <p class="modal-sub">{{ c.payerName }} · {{ periodLabel(c) }} · {{ brl(c.amountReais) }}</p>
         @if (error(); as err) { <div class="error-banner">{{ err }}</div> }
+        @if (voidsAutopay(c)) {
+          <p class="hint warn">O débito automático desta mensalidade será cancelado.</p>
+        }
         @if (voidsLink(c)) {
           <p class="hint warn">Esta mensalidade tem cobrança online: registrar o pagamento aqui cancela o link enviado ao atleta. Se ele pagar pelo link depois, o valor é estornado.</p>
         }
@@ -253,6 +257,9 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
         <p class="modal-title">Cancelar mensalidade?</p>
         <p class="modal-sub">{{ c.payerName }} · {{ periodLabel(c) }} · {{ brl(c.amountReais) }}. Ela sai do que o assinante deve e não volta a ser cobrada.</p>
         @if (error(); as err) { <div class="error-banner">{{ err }}</div> }
+        @if (voidsAutopay(c)) {
+          <p class="hint warn">O débito automático desta mensalidade será cancelado.</p>
+        }
         @if (voidsLink(c)) {
           <p class="hint warn">O link online também é cancelado e deixa de valer.</p>
         }
@@ -404,6 +411,14 @@ export class PhSubscriberDetailComponent {
 
   protected invoiceUrl(c: ScheduleCharge): string | null {
     return onlineChargeInvoiceUrl(c);
+  }
+
+  protected voidsAutopay(c: ScheduleCharge): boolean {
+    return chargeVoidsAutopay(c);
+  }
+
+  protected hasAutopay(s: ScheduleSubscription, c: ScheduleCharge): boolean {
+    return !!c.payerAthleteId && s.autopayPayers.includes(c.payerAthleteId);
   }
 
   protected voidsLink(c: ScheduleCharge): boolean {

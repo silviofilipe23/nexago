@@ -90,6 +90,16 @@ describe('schedule-plan.model · parse', () => {
     expect(chargeFromRaw('c3', { asaas: { groupId: 'g', state: 'estranho' } }).asaas?.state).toBe('pending');
   });
 
+  it('débito automático: mensalidade e pagadores da assinatura', () => {
+    expect(chargeFromRaw('c', { status: 'open' }).autopay).toBeNull();
+    expect(chargeFromRaw('c', { autopay: { state: 'scheduled', scheduledFor: '2026-12-05', brand: 'VISA', last4: '4242' } }).autopay)
+      .toEqual({ state: 'scheduled', scheduledFor: '2026-12-05', brand: 'VISA', last4: '4242' });
+    const sub = subscriptionFromRaw('s', { autopay: { u1: { enabled: true }, u2: { enabled: false } }, autopayAthleteIds: ['u1', 'u2'] });
+    expect(sub.autopayPayers).toEqual(['u1']);
+    expect(subscriptionFromRaw('s', { autopayAthleteIds: ['u3'] }).autopayPayers).toEqual(['u3']);
+    expect(subscriptionFromRaw('s', {}).autopayPayers).toEqual([]);
+  });
+
   it('marca a saída pedida pelo atleta (cancelou pelo app)', () => {
     expect(subscriptionFromRaw('s1', { endsOn: '2026-12-01', endRequestedBy: 'athlete' }).endRequestedBy).toBe('athlete');
     expect(subscriptionFromRaw('s1', { endsOn: '2026-12-01' }).endRequestedBy).toBeNull();

@@ -165,9 +165,32 @@ describe('Planos de horário · telas', () => {
     expect(el.textContent).toContain('Link enviado');
     expect(el.textContent).toContain('Copiar link');
     expect(el.textContent).toContain('Pago online · Cartão');
+    expect(el.textContent).not.toContain('Débito automático ligado');
     const pay = [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Registrar pagamento'))!;
     pay.click();
     fixture.detectChanges();
     expect(el.textContent).toContain('cancela o link enviado ao atleta');
+  });
+
+  it('09 Débito automático: selo ao lado do pagador e aviso na baixa manual', () => {
+    const store = setup();
+    const fixture = TestBed.createComponent(PhSubscriberDetailComponent);
+    fixture.componentRef.setInput('sub', { ...store.subscriptions()[0]!, autopayPayers: ['u1'] });
+    fixture.componentRef.setInput('state', { kind: 'ok', label: 'Em dia', tone: 'green', overdueDays: 0 });
+    fixture.detectChanges();
+    const period = today.slice(0, 7);
+    (fixture.componentInstance as unknown as { charges: { set(v: unknown): void } }).charges.set([
+      chargeFromRaw('c1', {
+        subscriptionId: 's1', payerName: 'Marina Lopes', payerAthleteId: 'u1', amountReais: 120, period, dueDate: addDaysKey(today, 3),
+        status: 'open', billingMode: 'asaas', autopay: { state: 'scheduled', scheduledFor: addDaysKey(today, 3) },
+      }),
+    ]);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Débito automático ligado');
+    expect(el.textContent).toContain('Débito automático · agendado');
+    [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Registrar pagamento'))!.click();
+    fixture.detectChanges();
+    expect(el.textContent).toContain('O débito automático desta mensalidade será cancelado.');
   });
 });

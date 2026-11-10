@@ -1,6 +1,7 @@
 import {
   bandOccupancy,
   cellOccupants,
+  chargeVoidsAutopay,
   chargeVoidsOnlineLink,
   compactWeekdays,
   csvField,
@@ -303,6 +304,29 @@ describe('schedule-plan.logic · cobrança online', () => {
     expect(onlineChargeBadge(paid(null))?.label).toBe('Pago online · Pix');
     expect(onlineChargeBadge(chargeFromRaw('c', { status: 'paid', billingMode: 'asaas', paidVia: 'manual', paymentMethod: 'cash' }))).toBeNull();
     expect(onlineBillingTypeLabel('BOLETO')).toBe('Boleto');
+  });
+
+  it('débito automático: selos por estado, link vivo e pago', () => {
+    const ap = (state: string, extra: Record<string, unknown> = {}, scheduledFor = '2026-12-05') =>
+      chargeFromRaw('c', { status: 'open', billingMode: 'asaas', autopay: { state, scheduledFor }, ...extra });
+    expect(onlineChargeBadge(ap('scheduled'))).toEqual({ label: 'Débito automático · agendado 05/12', tone: 'blue' });
+    expect(onlineChargeBadge(ap('retry'))).toEqual({ label: 'Débito automático · agendado 05/12', tone: 'blue' });
+    expect(onlineChargeBadge(ap('charging'))).toEqual({ label: 'Débito automático · debitando', tone: 'dim' });
+    const live = { asaas: { groupId: 'g', state: 'open' } };
+    expect(onlineChargeBadge(ap('failed', live))).toEqual({ label: 'Débito recusado · link enviado', tone: 'red' });
+    // failed sem link vivo cai nas regras de hoje
+    expect(onlineChargeBadge(ap('failed', { asaas: { groupId: 'g', state: 'needs_cpf' } }))?.label).toBe('Sem CPF — cobrar manual');
+    const paid = chargeFromRaw('c', { status: 'paid', paidVia: 'asaas', onlineBillingType: 'CREDIT_CARD', autopay: { state: 'paid' } });
+    expect(onlineChargeBadge(paid)).toEqual({ label: 'Pago no débito automático', tone: 'green' });
+    expect(onlineChargeBadge(asaas('open'))?.label).toBe('Link enviado');
+  });
+
+  it('baixa manual cancela o débito agendado', () => {
+    const c = (state: string) => chargeFromRaw('c', { status: 'open', autopay: { state } });
+    expect(chargeVoidsAutopay(c('scheduled'))).toBeTrue();
+    expect(chargeVoidsAutopay(c('retry'))).toBeTrue();
+    expect(chargeVoidsAutopay(c('charging'))).toBeFalse();
+    expect(chargeVoidsAutopay(chargeFromRaw('c', { status: 'open' }))).toBeFalse();
   });
 
   it('link para copiar só com grupo aberto e mensalidade em aberto', () => {

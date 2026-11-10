@@ -490,3 +490,19 @@
   color: var(--nx-text);
   margin: 0;
 }
+
+// Arena "a arena define a quadra": a quadra aparece na chegada.
+.bc-row-value--arrival {
+  color: var(--nx-pending);
+}
+
+.bc-arrival-note {
+  margin: 4px 0 8px;
+  padding: 10px 12px;
+  border-radius: var(--nx-r-3);
+  border: 1px solid color-mix(in srgb, var(--nx-pending) 30%, transparent);
+  background: color-mix(in srgb, var(--nx-pending) 7%, transparent);
+  color: var(--nx-text-mute);
+  font-size: 13px;
+}
+

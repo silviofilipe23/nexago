@@ -67,8 +67,11 @@
         </div>
         <div class="bc-row">
           <span class="bc-row-label">Quadra</span>
-          <span class="bc-row-value">{{ b.courtName }}</span>
+          <span class="bc-row-value" [class.bc-row-value--arrival]="b.courtName === courtOnArrival">{{ b.courtName }}</span>
         </div>
+        @if (b.courtName === courtOnArrival) {
+          <p class="bc-arrival-note">Ao chegar, fale com a recepção: ela indica a sua quadra.</p>
+        }
         @if (sportLabel(); as sport) {
           <div class="bc-row">
             <span class="bc-row-label">Esporte</span>
@@ -158,7 +161,7 @@
       } @else if (statusKind() === 'pending') {
         <a
           [routerLink]="['/reservar', b.arenaId, 'agendar', 'pagamento']"
-          [queryParams]="{ courtId: b.courtId, date: b.dateKey, time: b.startTime, duration: b.slotCount }"
+          [queryParams]="resumeParams(b)"
           class="bc-btn-primary bc-btn-full bc-cta-reveal"
         >Concluir pagamento</a>
       }

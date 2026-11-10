@@ -68,6 +68,7 @@ function booking(overrides: Partial<ArenaBookingDoc> = {}): ArenaBookingDoc {
     couponDiscountReais: 0,
     asaasPaymentId: 'pay_1',
     cashbackAppliedReais: 0,
+    allocationStatus: null,
     ...overrides,
   };
 }

@@ -2,7 +2,8 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signa
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
-import { courtSportLabel, fetchArenaById, type ArenaListItem } from '@nexago/arena-discovery';
+import { COURT_ON_ARRIVAL_LABEL, courtSportLabel, fetchArenaById, type ArenaListItem } from '@nexago/arena-discovery';
+import { bookingResumePaymentParams } from './booking-resume-params';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
@@ -127,6 +128,8 @@ export class ArenaBookingConfirmedComponent {
   });
 
   protected readonly sportLabel = computed(() => courtSportLabel(this.booking()?.sport) || null);
+  protected readonly courtOnArrival = COURT_ON_ARRIVAL_LABEL;
+  protected readonly resumeParams = bookingResumePaymentParams;
 
   protected readonly dateLabel = computed(() => {
     const b = this.booking();

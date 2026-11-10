@@ -13,6 +13,9 @@ import {
   bookingSportOptions,
   courtDocSportValues,
   courtSportLabel,
+  COURT_ON_ARRIVAL_LABEL,
+  capacityCandidateCourts,
+  capacityChainFor,
 } from '@nexago/arena-discovery';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
@@ -192,6 +195,10 @@ export class ArenaPaymentComponent {
       date: qp.get('date'),
       time: qp.get('time'),
       duration: Number.parseInt(qp.get('duration') ?? '1', 10) || 1,
+      // Arena "a arena define a quadra": sem quadra; esporte e minutos vêm da grade por horário.
+      capacity: qp.get('allocation') === 'capacity',
+      sport: qp.get('sport'),
+      minutes: Number.parseInt(qp.get('minutes') ?? '60', 10) || 60,
     };
   });
 
@@ -286,6 +293,10 @@ export class ArenaPaymentComponent {
 
   /** Esportes que o atleta escolhe pra reserva (os da quadra; ver `bookingSportOptions`). */
   protected readonly sportOptions = computed(() => {
+    const params = this.bookingQueryParams();
+    if (params.capacity) {
+      return params.sport ? [{ code: params.sport, label: courtSportLabel(params.sport) }] : [];
+    }
     const c = this.court();
     if (!c) return [];
     return bookingSportOptions(courtDocSportValues(c.data), this.arena()?.courtTypes ?? []).map((code) => ({
@@ -310,7 +321,12 @@ export class ArenaPaymentComponent {
   });
 
   protected readonly headerSubtitle = computed(() =>
-    [this.arena()?.name, this.court()?.name, this.selectedSportLabel()].filter((p) => !!p).join(' · '),
+    [this.arena()?.name, this.courtLabel(), this.selectedSportLabel()].filter((p) => !!p).join(' · '),
+  );
+
+  /** Quadra no resumo: no modo capacidade ela é definida na chegada. */
+  protected readonly courtLabel = computed(() =>
+    this.bookingQueryParams().capacity ? COURT_ON_ARRIVAL_LABEL : (this.court()?.name ?? ''),
   );
 
   /** Erro de campo: tentou reservar sem escolher o esporte. */
@@ -429,7 +445,7 @@ export class ArenaPaymentComponent {
 
   protected readonly backQueryParams = computed(() => {
     const p = this.bookingQueryParams();
-    return { courtId: p.courtId, date: p.date };
+    return p.capacity ? { date: p.date } : { courtId: p.courtId, date: p.date };
   });
 
   protected readonly formatBRL = formatBRL;
@@ -461,7 +477,8 @@ export class ArenaPaymentComponent {
     const params = this.bookingQueryParams();
     const date = parseDateParam(params.date);
 
-    if (!id || !this.firestore || !params.courtId || !date || !params.time) {
+    const hasCourtOrSport = params.capacity ? !!params.sport : !!params.courtId;
+    if (!id || !this.firestore || !hasCourtOrSport || !date || !params.time) {
       this.error.set('Dados da reserva incompletos. Volte e selecione o horário novamente.');
       this.loading.set(false);
       return;
@@ -484,6 +501,27 @@ export class ArenaPaymentComponent {
       }
 
       const courts = await fetchCourts(this.firestore, id);
+      if (params.capacity) {
+        // Sem quadra: a cadeia sai de uma quadra livre da distribuição, com o preço do horário.
+        const daySlots = await fetchArenaDaySlotsMerged(this.firestore, id, date);
+        const chain = capacityChainFor({
+          allocation: arena.bookingAllocation,
+          sport: params.sport!,
+          daySlots,
+          candidates: capacityCandidateCourts(arena.bookingAllocation, courts, params.sport),
+          day: date,
+          startTime: params.time,
+          durationMinutes: params.minutes,
+        });
+        if (!chain) {
+          this.error.set('Este horário lotou. Volte e escolha outro.');
+          this.loading.set(false);
+          return;
+        }
+        this.chain.set(chain);
+        void this.loadQuote();
+        return;
+      }
       const court = courts.find((c) => c.id === params.courtId) ?? null;
       if (!court) {
         this.error.set('Quadra não encontrada.');
@@ -599,6 +637,8 @@ export class ArenaPaymentComponent {
       startTime: chain[0]?.startTime ?? '',
       endTime: chain[chain.length - 1]?.endTime ?? '',
       selectedSlotStartTimes: chain.map((s) => s.startTime),
+      capacity: this.bookingQueryParams().capacity,
+      sport: this.bookingQueryParams().capacity ? this.bookingQueryParams().sport : null,
     };
   }
 

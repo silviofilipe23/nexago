@@ -113,3 +113,21 @@ export {
   peakCheckForSelection,
   peakRuleMatches,
 } from './arena-peak-rule';
+
+export type { ArenaBookingAllocation, CapacityTime } from './booking-allocation';
+export {
+  COURT_BOOKING_ALLOCATION,
+  COURT_ON_ARRIVAL_LABEL,
+  athleteSeesBookingCourt,
+  athleteVisibleCourtName,
+  bookingAllocationFromFirestore,
+  buildCapacityTimes,
+  capacityCandidateCourts,
+  capacityChainFor,
+  capacityDurationOptions,
+  capacityPriceFor,
+  capacitySports,
+  capacityTimeIsFull,
+  capacityTimeIsLastSpots,
+  shouldUseCapacityGrid,
+} from './booking-allocation';

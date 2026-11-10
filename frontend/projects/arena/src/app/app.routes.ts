@@ -155,6 +155,12 @@ export const routes: Routes = [
       import('./painel/planos-horario/panel-ph-plan-editor.component').then((m) => m.PanelPhPlanEditorComponent),
   },
   {
+    path: 'painel/clientes',
+    title: 'Clientes — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () => import('./painel/crm/panel-crm.component').then((m) => m.PanelCrmComponent),
+  },
+  {
     path: 'painel/clubinho',
     title: 'Clubinho — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],

@@ -35,6 +35,8 @@ export const NAV_ITEMS: readonly PanelNavItem[] = [
   { id: 'aulas', label: 'Aulas', icon: 'school', route: '/painel/aulas', badge: null, area: 'agenda', group: 'operacao' },
   { id: 'quadras', label: 'Quadras', icon: 'courts', route: '/painel/quadras', badge: null, area: 'quadras', group: 'operacao' },
 
+  // CRM: base de clientes, contratos de mensalista, filas do time e conversão (área agenda, como os planos de horário).
+  { id: 'clientes', label: 'Clientes', icon: 'users', route: '/painel/clientes', badge: null, area: 'agenda', group: 'vendas' },
   { id: 'comandas', label: 'Comandas', icon: 'bookmark', route: '/painel/comandas', badge: null, area: 'comandas', group: 'vendas' },
   { id: 'estoque', label: 'Estoque', icon: 'box', route: '/painel/estoque', badge: null, area: 'estoque', group: 'vendas' },
   { id: 'promocoes', label: 'Promoções', icon: 'tag', route: '/painel/promocoes', badge: null, area: 'promocoes', group: 'vendas' },

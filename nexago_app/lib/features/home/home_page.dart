@@ -12,6 +12,7 @@ import '../arena/domain/arena_access_provider.dart';
 import '../arenas/domain/arena_list_item.dart';
 import '../arenas/domain/arenas_providers.dart';
 import '../arenas/presentation/widgets/arena_card.dart';
+import '../arenas/presentation/arena_booking_navigation.dart';
 
 /// Home de descoberta de quadras (estilo Airbnb): lista + cards a partir do Firestore.
 class HomePage extends ConsumerWidget {
@@ -44,8 +45,8 @@ class HomePage extends ConsumerWidget {
           icon: Icon(Icons.person_outline_rounded),
         ),
         IconButton(
-          tooltip: 'Minhas reservas',
-          onPressed: () => context.pushNamed(AppRouteNames.myBookings),
+          tooltip: 'Agenda',
+          onPressed: () => openDiscoverAgendaTab(context, ref: ref),
           icon: Icon(Icons.event_note_rounded),
         ),
         IconButton(

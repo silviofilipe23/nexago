@@ -34,6 +34,7 @@ import 'widgets/athlete_settings/athlete_appearance_sheet.dart';
 import 'widgets/athlete_settings/athlete_settings_group.dart';
 import 'widgets/athlete_settings/athlete_settings_helpers.dart';
 import 'widgets/athlete_settings/athlete_settings_profile_card.dart';
+import '../../arenas/presentation/arena_booking_navigation.dart';
 
 /// Configurações do atleta (protótipo 13).
 class AthleteSettingsPage extends ConsumerStatefulWidget {
@@ -238,7 +239,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   title: 'Minhas reservas',
                   subtitle: viewData.bookingsSubtitle,
                   variant: AthleteSettingsIconVariant.neutral,
-                  onTap: () => context.pushNamed(AppRouteNames.myBookings),
+                  onTap: () => openDiscoverAgendaTab(context, ref: ref),
                   showDivider: true,
                 ),
                 AthleteSettingsTile(

@@ -45,19 +45,25 @@ void openArenaBookingSlots(
   );
 }
 
-void openDiscoverAgendaTab(BuildContext context, {WidgetRef? ref}) {
+/// Marca a aba Agenda no shell do atleta. Com o shell já montado, o `?tab=agenda`
+/// da URL não troca a aba sozinho (o `initialIndex` só vale na criação).
+void selectAthleteShellAgendaTab(BuildContext context, {WidgetRef? ref}) {
   if (ref != null) {
     ref.read(athleteShellTabIndexProvider.notifier).state =
         athleteShellAgendaTabIndex;
-  } else {
-    try {
-      ProviderScope.containerOf(context, listen: false)
-          .read(athleteShellTabIndexProvider.notifier)
-          .state = athleteShellAgendaTabIndex;
-    } catch (_) {
-      // Sem Riverpod acima na árvore — initialIndex do discover resolve a aba.
-    }
+    return;
   }
+  try {
+    ProviderScope.containerOf(context, listen: false)
+        .read(athleteShellTabIndexProvider.notifier)
+        .state = athleteShellAgendaTabIndex;
+  } catch (_) {
+    // Sem Riverpod acima na árvore — initialIndex do discover resolve a aba.
+  }
+}
+
+void openDiscoverAgendaTab(BuildContext context, {WidgetRef? ref}) {
+  selectAthleteShellAgendaTab(context, ref: ref);
   context.goNamed(
     AppRouteNames.discover,
     queryParameters: const {'tab': 'agenda'},

@@ -64,9 +64,9 @@ Future<void> openAppDestination(
     HomeBannerDestination.aulas => AppRouteNames.classDirectory,
     HomeBannerDestination.indicar => AppRouteNames.athleteReferral,
     HomeBannerDestination.missoes => AppRouteNames.athleteQuest,
-    HomeBannerDestination.minhasReservas => AppRouteNames.myBookings,
     HomeBannerDestination.creditosChuva => AppRouteNames.athleteWeatherCredits,
     HomeBannerDestination.blog => AppRouteNames.blog,
+    HomeBannerDestination.minhasReservas ||
     HomeBannerDestination.reservar ||
     HomeBannerDestination.loja ||
     HomeBannerDestination.url =>
@@ -77,6 +77,8 @@ Future<void> openAppDestination(
     return;
   }
   switch (destination) {
+    case HomeBannerDestination.minhasReservas:
+      goToTab(athleteShellAgendaTabIndex);
     case HomeBannerDestination.reservar:
       goToTab(athleteShellReservarTabIndex);
     case HomeBannerDestination.loja:

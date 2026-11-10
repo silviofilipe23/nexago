@@ -12,6 +12,7 @@ import type {
   CrmOverview,
   CrmPaymentMethod,
   CrmPeriod,
+  ReminderSettings,
 } from './crm.model';
 
 export interface ContractDraft {
@@ -116,6 +117,11 @@ export class CrmStore {
       outcome,
       note,
     });
+    void this.reload();
+  }
+
+  async saveReminders(reminders: ReminderSettings): Promise<void> {
+    await this.update('saveSettings', { reminders: { ...reminders } });
     void this.reload();
   }
 

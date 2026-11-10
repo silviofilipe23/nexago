@@ -2,6 +2,7 @@ import {
   contractSummary,
   customerInsight,
   customersCsv,
+  followUpLine,
   formatPhone,
   installmentStrip,
   maskedPhone,
@@ -90,6 +91,12 @@ describe('crm.model', () => {
     const c = customer({ months, status: 'overdue', contract: contract({ status: 'overdue' }) });
     expect(customerInsight(c, '2026-11-20')).toContain('Risco alto de sair');
     expect(customerInsight(customer(), '2026-11-20')).toBeNull();
+  });
+
+  it('lembrete automático mais novo que o contato humano aparece na fila', () => {
+    const contact = { id: 'k', customerKey: 'a:u1', contractId: null, channel: 'whatsapp' as const, reason: 'overdue' as const, outcome: 'no_answer' as const, note: null, at: '2026-11-05T14:00:00.000Z', byName: 'Bruna Lima' };
+    expect(followUpLine(customer({ lastContact: contact, lastReminder: { kind: 'overdue_7', sentAt: '2026-11-10T12:00:00.000Z' } }), '2026-11-10')).toBe('Lembrete automático (atraso +7) · hoje');
+    expect(followUpLine(customer({ lastContact: contact, lastReminder: { kind: 'due_soon', sentAt: '2026-11-01T12:00:00.000Z' } }), '2026-11-10')).toBe('Sem resposta · há 5 dias, por Bruna');
   });
 
   it('CSV com separador ; e texto entre aspas quando precisa', () => {

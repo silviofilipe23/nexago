@@ -45,6 +45,16 @@ import {
   type ScheduleChargeRecord,
   type ScheduleSubscriptionRecord,
 } from "./arena-crm-model";
+import {
+  CRM_REMINDERS,
+  REMINDER_KINDS,
+  reminderOutcome,
+  reminderSettingsFrom,
+  type ReminderKind,
+  type ReminderOutcome,
+  type ReminderSettings,
+  type SentReminder,
+} from "./arena-crm-reminders-model";
 
 const ARENA_BOOKINGS = "arenaBookings";
 /** Contatos carregados na visão geral (o último por cliente e o funil de 90 dias). */
@@ -183,9 +193,59 @@ function requireArenaId(raw: unknown): string {
 
 // ── Visão geral ───────────────────────────────────────────────────────────────
 
-export async function getArenaCrmOverviewCore(db: Firestore, uid: string, raw: unknown, now: Date): Promise<CrmOverview> {
+export interface ArenaCrmOverviewPayload extends CrmOverview {
+  settings: {monthlyGoal: number; reminders: ReminderSettings};
+  reminders: ReminderOutcome;
+}
+
+export async function getArenaCrmOverviewCore(db: Firestore, uid: string, raw: unknown, now: Date): Promise<ArenaCrmOverviewPayload> {
   const arenaId = requireArenaId(raw);
   await assertArenaAreaAccess(db, arenaId, uid, "agenda", "read");
+  const loaded = await loadArenaCrmOverview(db, arenaId, now);
+  const {overview} = loaded;
+  const sentFrom = Timestamp.fromDate(new Date(now.getTime() - 8 * 86_400_000));
+  const sentSnap = await db.collection(CRM_REMINDERS).where("arenaId", "==", arenaId).where("sentAt", ">=", sentFrom).get();
+  const sent = sentSnap.docs.map((d) => sentReminderFromDoc(d.data() as Data)).filter((r): r is SentReminder => r !== null);
+
+  // Último lembrete de cada cliente: a fila mostra "lembrete automático enviado".
+  const lastByKey = new Map<string, SentReminder>();
+  for (const r of sent) {
+    const prev = lastByKey.get(r.customerKey);
+    if (!prev || r.sentAt > prev.sentAt) lastByKey.set(r.customerKey, r);
+  }
+  const customers = overview.customers.map((c) => {
+    const r = lastByKey.get(c.key);
+    return r ? {...c, lastReminder: {kind: r.kind, sentAt: r.sentAt}} : c;
+  });
+  const lastVisit = new Map(overview.customers.map((c) => [c.key, c.lastVisitDate]));
+  return {
+    ...overview,
+    customers,
+    settings: {monthlyGoal: loaded.monthlyGoal, reminders: loaded.reminderSettings},
+    reminders: reminderOutcome(sent, new Map(loaded.contracts.map((c) => [c.id, c])), lastVisit, overview.today),
+  };
+}
+
+function sentReminderFromDoc(d: Data): SentReminder | null {
+  const kind = str(d["kind"]);
+  if (!(REMINDER_KINDS as readonly string[]).includes(kind)) return null;
+  return {
+    contractId: str(d["contractId"]),
+    customerKey: str(d["customerKey"]),
+    kind: kind as ReminderKind,
+    refDate: str(d["refDate"]),
+    installment: typeof d["installment"] === "number" ? d["installment"] : null,
+    sentAt: toIso(d["sentAt"]) ?? new Date(0).toISOString(),
+  };
+}
+
+/** Lê tudo da arena e monta a visão geral (sem checar acesso: o agendador também usa). */
+export async function loadArenaCrmOverview(db: Firestore, arenaId: string, now: Date): Promise<{
+  overview: CrmOverview;
+  contracts: CrmContractRecord[];
+  monthlyGoal: number;
+  reminderSettings: ReminderSettings;
+}> {
   const today = dayKeyFromEventDate(now);
   const arenaRef = db.collection("arenas").doc(arenaId);
   const contactsFrom = Timestamp.fromDate(new Date(now.getTime() - CONTACTS_WINDOW_DAYS * 86_400_000));
@@ -214,7 +274,9 @@ export async function getArenaCrmOverviewCore(db: Firestore, uid: string, raw: u
   const bookings = bookingsSnap.docs.map((d) => d.data() as CrmBookingRecord);
   const contacts = contactsSnap.docs.map((d) => contactFromDoc(d.id, d.data() as Data));
   const plans = plansSnap.docs.map((d) => planFromDoc(d.id, d.data() as Data));
-  const monthlyGoal = num((settingsSnap.data() as Data | undefined)?.["monthlyGoal"], DEFAULT_MONTHLY_GOAL);
+  const settingsData = (settingsSnap.data() ?? {}) as Data;
+  const monthlyGoal = num(settingsData["monthlyGoal"], DEFAULT_MONTHLY_GOAL);
+  const reminderSettings = reminderSettingsFrom(settingsData["reminders"]);
 
   const athleteIds = [
     ...contracts.map((c) => c.athleteId ?? ""),
@@ -228,7 +290,8 @@ export async function getArenaCrmOverviewCore(db: Firestore, uid: string, raw: u
     if (key && id && !id.photoUrl && s.holderPhotoUrl) identities.set(key, {...id, photoUrl: s.holderPhotoUrl});
   }
 
-  return buildOverview({today, contracts, subscriptions, openCharges, bookings, contacts, plans, identities, monthlyGoal});
+  const overview = buildOverview({today, contracts, subscriptions, openCharges, bookings, contacts, plans, identities, monthlyGoal});
+  return {overview, contracts, monthlyGoal, reminderSettings};
 }
 
 // ── Ficha do cliente ──────────────────────────────────────────────────────────
@@ -239,6 +302,7 @@ export interface CrmCustomerDetail {
   payments: Array<{id: string; contractId: string; amountReais: number; method: string; paidOn: string; installments: number; byName: string | null}>;
   contacts: CrmContactRecord[];
   recentBookings: Array<{date: string; startTime: string; endTime: string; courtName: string; amountReais: number; plan: boolean; attendance: string}>;
+  reminders: Array<{kind: ReminderKind; sentAt: string; title: string; body: string}>;
 }
 
 export async function getArenaCrmCustomerCore(db: Firestore, uid: string, raw: unknown, now: Date): Promise<CrmCustomerDetail> {
@@ -249,12 +313,13 @@ export async function getArenaCrmCustomerCore(db: Firestore, uid: string, raw: u
   const today = dayKeyFromEventDate(now);
   const athleteId = customerKey.startsWith("a:") ? customerKey.slice(2) : null;
 
-  const [contractsSnap, contactsSnap, bookingsSnap] = await Promise.all([
+  const [contractsSnap, contactsSnap, bookingsSnap, remindersSnap] = await Promise.all([
     db.collection(CRM_CONTRACTS).where("arenaId", "==", arenaId).where("customerKey", "==", customerKey).get(),
     db.collection(CRM_CONTACTS).where("arenaId", "==", arenaId).where("customerKey", "==", customerKey).get(),
     athleteId ?
       db.collection(ARENA_BOOKINGS).where("arenaId", "==", arenaId).where("athleteId", "==", athleteId).get() :
       Promise.resolve(null),
+    db.collection(CRM_REMINDERS).where("arenaId", "==", arenaId).where("customerKey", "==", customerKey).get(),
   ]);
 
   const records = contractsSnap.docs.map((d) => contractFromDoc(d.id, d.data() as Data));
@@ -295,6 +360,12 @@ export async function getArenaCrmCustomerCore(db: Firestore, uid: string, raw: u
     payments,
     contacts: contactsSnap.docs.map((d) => contactFromDoc(d.id, d.data() as Data)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 50),
     recentBookings,
+    reminders: remindersSnap.docs
+      .map((d) => d.data() as Data)
+      .filter((r) => (REMINDER_KINDS as readonly string[]).includes(str(r["kind"])))
+      .map((r) => ({kind: str(r["kind"]) as ReminderKind, sentAt: toIso(r["sentAt"]) ?? "", title: str(r["title"]), body: str(r["body"])}))
+      .sort((a, b) => b.sentAt.localeCompare(a.sentAt))
+      .slice(0, 30),
   };
 }
 
@@ -548,12 +619,20 @@ async function logContact(db: Firestore, arenaId: string, uid: string, d: Data):
   return {contactId: ref.id};
 }
 
-async function saveSettings(db: Firestore, arenaId: string, uid: string, d: Data): Promise<{monthlyGoal: number}> {
-  const monthlyGoal = Math.floor(num(d["monthlyGoal"], -1));
-  if (monthlyGoal < 0 || monthlyGoal > 500) throw new HttpsError("invalid-argument", "Meta inválida.");
-  await db.collection("arenas").doc(arenaId).collection(CRM_SETTINGS).doc(CRM_SETTINGS_DOC)
-    .set({monthlyGoal, updatedAt: FieldValue.serverTimestamp(), updatedBy: uid}, {merge: true});
-  return {monthlyGoal};
+async function saveSettings(db: Firestore, arenaId: string, uid: string, d: Data): Promise<{saved: true}> {
+  const patch: Data = {updatedAt: FieldValue.serverTimestamp(), updatedBy: uid};
+  if (d["monthlyGoal"] !== undefined) {
+    const monthlyGoal = Math.floor(num(d["monthlyGoal"], -1));
+    if (monthlyGoal < 0 || monthlyGoal > 500) throw new HttpsError("invalid-argument", "Meta inválida.");
+    patch["monthlyGoal"] = monthlyGoal;
+  }
+  if (d["reminders"] !== undefined) {
+    const raw = d["reminders"];
+    if (raw == null || typeof raw !== "object") throw new HttpsError("invalid-argument", "Lembretes inválidos.");
+    patch["reminders"] = reminderSettingsFrom(raw);
+  }
+  await db.collection("arenas").doc(arenaId).collection(CRM_SETTINGS).doc(CRM_SETTINGS_DOC).set(patch, {merge: true});
+  return {saved: true};
 }
 
 export const CRM_OPS = ["saveContract", "cancelContract", "renewContract", "registerPayment", "logContact", "saveSettings"] as const;

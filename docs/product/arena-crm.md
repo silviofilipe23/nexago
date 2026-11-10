@@ -58,6 +58,27 @@ médio mensal e sugere o Plano de horário que cobre esse horário com a frequê
 (economia = gasto médio − preço do plano). A mensagem tem 3 modelos (economia, horário garantido,
 1º mês com desconto) e "Fechou? Criar contrato" abre o contrato preenchido.
 
+## Lembretes automáticos
+
+Agendador `sendArenaCrmReminders`, todo dia às 9h (São Paulo). Push no app só para contrato do CRM com
+atleta do app; assinantes dos Planos de horário já têm os lembretes da cobrança deles.
+
+| Interruptor | Quando | Mensagem |
+| --- | --- | --- |
+| Mensalidade vencendo | 3 dias antes e no dia | vence em dd/mm / vence hoje |
+| Mensalidade atrasada | +1 e +7 dias da parcela mais antiga | está em aberto desde dd/mm |
+| Contrato terminando | 15 e 3 dias antes (só sem renovação automática) | fale com a arena para renovar |
+| Sentimos sua falta | 14+ dias sem jogar, uma vez por sumiço | seu horário continua garantido |
+| Resumo do dia | dono e gestores ativos, se houver algo na fila | vencem, atrasaram, sumiram, prontos pra plano |
+
+- Um push por dia por contrato: o mais urgente (atraso > vence hoje > renovação > vence em breve > sumiço).
+- Dias exatos: se o agendador falhar num dia, aquele marco passa.
+- Idempotente: `arenaCrmReminders/{contrato}_{tipo}_{data}` é criado com `create` antes do push
+  (no máximo uma vez). O sumiço usa a data do último jogo no id: só repete se ele voltar e sumir de novo.
+- Interruptores em `arenas/{id}/crmSettings/main.reminders` (ausente = ligado).
+- Efeito na aba Hoje (7 dias): pagaram a parcela lembrada, renovaram, voltaram a jogar. A fila mostra
+  "Lembrete automático" quando ele é mais novo que o último contato humano (e não desce o cliente).
+
 ## KPIs
 
 - **Receita recorrente**: soma das mensalidades dos contratos vivos no dia (pausado não conta;
@@ -76,7 +97,7 @@ médio mensal e sugere o Plano de horário que cobre esse horário com a frequê
 - `updateArenaCrm({arenaId, op, ...})` — `saveContract`, `cancelContract`, `renewContract`,
   `registerPayment`, `logContact`, `saveSettings` (área `agenda`, escrita).
 
-Rules negam o cliente em `arenaCrmContracts` (e `payments`) e `arenaCrmContacts`.
-Índice novo: `arenaCrmContacts (arenaId, at)`.
+Rules negam o cliente em `arenaCrmContracts` (e `payments`), `arenaCrmContacts` e `arenaCrmReminders`.
+Índices: `arenaCrmContacts (arenaId, at)` e `arenaCrmReminders (arenaId, sentAt)`.
 
-Deploy: índices → functions (as 3 callables) → rules → portal da arena.
+Deploy: índices → functions (3 callables + `sendArenaCrmReminders`) → rules → portal da arena.

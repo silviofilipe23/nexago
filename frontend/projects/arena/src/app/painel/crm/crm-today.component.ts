@@ -4,6 +4,7 @@ import { PillComponent } from '../ui/pill.component';
 import {
   QUEUES,
   contactLine,
+  followUpLine,
   money,
   offerMessage,
   patternLabel,
@@ -12,6 +13,7 @@ import {
   type CrmQueueId,
   type CrmQueueItem,
 } from './crm.model';
+import { CrmRemindersCardComponent } from './crm-reminders-card.component';
 import { CrmUiService } from './crm-ui.service';
 import { CrmStore } from './crm.store';
 
@@ -24,7 +26,7 @@ interface QueueRow {
 @Component({
   selector: 'ar-crm-today',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AvatarComponent, PillComponent],
+  imports: [AvatarComponent, PillComponent, CrmRemindersCardComponent],
   styleUrls: ['./crm.scss'],
   template: `
     @if (store.overview(); as o) {
@@ -87,7 +89,7 @@ interface QueueRow {
                   <span class="who-t">
                     <span class="name">{{ r.customer.name }}</span>
                     <span class="sub">{{ detail(r) }}</span>
-                    <span class="contact">{{ contactLine(r.customer.lastContact, store.today()) }}</span>
+                    <span class="contact">{{ followUpLine(r.customer, store.today()) }}</span>
                   </span>
                 </button>
                 <span class="flag">
@@ -180,6 +182,8 @@ interface QueueRow {
               </label>
             }
           </section>
+
+          <ar-crm-reminders-card />
         </div>
       </div>
     }
@@ -256,6 +260,7 @@ export class CrmTodayComponent {
   protected readonly money = money;
   protected readonly patternLabel = patternLabel;
   protected readonly contactLine = contactLine;
+  protected readonly followUpLine = followUpLine;
   protected readonly round = Math.round;
 
   protected readonly queue = signal<CrmQueueId>(this.firstNonEmptyQueue());

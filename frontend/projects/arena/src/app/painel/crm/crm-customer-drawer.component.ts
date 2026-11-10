@@ -10,8 +10,8 @@ import {
   OUTCOME_LABEL,
   PAYMENT_METHODS,
   PERIOD_LABEL,
+  REMINDER_LABEL,
   STATUS_LABEL,
-  STATUS_TONE,
   customerInsight,
   dayMonth,
   formatPhone,
@@ -338,6 +338,9 @@ export class CrmCustomerDrawerComponent {
     for (const p of d.payments) {
       const method = PAYMENT_METHODS.find((m) => m.id === p.method)?.label ?? p.method;
       out.push({ sort: `${p.paidOn}T23`, at: dayMonth(p.paidOn), who: method, text: `Pagamento de ${p.installments} ${p.installments === 1 ? 'parcela' : 'parcelas'} · ${money(p.amountReais)}`, tone: 'green' });
+    }
+    for (const r of d.reminders ?? []) {
+      out.push({ sort: r.sentAt, at: dayMonth(r.sentAt.slice(0, 10)), who: 'Lembrete automático', text: `Push · ${REMINDER_LABEL[r.kind]}`, tone: 'dim' });
     }
     for (const c of d.contracts) {
       out.push({ sort: `${c.startDate}T00`, at: dayMonth(c.startDate), who: 'Contrato', text: `${c.renewedFromId ? 'Renovação' : 'Contrato'} ${c.planName} · ${PERIOD_LABEL[c.period]} · ${money(c.monthlyPriceReais)}/mês`, tone: 'dim' });

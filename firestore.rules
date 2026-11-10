@@ -2097,6 +2097,9 @@ service cloud.firestore {
     match /arenaCrmContacts/{contactId} {
       allow read, write: if false;
     }
+    match /arenaCrmReminders/{reminderId} {
+      allow read, write: if false;
+    }
     match /arenaScheduleCharges/{chargeId} {
       allow read: if request.auth != null && (
         request.auth.uid in resource.data.visibleTo ||

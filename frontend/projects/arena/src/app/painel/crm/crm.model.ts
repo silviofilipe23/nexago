@@ -96,6 +96,8 @@ export interface CrmCustomer {
   conversion: CrmConversion | null;
   absent: boolean;
   lastContact: CrmContact | null;
+  /** Último lembrete automático (push) dos últimos 8 dias. */
+  lastReminder?: { kind: ReminderKind; sentAt: string };
 }
 
 export interface CrmQueueItem {
@@ -139,7 +141,45 @@ export interface CrmOverview {
   queues: Record<CrmQueueId | 'convert', CrmQueueItem[]>;
   kpis: CrmKpis;
   plans: CrmPlanOption[];
+  settings: { monthlyGoal: number; reminders: ReminderSettings };
+  reminders: ReminderOutcome;
 }
+
+export type ReminderKind = 'due_soon' | 'due_today' | 'overdue_1' | 'overdue_7' | 'renewal_15' | 'renewal_3' | 'absence';
+
+export interface ReminderSettings {
+  due: boolean;
+  overdue: boolean;
+  renewal: boolean;
+  absence: boolean;
+  teamDigest: boolean;
+}
+
+export interface ReminderOutcome {
+  sent7d: number;
+  byGroup: Record<'due' | 'overdue' | 'renewal' | 'absence', number>;
+  paid: { done: number; total: number };
+  renewed: { done: number; total: number };
+  cameBack: { done: number; total: number };
+}
+
+export const REMINDER_OPTIONS: ReadonlyArray<{ id: keyof ReminderSettings; title: string; desc: string; when: string[] }> = [
+  { id: 'due', title: 'Mensalidade vencendo', desc: 'Aviso antes e no dia do vencimento.', when: ['3 dias antes', 'no dia'] },
+  { id: 'overdue', title: 'Mensalidade atrasada', desc: 'Cobrança gentil, sem citar multa.', when: ['+1 dia', '+7 dias'] },
+  { id: 'renewal', title: 'Contrato terminando', desc: 'Convite para renovar e manter o horário.', when: ['15 dias antes', '3 dias antes'] },
+  { id: 'absence', title: 'Sentimos sua falta', desc: 'Mensalista sem jogar há 14 dias. Uma vez por sumiço.', when: ['14 dias sem jogar'] },
+  { id: 'teamDigest', title: 'Resumo do dia para o time', desc: 'Dono e gestores: quantos vencem, atrasaram e sumiram.', when: ['9h'] },
+];
+
+export const REMINDER_LABEL: Record<ReminderKind, string> = {
+  due_soon: 'Vence em 3 dias',
+  due_today: 'Vence hoje',
+  overdue_1: 'Atraso +1',
+  overdue_7: 'Atraso +7',
+  renewal_15: 'Renovação · 15 dias',
+  renewal_3: 'Renovação · 3 dias',
+  absence: 'Sentimos sua falta',
+};
 
 export interface CrmPayment {
   id: string;
@@ -157,6 +197,7 @@ export interface CrmCustomerDetail {
   payments: CrmPayment[];
   contacts: CrmContact[];
   recentBookings: Array<{ date: string; startTime: string; endTime: string; courtName: string; amountReais: number; plan: boolean; attendance: string }>;
+  reminders: Array<{ kind: ReminderKind; sentAt: string; title: string; body: string }>;
 }
 
 // ── Rótulos ─────────────────────────────────────────────────────────────────
@@ -343,6 +384,17 @@ export function daysAgo(days: number | null): string {
 }
 
 /** "há 2 dias · Interessado" */
+/** Contato humano mais recente; se o lembrete automático for mais novo, ele aparece. */
+export function followUpLine(c: CrmCustomer, today: string): string {
+  const r = c.lastReminder;
+  if (r && (!c.lastContact || r.sentAt > c.lastContact.at)) {
+    const days = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${r.sentAt.slice(0, 10)}T12:00:00Z`)) / 86_400_000);
+    const when = days <= 0 ? 'hoje' : days === 1 ? 'ontem' : `há ${days} dias`;
+    return `Lembrete automático (${REMINDER_LABEL[r.kind].toLowerCase()}) · ${when}`;
+  }
+  return contactLine(c.lastContact, today);
+}
+
 export function contactLine(contact: CrmContact | null, today: string): string {
   if (!contact) return 'Sem contato ainda';
   const days = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${contact.at.slice(0, 10)}T12:00:00Z`)) / 86_400_000);

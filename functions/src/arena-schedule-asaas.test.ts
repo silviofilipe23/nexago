@@ -881,7 +881,7 @@ describe("planos de horário online — débito automático", () => {
     const c = charge(fake);
     assert.equal(c["billingMode"], "asaas");
     assert.deepEqual(c["autopay"], {
-      state: "scheduled", scheduledFor: "2026-12-05", attempts: 0, lastAttemptAt: null, lastError: null,
+      state: "scheduled", scheduledFor: "2026-12-05", attempts: 0, lastAttemptAt: null, lastError: null, needsLink: false,
       brand: "VISA", last4: "4242", chargedReais: null,
     });
     assert.equal(c["asaas"], undefined);

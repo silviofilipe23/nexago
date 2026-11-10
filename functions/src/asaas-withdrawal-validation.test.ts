@@ -9,6 +9,7 @@ import type {Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   decideWithdrawalTransfer,
+  describeTokenMismatch,
   samePixKey,
   validateAsaasOutgoingOperation,
 } from "./asaas-withdrawal-validation";
@@ -149,5 +150,29 @@ describe("validateAsaasOutgoingOperation", () => {
       const decision = await validateAsaasOutgoingOperation(db(fake), {type, transfer: transfer()});
       assert.equal(decision.status, "REFUSED", type);
     }
+  });
+});
+
+describe("describeTokenMismatch", () => {
+  const segredo = "tok_super_secreto_1234567890";
+
+  it("nunca escreve o token, de nenhum dos lados", () => {
+    const linha = describeTokenMismatch(" outro_token_qualquer ", segredo, ["asaas-access-token"]);
+    assert.ok(!linha.includes(segredo));
+    assert.ok(!linha.includes("outro_token_qualquer"));
+  });
+
+  it("aponta header ausente", () => {
+    const linha = describeTokenMismatch(undefined, segredo, ["content-type"]);
+    assert.match(linha, /header=ausente/);
+    assert.match(linha, /recebido\.len=0/);
+    assert.match(linha, /headers=\[content-type\]/);
+  });
+
+  it("mesmo valor com espaço nas pontas dá a mesma impressão", () => {
+    const linha = describeTokenMismatch(` ${segredo}\n`, segredo, []);
+    assert.match(linha, /recebido\.espacosNasPontas=true/);
+    const fp = (lado: string) => linha.match(new RegExp(`${lado}\\.fp=(\\w+)`))?.[1];
+    assert.equal(fp("recebido"), fp("esperado"));
   });
 });

@@ -21,6 +21,7 @@
  * Resposta: `{status: "APPROVED"}` ou `{status: "REFUSED", refuseReason}`.
  * Erro interno responde 500, para o Asaas tentar de novo.
  */
+import {createHash} from "node:crypto";
 import {FieldValue, getFirestore, type Firestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {onRequest} from "firebase-functions/v2/https";
@@ -146,6 +147,34 @@ export async function validateAsaasOutgoingOperation(
   return decision;
 }
 
+/** Impressão curta de um token: 8 hex do SHA-256 (não revela o valor). */
+function tokenFingerprint(value: string): string {
+  return value ? createHash("sha256").update(value).digest("hex").slice(0, 8) : "-";
+}
+
+/**
+ * Por que o token não bateu, sem expor nenhum dos dois: presença do header,
+ * tamanhos, espaço nas pontas e impressão de cada lado. Mesma impressão com
+ * tamanhos iguais = o problema não é o valor.
+ */
+export function describeTokenMismatch(
+  rawReceived: string | undefined,
+  expected: string,
+  headerNames: string[],
+): string {
+  const raw = rawReceived ?? "";
+  const received = raw.trim();
+  return [
+    `header=${rawReceived === undefined ? "ausente" : "presente"}`,
+    `recebido.len=${received.length}`,
+    `recebido.espacosNasPontas=${raw.length !== received.length}`,
+    `recebido.fp=${tokenFingerprint(received)}`,
+    `esperado.len=${expected.length}`,
+    `esperado.fp=${tokenFingerprint(expected)}`,
+    `headers=[${headerNames.map((h) => h.toLowerCase()).sort().join(",")}]`,
+  ].join(" ");
+}
+
 export const asaasWithdrawalValidation = onRequest({
   region: CLIENT_FACING_REGIONS,
   secrets: [ASAAS_WEBHOOK_ACCESS_TOKEN],
@@ -161,10 +190,14 @@ export const asaasWithdrawalValidation = onRequest({
   } catch {
     expectedToken = "";
   }
-  const receivedToken = (req.get("asaas-access-token") || "").trim();
+  const rawReceivedToken = req.get("asaas-access-token");
+  const receivedToken = (rawReceivedToken || "").trim();
   if (!expectedToken || receivedToken !== expectedToken) {
     // Sem token válido não se aprova nada; recusar é o lado seguro.
-    logger.warn("asaasWithdrawalValidation: token ausente ou inválido");
+    logger.warn(
+      "asaasWithdrawalValidation: token ausente ou inválido " +
+      describeTokenMismatch(rawReceivedToken, expectedToken, Object.keys(req.headers ?? {})),
+    );
     res.status(401).json(refuse("Token inválido."));
     return;
   }

@@ -6,6 +6,7 @@ import { AuthService } from '../../auth/auth.service';
 import { BlogBadgesService } from '../data/blog-badges.service';
 import { SquadBadgesService } from '../data/squad-badges.service';
 import { StoreBadgesService } from '../data/store-badges.service';
+import { TaskBadgesService } from '../data/task-badges.service';
 import { TournamentBadgesService } from '../data/tournament-badges.service';
 import { IconComponent, type PanelIconName } from './icon.component';
 
@@ -202,6 +203,8 @@ const NAV_ITEMS: readonly PanelNavItem[] = [
   { kind: 'link', id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro' },
   LOJA_GROUP,
   { kind: 'soon', id: 'moderacao', label: 'Moderação', icon: 'shield' },
+  // Badge real: minhas tarefas atrasadas ou vencendo hoje (TaskBadgesService).
+  { kind: 'link', id: 'tarefas', label: 'Tarefas', icon: 'kanban', route: '/painel/tarefas' },
   { kind: 'link', id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe' },
 ];
 
@@ -248,6 +251,9 @@ function initialsOf(name: string): string {
                 >
                   <bo-icon [name]="item.icon" [size]="17" [strokeWidth]="1.9" />
                   <span>{{ item.label }}</span>
+                  @if (badgeFor(item); as count) {
+                    <span class="badge">{{ count }}</span>
+                  }
                 </a>
               }
               @case ('soon') {
@@ -648,6 +654,7 @@ export class PanelShellComponent {
   private readonly squadBadges = inject(SquadBadgesService);
   private readonly tournamentBadges = inject(TournamentBadgesService);
   private readonly blogBadges = inject(BlogBadgesService);
+  private readonly taskBadges = inject(TaskBadgesService);
 
   constructor() {
     // Só com sessão: o shell monta atrás do authGuard, mas a leitura exige admin.
@@ -659,6 +666,7 @@ export class PanelShellComponent {
       void this.squadBadges.load();
       void this.tournamentBadges.load();
       void this.blogBadges.load();
+      void this.taskBadges.load();
     }
   }
 
@@ -686,6 +694,9 @@ export class PanelShellComponent {
     }
     if (item.id === 'conteudo-comentarios') {
       return this.blogBadges.pendingComments() || undefined;
+    }
+    if (item.id === 'tarefas') {
+      return this.taskBadges.mineDue() || undefined;
     }
     if (item.id === 'torneios-contratos') {
       return this.tournamentBadges.requestedContracts() || undefined;
@@ -744,6 +755,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/financeiro')) {
       return 'financeiro';
+    }
+    if (path.startsWith('/painel/tarefas')) {
+      return 'tarefas';
     }
     if (path.startsWith('/painel/equipe')) {
       return 'equipe';

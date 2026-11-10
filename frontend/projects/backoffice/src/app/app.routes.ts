@@ -284,6 +284,13 @@ export const routes: Routes = [
       import('./painel/conteudo/blog/blog-post-editor.component').then((m) => m.BlogPostEditorComponent),
   },
   {
+    path: 'painel/tarefas',
+    title: 'Tarefas da equipe — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/tarefas/panel-tarefas.component').then((m) => m.PanelTarefasComponent),
+  },
+  {
     path: 'painel/equipe',
     title: 'Equipe — NexaGO Backoffice',
     canActivate: [authGuard],

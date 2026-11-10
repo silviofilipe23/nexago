@@ -35,7 +35,11 @@ import {
   voidScheduleAsaasPayment,
   type ScheduleAsaasDeps,
 } from "./arena-schedule-asaas";
-import {parseSchedulePaymentRef, processArenaScheduleAsaasNotification} from "./asaas-arena-schedule-webhook";
+import {
+  parseSchedulePaymentRef,
+  parseScheduleTokenAttempt,
+  processArenaScheduleAsaasNotification,
+} from "./asaas-arena-schedule-webhook";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 import {ARENA, MANAGER, docsIn, holder, makeDb, planData, pushes, seedArena, today, weekdayIn} from "./arena-schedule.test-helper";
 import {scheduleNotifier} from "./arena-schedule-plans";
@@ -456,6 +460,36 @@ describe("planos de horário online — webhook e caixa", () => {
     assert.equal(parseSchedulePaymentRef("arenaSchedulePayment:g1"), "g1");
     assert.equal(parseSchedulePaymentRef("arenaClassPayment:g1"), null);
     assert.equal(parseSchedulePaymentRef("arenaSchedulePayment:a/b"), null);
+  });
+
+  it("referência da cobrança com token: grupo antes do 2º ':' e a tentativa depois do 't'", () => {
+    assert.equal(parseScheduleTokenAttempt("arenaSchedulePayment:g1:tabc"), "abc");
+    assert.equal(parseSchedulePaymentRef("arenaSchedulePayment:g1:tabc"), "g1");
+    assert.equal(parseScheduleTokenAttempt("arenaSchedulePayment:g1"), null);
+    assert.equal(parseScheduleTokenAttempt("arenaSchedulePayment:g1:abc"), null);
+    assert.equal(parseScheduleTokenAttempt("arenaClassPayment:g1:tabc"), null);
+  });
+
+  it("token: webhook antes da resposta do POST credita o caixa sem a taxa do cartão", async () => {
+    const {fake, db} = makeDb();
+    seedOnline(fake, {charge: {
+      billingMode: "asaas", asaas: {groupId: "g1", state: "autopay", invoiceUrl: null, status: null},
+      autopay: {state: "charging", attempts: 1},
+    }});
+    fake.seedDoc(`${GROUPS}/g1`, {
+      chargeId: "c1", arenaId: ARENA, subscriptionId: "s1", state: "autopay", amountReais: 300, paymentId: null,
+      tokenCharges: {abc: {paymentId: null, source: "autopay", status: "charging", feeCents: 1246, processingCents: 1246,
+        chargedReais: 312.46}},
+    });
+    const p = {
+      id: "pay_t", status: "CONFIRMED", billingType: "CREDIT_CARD", value: 312.46, netValue: 300,
+      externalReference: "arenaSchedulePayment:g1:tabc",
+    };
+    await processArenaScheduleAsaasNotification(db, "pay_t", p, processedRef(db, "pay_t"), webhookDeps());
+    assert.equal(charge(fake)["status"], "paid");
+    assert.equal(charge(fake)["asaasPaymentId"], "pay_t");
+    assert.equal(charge(fake)["platformFeeReais"], 18);
+    assert.equal(fake.store.get(`arenaWallets/${ARENA}`)!["awaitingSettlementReais"], 282);
   });
 });
 

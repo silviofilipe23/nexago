@@ -1,7 +1,7 @@
 /**
  * Webhook Asaas das mensalidades dos Planos de horário (`externalReference` =
- * `arenaSchedulePayment:{groupId}`). Espelho do das Aulas (`asaas-arena-class-webhook.ts`), com
- * uma mensalidade por pagamento.
+ * `arenaSchedulePayment:{groupId}`, ou `…:t{attemptId}` na cobrança com o cartão salvo). Espelho do
+ * das Aulas (`asaas-arena-class-webhook.ts`), com uma mensalidade por pagamento.
  *
  * Age pelo status do GET fresco (o roteador `asaas-webhook.ts` sempre relê o pagamento), então a
  * ordem dos eventos não importa. Fases como no aluguel online (`resolvePaymentPhases`):
@@ -60,10 +60,21 @@ const NEGATIVE_STATUSES = new Set([
   "DUNNING_RECEIVED",
 ]);
 
+/** `arenaSchedulePayment:{groupId}` ou `arenaSchedulePayment:{groupId}:t{attemptId}` (cobrança com token) → grupo. */
 export function parseSchedulePaymentRef(ref: string): string | null {
   if (!ref.startsWith(SCHEDULE_PAYMENT_REF_PREFIX)) return null;
-  const groupId = ref.slice(SCHEDULE_PAYMENT_REF_PREFIX.length).trim();
+  const groupId = (ref.slice(SCHEDULE_PAYMENT_REF_PREFIX.length).split(":")[0] ?? "").trim();
   return groupId && !groupId.includes("/") ? groupId : null;
+}
+
+/** `arenaSchedulePayment:{groupId}:t{attemptId}` → `attemptId`; sem a tentativa, null. */
+export function parseScheduleTokenAttempt(ref: string): string | null {
+  if (!parseSchedulePaymentRef(ref)) return null;
+  const parts = ref.slice(SCHEDULE_PAYMENT_REF_PREFIX.length).split(":");
+  const tail = (parts[1] ?? "").trim();
+  if (parts.length !== 2 || !tail.startsWith("t")) return null;
+  const attemptId = tail.slice(1);
+  return attemptId && !attemptId.includes("/") ? attemptId : null;
 }
 
 export async function processArenaScheduleAsaasNotification(
@@ -125,10 +136,14 @@ export async function processArenaScheduleAsaasNotification(
     return;
   }
 
-  // Cartão pelo app: as taxas do cartão foram por cima (`cardCharges` do grupo, por cobrança) — a
-  // mensalidade, a taxa da NexaGO e o caixa da arena ficam no valor do plano.
+  // Cartão pelo app: as taxas do cartão foram por cima (`cardCharges` do grupo, por cobrança; no
+  // cartão salvo, `tokenCharges` da tentativa, gravado antes do POST) — a mensalidade, a taxa da
+  // NexaGO e o caixa da arena ficam no valor do plano.
+  const groupNow = (await groupRef.get()).data() ?? {};
+  const attemptId = parseScheduleTokenAttempt((payment.externalReference || "").trim());
   const {feeCents: cardFeeCents, processingCents: cardProcessingCents} = cardChargeOf(
-    ((await groupRef.get()).data()?.["cardCharges"] as Record<string, unknown> | undefined)?.[paymentId],
+    (groupNow["cardCharges"] as Record<string, unknown> | undefined)?.[paymentId] ??
+      (attemptId ? (groupNow["tokenCharges"] as Record<string, unknown> | undefined)?.[attemptId] : undefined),
   );
   const cardFeeReais = cardFeeCents / 100;
   const gross = roundMoney((Number(payment.value) || 0) - cardFeeReais);

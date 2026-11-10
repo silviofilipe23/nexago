@@ -37,7 +37,7 @@ import {
   scheduleOnlineBillingOn,
   scheduleSettingsRef,
 } from "./arena-schedule-plans";
-import {scheduleAutopayFlagOn} from "./arena-schedule-autopay";
+import {defaultAutopayDeps, recoverScheduleAutopay, scheduleAutopayFlagOn, type AutopayDeps} from "./arena-schedule-autopay";
 import {activatePendingSubscriptionCore, expirePendingSubscriptionCore} from "./arena-schedule-subscriptions";
 import {chargeAsaasMirror, type ClassAsaasState} from "./arena-class-asaas-model";
 import {monthLabelPt} from "./arena-class-billing";
@@ -109,7 +109,7 @@ export interface ScheduleAsaasDeps {
 }
 
 /** No emulador, só sandbox: o projeto DEV aponta para o Asaas de produção. */
-function assertAsaasAllowed(): void {
+export function assertAsaasAllowed(): void {
   if (process.env.FUNCTIONS_EMULATOR === "true" && getAsaasEnvTag() !== "sandbox") {
     throw new Error("ASAAS_BLOCKED_IN_EMULATOR");
   }
@@ -691,7 +691,11 @@ export async function reconcileScheduleAsaasPayments(
   db: Firestore,
   now: Date,
   deps: ScheduleAsaasDeps = defaultScheduleAsaasDeps,
-): Promise<{decided: number; staleVoided: number; created: number; voided: number; reconciled: number}> {
+  autopayDeps: AutopayDeps = defaultAutopayDeps,
+): Promise<{
+  decided: number; staleVoided: number; created: number; voided: number; reconciled: number;
+  autopayResumed: number; autopayLinked: number;
+}> {
   const col = groupsCol(db);
   let decided = 0;
   let staleVoided = 0;
@@ -711,12 +715,14 @@ export async function reconcileScheduleAsaasPayments(
   }
 
   // Grupos cuja mensalidade já foi resolvida (gatilho perdido/atrasado): anula.
-  for (const state of ["pending", "failed", "open", "needs_cpf"]) {
+  for (const state of ["pending", "failed", "open", "needs_cpf", "autopay"]) {
     const snap = await col.where("state", "==", state).limit(200).get();
     for (const doc of snap.docs) {
       const chargeId = str(doc.data()["chargeId"]);
       const charge = chargeId ? (await db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId).get()).data() : undefined;
       if (chargeStillBilledBy(charge, doc.id)) continue;
+      // Débito em voo: a tentativa decide (paga com a mensalidade resolvida, o webhook estorna).
+      if (state === "autopay" && str(autopayOf(charge)["state"]) === "charging") continue;
       try {
         if (await requestScheduleGroupVoid(db, doc.id)) staleVoided += 1;
       } catch (e) {
@@ -766,7 +772,14 @@ export async function reconcileScheduleAsaasPayments(
       logger.warn(`reconcileScheduleAsaasPayments: ${doc.id} falhou`, e);
     }
   }
-  return {decided, staleVoided, created, voided, reconciled};
+  // Débito automático: destrava `charging` antigas e põe o link nas agendadas esquecidas.
+  let autopay = {resumed: 0, linked: 0};
+  try {
+    autopay = await recoverScheduleAutopay(db, now, autopayDeps);
+  } catch (e) {
+    logger.warn("reconcileScheduleAsaasPayments: recuperação do débito automático falhou", e);
+  }
+  return {decided, staleVoided, created, voided, reconciled, autopayResumed: autopay.resumed, autopayLinked: autopay.linked};
 }
 
 export const reconcileArenaScheduleAsaasPayments = onSchedule({
@@ -775,7 +788,7 @@ export const reconcileArenaScheduleAsaasPayments = onSchedule({
   secrets: [...asaasArenaSecrets, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async () => {
   const result = await reconcileScheduleAsaasPayments(getFirestore(), new Date());
-  if (result.decided || result.staleVoided || result.created || result.voided || result.reconciled) {
+  if (Object.values(result).some((n) => n > 0)) {
     logger.info("reconcileArenaScheduleAsaasPayments", result);
   }
 });

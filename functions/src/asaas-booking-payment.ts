@@ -207,6 +207,40 @@ export async function createAsaasCardCharge(params: {
 }
 
 /**
+ * Cobrança no cartão salvo (token do Asaas), vencendo hoje: o Asaas tenta capturar na hora. Recusa
+ * do cartão volta como `AsaasApiError` HTTP 400. O token e o IP nunca vão para log.
+ */
+export async function createAsaasTokenCardCharge(params: {
+  customerId: string;
+  valueReais: number;
+  description: string;
+  externalReference: string;
+  idempotencyKey: string;
+  creditCardToken: string;
+  remoteIp: string;
+}): Promise<{paymentId: string; status: string}> {
+  const dueDate = todayBrazil();
+  const payment = await fetchAsaas<AsaasPaymentResponse>("/v3/payments", {
+    method: "POST",
+    body: {
+      customer: params.customerId,
+      billingType: "CREDIT_CARD",
+      value: params.valueReais,
+      dueDate,
+      description: params.description.slice(0, 500),
+      externalReference: params.externalReference,
+      creditCardToken: params.creditCardToken,
+      remoteIp: params.remoteIp,
+    },
+    idempotencyKey: params.idempotencyKey,
+  });
+  const paymentId = payment.id?.trim() ?? "";
+  if (!paymentId) throw new Error("ASAAS_PAYMENT_MISSING_ID");
+  logger.info(`createAsaasTokenCardCharge: payment ${paymentId} status=${payment.status ?? "?"} dueDate=${dueDate}`);
+  return {paymentId, status: payment.status ?? "PENDING"};
+}
+
+/**
  * Cobrança com a fatura hospedada do Asaas em que o pagador escolhe a forma (`UNDEFINED`: PIX ou
  * cartão, e o que mais a conta aceitar). Usada nas mensalidades de aula — o link vai por WhatsApp
  * e push, então não há QR para buscar aqui. `dueDate` em YYYY-MM-DD; passado vira hoje.

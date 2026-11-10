@@ -27,6 +27,7 @@ import {
 } from "./arena-coupons";
 import {ensurePeakRuleSatisfied, parsePeakRulesFromDocs} from "./arena-peak-rules";
 import {resolveBookingSport} from "./arena-booking-sport";
+import {claimCourtLocks} from "./arena-floating-booking";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {professorCourtDiscountForQuote, resolveProfessorBooking} from "./arena-professor-permissions";
 import {applyProfessorCourtDiscount, type ProfessorCourtDiscountOutcome} from "./arena-professor-court-discount";
@@ -517,14 +518,16 @@ export const createArenaBooking = onCall({
 
   try {
     await db.runTransaction(async (transaction) => {
-      for (const lockRef of lockRefs) {
-        const snap = await transaction.get(lockRef);
-        if (snap.exists) {
-          throw new HttpsError(
-            "already-exists",
-            "Esse horário acabou de ser reservado. Escolha outro.",
-          );
-        }
+      // Trava de reserva flutuante (modo "arena define a quadra") é empurrada para outra quadra.
+      const claim = await claimCourtLocks(transaction, db, {arenaId, courtId, lockRefs}, {
+        ownBookingId: bookingId,
+        reason: "Quadra reservada por um atleta",
+      });
+      if (!claim.ok) {
+        throw new HttpsError(
+          "already-exists",
+          "Esse horário acabou de ser reservado. Escolha outro.",
+        );
       }
 
       // Revalida vigência/limites do cupom com dados frescos (mesma fase de
@@ -614,6 +617,7 @@ export const createArenaBooking = onCall({
 
       commitCouponRedemption?.();
       commitWeatherCredit?.();
+      claim.commit(transaction);
 
       // Cópia do total fora do alcance dos clientes: é dela que o PIX, a
       // divisão em fatias e o webhook partem (ver arena-booking-pricing.ts).

@@ -16,23 +16,23 @@
  * O valor da reserva não muda (já foi cotado e, às vezes, pago).
  */
 import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {
-  getFirestore,
-  FieldValue,
-  Timestamp,
-  type Firestore,
-  type DocumentData,
-  type DocumentSnapshot,
-} from "firebase-admin/firestore";
+import {getFirestore, type Firestore, type DocumentData} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {assertArenaAreaAccess} from "./arena-area-access";
 import {computeSlotLockIds} from "./arena-booking-waitlist";
 import {hasBlockedSlotOverlap, toMinutes} from "./arena-recurring-booking";
 import {arenaBookingStartAt} from "./arena-booking-start-at";
-import {courtSportCodes} from "./arena-booking-sport";
 import {parseDateKeyFromBooking, normalizeBookingStatus} from "./slot-vacancy-alerts";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {
+  claimCourtLocks,
+  readBookingMove,
+  targetCourtBlockReason,
+  writeBookingCourtMove,
+} from "./arena-floating-booking";
+
+export {targetCourtBlockReason};
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -42,9 +42,6 @@ export const BOOKING_COURT_CHANGED_PUSH_TYPE = "arena_booking_court_changed";
 
 /** Status em que a reserva ainda segura o horário. */
 const MOVABLE_STATUSES = new Set(["active", "confirmed", "pending_payment"]);
-
-/** Histórico guardado na reserva — o suficiente pra auditoria, sem crescer sem fim. */
-const COURT_HISTORY_MAX = 20;
 
 export interface ChangeBookingCourtInput {
   bookingId: string;
@@ -109,25 +106,7 @@ export function courtChangeBlockReason(booking: DocumentData, nowMs: number): st
   return null;
 }
 
-/** Quadra de destino pode receber a reserva? `null` = pode. Puro. */
-export function targetCourtBlockReason(
-  courtData: DocumentData | undefined,
-  bookingSport: string | null,
-): string | null {
-  if (!courtData) return "Quadra não encontrada.";
-  if (courtData["status"] === "maintenance" || courtData["maintenance"] === true) {
-    return "Essa quadra está em manutenção.";
-  }
-  if (bookingSport) {
-    const sports = courtSportCodes(courtData);
-    if (sports.length > 0 && !sports.includes(bookingSport)) {
-      return "Essa quadra não é do esporte desta reserva.";
-    }
-  }
-  return null;
-}
-
-/** Reserva de outra quadra no dia que encosta no horário — `arenaSlots` `booked` sem trava (legado). */
+/** Reserva de outra quadra no dia que encosta no horário — `arenaSlots` `booked` SEM trava (legado). */
 async function hasBookedSlotOverlap(
   db: Firestore,
   params: {arenaId: string; courtId: string; dateKey: string; startTime: string; endTime: string; bookingId: string},
@@ -147,7 +126,21 @@ async function hasBookedSlotOverlap(
     const slotStart = toMinutes(str(data["startTime"]) || "00:00");
     let slotEnd = toMinutes(str(data["endTime"]) || "00:00");
     if (slotEnd === 0 && slotStart > 0) slotEnd = 24 * 60;
-    if (slotStart < endMin && slotEnd > startMin) return true;
+    if (!(slotStart < endMin && slotEnd > startMin)) continue;
+    // Slot com trava da própria reserva não é legado: quem decide é a trava (e a flutuante
+    // pode ser empurrada pelo `claimCourtLocks`).
+    const ownLockId = computeSlotLockIds({
+      arenaId: params.arenaId,
+      courtId: params.courtId,
+      dateKey: params.dateKey,
+      startTime: str(data["startTime"]),
+      endTime: str(data["endTime"]),
+    })[0];
+    if (ownLockId) {
+      const lock = await db.collection(ARENA_SLOT_LOCKS).doc(ownLockId).get();
+      if (lock.exists && str(lock.data()?.["bookingId"]) === str(data["bookingId"])) continue;
+    }
+    return true;
   }
   return false;
 }
@@ -205,18 +198,14 @@ export async function changeArenaBookingCourtCore(
     throw new HttpsError("already-exists", "Essa quadra já está reservada nesse horário.");
   }
 
-  const fromLockIds = fromCourtId ?
-    computeSlotLockIds({arenaId, courtId: fromCourtId, dateKey, startTime, endTime}) :
-    [];
-  const toLockIds = computeSlotLockIds({arenaId, courtId: input.toCourtId, dateKey, startTime, endTime});
-  if (toLockIds.length === 0) {
+  const toLockRefs = computeSlotLockIds({arenaId, courtId: input.toCourtId, dateKey, startTime, endTime})
+    .map((id) => db.collection(ARENA_SLOT_LOCKS).doc(id));
+  if (toLockRefs.length === 0) {
     throw new HttpsError("failed-precondition", "Não foi possível calcular os horários.");
   }
 
-  const fromCourtName = str(booking["courtName"]) || "Quadra";
-
   await db.runTransaction(async (tx) => {
-    // Fase de leitura: reserva fresca, travas de origem e destino, slots da reserva.
+    // Fase de leitura: reserva fresca, destino (empurrando flutuante, se houver) e a mudança.
     const fresh = await tx.get(bookingRef);
     if (!fresh.exists) throw new HttpsError("not-found", "Reserva não encontrada.");
     const freshData = fresh.data() as DocumentData;
@@ -226,66 +215,30 @@ export async function changeArenaBookingCourtCore(
     const freshReason = courtChangeBlockReason(freshData, nowMs);
     if (freshReason) throw new HttpsError("failed-precondition", freshReason);
 
-    const fromLocks: DocumentSnapshot[] = [];
-    for (const id of fromLockIds) {
-      fromLocks.push(await tx.get(db.collection(ARENA_SLOT_LOCKS).doc(id)));
+    // Quadra de destino com reserva flutuante: ela vai para outra quadra livre — inclusive a que
+    // esta reserva está deixando (troca).
+    const claim = await claimCourtLocks(tx, db, {arenaId, courtId: input.toCourtId, lockRefs: toLockRefs}, {
+      ownBookingId: input.bookingId,
+      freeBookingIds: [input.bookingId],
+      reason: `Gestor moveu outra reserva para ${toCourtName}`,
+      nowMs,
+    });
+    if (!claim.ok) {
+      throw new HttpsError("already-exists", "Essa quadra já está reservada nesse horário.");
     }
-    for (const id of toLockIds) {
-      const snap = await tx.get(db.collection(ARENA_SLOT_LOCKS).doc(id));
-      if (snap.exists && snap.data()?.["bookingId"] !== input.bookingId) {
-        throw new HttpsError("already-exists", "Essa quadra já está reservada nesse horário.");
-      }
-    }
-    const slots = await tx.get(db.collection(ARENA_SLOTS).where("bookingId", "==", input.bookingId));
+    const move = await readBookingMove(tx, db, input.bookingId, {courtId: input.toCourtId, courtName: toCourtName}, fresh);
+    if (!move) throw new HttpsError("failed-precondition", "Esta reserva não tem horário válido.");
 
     // Escritas.
-    for (let i = 0; i < toLockIds.length; i++) {
-      const source = fromLocks[i];
-      const sourceData = source?.exists && source.data()?.["bookingId"] === input.bookingId ?
-        source.data() as DocumentData :
-        null;
-      tx.set(db.collection(ARENA_SLOT_LOCKS).doc(toLockIds[i]!), {
-        // Copia o que a trava carregava (recurringBookingId etc.); só a quadra muda.
-        ...(sourceData ?? {
-          arenaId,
-          date: dateKey,
-          bookingId: input.bookingId,
-          bookingAthleteId: str(booking["athleteId"]) || null,
-        }),
-        courtId: input.toCourtId,
-        movedAt: FieldValue.serverTimestamp(),
-      });
-      // Trava de origem só sai se for desta reserva (nunca derruba a de outra).
-      if (sourceData && source) tx.delete(source.ref);
-    }
-    // Hora de origem sem par no destino (não acontece com o mesmo horário, mas
-    // não deixa trava órfã se acontecer).
-    for (let i = toLockIds.length; i < fromLocks.length; i++) {
-      const source = fromLocks[i];
-      if (source?.exists && source.data()?.["bookingId"] === input.bookingId) tx.delete(source.ref);
-    }
-
-    for (const doc of slots.docs) {
-      tx.set(doc.ref, {courtId: input.toCourtId}, {merge: true});
-    }
-
-    const history = Array.isArray(freshData["courtHistory"]) ? freshData["courtHistory"] as unknown[] : [];
-    const entry = {
-      fromCourtId,
-      fromCourtName,
-      toCourtId: input.toCourtId,
-      toCourtName,
+    writeBookingCourtMove(tx, db, move, {
       by: uid,
-      at: Timestamp.fromMillis(nowMs),
       reason: input.reason,
-    };
-    tx.set(bookingRef, {
-      courtId: input.toCourtId,
-      courtName: toCourtName,
-      courtHistory: [...history, entry].slice(-COURT_HISTORY_MAX),
-      courtChangedAt: FieldValue.serverTimestamp(),
-      courtChangedBy: uid,
-    }, {merge: true});
+      nowMs,
+      assignedBy: {uid, source: "staff"},
+      // Travas que a flutuante empurrada vai ocupar (troca) não podem ser apagadas aqui.
+      skipDeletePaths: claim.relocatedLockPaths,
+    });
+    claim.commit(tx);
   });
 
   return {changed: true, bookingId: input.bookingId, courtId: input.toCourtId, courtName: toCourtName};

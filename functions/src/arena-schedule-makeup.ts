@@ -25,6 +25,7 @@ import {
 } from "./arena-recurring-booking";
 import {monthKeyOf} from "./arena-class-ledger";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {claimCourtLocks, isFloatingLock} from "./arena-floating-booking";
 import {
   ARENA_SCHEDULE_CREDITS,
   ARENA_SCHEDULE_SUBSCRIPTIONS,
@@ -424,7 +425,11 @@ export async function getMakeupOptionsCore(
       const refs = lockRefsForOccurrence(db, {arenaId, courtId, startTime, endTime}, date).map((l) => l.ref);
       let free = true;
       for (const ref of refs) {
-        if (!lockCache.has(ref.path)) lockCache.set(ref.path, (await ref.get()).exists);
+        // Trava de reserva flutuante não tira a opção: ao usar, ela vai para outra quadra.
+        if (!lockCache.has(ref.path)) {
+          const snap = await ref.get();
+          lockCache.set(ref.path, snap.exists && !isFloatingLock(snap.data()));
+        }
         if (lockCache.get(ref.path)) free = false;
       }
       if (free) options.push({courtId, courtName: plan.courtNames[i] || "Quadra", startTime, endTime});
@@ -466,14 +471,18 @@ export async function useMakeupCore(
   await db.runTransaction(async (tx: Transaction) => {
     const creditSnap = await tx.get(creditRef);
     const subSnap = await tx.get(subRef);
-    const lockSnaps = await Promise.all(locks.map((l) => tx.get(l.ref)));
+    const claim = await claimCourtLocks(tx, db, {arenaId, courtId: input.courtId, lockRefs: locks.map((l) => l.ref)}, {
+      ownBookingId: bookingId,
+      reason: "Quadra ocupada por reposição de plano",
+    });
     const occupancy = await readArenaOccupancy(db, arenaId, (q) => tx.get(q));
     if (creditSnap.data()?.["status"] !== "available") throw new HttpsError("failed-precondition", "Este crédito já foi usado ou venceu.");
-    if (lockSnaps.some((s) => s.exists)) throw new HttpsError("failed-precondition", "Esse horário acabou de ser reservado. Escolha outro.");
+    if (!claim.ok) throw new HttpsError("failed-precondition", "Esse horário acabou de ser reservado. Escolha outro.");
     if (!isCourtFree(busyBlocksOnDate(occupancy, input.date, nowMs), input.courtId, [weekday],
       toMinutes(input.startTime), endMinutes(endTime))) {
       throw new HttpsError("failed-precondition", "Esse horário é fixo de outro atleta nesse dia. Escolha outro.");
     }
+    claim.commit(tx);
 
     tx.set(bookingRef, {
       athleteId: uid,

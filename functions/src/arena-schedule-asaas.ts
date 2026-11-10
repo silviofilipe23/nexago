@@ -243,6 +243,41 @@ export async function decideScheduleChargeBilling(
 }
 
 /**
+ * Garante o grupo do link de pagamento de uma mensalidade online aberta (o débito automático
+ * deixa a mensalidade sem link; ao desligar ou falhar, o link volta). Sem grupo no espelho, ou com
+ * grupo `void`: cria um `pending` novo. Grupo `autopay`: passa a `pending` no mesmo id. Grupo vivo:
+ * nada a fazer. Devolve o id do grupo ou null (mensalidade fora de "aberta online").
+ */
+export async function ensureScheduleChargeLinkGroup(db: Firestore, chargeId: string): Promise<string | null> {
+  const chargeRef = db.collection(ARENA_SCHEDULE_CHARGES).doc(chargeId);
+  return db.runTransaction(async (tx: Transaction) => {
+    const chargeSnap = await tx.get(chargeRef);
+    const charge = chargeSnap.data() as Data | undefined;
+    if (!chargeSnap.exists || !charge) return null;
+    if (charge["status"] !== "open" || charge["billingMode"] !== "asaas") return null;
+    const mirror = asaasOf(charge);
+    const currentId = str(mirror["groupId"]);
+    let current: Data | undefined;
+    if (currentId) {
+      const groupSnap = await tx.get(groupsCol(db).doc(currentId));
+      current = groupSnap.exists ? groupSnap.data() as Data : undefined;
+    }
+    const subSnap = await tx.get(db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).doc(str(charge["subscriptionId"]) || "_"));
+    if (currentId && current && current["state"] === "autopay") {
+      tx.set(groupsCol(db).doc(currentId), {state: "pending", updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+      tx.set(chargeRef, {asaas: {...mirror, state: "pending"}}, {merge: true});
+      return currentId;
+    }
+    if (currentId && current && current["state"] !== "void") return currentId;
+    const groupRef = groupsCol(db).doc();
+    const sub = (subSnap.data() ?? {}) as Data;
+    tx.set(groupRef, scheduleAsaasGroupData(chargeId, charge, {customerAthleteId: null, arenaName: str(sub["arenaName"])}));
+    tx.set(chargeRef, {asaas: chargeAsaasMirror(groupRef.id, "pending")}, {merge: true});
+    return groupRef.id;
+  });
+}
+
+/**
  * O grupo ainda cobra uma mensalidade que segue em aberto e aponta para ele? Se não (paga por fora,
  * cancelada, apagada ou trocada de grupo), ele tem de ser anulado.
  */

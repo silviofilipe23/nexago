@@ -245,6 +245,7 @@ export {
 } from "./arena-schedule-asaas";
 // Planos de horário — cartão salvo do atleta (token Asaas) para o débito automático.
 export {saveMyPaymentCard, getMyPaymentCard} from "./asaas-saved-card";
+export {setScheduleAutopay, getScheduleAutopayPreview} from "./arena-schedule-autopay";
 // Aulas — cobrança online pelo Asaas (worker do grupo + varredura).
 export {onArenaClassAsaasPaymentWritten, reconcileArenaClassAsaasPayments} from "./asaas-class-billing";
 export {

@@ -58,6 +58,20 @@ export const PENDING_PAYMENT_BLOCK_MESSAGE =
 /** Menor valor cobrado online (abaixo disso a mensalidade fica manual). */
 export const MIN_ONLINE_CHARGE_REAIS = 5;
 
+/** Chave de ambiente: `scheduleCardAutopay === true` liga o débito automático no cartão. */
+export const APP_PAYMENTS_CONFIG_PATH = "appConfig/payments";
+
+/** Estado do débito automático dentro da mensalidade (`autopay.state`). */
+export type AutopayState = "scheduled" | "retry" | "charging" | "paid" | "failed" | "skipped";
+/** Estados em que o débito ainda vai (ou está) acontecer: seguram o link de pagamento. */
+export const AUTOPAY_WINDOW_STATES: ReadonlySet<AutopayState> = new Set<AutopayState>(["scheduled", "retry", "charging"]);
+
+/** O mapa `autopay` da mensalidade, ou `{}`. */
+export function autopayOf(charge: Record<string, unknown> | undefined): Record<string, unknown> {
+  const raw = charge?.["autopay"];
+  return raw != null && typeof raw === "object" ? raw as Record<string, unknown> : {};
+}
+
 export const CPF_REQUIRED_MESSAGE = "Informe seu CPF para pagar online.";
 
 export interface PlanWindow {

@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
@@ -20,6 +20,7 @@ import type { ArenaSlot } from './arena-slot.model';
 import {
   bookingCanCheckInNow,
   bookingCanMarkNoShow,
+  bookingDetailLink,
   buildBoard,
   buildCapacityHours,
   capacityCourts,
@@ -147,11 +148,13 @@ type HoursTab = 'Lista' | 'Quadro';
                 @if (tab() === 'Lista') {
                   @for (b of rows(); track b.id) {
                     <div class="bk">
-                      <span class="avatar">{{ initials(b) }}</span>
-                      <div class="bk-main">
-                        <div class="bk-n">{{ customer(b) }}</div>
-                        <div class="bk-s">{{ b.startTime }}–{{ b.endTime }}@if (b.sportLabel; as s) { · {{ s }}}</div>
-                      </div>
+                      <a class="bk-link" [routerLink]="detailLink(b)">
+                        <span class="avatar">{{ initials(b) }}</span>
+                        <span class="bk-main">
+                          <span class="bk-n">{{ customer(b) }}</span>
+                          <span class="bk-s">{{ b.startTime }}–{{ b.endTime }}@if (b.sportLabel; as s) { · {{ s }}}</span>
+                        </span>
+                      </a>
                       @if (b.allocationStatus === 'unassigned') {
                         <span class="court-pill">{{ b.courtName }}<small>provisória</small></span>
                       } @else {
@@ -214,6 +217,11 @@ type HoursTab = 'Lista' | 'Quadro';
                             [attr.draggable]="!readOnly() && !busy(b.id)"
                             (dragstart)="onDragStart($event, b)"
                             (dragend)="onDragEnd()"
+                            role="link"
+                            tabindex="0"
+                            [attr.aria-label]="'Abrir reserva de ' + customer(b)"
+                            (click)="openDetail(b)"
+                            (keydown.enter)="openDetail(b)"
                           >
                             <span class="chip-n">{{ customer(b) }}</span>
                             <small>{{ busy(b.id) ? 'Salvando…' : b.allocationStatus === 'unassigned' ? 'Provisória' : 'Definida' }}</small>
@@ -340,7 +348,12 @@ type HoursTab = 'Lista' | 'Quadro';
     .banner { margin: 10px 0; padding: 10px 14px; border-radius: var(--nx-r-2); border: 1px solid var(--nx-win); color: var(--nx-win); font-size: 12.5px; }
     .banner.error { border-color: var(--nx-live); color: var(--nx-live); background: rgba(255, 59, 48, 0.08); }
 
-    .bk { display: grid; grid-template-columns: 36px minmax(0, 1.2fr) auto minmax(0, 1.4fr); gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--nx-line); }
+    .bk { display: grid; grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1.4fr); gap: 14px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--nx-line); }
+    .bk-link { display: flex; align-items: center; gap: 14px; min-width: 0; color: inherit; text-decoration: none; border-radius: var(--nx-r-2); }
+    .bk-link:hover .bk-n { color: var(--nx-orange-400); }
+    .bk-link:focus-visible { outline: 2px solid var(--nx-orange-400); outline-offset: 3px; }
+    .bk-link .avatar { flex: none; }
+    .bk-n, .bk-s { display: block; }
     .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--nx-surface-2); border: 1px solid var(--nx-line-strong); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--nx-orange-400); }
     .bk-main { min-width: 0; }
     .bk-n { font-weight: 600; font-size: 13.5px; color: var(--nx-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -362,7 +375,9 @@ type HoursTab = 'Lista' | 'Quadro';
     .chipbk { padding: 8px 10px; border-radius: 9px; background: var(--nx-surface-0); border: 1px dashed var(--nx-pending); cursor: grab; min-width: 0; }
     .chipbk.ok { border-style: solid; border-color: var(--nx-win); }
     .chipbk.dragging { opacity: 0.45; }
-    .chipbk[draggable='false'] { cursor: default; }
+    .chipbk[draggable='false'] { cursor: pointer; }
+    .chipbk:hover .chip-n { color: var(--nx-orange-400); }
+    .chipbk:focus-visible { outline: 2px solid var(--nx-orange-400); outline-offset: 2px; }
     .chip-n { display: block; font-size: 12.5px; font-weight: 600; color: var(--nx-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .chipbk small { display: block; font-family: var(--nx-font-mono); font-size: 8.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--nx-text-dim); margin-top: 2px; }
     .free { margin: auto; font-size: 12px; color: var(--nx-text-dim); }
@@ -391,14 +406,16 @@ type HoursTab = 'Lista' | 'Quadro';
     @include ar.below(lg) {
       .split { grid-template-columns: 1fr; }
       .kpis { grid-template-columns: repeat(2, 1fr); }
-      .bk { grid-template-columns: 36px minmax(0, 1fr); }
-      .bk > .court-pill, .bk-a { grid-column: 2; justify-content: flex-start; }
+      .bk { grid-template-columns: minmax(0, 1fr); }
+      .bk > .court-pill, .bk-a { margin-left: 50px; justify-content: flex-start; }
+      .bk > .court-pill { justify-self: start; }
     }
   `,
 })
 export class PanelAgendaHoursComponent {
   protected readonly arenaContext = inject(ArenaContextService);
   private readonly access = inject(ArenaAccessService);
+  private readonly router = inject(Router);
 
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda'));
   protected readonly tabs: HoursTab[] = ['Lista', 'Quadro'];
@@ -550,6 +567,17 @@ export class PanelAgendaHoursComponent {
 
   protected clubDay(dateKey: string): string {
     return clubSessionDayLabel(dateKey);
+  }
+
+  protected detailLink(b: ArenaBooking): string[] {
+    return bookingDetailLink(b);
+  }
+
+  /** Chip do quadro: clique abre o detalhe. Depois de um arraste o navegador não dispara o
+   *  clique, então arrastar continua só trocando a quadra. */
+  protected openDetail(b: ArenaBooking): void {
+    if (this.busy(b.id)) return;
+    void this.router.navigate(bookingDetailLink(b));
   }
 
   protected customer(b: ArenaBooking): string {

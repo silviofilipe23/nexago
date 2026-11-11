@@ -13,6 +13,8 @@ import {dayKeyFromEventDate} from "./event-timezone";
 import {deliverNotificationToUser, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {CRM_CONTRACTS, CRM_SETTINGS, CRM_SETTINGS_DOC, addDays, type CrmContractRecord} from "./arena-crm-model";
 import {contractFromDoc, loadArenaCrmOverview} from "./arena-crm";
+import {reconcileCrmPaymentLinks} from "./arena-crm-billing";
+import {asaasArenaSecrets} from "./asaas-client";
 import {
   CRM_REMINDERS,
   planContractReminders,
@@ -35,6 +37,11 @@ export interface CrmPushInput {
   type: string;
   data: Record<string, string>;
 }
+
+/** Trocável no teste: a varredura dos links abertos fala com o Asaas. */
+export const crmBilling = {
+  reconcile: (db: Firestore, arenaId: string) => reconcileCrmPaymentLinks(db, arenaId),
+};
 
 /** Trocável no teste. */
 export const crmNotifier = {
@@ -119,6 +126,14 @@ export async function runArenaCrmReminders(db: Firestore, now: Date): Promise<Cr
       const arenaName = str(arena["name"]) || "arena";
       const settings = reminderSettingsFrom(((settingsSnap.data() ?? {}) as Data)["reminders"]);
       const visits = settings.absence ? await lastVisits(db, arenaId, today) : new Map<string, string>();
+      // Webhook perdido: link pago no Asaas dá baixa antes de decidir os lembretes.
+      if (contracts.some((c) => c.onlineLink)) {
+        const reconciled = await crmBilling.reconcile(db, arenaId);
+        if (reconciled > 0) {
+          const fresh = await db.collection(CRM_CONTRACTS).where("arenaId", "==", arenaId).where("status", "==", "active").get();
+          contracts.splice(0, contracts.length, ...fresh.docs.map((doc) => contractFromDoc(doc.id, doc.data() as Data)));
+        }
+      }
 
       for (const c of contracts) {
         const lastVisit = c.athleteId ? visits.get(c.athleteId) ?? null : null;
@@ -145,7 +160,7 @@ export async function runArenaCrmReminders(db: Firestore, now: Date): Promise<Cr
               title: r.title,
               body: r.body,
               type: `arena_crm_${r.kind}`,
-              data: {url: `/arena/${arenaId}`, arenaId},
+              data: {url: `/arena/${arenaId}`, arenaId, ...(r.invoiceUrl ? {invoiceUrl: r.invoiceUrl, webUrl: r.invoiceUrl} : {})},
             });
             result.sent += 1;
           } catch (err) {
@@ -182,7 +197,7 @@ export const sendArenaCrmReminders = onSchedule({
   timeZone: "America/Sao_Paulo",
   timeoutSeconds: 540,
   memory: "512MiB",
-  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+  secrets: [...asaasArenaSecrets, WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async () => {
   const result = await runArenaCrmReminders(getFirestore(), new Date());
   logger.info("sendArenaCrmReminders", result);

@@ -1,5 +1,7 @@
 import {
   cacheLabel,
+  canChargeOnline,
+  linkMessage,
   contractSummary,
   customerInsight,
   customersCsv,
@@ -104,6 +106,21 @@ describe('crm.model', () => {
     expect(cacheLabel('2026-11-10T17:32:00.000Z')).toMatch(/^reservas de \d{2}:\d{2}$/);
     expect(cacheLabel(null)).toBe('');
     expect(cacheLabel('x')).toBe('');
+  });
+
+  it('cobrança online: só contrato do CRM com atleta do app e parcela a pagar; link na mensagem e na faixa', () => {
+    expect(canChargeOnline(customer())).toBeTrue();
+    expect(canChargeOnline(customer({ athleteId: null }))).toBeFalse();
+    expect(canChargeOnline(customer({ contract: contract({ source: 'schedule_plan' }) }))).toBeFalse();
+    expect(canChargeOnline(customer({ contract: contract({ totalInstallments: 3, paidInstallments: 3 }) }))).toBeFalse();
+
+    const onlineLink = { linkId: 'l', invoiceUrl: 'https://asaas/i/1', fromInstallment: 4, installments: 2, amountReais: 520, createdAt: '2026-11-10T12:00:00Z', byName: 'Bruna' };
+    const late = customer({ status: 'overdue', contract: contract({ status: 'overdue', overdueReais: 520, paidInstallments: 4, onlineLink }) });
+    expect(queueMessage('overdue', late, { key: late.key, amountReais: 520, contactedRecently: false }, 'Arena CFC')).toContain('por aqui: https://asaas/i/1');
+    expect(linkMessage(late, 'Arena CFC', { invoiceUrl: 'https://asaas/i/1', amountReais: 520, installments: 2 }))
+      .toBe('Oi, Rafael! Aqui é da Arena CFC. Segue o link para pagar 2 mensalidades do Noite 2x (R$ 520) por Pix ou cartão: https://asaas/i/1');
+    const strip = installmentStrip(late.contract!, '2026-11-10');
+    expect(strip.filter((i) => i.state === 'link').map((i) => i.month)).toEqual(['2026-10', '2026-11']);
   });
 
   it('CSV com separador ; e texto entre aspas quando precisa', () => {

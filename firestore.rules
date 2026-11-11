@@ -2100,6 +2100,10 @@ service cloud.firestore {
     match /arenaCrmReminders/{reminderId} {
       allow read, write: if false;
     }
+    // Links de pagamento online dos contratos do CRM: só servidor (callable + webhook Asaas).
+    match /arenaCrmPaymentLinks/{linkId} {
+      allow read, write: if false;
+    }
     // Cache da visão geral do CRM (reservas agregadas + telefone): só servidor.
     match /arenaCrmCache/{arenaId} {
       allow read, write: if false;

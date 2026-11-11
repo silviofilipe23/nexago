@@ -60,7 +60,17 @@ export interface PlannedReminder {
   installment: number | null;
   title: string;
   body: string;
+  /** Fatura do link aberto que cobre a parcela (o push abre ela no navegador). */
+  invoiceUrl?: string;
 }
+
+/** Link aberto que cobre a parcela `k`. */
+function linkFor(c: CrmContractRecord, k: number): string | null {
+  const l = c.onlineLink;
+  return l && k >= l.fromInstallment && k < l.fromInstallment + l.installments ? l.invoiceUrl : null;
+}
+
+const PAY_HINT = " Toque para pagar por Pix ou cartão.";
 
 function brl(v: number): string {
   const fixed = Number.isInteger(v) ? String(v) : v.toFixed(2).replace(".", ",");
@@ -103,12 +113,15 @@ export function planContractReminders(
     const k = c.paidInstallments + v.overdueCount;
     const left = daysBetween(today, v.nextDueDate);
     if (left === DUE_SOON_DAYS || left === 0) {
+      const link = linkFor(c, k);
       out.push({
         kind: left === 0 ? "due_today" : "due_soon",
         refDate: v.nextDueDate,
         installment: k,
         title: left === 0 ? "Mensalidade vence hoje" : `Mensalidade vence em ${DUE_SOON_DAYS} dias`,
-        body: `${name}, a mensalidade do ${plan} na ${arenaName} (${brl(c.monthlyPriceReais)}) vence ${left === 0 ? "hoje" : `em ${dm(v.nextDueDate)}`}. Pode pagar por Pix ou na recepção.`,
+        body: `${name}, a mensalidade do ${plan} na ${arenaName} (${brl(c.monthlyPriceReais)}) vence ${left === 0 ? "hoje" : `em ${dm(v.nextDueDate)}`}.` +
+          (link ? PAY_HINT : " Pode pagar por Pix ou na recepção."),
+        ...(link ? {invoiceUrl: link} : {}),
       });
     }
   }
@@ -118,12 +131,15 @@ export function planContractReminders(
     const due = installmentDueDate(c.startDate, c.dueDay, k);
     const late = daysBetween(due, today);
     if ((OVERDUE_DAYS as readonly number[]).includes(late)) {
+      const link = linkFor(c, k);
       out.push({
         kind: late === 1 ? "overdue_1" : "overdue_7",
         refDate: due,
         installment: k,
         title: "Mensalidade em aberto",
-        body: `${name}, a mensalidade do ${plan} na ${arenaName} (${brl(v.overdueReais)}) está em aberto desde ${dm(due)}. Já pagou? Avisa a recepção.`,
+        body: `${name}, a mensalidade do ${plan} na ${arenaName} (${brl(v.overdueReais)}) está em aberto desde ${dm(due)}.` +
+          (link ? PAY_HINT : " Já pagou? Avisa a recepção."),
+        ...(link ? {invoiceUrl: link} : {}),
       });
     }
   }

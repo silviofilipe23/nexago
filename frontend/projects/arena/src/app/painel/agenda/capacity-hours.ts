@@ -147,7 +147,6 @@ export function provisionalBookings(tiles: readonly BoardTile[]): ArenaBooking[]
 export function dropBlockReason(booking: ArenaBooking, tile: BoardTile): string | null {
   if (!bookingCanChangeCourt(booking)) {
     if (booking.classSessionId) return 'Aula muda de quadra pela tela da aula.';
-    if (booking.clubSessionId) return 'Clubinho muda de quadra pela tela do clubinho.';
     if (booking.scheduleSubscriptionId) return 'Plano de horário muda de quadra pela tela do plano.';
     return 'Esta reserva não pode mudar de quadra.';
   }

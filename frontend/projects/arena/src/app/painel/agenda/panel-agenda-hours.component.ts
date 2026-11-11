@@ -8,7 +8,7 @@ import { fetchCourtsList } from '../courts/courts-repository';
 import { bookingAllocationFromArena } from '../courts/booking-allocation';
 import type { ArenaCourt } from '../courts/court.model';
 import { dateKeyOf, type ArenaBooking } from '../bookings/arena-booking.model';
-import { bookingCanChangeCourt, changeBookingCourt, courtAssignOptions } from '../bookings/booking-court-change';
+import { bookingCanChangeCourt, changeBookingCourt, clubSessionDayLabel, courtAssignOptions } from '../bookings/booking-court-change';
 import {
   checkInBookingByManager,
   markNoShowByManager,
@@ -248,6 +248,11 @@ type HoursTab = 'Lista' | 'Quadro';
                 </label>
               }
             </div>
+          }
+          @if (b.clubSessionId) {
+            <p class="confirm-body club-scope" data-testid="hours-club-court-change-scope">
+              Muda só a sessão de {{ clubDay(b.dateKey) }} do clubinho; as próximas seguem nas quadras dele. Os participantes recebem um aviso.
+            </p>
           }
           @if (assignError(); as err) {
             <div class="error-banner">{{ err }}</div>
@@ -540,6 +545,10 @@ export class PanelAgendaHoursComponent {
         this.athleteLabels.update((current) => ({ ...current, [athleteId]: label })),
       );
     }
+  }
+
+  protected clubDay(dateKey: string): string {
+    return clubSessionDayLabel(dateKey);
   }
 
   protected customer(b: ArenaBooking): string {

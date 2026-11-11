@@ -1,5 +1,5 @@
 import type { ArenaCourt } from '../courts/court.model';
-import { bookingCanChangeCourt, courtAssignOptions, courtChangeOptions } from './booking-court-change';
+import { bookingCanChangeCourt, clubSessionDayLabel, courtAssignOptions, courtChangeOptions } from './booking-court-change';
 
 function booking(overrides: Partial<Parameters<typeof bookingCanChangeCourt>[0]> = {}) {
   return {
@@ -37,10 +37,15 @@ describe('bookingCanChangeCourt', () => {
     expect(bookingCanChangeCourt(booking({ status: 'completed' }))).toBeFalse();
   });
 
-  it('aula, clubinho e plano de horário trocam pela própria tela', () => {
+  it('aula e plano de horário trocam pela própria tela; clubinho troca pela agenda', () => {
     expect(bookingCanChangeCourt(booking({ classSessionId: 'a1' }))).toBeFalse();
-    expect(bookingCanChangeCourt(booking({ clubSessionId: 's1' }))).toBeFalse();
+    expect(bookingCanChangeCourt(booking({ clubSessionId: 's1' }))).toBeTrue();
     expect(bookingCanChangeCourt(booking({ scheduleSubscriptionId: 'p1' }))).toBeFalse();
+  });
+
+  it('dia da sessão do clubinho', () => {
+    expect(clubSessionDayLabel('2026-11-13')).toBe('sex, 13/11');
+    expect(clubSessionDayLabel('x')).toBe('x');
   });
 });
 

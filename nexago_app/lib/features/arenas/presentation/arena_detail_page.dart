@@ -27,7 +27,7 @@ import 'arena_booking_navigation.dart';
 import 'widgets/arena_detail/arena_detail_amenity_chips.dart';
 import 'widgets/arena_detail/arena_detail_bottom_cta.dart';
 import 'widgets/arena_detail/arena_detail_club_section.dart';
-import 'widgets/arena_detail/arena_detail_court_card.dart';
+import 'widgets/arena_detail/arena_detail_courts_section.dart';
 import 'widgets/arena_detail/arena_detail_hero.dart';
 import 'widgets/arena_detail/arena_detail_metrics_bar.dart';
 import 'widgets/arena_detail/arena_detail_reviews_section.dart';
@@ -322,45 +322,12 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                         ArenaDetailAmenityChips(amenities: arena.amenities),
                       ],
                       SizedBox(height: 24),
-                      Text(
-                        'Quadras',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: context.themeColors.onSurface,
-                          letterSpacing: -0.3,
-                        ),
+                      ArenaDetailCourtsSection(
+                        arena: arena,
+                        today: today,
+                        loading: widget.todayLoading,
+                        onOpenCourt: (courtId) => _openSlots(courtId: courtId),
                       ),
-                      SizedBox(height: 12),
-                      if (widget.todayLoading && today == null)
-                        Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: AppColors.brand,
-                            ),
-                          ),
-                        )
-                      else if (today == null || today.courts.isEmpty)
-                        Text(
-                          'Nenhuma quadra cadastrada ainda.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: context.themeColors.onSurfaceMuted,
-                          ),
-                        )
-                      else
-                        ...[
-                          for (var i = 0; i < today.courts.length; i++) ...[
-                            if (i > 0) SizedBox(height: 10),
-                            ArenaDetailCourtCard(
-                              arena: arena,
-                              summary: today.courts[i],
-                              arenaFallbackPricePerHour: arena.pricePerHourReais,
-                              onTap: () => _openSlots(
-                                courtId: today.courts[i].court.id,
-                              ),
-                            ),
-                          ],
-                        ],
                       ArenaDetailClubSection(arenaId: arena.id),
                       // Horário fixo vendido como plano (só com plano publicado).
                       ArenaDetailSchedulePlansSection(arenaId: arena.id),

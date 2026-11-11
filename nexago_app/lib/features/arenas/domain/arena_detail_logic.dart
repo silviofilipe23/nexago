@@ -60,9 +60,7 @@ List<ArenaCourtDaySummary> buildCourtDaySummaries({
   final summaries = <ArenaCourtDaySummary>[];
   for (final court in courts) {
     final slots = slotsByCourtId[court.id] ?? const [];
-    final free = court.isMaintenance
-        ? 0
-        : countFreeSlotsToday(slots, today);
+    final free = court.isMaintenance ? 0 : countFreeSlotsToday(slots, today);
     summaries.add(
       ArenaCourtDaySummary(
         court: court,
@@ -118,6 +116,83 @@ String? courtSurfaceBadgeLabel(ArenaListItem arena, ArenaCourt court) {
     return courtSportLabel(court.sportTypes.first).toUpperCase();
   }
   return null;
+}
+
+/// Acima disso a seção de quadras do perfil começa retraída ("Ver todas").
+const kArenaDetailCourtsCollapsedCount = 4;
+
+/// Selo curto da quadra na linha: o número do nome ("Quadra 12" → `12`); sem número, a inicial
+/// ("Central" → `C`).
+String courtBadgeLabel(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return '?';
+  final number = RegExp(r'(\d+)\s*$').firstMatch(trimmed)?.group(1) ??
+      RegExp(r'\d+').firstMatch(trimmed)?.group(0);
+  if (number != null)
+    return number.length > 3 ? number.substring(0, 3) : number;
+  return trimmed.substring(0, 1).toUpperCase();
+}
+
+/// Esportes da quadra pelo catálogo, sem superfície legada ("Areia").
+List<String> courtSportLabelsOf(ArenaCourt court) => arenaSportLabels(
+      court.sportTypes.where((t) => !ArenaSearchMetadata.isSurfaceLabel(t)),
+    );
+
+/// Linha de apoio da quadra: esportes · coberta/aberta.
+String courtMetaLine(ArenaListItem arena, ArenaCourt court) {
+  final parts = <String>[...courtSportLabelsOf(court)];
+  if (parts.isEmpty) {
+    final surface = courtSurfaceBadgeLabel(arena, court);
+    if (surface != null) parts.add(courtSportLabel(surface));
+  }
+  parts.add(arena.amenities.coveredCourt ? 'Coberta' : 'Aberta');
+  return parts.join(' · ');
+}
+
+/// Filtro por esporte da seção de quadras: rótulo e quantas quadras têm o esporte.
+class CourtSportFilterOption {
+  const CourtSportFilterOption(this.label, this.count);
+
+  final String label;
+  final int count;
+}
+
+/// Opções de filtro por esporte, na ordem em que aparecem nas quadras. Vazio quando não ajuda:
+/// até [kArenaDetailCourtsCollapsedCount] quadras ou um esporte só.
+List<CourtSportFilterOption> courtSportFilterOptions(
+  List<ArenaCourtDaySummary> courts,
+) {
+  if (courts.length <= kArenaDetailCourtsCollapsedCount) return const [];
+  final counts = <String, int>{};
+  for (final s in courts) {
+    for (final label in courtSportLabelsOf(s.court)) {
+      counts[label] = (counts[label] ?? 0) + 1;
+    }
+  }
+  if (counts.length < 2) return const [];
+  return [
+    for (final e in counts.entries) CourtSportFilterOption(e.key, e.value),
+  ];
+}
+
+/// Quadras do filtro [sport] (`null` = todas), na ordem recebida.
+List<ArenaCourtDaySummary> filterCourtsBySport(
+  List<ArenaCourtDaySummary> courts,
+  String? sport,
+) {
+  if (sport == null) return courts;
+  return [
+    for (final s in courts)
+      if (courtSportLabelsOf(s.court).contains(sport)) s,
+  ];
+}
+
+/// Status do dia na linha da quadra.
+String courtDayStatusLabel(ArenaCourtDaySummary summary) {
+  if (summary.court.isMaintenance) return 'Em manutenção';
+  final n = summary.freeSlotsToday;
+  if (n <= 0) return 'Lotada hoje';
+  return n == 1 ? '1 livre hoje' : '$n livres hoje';
 }
 
 String formatRelativeReviewAge(DateTime? createdAt, DateTime now) {

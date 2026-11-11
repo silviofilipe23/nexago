@@ -854,6 +854,7 @@ export {
 export {getArenaOccupancyReport} from "./arena-occupancy-report";
 // CRM da arena: base de clientes, contratos de mensalista, filas do time e conversão de avulso.
 export {getArenaCrmOverview, getArenaCrmCustomer, updateArenaCrm} from "./arena-crm";
+export {getArenaBookingContacts} from "./arena-booking-contacts";
 export {sendArenaCrmReminders} from "./arena-crm-reminders";
 export {getMyArenaContracts, onArenaCrmContractWrittenSyncMember} from "./arena-crm-athlete";
 export {postTournamentAnnouncement} from "./tournament-announcements";

@@ -84,6 +84,14 @@ class _AthleteOnboardingProfileStepState
         ? draft.referralCode
         : referralCodeFromDeepLinkPath(ref.read(pendingDeepLinkPathProvider)) ??
             '';
+    // Foto da conta Google como ponto de partida. Mexe no provider, então sai
+    // do initState (Riverpod não aceita mutação durante o build).
+    Future.microtask(() {
+      if (!mounted) return;
+      ref
+          .read(athleteOnboardingDraftProvider.notifier)
+          .prefillAvatarFromAccount();
+    });
   }
 
   @override
@@ -285,6 +293,7 @@ class _AthleteOnboardingProfileStepState
           SizedBox(height: 20),
           _PhotoPickerCard(
             avatarBytes: draft.avatarBytes,
+            fromAccount: draft.avatarFromAccount,
             onPick: _pickPhoto,
             missing: _photoMissing,
           ),
@@ -444,10 +453,14 @@ class _PhotoPickerCard extends StatelessWidget {
   const _PhotoPickerCard({
     required this.avatarBytes,
     required this.onPick,
+    this.fromAccount = false,
     this.missing = false,
   });
 
   final Uint8List? avatarBytes;
+
+  /// A foto veio da conta Google: o card avisa e oferece trocar.
+  final bool fromAccount;
   final VoidCallback onPick;
 
   /// Submeteu sem foto: a borda e o subtítulo viram erro, no mesmo padrão dos
@@ -498,7 +511,9 @@ class _PhotoPickerCard extends StatelessWidget {
                   Text(
                     missing
                         ? 'Escolha uma foto pra concluir'
-                        : hasPhoto
+                        : hasPhoto && fromAccount
+                            ? 'Foto da sua conta Google · pode trocar'
+                            : hasPhoto
                             ? 'Toque em ajustar para recortar de novo'
                             : 'JPG ou PNG · recorte circular',
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -516,7 +531,9 @@ class _PhotoPickerCard extends StatelessWidget {
                 hasPhoto ? Icons.crop_rounded : Icons.photo_camera_outlined,
                 size: 18,
               ),
-              label: Text(hasPhoto ? 'Ajustar' : 'Escolher'),
+              label: Text(
+                hasPhoto ? (fromAccount ? 'Trocar' : 'Ajustar') : 'Escolher',
+              ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: context.themeColors.onSurface,
                 side: BorderSide(

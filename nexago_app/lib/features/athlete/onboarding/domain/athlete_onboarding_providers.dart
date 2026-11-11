@@ -12,6 +12,7 @@ import '../../../../core/observability/analytics_service.dart';
 import '../../../../core/observability/flow_error_log.dart';
 import '../../domain/athlete_profile_providers.dart';
 import '../../domain/athlete_referral_providers.dart';
+import '../data/account_photo_fetcher.dart';
 import 'athlete_onboarding_draft.dart';
 
 /// Etapas de rede do "Concluir cadastro", na ordem em que rodam.
@@ -139,6 +140,33 @@ class AthleteOnboardingDraftNotifier extends Notifier<AthleteOnboardingDraft> {
     state = state.copyWith(
       avatarBytes: bytes,
       avatarContentType: contentType,
+      avatarFromAccount: false,
+    );
+  }
+
+  /// Quem entrou com Google já tem foto: ela entra como foto de perfil para o
+  /// atleta não travar no "Escolha uma foto pra concluir" (o motivo mais comum
+  /// de cadastro parado no último passo). Nunca sobrescreve uma foto escolhida,
+  /// nem a que o atleta escolher enquanto o download corre; qualquer falha
+  /// deixa o passo como antes, pedindo a foto.
+  Future<void> prefillAvatarFromAccount() async {
+    if (state.avatarBytes != null) return;
+    final user = ref.read(authProvider).valueOrNull;
+    final uri = accountPhotoUri(user?.photoURL);
+    if (uri == null) return;
+    final Uint8List? bytes;
+    try {
+      bytes = await ref.read(accountPhotoFetcherProvider)(uri);
+    } catch (_) {
+      return;
+    }
+    if (bytes == null || bytes.isEmpty) return;
+    final contentType = imageContentTypeOf(bytes);
+    if (contentType == null || state.avatarBytes != null) return;
+    state = state.copyWith(
+      avatarBytes: bytes,
+      avatarContentType: contentType,
+      avatarFromAccount: true,
     );
   }
 

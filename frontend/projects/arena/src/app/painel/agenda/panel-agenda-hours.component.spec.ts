@@ -99,6 +99,8 @@ describe('Agenda → Por horário', () => {
     host(f).querySelectorAll<HTMLButtonElement>('.hour')[1]!.click();
     f.detectChanges();
     await f.whenStable();
+    buttons(f, 'Lista')[0]!.click();
+    f.detectChanges();
 
     const names = Array.from(host(f).querySelectorAll('.bk-n')).map((n) => n.textContent!.trim());
     expect(names).toEqual(['Enzo Ribeiro', 'Ana Souza']);
@@ -124,6 +126,8 @@ describe('Agenda → Por horário', () => {
     host(f).querySelectorAll<HTMLButtonElement>('.hour')[1]!.click();
     f.detectChanges();
     await f.whenStable();
+    buttons(f, 'Lista')[0]!.click();
+    f.detectChanges();
     const rows = Array.from(host(f).querySelectorAll('.bk-n')).map((n) => n.textContent!.trim());
     expect(rows).toContain('Clubinho de sexta');
     // Provisório, mas "Trocar" (nunca "Definir quadra"); "Confirmar todas" não conta o clubinho.
@@ -136,11 +140,18 @@ describe('Agenda → Por horário', () => {
     expect(host(f).querySelector('[data-testid="hours-club-court-change-scope"]')?.textContent).toContain('dom, 22/11');
   });
 
-  it('quadro: soltar em quadra com reserva definida é recusado sem chamar o servidor', async () => {
+  it('abre no Quadro por padrão', () => {
     const f = setup();
     host(f).querySelectorAll<HTMLButtonElement>('.hour')[1]!.click();
     f.detectChanges();
-    buttons(f, 'Quadro')[0]!.click();
+    const tab = Array.from(host(f).querySelectorAll<HTMLButtonElement>('[role="tab"]')).find((b) => b.getAttribute('aria-selected') === 'true');
+    expect(tab?.textContent?.trim()).toBe('Quadro');
+    expect(host(f).querySelectorAll('.tile').length).toBe(4);
+  });
+
+  it('quadro: soltar em quadra com reserva definida é recusado sem chamar o servidor', async () => {
+    const f = setup();
+    host(f).querySelectorAll<HTMLButtonElement>('.hour')[1]!.click();
     f.detectChanges();
 
     const tiles = host(f).querySelectorAll<HTMLElement>('.tile');
@@ -159,6 +170,9 @@ describe('Agenda → Por horário', () => {
   it('cargo só de leitura não vê ações nem arrasta', () => {
     const f = setup(false);
     host(f).querySelectorAll<HTMLButtonElement>('.hour')[1]!.click();
+    f.detectChanges();
+    expect(host(f).querySelector('.chipbk')?.getAttribute('draggable')).toBe('false');
+    buttons(f, 'Lista')[0]!.click();
     f.detectChanges();
     expect(buttons(f, 'Definir quadra').length).toBe(0);
     expect(buttons(f, 'Confirmar todas').length).toBe(0);

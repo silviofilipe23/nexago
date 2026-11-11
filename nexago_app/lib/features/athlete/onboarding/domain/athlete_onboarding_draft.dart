@@ -34,6 +34,7 @@ class AthleteOnboardingDraft {
     this.state = '',
     this.avatarBytes,
     this.avatarContentType,
+    this.avatarFromAccount = false,
     this.referralCode = '',
   });
 
@@ -63,6 +64,11 @@ class AthleteOnboardingDraft {
 
   final Uint8List? avatarBytes;
   final String? avatarContentType;
+
+  /// A foto atual veio da conta (Google), não foi escolhida pelo atleta. Só
+  /// muda o texto do card; no "Concluir" ela sobe pro Storage como qualquer
+  /// outra.
+  final bool avatarFromAccount;
 
   /// Código de quem indicou (programa de indicação), opcional — informado
   /// no último passo do onboarding. Registrado uma vez, após o cadastro.
@@ -144,6 +150,7 @@ class AthleteOnboardingDraft {
     String? state,
     Uint8List? avatarBytes,
     String? avatarContentType,
+    bool? avatarFromAccount,
     bool clearAvatar = false,
     String? referralCode,
   }) {
@@ -163,6 +170,8 @@ class AthleteOnboardingDraft {
       avatarBytes: clearAvatar ? null : (avatarBytes ?? this.avatarBytes),
       avatarContentType:
           clearAvatar ? null : (avatarContentType ?? this.avatarContentType),
+      avatarFromAccount:
+          !clearAvatar && (avatarFromAccount ?? this.avatarFromAccount),
       referralCode: referralCode ?? this.referralCode,
     );
   }

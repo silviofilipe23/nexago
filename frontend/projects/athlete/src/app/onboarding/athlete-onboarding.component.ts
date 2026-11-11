@@ -9,6 +9,7 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { sanitizeReturnUrl } from '../auth/redirect-url';
 import { AuthShellComponent } from '../auth/ui/auth-shell.component';
+import { accountPhotoUrl, fetchAccountPhotoFile } from '../data/account-photo';
 import { isAllowedAvatarFile, prepareAvatarJpeg, uploadAthleteAvatar } from '../data/athlete-avatar-upload';
 import { athleteFunctions } from '../data/functions';
 import { findPhoneInOtherAccount, twinAccountHint, type PhoneInOtherAccount } from '../data/twin-account-check';
@@ -138,6 +139,8 @@ export class AthleteOnboardingComponent {
   /** Arquivo escolhido (ainda não enviado); preview local via object URL. */
   protected readonly photoFile = signal<File | null>(null);
   protected readonly photoPreviewUrl = signal<string | null>(null);
+  /** A foto atual veio da conta Google (não foi escolhida): muda só o texto do card. */
+  protected readonly photoFromAccount = signal(false);
   private readonly photoInput = viewChild<ElementRef<HTMLInputElement>>('photoInput');
   private readonly birthDateNativeInput = viewChild<ElementRef<HTMLInputElement>>('birthDateNative');
   private photoObjectUrl: string | null = null;
@@ -188,6 +191,21 @@ export class AthleteOnboardingComponent {
       clearTimeout(this.noticeTimeout);
       this.revokePhotoPreview();
     });
+    void this.prefillPhotoFromAccount();
+  }
+
+  /**
+   * Quem entrou com Google já tem foto: ela entra como foto de perfil para o
+   * atleta não travar no "Escolha uma foto pra concluir". Nunca troca uma foto
+   * escolhida (nem a escolhida enquanto o download corre); falha = passo como antes.
+   */
+  private async prefillPhotoFromAccount(): Promise<void> {
+    const url = accountPhotoUrl(this.auth.user()?.photoURL);
+    if (!url || this.photoFile()) return;
+    const file = await fetchAccountPhotoFile(url);
+    if (!file || this.photoFile()) return;
+    this.setPhoto(file);
+    this.photoFromAccount.set(true);
   }
 
   protected selectSport(code: string): void {
@@ -274,6 +292,11 @@ export class AthleteOnboardingComponent {
       return;
     }
 
+    this.setPhoto(file);
+    this.photoFromAccount.set(false);
+  }
+
+  private setPhoto(file: File): void {
     this.revokePhotoPreview();
     this.photoObjectUrl = URL.createObjectURL(file);
     this.photoFile.set(file);
@@ -281,6 +304,7 @@ export class AthleteOnboardingComponent {
   }
 
   protected clearPhoto(): void {
+    this.photoFromAccount.set(false);
     this.revokePhotoPreview();
     this.photoFile.set(null);
     this.photoPreviewUrl.set(null);

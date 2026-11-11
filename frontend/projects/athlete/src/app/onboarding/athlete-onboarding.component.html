@@ -153,6 +153,8 @@
               <span class="ob-photo-title">Foto de perfil *</span>
               @if (photoError(); as e) {
                 <span class="ob-photo-hint ob-photo-hint--error">{{ e }}</span>
+              } @else if (photoFromAccount()) {
+                <span class="ob-photo-hint">Foto da sua conta Google · pode trocar</span>
               } @else {
                 <span class="ob-photo-hint">JPG, PNG ou WebP · até 2 MB</span>
               }

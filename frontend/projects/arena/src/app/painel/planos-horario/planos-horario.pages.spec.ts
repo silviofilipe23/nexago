@@ -21,6 +21,9 @@ import { SchedulePlansStore } from './schedule-plans.store';
 describe('Planos de horário · telas', () => {
   const today = todayKeyLocal();
 
+  /** Doc da arena visto pelo contexto (`bookingAllocation` liga o "arena define a quadra"). */
+  let arenaDoc: Record<string, unknown> | null = null;
+
   function setup(): SchedulePlansStore {
     TestBed.configureTestingModule({
       providers: [
@@ -32,6 +35,7 @@ describe('Planos de horário · telas', () => {
           useValue: {
             arenaId: () => null, arenaName: () => 'Arena Beach Club', managedArenas: () => [{ id: 'a' }], isOwner: () => true,
             staffRole: () => null, loading: () => false, notFound: () => false, hasCapability: () => true,
+            arenaDocData: () => arenaDoc,
           },
         },
         { provide: ArenaAccessService, useValue: { isOwner: () => true, canRead: () => true, canWrite: () => true, ready: () => true } },
@@ -79,7 +83,10 @@ describe('Planos de horário · telas', () => {
     return (fixture.nativeElement as HTMLElement).textContent ?? '';
   }
 
-  afterEach(() => TestBed.resetTestingModule());
+  afterEach(() => {
+    arenaDoc = null;
+    TestBed.resetTestingModule();
+  });
 
   it('01 Planos mostra cards, números e o que precisa do gestor', () => {
     setup();
@@ -141,6 +148,34 @@ describe('Planos de horário · telas', () => {
     const text = render(PanelPhPlanEditorComponent);
     expect(text).not.toContain('chega em breve');
     expect(text).toContain('Pix e Cartão: Pix ou cartão por link (online) · Na arena: baixa manual');
+  });
+
+  it('10 Arena que define a quadra: editor sem escolha de quadra; anual à vista por ano', () => {
+    arenaDoc = { bookingAllocation: { mode: 'capacity', courtIds: ['c1', 'c2'] } };
+    setup();
+    const fixture = TestBed.createComponent(PanelPhPlanEditorComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('[data-testid="ph-plan-arena-defines-court"]')?.textContent).toContain('as 2 quadras da distribuição');
+    expect([...el.querySelectorAll('.sm-chip')].some((b) => b.textContent?.trim() === 'Quadra 1')).toBeFalse();
+    expect(el.textContent).toContain('12 meses · à vista');
+    expect(el.textContent).toContain('/ano');
+  });
+
+  it('11 Mensalidade do anual à vista mostra os meses cobertos', () => {
+    const store = setup();
+    const fixture = TestBed.createComponent(PhSubscriberDetailComponent);
+    fixture.componentRef.setInput('sub', store.subscriptions()[0]!);
+    fixture.componentRef.setInput('state', { kind: 'ok', label: 'Em dia', tone: 'green', overdueDays: 0 });
+    fixture.detectChanges();
+    (fixture.componentInstance as unknown as { charges: { set(v: unknown): void } }).charges.set([
+      chargeFromRaw('c1', {
+        subscriptionId: 's1', payerName: 'Marina Lopes', amountReais: 2880, period: '2026-11', coversThrough: '2027-10',
+        months: 12, kind: 'first', dueDate: addDaysKey(today, 3), status: 'open',
+      }),
+    ]);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).toMatch(/Anual à vista · .+ a .+2027/);
   });
 
   it('08 Mensalidade online mostra o selo, copia o link e avisa na baixa manual', () => {

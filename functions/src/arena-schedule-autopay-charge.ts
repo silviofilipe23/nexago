@@ -27,12 +27,12 @@ import {
   parseScheduleSettings,
   str,
   type AutopayState,
+  chargePeriodLabel,
 } from "./arena-schedule-plan-constants";
 import {scheduleOnlineBillingOn, scheduleSettingsRef} from "./arena-schedule-plans";
 import {assertAsaasAllowed, ensureScheduleChargeLinkGroup, scheduleAsaasGroupData} from "./arena-schedule-asaas";
 import {scheduleAutopayFlagOn} from "./arena-schedule-autopay";
 import {chargeAsaasMirror} from "./arena-class-asaas-model";
-import {monthLabelPt} from "./arena-class-billing";
 import {addDaysToDateKey} from "./arena-recurring-booking";
 import {AsaasApiError, asaasArenaSecrets, getAsaasEnvTag} from "./asaas-client";
 import {createAsaasTokenCardCharge, getAsaasPayment, type AsaasPaymentDetails} from "./asaas-booking-payment";
@@ -401,7 +401,7 @@ async function settleTokenCharge(
   if (!result.paid) return {outcome: "skipped", reason: "charge_resolved"};
   const charge = result.charge;
   await notifyAutopay(deps, attempt.payer, attempt.chargeId, charge, "schedule_plan_autopay_paid", "Mensalidade paga",
-    `Plano ${str(charge["planName"]) || "de horário"} · ${monthLabelPt(str(charge["period"]))}: ` +
+    `Plano ${str(charge["planName"]) || "de horário"} · ${chargePeriodLabel(charge)}: ` +
     `R$ ${brlPlain(attempt.chargedReais)} no cartão final ${attempt.last4}.`);
   return {outcome: "paid"};
 }

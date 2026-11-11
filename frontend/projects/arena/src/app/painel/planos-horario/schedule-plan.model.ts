@@ -134,6 +134,8 @@ export interface ScheduleCharge {
   planName: string;
   holderName: string;
   period: string;
+  /** Último mês coberto (anual à vista cobre 12 numa cobrança); `null` = só `period`. */
+  coversThrough: string | null;
   kind: 'first' | 'monthly' | 'resume';
   payerIndex: number;
   payerName: string;
@@ -446,6 +448,7 @@ export function chargeFromRaw(id: string, d: Raw): ScheduleCharge {
     planName: str(d['planName'], 'Plano'),
     holderName: str(d['holderName'], 'Assinante'),
     period: str(d['period']),
+    coversThrough: optStr(d['coversThrough']),
     kind: oneOf(d['kind'], ['first', 'monthly', 'resume'] as const, 'monthly'),
     payerIndex: num(d['payerIndex'], 0),
     payerName: str(d['payerName'], str(d['holderName'], 'Assinante')),

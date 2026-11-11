@@ -8,6 +8,7 @@ import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { ToggleComponent } from '../ui/toggle.component';
+import { bookingAllocationFromArena } from '../courts/booking-allocation';
 import { brl } from './ph-format';
 import { PhIconBoxComponent, PhLineComponent, PhPageComponent } from './planos-horario-ui';
 import {
@@ -145,20 +146,37 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
                       }
                     }
                   </div>
-                  <p class="hint">O atleta escolhe o dia e a hora dentro da janela. A mesma quadra fica com ele toda semana.</p>
+                  <p class="hint">
+                    O atleta escolhe o dia e a hora dentro da janela.
+                    {{ capacityMode() ? 'A arena define a quadra a cada jogo.' : 'A mesma quadra fica com ele toda semana.' }}
+                  </p>
                   @if (customWindows()) {
                     <p class="hint">Este plano tem janelas com horário próprio; mexer na grade troca pelas faixas inteiras.</p>
                   }
                 </div>
                 <div>
                   <div class="field-label">Quadras</div>
-                  <div class="chip-row">
-                    @for (c of courtOptions(); track c.id) {
-                      <button type="button" class="sm-chip" [class.active]="d().courtIds.includes(c.id)" (click)="toggleCourt(c.id)">{{ c.name }}</button>
-                    } @empty {
-                      <span class="hint flush">Cadastre quadras em Quadras para vender planos.</span>
-                    }
-                  </div>
+                  @if (capacityMode()) {
+                    <div class="arena-defines" data-testid="ph-plan-arena-defines-court">
+                      <ar-icon name="courts" [size]="16" />
+                      <div>
+                        <b>A arena define a quadra</b>
+                        <p>
+                          O plano usa {{ distributionLabel() }}. O atleta assina o horário e a recepção indica a quadra a
+                          cada jogo; o horário fixo desconta da capacidade.
+                        </p>
+                        <a routerLink="/painel/quadras">Quadras › Como o atleta reserva</a>
+                      </div>
+                    </div>
+                  } @else {
+                    <div class="chip-row">
+                      @for (c of courtOptions(); track c.id) {
+                        <button type="button" class="sm-chip" [class.active]="d().courtIds.includes(c.id)" (click)="toggleCourt(c.id)">{{ c.name }}</button>
+                      } @empty {
+                        <span class="hint flush">Cadastre quadras em Quadras para vender planos.</span>
+                      }
+                    </div>
+                  }
                 </div>
               </div>
             </ar-panel-card>
@@ -197,7 +215,11 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
                     </div>
                     <div class="cycle-sub">{{ c.sub }}</div>
                   </div>
-                  <span class="cycle-val">{{ brl(cycleValue(d().cycles[c.id].discountPercent)) }}<small>/mês</small></span>
+                  @if (c.id === 'annual') {
+                    <span class="cycle-val">{{ brl(cycleValue(d().cycles[c.id].discountPercent) * 12) }}<small>/ano</small></span>
+                  } @else {
+                    <span class="cycle-val">{{ brl(cycleValue(d().cycles[c.id].discountPercent)) }}<small>/mês</small></span>
+                  }
                   <ar-toggle [checked]="d().cycles[c.id].enabled" [label]="c.label" (changed)="setCycle(c.id, $event)" />
                 </div>
               }
@@ -364,6 +386,10 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
     .num { width: 80px; font-family: var(--nx-font-mono); }
     .mute { font-size: 12.5px; color: var(--nx-text-mute); line-height: 1.4; }
     .hint b { color: var(--nx-text); }
+    .arena-defines { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--nx-win) 40%, transparent); background: color-mix(in srgb, var(--nx-win) 7%, transparent); }
+    .arena-defines b { color: var(--nx-win); font-size: 14px; }
+    .arena-defines p { margin: 3px 0 6px; font-size: 13px; line-height: 1.5; color: var(--nx-text-dim); }
+    .arena-defines a { font-size: 12.5px; font-weight: 600; color: var(--nx-orange-500); text-decoration: none; }
     .cycle { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--nx-line); }
     .cycle-name { font-family: var(--nx-font-display); font-weight: 700; font-size: 13px; color: var(--nx-text); }
     .cycle-name.off, .rule-title.off { color: var(--nx-text-mute); }
@@ -411,7 +437,7 @@ export class PanelPhPlanEditorComponent {
   protected readonly durations = [{ value: 60, label: '1h' }, { value: 90, label: '1h30' }, { value: 120, label: '2h' }];
   protected readonly discountCycles = [
     { id: 'quarterly' as const, label: 'Trimestral', sub: '3 meses · paga mês a mês' },
-    { id: 'annual' as const, label: 'Anual', sub: '12 meses · paga mês a mês' },
+    { id: 'annual' as const, label: 'Anual', sub: '12 meses · à vista (1ª proporcional)' },
   ];
 
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda') || !this.arenaContext.hasCapability('planosHorario'));
@@ -459,6 +485,17 @@ export class PanelPhPlanEditorComponent {
   protected readonly occupied = computed(() =>
     this.planId ? this.store.subscriptions().filter((s) => s.planId === this.planId && holdsSlot(s)).length : 0,
   );
+  /** A arena define a quadra (Quadras › Como o atleta reserva): o plano não escolhe quadra. */
+  protected readonly capacityMode = computed(() => bookingAllocationFromArena(this.arenaContext.arenaDocData()).mode === 'capacity');
+  /** "as 8 quadras da distribuição" / "todas as quadras ativas". */
+  protected readonly distributionLabel = computed(() => {
+    const ids = bookingAllocationFromArena(this.arenaContext.arenaDocData()).courtIds;
+    const n = ids.length > 0
+      ? this.store.courts().filter((c) => ids.includes(c.id) && c.status === 'active').length
+      : this.store.activeCourts().length;
+    if (ids.length === 0) return 'todas as quadras ativas';
+    return n === 1 ? 'a quadra da distribuição' : `as ${n} quadras da distribuição`;
+  });
   protected readonly courtOptions = computed(() => {
     const ids = new Set(this.d().courtIds);
     return this.store.courts().filter((c) => c.status === 'active' || ids.has(c.id));
@@ -471,7 +508,7 @@ export class PanelPhPlanEditorComponent {
     const windows = this.windows();
     if (windows.length === 0) out.push('Marque ao menos uma faixa na janela');
     else if (new Set(windows.map((w) => w.weekday)).size < d.timesPerWeek) out.push(`A janela precisa de ${d.timesPerWeek} dias para um plano ${d.timesPerWeek}x`);
-    if (d.courtIds.length === 0) out.push('Escolha ao menos uma quadra');
+    if (d.courtIds.length === 0 && !this.capacityMode()) out.push('Escolha ao menos uma quadra');
     if (this.capacityValue() < 1 || this.capacityValue() > 500) out.push('Vagas entre 1 e 500');
     if (this.priceValue() <= 0) out.push('Informe o valor mensal');
     if (!d.cycles.monthly.enabled && !d.cycles.quarterly.enabled && !d.cycles.annual.enabled) out.push('Ligue ao menos um ciclo');
@@ -619,8 +656,9 @@ export class PanelPhPlanEditorComponent {
         timesPerWeek: d.timesPerWeek,
         durationMinutes: d.durationMinutes,
         windows: this.windows(),
-        courtIds: d.courtIds,
-        courtNames: d.courtIds.map((id) => courts.find((c) => c.id === id)?.name ?? 'Quadra'),
+        // Arena que define a quadra: o plano não guarda quadra (o servidor usa a distribuição).
+        courtIds: this.capacityMode() ? [] : d.courtIds,
+        courtNames: this.capacityMode() ? [] : d.courtIds.map((id) => courts.find((c) => c.id === id)?.name ?? 'Quadra'),
         capacity: this.capacityValue(),
         monthlyPriceReais: this.priceValue(),
         referenceHourlyReais: this.refValue() > 0 ? this.refValue() : null,

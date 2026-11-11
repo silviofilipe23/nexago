@@ -286,3 +286,19 @@ Nomes de callables, coleções e campos seguem o contrato. O que o backend acres
   e o agendador diário refaz quem ficou marcado. A liberação nunca mexe em série `active`. `runArenaScheduleSubscriptionsDaily`
   passa a reportar `released`.
 - **`cancelArenaScheduleCharge`** confere e grava na mesma transação (paga não cancela; já cancelada é no-op).
+
+## Anual à vista (11/11/2026)
+
+O ciclo anual deixou de ser "desconto pago mês a mês": assinar o anual cobra as **12 mensalidades
+numa cobrança só** — a 1ª proporcional aos jogos que sobram no mês (como no mensal) e as 11
+seguintes cheias, com o desconto do anual. A mensalidade ganha `months: 12` e `coversThrough`
+(último mês coberto); a assinatura ganha `prepaidMonths: 12`, `billedThrough` = último mês pago e
+`commitmentEndsOn` = 1º dia depois dele (a saída do titular não força 13ª mensalidade).
+
+- Renovação: a 10 dias do vencimento do mês seguinte ao pago, o agendador cobra os próximos 12
+  meses de uma vez (só até o último mês de jogo se houver saída marcada).
+- Pausa de mês inteiro dentro do ano pago empurra `billedThrough` e a fidelidade; nada é cancelado
+  nem estornado.
+- Mensal e trimestral seguem mês a mês. Assinaturas anuais antigas (sem `prepaidMonths`) também.
+- Saída marcada pelo gestor no meio de um ano em aberto não reduz a cobrança aberta; o gestor
+  cancela ou acerta a mensalidade no portal.

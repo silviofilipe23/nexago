@@ -380,7 +380,7 @@ AthleteCharge _fromScheduleCharge(
     kind: AthleteChargeKind.fixedSchedule,
     title: [
       s.planName,
-      if (c.period.isNotEmpty) _periodLabel(c.period),
+      if (c.period.isNotEmpty) _schedulePeriodLabel(c),
     ].join(' · '),
     payee: s.arenaName.isEmpty ? 'Arena' : s.arenaName,
     amountReais: c.amountReais,
@@ -656,7 +656,7 @@ List<PaidMonth> buildPaidHistory({
             kind: AthleteChargeKind.fixedSchedule,
             title: [
               s.planName,
-              if (c.period.isNotEmpty) _periodLabel(c.period),
+              if (c.period.isNotEmpty) _schedulePeriodLabel(c),
             ].join(' · '),
             payee: s.arenaName.isEmpty ? 'Arena' : s.arenaName,
             amountReais: c.amountReais,
@@ -715,6 +715,13 @@ String athleteChargeDueLabel(AthleteCharge c) {
     AthleteChargeState.direct =>
       date == null ? 'PAGAR DIRETO' : 'VENCE ${date.toUpperCase()}',
   };
+}
+
+/// "nov" para a mensalidade de `2026-11`; "anual nov/26 a out/27" no anual à
+/// vista.
+String _schedulePeriodLabel(ScheduleCharge c) {
+  final cover = scheduleChargeCoverLabel(c);
+  return cover == null ? _periodLabel(c.period) : 'anual $cover';
 }
 
 /// "nov" para o período `2026-11`.

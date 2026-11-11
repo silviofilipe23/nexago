@@ -252,6 +252,64 @@ List<ScheduleCombinedTime> scheduleTimesForWeekdays(
 /// "1 quadra", "3 quadras".
 String scheduleFreeCourtsLabel(int n) => n == 1 ? '1 quadra' : '$n quadras';
 
+/// Horário livre quando a arena define a quadra: o atleta não vê quadra.
+String scheduleFreeSpotLabel(int n) => n <= 1 ? 'última vaga' : 'livre';
+
+// ── Anual à vista ───────────────────────────────────────────────────────
+
+/// Mensalidades pagas de uma vez: o anual cobra as 12 na assinatura (e na
+/// renovação); mensal e trimestral, mês a mês. Igual ao servidor
+/// (`prepaidMonthsOf`).
+int scheduleCyclePrepaidMonths(SchedulePlanCycle cycle) =>
+    cycle == SchedulePlanCycle.annual ? 12 : 1;
+
+int _occurrencesInMonth(Set<int> weekdays, int year, int month, int fromDay) {
+  final last = DateTime(year, month + 1, 0).day;
+  var n = 0;
+  for (var d = fromDay; d <= last; d++) {
+    if (weekdays.contains(DateTime(year, month, d).weekday)) n++;
+  }
+  return n;
+}
+
+/// Estimativa do que o anual cobra hoje (o valor certo vem do servidor):
+/// a 1ª proporcional aos jogos que sobram no mês + 11 cheias; sem jogo
+/// sobrando, 12 cheias a partir do mês seguinte.
+double scheduleAnnualUpfrontReais(
+  double monthlyPriceReais,
+  Iterable<int> weekdays,
+  DateTime today,
+) {
+  final days = weekdays.toSet();
+  final total = _occurrencesInMonth(days, today.year, today.month, 1);
+  final left = _occurrencesInMonth(days, today.year, today.month, today.day);
+  final first = total == 0 || left == 0
+      ? monthlyPriceReais
+      : _roundCents(monthlyPriceReais * left / total);
+  return _roundCents(first + monthlyPriceReais * 11);
+}
+
+const _monthShort = [
+  'jan', 'fev', 'mar', 'abr', 'mai', 'jun', //
+  'jul', 'ago', 'set', 'out', 'nov', 'dez',
+];
+
+/// `2026-11` → "nov/26".
+String scheduleMonthShortLabel(String monthKey) {
+  final parts = monthKey.split('-');
+  final y = parts.isNotEmpty ? int.tryParse(parts[0]) : null;
+  final m = parts.length > 1 ? int.tryParse(parts[1]) : null;
+  if (y == null || m == null || m < 1 || m > 12) return monthKey;
+  return '${_monthShort[m - 1]}/${(y % 100).toString().padLeft(2, '0')}';
+}
+
+/// "nov/26 a out/27" (anual à vista) ou `null` na mensalidade de um mês.
+String? scheduleChargeCoverLabel(ScheduleCharge charge) {
+  if (!charge.coversManyMonths) return null;
+  return '${scheduleMonthShortLabel(charge.period)} a '
+      '${scheduleMonthShortLabel(charge.coversThrough!)}';
+}
+
 // ── Meu plano (A3) ──────────────────────────────────────────────────────
 
 DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);

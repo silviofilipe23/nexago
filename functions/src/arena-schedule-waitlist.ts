@@ -27,6 +27,7 @@ import {
   liveOffersForPlan,
   loadScheduleSettings,
   notifyScheduleSafe,
+  planCourtsOf,
   planRef,
   readArenaOccupancy,
   requireScheduleManager,
@@ -164,6 +165,7 @@ export async function offerEntryCore(
   const offer = await db.runTransaction(async (tx: Transaction) => {
     const snap = await tx.get(ref);
     const planSnap = await tx.get(pRef);
+    const arenaSnap = await tx.get(db.collection("arenas").doc(arenaId));
     const occ = await readArenaOccupancy(db, arenaId, (q) => tx.get(q));
     const entry = (snap.data() ?? {}) as Data;
     if (entry["status"] !== "waiting") throw new HttpsError("failed-precondition", "Esta entrada não está mais na fila.");
@@ -173,7 +175,7 @@ export async function offerEntryCore(
     const startTime = str(entry["startTime"]);
     const startMin = toMinutes(startTime);
     const picked = pickCourt({
-      courtIds: plan.courtIds, courtNames: plan.courtNames, weekdays: entryWeekdays(entry), startMin,
+      ...planCourtsOf(arenaSnap.data(), plan, occ.courts), weekdays: entryWeekdays(entry), startMin,
       endMin: endMinutes(str(entry["endTime"]) || addMinutesToTime(startTime, plan.durationMinutes)),
       busy: busyBlocksOf(occ, {fromDate: dayKeyFromEventDate(new Date(nowMs)), nowMs}),
     });

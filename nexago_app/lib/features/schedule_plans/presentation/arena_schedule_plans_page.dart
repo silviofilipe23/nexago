@@ -97,7 +97,14 @@ class _ArenaSchedulePlansPageState
         data: (list) => ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
           children: [
-            const _Intro(),
+            _Intro(
+              arenaDefinesCourt: ref
+                      .watch(arenaByIdProvider(widget.arenaId))
+                      .valueOrNull
+                      ?.bookingAllocation
+                      .isCapacity ??
+                  false,
+            ),
             const SizedBox(height: 12),
             for (final plan in list) ...[
               SchedulePlanCard(
@@ -115,7 +122,10 @@ class _ArenaSchedulePlansPageState
 }
 
 class _Intro extends StatelessWidget {
-  const _Intro();
+  const _Intro({this.arenaDefinesCourt = false});
+
+  /// A arena define a quadra a cada jogo (reservas por capacidade).
+  final bool arenaDefinesCourt;
 
   @override
   Widget build(BuildContext context) {
@@ -137,8 +147,12 @@ class _Intro extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Mesma quadra, mesmo horário. Paga por mês e gasta menos que no '
-            'avulso.',
+            arenaDefinesCourt
+                ? 'Mesmo horário toda semana; a arena define a quadra a cada '
+                    'jogo. Paga por mês e gasta menos que no avulso.'
+                : 'Mesma quadra, mesmo horário. Paga por mês e gasta menos '
+                    'que no avulso.',
+            key: const Key('schedule-plans-intro'),
             style: TextStyle(
               fontSize: 13,
               height: 1.45,

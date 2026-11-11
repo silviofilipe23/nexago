@@ -20,8 +20,9 @@ String scheduleOccurrenceLabel(ScheduleOccurrence o) =>
 /// Qual data o atleta não vai (quando há mais de uma pela frente).
 Future<ScheduleOccurrence?> pickScheduleOccurrence(
   BuildContext context,
-  List<ScheduleOccurrence> options,
-) {
+  List<ScheduleOccurrence> options, {
+  bool showCourt = true,
+}) {
   return showScheduleSheet<ScheduleOccurrence>(
     context,
     builder: (sheetContext) {
@@ -59,7 +60,7 @@ Future<ScheduleOccurrence?> pickScheduleOccurrence(
                           ),
                         ),
                       ),
-                      if (o.courtName.isNotEmpty)
+                      if (showCourt && o.courtName.isNotEmpty)
                         Text(
                           o.courtName,
                           style: TextStyle(
@@ -172,12 +173,17 @@ class ScheduleMakeupSheet extends ConsumerStatefulWidget {
     required this.credits,
     required this.validityDays,
     required this.now,
+    this.arenaDefinesCourt = false,
   });
 
   /// Créditos usáveis, o que vence primeiro na frente.
   final List<ScheduleCredit> credits;
   final int validityDays;
   final DateTime now;
+
+  /// A arena define a quadra: o atleta escolhe só o horário (o servidor manda
+  /// uma opção por horário) e não vê quadra.
+  final bool arenaDefinesCourt;
 
   @override
   ConsumerState<ScheduleMakeupSheet> createState() =>
@@ -261,8 +267,8 @@ class _ScheduleMakeupSheetState extends ConsumerState<ScheduleMakeupSheet> {
       if (!mounted) return;
       Navigator.of(context).pop(
         'Reposição marcada: ${scheduleWeekdayShort(date.weekday)}, '
-        '${scheduleDayMonth(date)} às ${option.startTime} · '
-        '${option.courtName}.',
+        '${scheduleDayMonth(date)} às ${option.startTime}'
+        '${widget.arenaDefinesCourt ? '. A arena define a quadra.' : ' · ${option.courtName}.'}',
       );
     } catch (e) {
       if (!mounted) return;
@@ -390,7 +396,7 @@ class _ScheduleMakeupSheetState extends ConsumerState<ScheduleMakeupSheet> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            o.courtName,
+                            widget.arenaDefinesCourt ? 'livre' : o.courtName,
                             textAlign: TextAlign.right,
                             style: TextStyle(
                               fontSize: 12,

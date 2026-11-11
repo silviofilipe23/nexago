@@ -459,8 +459,11 @@ class _SchedulePlanPaymentPageState
     );
   }
 
-  /// "Mensalidade de novembro" (pelo `period` AAAA-MM).
+  /// "Mensalidade de novembro" (pelo `period` AAAA-MM); no anual à vista,
+  /// "Plano anual · nov/26 a out/27".
   static String _chargeLabel(ScheduleCharge charge) {
+    final cover = scheduleChargeCoverLabel(charge);
+    if (cover != null) return 'Plano anual · $cover';
     final month = int.tryParse(charge.period.split('-').last);
     return month == null || month < 1 || month > 12
         ? 'Mensalidade'

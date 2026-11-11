@@ -12,6 +12,8 @@ import {
   offerMessage,
   patternLabel,
   patternPhrase,
+  hoursLabel,
+  weekUsage,
   queueMessage,
   statusLabel,
   whatsappUrl,
@@ -22,7 +24,7 @@ import {
 function contract(o: Partial<CrmContractView> = {}): CrmContractView {
   return {
     id: 'c1', source: 'contract', customerKey: 'a:u1', planId: null, planName: 'Noite 2x', period: 'monthly', dueDay: 5,
-    timesPerWeek: 2, monthlyPriceReais: 260, startDate: '2026-06-05', endDate: '2026-12-04', autoRenew: true, status: 'active',
+    weeklyHours: 2, monthlyPriceReais: 260, startDate: '2026-06-05', endDate: '2026-12-04', autoRenew: true, status: 'active',
     paused: false, daysToEnd: 24, nextDueDate: '2026-12-05', overdueCount: 0, overdueReais: 0, daysLate: 0, paidInstallments: 6,
     totalInstallments: null, canceledOn: null, renewedFromId: null, renewedToId: null, note: null, ...o,
   };
@@ -34,6 +36,7 @@ function customer(o: Partial<CrmCustomer> = {}): CrmCustomer {
     kind: 'member', status: 'active', contract: contract(),
     months: ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11'].map((month) => ({ month, total: 8, plan: 8, avulso: 0, avulsoReais: 0 })),
     bookings6m: 48, avulsoReais6m: 0, firstDate: '2026-06-05', lastVisitDate: '2026-11-09', daysSinceVisit: 1, visitsPerWeek: 2,
+    hoursPerWeek: 2, weekHours: [2, 2, 2, 2, 2, 2, 2, 1.5],
     pattern: [{ weekday: 2, startTime: '19:00', weeks: 8 }, { weekday: 4, startTime: '19:00', weeks: 7 }],
     weekHits: Array(8).fill(false), conversion: null, absent: false, lastContact: null, ...o,
   };
@@ -44,6 +47,22 @@ describe('crm.model', () => {
     expect(patternLabel([{ weekday: 1, startTime: '07:00', weeks: 8 }, { weekday: 3, startTime: '07:00', weeks: 8 }])).toBe('Seg e Qua 7h');
     expect(patternLabel([{ weekday: 2, startTime: '19:30', weeks: 5 }, { weekday: 4, startTime: '20:00', weeks: 4 }])).toBe('Ter 19h30 · Qui 20h');
     expect(patternPhrase([{ weekday: 2, startTime: '19:00', weeks: 7 }])).toBe('toda terça às 19h');
+  });
+
+  it('banco de horas: rótulo em horas e uso da semana corrente', () => {
+    expect(hoursLabel(4)).toBe('4h');
+    expect(hoursLabel(1.5)).toBe('1h30');
+    expect(hoursLabel(0.5)).toBe('30min');
+    expect(hoursLabel(1.13)).toBe('1h15');
+    expect(weekUsage(customer())).toEqual({ used: 1.5, total: 2, left: 0.5, pct: 75 });
+    expect(weekUsage(customer({ contract: null }))).toBeNull();
+    expect(weekUsage(customer({ contract: contract({ status: 'not_renewed' }) }))).toBeNull();
+    expect(hoursLabel(0)).toBe('0h');
+  });
+
+  it('insight: joga mais que o banco (upsell) ou usa menos da metade (risco)', () => {
+    expect(customerInsight(customer({ hoursPerWeek: 3.5 }), '2026-11-10')).toContain('3h30 por semana, mais do que as 2h do contrato');
+    expect(customerInsight(customer({ hoursPerWeek: 0.5, contract: contract({ weeklyHours: 4 }) }), '2026-11-10')).toContain('Usa 30min das 4h');
   });
 
   it('formata e esconde o telefone', () => {
@@ -72,7 +91,7 @@ describe('crm.model', () => {
   it('status com o detalhe que importa', () => {
     expect(statusLabel(customer({ status: 'overdue', contract: contract({ status: 'overdue', daysLate: 12 }) }))).toBe('12 dias de atraso');
     expect(statusLabel(customer({ status: 'expiring', contract: contract({ status: 'expiring', daysToEnd: 1 }) }))).toBe('Vencendo · 1 dia');
-    expect(statusLabel(customer({ status: 'walk_in', contract: null, conversion: { score: 20, avulso90d: 9, activeWeeks: 7, avgMonthlyReais: 360, suggestion: null } }))).toBe('Pronto pra plano');
+    expect(statusLabel(customer({ status: 'walk_in', contract: null, conversion: { score: 20, avulso90d: 9, activeWeeks: 7, avgMonthlyReais: 360, weeklyHours: 2, suggestion: null } }))).toBe('Pronto pra plano');
   });
 
   it('mensagens do WhatsApp usam o primeiro nome, o plano e o valor', () => {
@@ -82,11 +101,12 @@ describe('crm.model', () => {
 
     const walkIn = customer({
       kind: 'walk_in', status: 'walk_in', contract: null,
-      conversion: { score: 20, avulso90d: 9, activeWeeks: 7, avgMonthlyReais: 360, suggestion: { planId: 'p1', planName: 'Noite 1x', monthlyPriceReais: 300, savingsReais: 60 } },
+      conversion: { score: 20, avulso90d: 9, activeWeeks: 7, avgMonthlyReais: 360, weeklyHours: 2, suggestion: { planId: 'p1', planName: 'Noite 1x', monthlyPriceReais: 300, savingsReais: 60 } },
     });
     const offer = offerMessage(walkIn, 'Arena CFC', 'savings');
     expect(offer).toContain('toda terça e quinta às 19h');
-    expect(offer).toContain('R$ 300/mês, R$ 60 a menos');
+    expect(offer).toContain('2h por semana pra jogar quando quiser, por R$ 300/mês: R$ 60 a menos');
+    expect(offer).not.toContain('horário fixo');
   });
 
   it('insight: frequência caindo com parcela atrasada', () => {
@@ -125,7 +145,7 @@ describe('crm.model', () => {
 
   it('CSV com separador ; e texto entre aspas quando precisa', () => {
     const csv = customersCsv([customer({ name: 'Moura; Rafael' })]).split('\n');
-    expect(csv[0]).toBe('Cliente;Telefone;Status;Plano;Período;Vencimento;Mensal;Frequência/semana;Reservas 6 meses;Último jogo');
-    expect(csv[1]).toBe('"Moura; Rafael";(62) 9 8241-5530;Ativo;Noite 2x;Mensal;dia 5;260,00;2;48;09/11/26');
+    expect(csv[0]).toBe('Cliente;Telefone;Status;Plano;Período;Vencimento;Mensal;Horas/semana (contrato);Horas/semana (jogadas);Reservas 6 meses;Último jogo');
+    expect(csv[1]).toBe('"Moura; Rafael";(62) 9 8241-5530;Ativo;Noite 2x;Mensal;dia 5;260,00;2;2;48;09/11/26');
   });
 });

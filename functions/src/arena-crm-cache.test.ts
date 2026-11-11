@@ -79,7 +79,7 @@ describe("visão geral com cache", () => {
     await getArenaCrmOverviewCore(db, "owner", {arenaId: "arena1"}, at(0));
     await updateArenaCrmCore(db, "owner", {
       arenaId: "arena1", op: "saveContract", athleteId: "u9", customerName: "", planName: "Noite 1x", period: "monthly",
-      dueDay: 5, timesPerWeek: 1, monthlyPriceReais: 160, startDate: "2026-11-10", autoRenew: true,
+      dueDay: 5, weeklyHours: 1, monthlyPriceReais: 160, startDate: "2026-11-10", autoRenew: true,
     }, at(30_000));
     const after = await getArenaCrmOverviewCore(db, "owner", {arenaId: "arena1"}, at(60_000));
     assert.equal(after.cache.fromCache, true);

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { AvatarComponent } from '../ui/avatar.component';
 import {
+  hoursLabel,
   CONVERT_MIN_WEEKS,
   OFFER_TEMPLATES,
   contactLine,
@@ -35,7 +36,7 @@ import { CrmStore } from './crm.store';
           <div class="c-h">
             <div>
               <h2 class="card-title" id="opp-t">Avulsos frequentes</h2>
-              <p class="card-desc">Reservas por mês e o horário que se repete. Primeiro, quem mais se parece com um mensalista.</p>
+              <p class="card-desc">Reservas por mês e as horas que já jogam por semana. Primeiro, quem mais se parece com um mensalista.</p>
             </div>
             <div class="seg" role="group" aria-label="Mostrar">
               <button type="button" [class.on]="!all()" (click)="all.set(false)">Prontos · {{ o.queues.convert.length }}</button>
@@ -47,7 +48,7 @@ import { CrmStore } from './crm.store';
               <div class="tr th">
                 <span>Cliente</span>
                 @for (m of months(); track m) { <span class="m">{{ monthShort(m) }}</span> }
-                <span>Padrão</span><span>Gasta/mês</span><span>Plano sugerido</span><span></span>
+                <span>Joga</span><span>Gasta/mês</span><span>Plano sugerido</span><span></span>
               </div>
               @for (c of rows(); track c.key) {
                 <div class="tr" [class.sel]="selected()?.key === c.key">
@@ -59,16 +60,14 @@ import { CrmStore } from './crm.store';
                     <span class="heat" [class]="'heat h' + heat(m.avulso)">{{ m.avulso }}</span>
                   }
                   <span>
-                    @if (c.pattern.length) {
-                      <span class="pattern">{{ patternLabel(c.pattern) }}</span>
-                      <span class="sub reg">{{ hits(c) }} das últimas 8 semanas</span>
-                    } @else { <span class="sub">sem horário fixo</span> }
+                    <span class="pattern">{{ hoursLabel(c.conversion?.weeklyHours ?? 1) }}/sem</span>
+                    <span class="sub reg">{{ hits(c) }} das últimas 8 semanas{{ c.pattern.length ? ' · ' + patternLabel(c.pattern) : '' }}</span>
                   </span>
                   <span class="money">{{ money(avg(c)) }}</span>
                   <span>
                     @if (c.conversion?.suggestion; as s) {
                       <span class="name sm">{{ s.planName }} · {{ money(s.monthlyPriceReais) }}</span>
-                      <span class="sub" [class.good]="s.savingsReais > 0" [class.warn]="s.savingsReais <= 0">{{ s.savingsReais > 0 ? 'economiza ' + money(round(s.savingsReais)) + '/mês' : 'garante o horário' }}</span>
+                      <span class="sub" [class.good]="s.savingsReais > 0" [class.warn]="s.savingsReais <= 0">{{ s.savingsReais > 0 ? 'economiza ' + money(round(s.savingsReais)) + '/mês' : 'sem pagar cada reserva' }}</span>
                     } @else { <span class="sub">—</span> }
                   </span>
                   <span class="act">
@@ -176,6 +175,7 @@ export class CrmConversionComponent {
   protected readonly templates = OFFER_TEMPLATES;
   protected readonly minWeeks = CONVERT_MIN_WEEKS;
   protected readonly money = money;
+  protected readonly hoursLabel = hoursLabel;
   protected readonly monthShort = monthShort;
   protected readonly monthYear = monthYear;
   protected readonly patternLabel = patternLabel;

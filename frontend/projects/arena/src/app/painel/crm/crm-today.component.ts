@@ -2,13 +2,13 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { AvatarComponent } from '../ui/avatar.component';
 import { PillComponent } from '../ui/pill.component';
 import {
+  hoursLabel,
   QUEUES,
   canChargeOnline,
   contactLine,
   followUpLine,
   money,
   offerMessage,
-  patternLabel,
   queueDetail,
   type CrmCustomer,
   type CrmQueueId,
@@ -142,7 +142,7 @@ interface QueueRow {
               <h2 class="card-title" id="conv-t">Prontos pra virar mensalista</h2>
               @if (o.queues.convert.length > 3) { <span class="label">+{{ o.queues.convert.length - 3 }}</span> }
             </div>
-            <p class="card-desc">Avulsos que já jogam no mesmo horário toda semana.</p>
+            <p class="card-desc">Avulsos que já jogam toda semana: ofereça um banco de horas.</p>
             @for (c of topOpportunities(); track c.key) {
               <div class="opp">
                 <button type="button" class="who" (click)="ui.openCustomer(c.key)">
@@ -153,7 +153,7 @@ interface QueueRow {
                   </span>
                 </button>
                 <div class="opp-mid">
-                  @if (c.pattern.length) { <span class="pattern">{{ patternLabel(c.pattern) }}</span> }
+                  <span class="pattern">{{ hoursLabel(c.conversion?.weeklyHours ?? 1) }}/sem</span>
                   <span class="weeks" [attr.aria-label]="hits(c) + ' das últimas 8 semanas'">
                     @for (w of c.weekHits; track $index) { <i [class.on]="w"></i> }
                   </span>
@@ -161,8 +161,8 @@ interface QueueRow {
                 <div class="opp-f">
                   <span class="sub">
                     @if (c.conversion?.suggestion; as s) {
-                      {{ s.planName }}: @if (s.savingsReais > 0) { <b class="good">economiza {{ money(round(s.savingsReais)) }}/mês</b> } @else { garante o horário }
-                    } @else { Sem plano de horário parecido }
+                      {{ s.planName }}: @if (s.savingsReais > 0) { <b class="good">economiza {{ money(round(s.savingsReais)) }}/mês</b> } @else { sem pagar cada reserva }
+                    } @else { Banco de {{ hoursLabel(c.conversion?.weeklyHours ?? 1) }}/sem }
                   </span>
                   <button type="button" class="btn primary" (click)="offer(c)">Oferecer</button>
                 </div>
@@ -264,7 +264,7 @@ export class CrmTodayComponent {
 
   protected readonly queues = QUEUES;
   protected readonly money = money;
-  protected readonly patternLabel = patternLabel;
+  protected readonly hoursLabel = hoursLabel;
   protected readonly contactLine = contactLine;
   protected readonly followUpLine = followUpLine;
   protected readonly canCharge = canChargeOnline;

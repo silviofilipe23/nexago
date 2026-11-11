@@ -22,6 +22,8 @@ import {
   CRM_CONTACT_REASONS,
   CRM_CONTRACTS,
   CRM_DUE_DAYS,
+  MAX_WEEKLY_HOURS,
+  MIN_WEEKLY_HOURS,
   CRM_PAYMENTS,
   CRM_PAYMENT_METHODS,
   CRM_PERIODS,
@@ -72,7 +74,7 @@ const ARENA_BOOKINGS = "arenaBookings";
 const CONTACTS_WINDOW_DAYS = 120;
 const DEFAULT_MONTHLY_GOAL = 5;
 const BOOKING_FIELDS = [
-  "athleteId", "customerName", "date", "startTime", "status", "attendanceStatus", "amountReais",
+  "athleteId", "customerName", "date", "startTime", "endTime", "status", "attendanceStatus", "amountReais",
   "isRecurring", "coveredByPlan", "scheduleSubscriptionId", "source", "bookedAs",
 ] as const;
 
@@ -100,6 +102,20 @@ function oneOf<T extends string>(v: unknown, allowed: readonly T[], field: strin
 
 // ── Parse dos docs ──────────────────────────────────────────────────────────────
 
+/** Contratos antigos guardavam "vezes por semana": cada vez vale 1h no banco de horas. */
+function contractWeeklyHours(d: Data): number {
+  const hours = num(d["weeklyHours"]);
+  return hours > 0 ? hours : Math.max(1, num(d["timesPerWeek"], 1));
+}
+
+/** Horários × duração do plano (snapshot da assinatura; 1h se não houver). */
+function subscriptionWeeklyHours(d: Data): number {
+  const slots = Array.isArray(d["slots"]) ? d["slots"].length : 1;
+  const snapshot = (d["planSnapshot"] ?? {}) as Data;
+  const minutes = num(snapshot["durationMinutes"], 60) || 60;
+  return Math.round(Math.max(1, slots) * minutes / 30) / 2;
+}
+
 export function contractFromDoc(id: string, d: Data): CrmContractRecord {
   const period = (CRM_PERIODS as readonly string[]).includes(str(d["period"])) ? str(d["period"]) as CrmContractRecord["period"] : "monthly";
   const status = d["status"] === "canceled" ? "canceled" : d["status"] === "renewed" ? "renewed" : "active";
@@ -114,7 +130,7 @@ export function contractFromDoc(id: string, d: Data): CrmContractRecord {
     planName: str(d["planName"]) || "Plano",
     period,
     dueDay: num(d["dueDay"], 5),
-    timesPerWeek: num(d["timesPerWeek"], 1),
+    weeklyHours: contractWeeklyHours(d),
     monthlyPriceReais: num(d["monthlyPriceReais"]),
     startDate: str(d["startDate"]),
     autoRenew: d["autoRenew"] === true,
@@ -142,7 +158,7 @@ function subscriptionFromDoc(id: string, d: Data): ScheduleSubscriptionRecord {
     cycle: str(d["cycle"]) || "monthly",
     monthlyPriceReais: num(d["monthlyPriceReais"]),
     dueDay: num(d["dueDay"], 5),
-    slotsCount: Array.isArray(d["slots"]) ? d["slots"].length : 1,
+    weeklyHours: subscriptionWeeklyHours(d),
     status: str(d["status"]),
     endsOn: optStr(d["endsOn"]),
     endRequestedBy: optStr(d["endRequestedBy"]),
@@ -166,11 +182,13 @@ function contactFromDoc(id: string, d: Data): CrmContactRecord {
 
 function planFromDoc(id: string, d: Data): CrmPlanOption {
   const windows = Array.isArray(d["windows"]) ? (d["windows"] as Data[]) : [];
+  const timesPerWeek = num(d["timesPerWeek"], 1);
   return {
     id,
     name: str(d["name"]) || "Plano",
     monthlyPriceReais: num(d["monthlyPriceReais"]),
-    timesPerWeek: num(d["timesPerWeek"], 1),
+    timesPerWeek,
+    weeklyHours: Math.round(Math.max(1, timesPerWeek) * (num(d["durationMinutes"], 60) || 60) / 30) / 2,
     windows: windows
       .map((w) => ({weekday: num(w["weekday"]), startTime: str(w["startTime"]).slice(0, 5), endTime: str(w["endTime"]).slice(0, 5)}))
       .filter((w) => w.weekday >= 1 && w.weekday <= 7 && w.startTime && w.endTime),
@@ -418,7 +436,7 @@ interface ContractInput {
   planName: string;
   period: CrmContractRecord["period"];
   dueDay: number;
-  timesPerWeek: number;
+  weeklyHours: number;
   monthlyPriceReais: number;
   startDate: string;
   autoRenew: boolean;
@@ -433,8 +451,11 @@ export function parseContractInput(d: Data): ContractInput {
   if (!planName) throw new HttpsError("invalid-argument", "Informe o plano.");
   const dueDay = num(d["dueDay"]);
   if (!(CRM_DUE_DAYS as readonly number[]).includes(dueDay)) throw new HttpsError("invalid-argument", "Vencimento deve ser dia 5, 15 ou 25.");
-  const timesPerWeek = Math.floor(num(d["timesPerWeek"]));
-  if (timesPerWeek < 1 || timesPerWeek > 7) throw new HttpsError("invalid-argument", "Frequência deve ser de 1 a 7 vezes por semana.");
+  // Portal antigo ainda manda "vezes por semana": cada vez vale 1h.
+  const weeklyHours = d["weeklyHours"] !== undefined ? num(d["weeklyHours"]) : Math.floor(num(d["timesPerWeek"]));
+  if (!(weeklyHours >= MIN_WEEKLY_HOURS && weeklyHours <= MAX_WEEKLY_HOURS) || weeklyHours * 2 !== Math.round(weeklyHours * 2)) {
+    throw new HttpsError("invalid-argument", `Horas por semana: de ${MIN_WEEKLY_HOURS}h a ${MAX_WEEKLY_HOURS}h, de meia em meia hora.`);
+  }
   const startDate = str(d["startDate"]);
   if (!isDateKey(startDate)) throw new HttpsError("invalid-argument", "Data de início inválida.");
   const phone = optStr(d["customerPhone"]);
@@ -448,7 +469,7 @@ export function parseContractInput(d: Data): ContractInput {
     planName,
     period: oneOf(d["period"], CRM_PERIODS, "Período"),
     dueDay,
-    timesPerWeek,
+    weeklyHours,
     monthlyPriceReais: money(d["monthlyPriceReais"], "Valor mensal"),
     startDate,
     autoRenew: d["autoRenew"] === true,
@@ -483,7 +504,7 @@ async function saveContract(db: Firestore, arenaId: string, uid: string, d: Data
     planName: input.planName,
     period: input.period,
     dueDay: input.dueDay,
-    timesPerWeek: input.timesPerWeek,
+    weeklyHours: input.weeklyHours,
     monthlyPriceReais: input.monthlyPriceReais,
     startDate: input.startDate,
     autoRenew: input.autoRenew,
@@ -568,7 +589,7 @@ async function renewContract(db: Firestore, arenaId: string, uid: string, d: Dat
       planName: old.planName,
       period,
       dueDay,
-      timesPerWeek: old.timesPerWeek,
+      weeklyHours: old.weeklyHours,
       monthlyPriceReais: price,
       startDate: renewalStartDate(old, today),
       autoRenew: d["autoRenew"] !== undefined ? d["autoRenew"] === true : old.autoRenew,

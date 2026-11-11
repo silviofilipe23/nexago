@@ -40,7 +40,7 @@ function contractInput(o: Record<string, unknown> = {}): Record<string, unknown>
     planName: "Noite 1x",
     period: "quarterly",
     dueDay: 5,
-    timesPerWeek: 1,
+    weeklyHours: 1,
     monthlyPriceReais: 160,
     startDate: "2026-11-10",
     autoRenew: false,
@@ -73,6 +73,8 @@ describe("updateArenaCrmCore", () => {
     const fake = seed();
     await rejectsWith(updateArenaCrmCore(db(fake), "owner", contractInput({dueDay: 10}), NOW), "invalid-argument");
     await rejectsWith(updateArenaCrmCore(db(fake), "owner", contractInput({period: "biweekly"}), NOW), "invalid-argument");
+    await rejectsWith(updateArenaCrmCore(db(fake), "owner", contractInput({weeklyHours: 1.25}), NOW), "invalid-argument");
+    await rejectsWith(updateArenaCrmCore(db(fake), "owner", contractInput({weeklyHours: 0}), NOW), "invalid-argument");
     await rejectsWith(updateArenaCrmCore(db(fake), "stranger", contractInput(), NOW), "permission-denied");
   });
 
@@ -83,6 +85,7 @@ describe("updateArenaCrmCore", () => {
     assert.equal(saved["customerKey"], "a:u1");
     assert.equal(saved["customerName"], "Rafael Moura");
     assert.equal(saved["paidInstallments"], 0);
+    assert.equal(saved["weeklyHours"], 1);
     await rejectsWith(updateArenaCrmCore(db(fake), "owner", contractInput(), NOW), "failed-precondition");
 
     // Paga a 1ª (vence hoje) para ficar em dia.
@@ -95,6 +98,21 @@ describe("updateArenaCrmCore", () => {
     assert.equal(c.conversion, null);
     assert.equal(overview.kpis.mrrReais, 160);
     assert.equal(overview.kpis.newMembersThisMonth, 1);
+  });
+
+  it("banco de horas: aceita meia hora; contrato antigo em vezes por semana vale 1h cada", async () => {
+    const fake = seed();
+    const {contractId} = await updateArenaCrmCore(db(fake), "owner", contractInput({weeklyHours: 4.5}), NOW) as {contractId: string};
+    assert.equal(fake.store.get(`arenaCrmContracts/${contractId}`)!["weeklyHours"], 4.5);
+
+    const legacy = seed();
+    legacy.seedDoc("arenaCrmContracts/old", {arenaId: "arena1", customerKey: "a:u1", athleteId: "u1", customerName: "Rafael Moura", planName: "Noite 2x",
+      period: "monthly", dueDay: 5, timesPerWeek: 2, monthlyPriceReais: 260, startDate: "2026-11-05", autoRenew: true, paidInstallments: 1, status: "active"});
+    const overview = await getArenaCrmOverviewCore(db(legacy), "owner", {arenaId: "arena1"}, NOW);
+    const c = overview.customers.find((x) => x.key === "a:u1")!;
+    assert.equal(c.contract?.weeklyHours, 2);
+    assert.equal(c.weekHours[7], 0);
+    assert.equal(c.weekHours[6], 1); // terça passada, 19h–20h
   });
 
   it("pagamento avança as parcelas sem passar do total do período", async () => {

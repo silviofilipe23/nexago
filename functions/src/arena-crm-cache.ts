@@ -18,7 +18,8 @@ import type {CrmBookingStats, CrmIdentity} from "./arena-crm-model";
 export const CRM_CACHE = "arenaCrmCache";
 export const CRM_CACHE_SHARDS = "shards";
 /** Sobe quando o formato do que vai no cache muda: o cache velho é ignorado. */
-export const CACHE_VERSION = 1;
+/** v2: horas por semana (`weekHours`, `avulsoHours90d`). Mudou o formato, sobe a versão. */
+export const CACHE_VERSION = 2;
 export const CACHE_TTL_MS = 30 * 60_000;
 export const MIN_REFRESH_MS = 2 * 60_000;
 export const SHARD_SIZE = 400;

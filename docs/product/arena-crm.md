@@ -11,17 +11,23 @@ Layout: canvas do Claude Design "NexaGO", página **Arena**, seção **CRM da ar
 | --- | --- | --- |
 | `arenaCrmContracts` | Contrato de mensalista registrado pela arena | CRM (callable) |
 | `arenaScheduleSubscriptions` | Assinante dos Planos de horário | só leitura; cobrança continua nos Planos |
-| `arenaBookings` (6 meses) | Histórico por mês, frequência real, avulsos | só leitura |
+| `arenaBookings` (6 meses) | Histórico por mês, horas jogadas por semana, avulsos | só leitura |
 
 Cliente = atleta do app (`a:<uid>`) ou cliente só com nome (`n:<nome normalizado>`, sem acento e
 caixa). Reserva de aula, clubinho, torneio e reserva feita como professor ficam de fora.
 
 ## Contrato
 
-- **Plano**: livre ou um dos Planos de horário (sugere preço e frequência).
+- **Plano**: livre ou um dos Planos de horário (sugere preço e horas: vezes × duração do plano).
 - **Período**: mensal, trimestral, semestral ou anual (1/3/6/12 parcelas).
 - **Vencimento**: dia 5, 15 ou 25. A 1ª parcela vence no início; as outras, no dia escolhido.
-- **Frequência combinada**: 1x a 5x por semana (comparada com a real das reservas).
+- **Horas por semana** (`weeklyHours`): o mensalista **não tem horário fixo**. Ele tem um banco de
+  horas por semana (seg a dom), de meia em meia hora (0,5h a 40h), e joga no dia e horário que
+  quiser. Contrato antigo que guardava `timesPerWeek` vale 1h por vez (lido, nunca regravado à força).
+- **Uso das horas**: soma a duração (`startTime`→`endTime`, 1h sem fim legível) das reservas da
+  semana de calendário, plano e avulso, sem contar falta. A ficha mostra "esta semana: 1h30 de 3h"
+  e as 8 últimas semanas; a lista mostra a média das 4 últimas semanas fechadas. Jogando mais que o
+  contratado, sugere plano maior; usando menos da metade, avisa o risco de não renovar.
 - **Renovar sozinho**: ligado, o período se repete até alguém cancelar. Padrão: ligado no mensal,
   desligado nos outros.
 - **Pagamento**: baixa manual por parcelas (`paidInstallments` + subcoleção `payments`).
@@ -53,10 +59,11 @@ contatado há menos de 3 dias desce para o fim da fila (esmaecido).
 ## Conversão (avulso → mensalista)
 
 Oportunidade = sem contrato vivo, **6+ reservas avulsas em 90 dias** e **4+ das últimas 8 semanas**
-com jogo. O CRM detecta o horário que se repete (3+ semanas no mesmo dia e hora), calcula o gasto
-médio mensal e sugere o Plano de horário que cobre esse horário com a frequência mais parecida
-(economia = gasto médio − preço do plano). A mensagem tem 3 modelos (economia, horário garantido,
-1º mês com desconto) e "Fechou? Criar contrato" abre o contrato preenchido.
+com jogo. O CRM calcula as horas que ele já joga por semana (horas avulsas de 90 dias ÷ 13, em meia
+hora, mínimo 1h) e o gasto médio mensal, e sugere o plano com as horas mais parecidas (o dia e hora em
+que ele costuma jogar só desempata). Economia = gasto médio − preço do plano. A mensagem oferece o
+banco de horas ("Xh por semana pra jogar quando quiser"), com 3 modelos (economia, joga quando
+quiser, 1º mês com desconto), e "Fechou? Criar contrato" abre o contrato com essas horas.
 
 ## Cobrança online (Pix ou cartão)
 

@@ -21,6 +21,8 @@ import {
   monthShort,
   monthYear,
   patternLabel,
+  hoursLabel,
+  weekUsage,
   profileMessage,
   profileReason,
   shortDate,
@@ -110,9 +112,24 @@ interface TimelineEntry {
                 <div class="grid4">
                   <div class="f"><div class="label">Período</div><div class="f-v">{{ periodLabel[v.period] }}</div></div>
                   <div class="f"><div class="label">Vencimento</div><div class="f-v">Dia {{ pad(v.dueDay) }}</div></div>
-                  <div class="f"><div class="label">Frequência</div><div class="f-v">{{ v.timesPerWeek }}x/sem</div></div>
+                  <div class="f"><div class="label">Horas</div><div class="f-v">{{ hoursLabel(v.weeklyHours) }}/sem</div></div>
                   <div class="f"><div class="label">Valor</div><div class="f-v">{{ money(v.monthlyPriceReais) }}</div></div>
                 </div>
+                @if (usage(); as u) {
+                  <div class="use" aria-label="Uso do banco de horas">
+                    <div class="use-h">
+                      <span class="label">Esta semana</span>
+                      <span class="use-v"><b>{{ hoursLabel(u.used) }}</b> de {{ hoursLabel(u.total) }} · {{ u.left ? 'sobram ' + hoursLabel(u.left) : 'banco usado' }}</span>
+                    </div>
+                    <div class="meter" role="progressbar" aria-valuemin="0" [attr.aria-valuemax]="u.total" [attr.aria-valuenow]="u.used"><i [style.width.%]="u.pct"></i></div>
+                    <div class="weeks" [attr.aria-label]="weeksLabel(c, v.weeklyHours)" role="img">
+                      @for (w of c.weekHours ?? []; track $index; let last = $last) {
+                        <i [class.cur]="last" [class.over]="w > v.weeklyHours" [style.height.%]="weekBar(w, v.weeklyHours)" [attr.title]="hoursLabel(w)"></i>
+                      }
+                    </div>
+                    <span class="sub">Joga no dia e horário que quiser, de seg a dom. Últimas 8 semanas; a linha é o contratado.</span>
+                  </div>
+                }
                 @if (strip().length) {
                   <div class="inst" aria-label="Parcelas">
                     @for (i of strip(); track i.month) {
@@ -176,9 +193,9 @@ interface TimelineEntry {
             <section class="card inner" aria-labelledby="ct2-t">
               <h3 class="card-title" id="ct2-t">Contato</h3>
               <div class="kv"><span>WhatsApp</span><b>{{ phone(c) }}</b></div>
-              <div class="kv"><span>Horário de sempre</span><b>{{ c.pattern.length ? patternLabel(c.pattern) : '—' }}</b></div>
+              <div class="kv"><span>Costuma jogar</span><b>{{ c.pattern.length ? patternLabel(c.pattern) : 'sem dia fixo' }}</b></div>
               <div class="kv"><span>Último jogo</span><b>{{ c.lastVisitDate ? dayMonth(c.lastVisitDate) + ' · ' + ago(c) : '—' }}</b></div>
-              <div class="kv"><span>Frequência real</span><b>{{ c.visitsPerWeek.toLocaleString('pt-BR') }}x/sem</b></div>
+              <div class="kv"><span>Horas jogadas</span><b>{{ hoursLabel(c.hoursPerWeek ?? 0) }}/sem</b></div>
               @if (c.contract?.overdueReais) { <div class="kv"><span>Em atraso</span><b class="red">{{ money(c.contract!.overdueReais) }}</b></div> }
             </section>
 
@@ -239,6 +256,14 @@ interface TimelineEntry {
     .inner { background: var(--nx-surface-1); padding: 18px; }
     .c-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
     .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+    .use { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; padding: 12px 14px; border-radius: 12px; background: var(--nx-surface-1); border: 1px solid var(--nx-line); }
+    .use-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .use-v { font-size: 12.5px; color: var(--nx-text-mute); } .use-v b { color: var(--nx-text); font-family: var(--nx-font-display); font-size: 15px; }
+    .meter { height: 8px; border-radius: 99px; background: var(--nx-line); overflow: hidden; }
+    .meter i { display: block; height: 100%; border-radius: inherit; background: var(--nx-orange-500); }
+    .weeks { position: relative; display: flex; align-items: flex-end; gap: 4px; height: 44px; border-top: 1px dashed var(--nx-line-strong); padding-top: 0; margin-top: 10px; }
+    .weeks i { flex: 1; min-height: 2px; border-radius: 3px 3px 0 0; background: var(--nx-line-strong); }
+    .weeks i.cur { background: var(--nx-orange-500); } .weeks i.over { background: var(--nx-win); }
     .f { background: var(--nx-surface-0); border-radius: 10px; padding: 10px 12px; }
     .f-v { font-family: var(--nx-font-display); font-weight: 700; font-size: 15px; margin-top: 3px; color: var(--nx-text); }
     .inst { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 12px; }
@@ -313,6 +338,20 @@ export class CrmCustomerDrawerComponent {
   protected readonly dayMonth = dayMonth;
   protected readonly shortDate = shortDate;
   protected readonly patternLabel = patternLabel;
+  protected readonly hoursLabel = hoursLabel;
+  protected readonly usage = computed(() => {
+    const c = this.customer();
+    return c ? weekUsage(c) : null;
+  });
+
+  /** Barra da semana: a borda de cima (tracejada) é o contratado; acima disso, passa um pouco. */
+  protected weekBar(hours: number, contracted: number): number {
+    return contracted > 0 ? Math.min(100, Math.round((hours / contracted) * 100)) : 0;
+  }
+
+  protected weeksLabel(c: CrmCustomer, contracted: number): string {
+    return `Horas por semana, contratado ${hoursLabel(contracted)}: ` + (c.weekHours ?? []).map((h) => hoursLabel(h)).join(', ');
+  }
   protected readonly label = statusLabel;
   protected readonly tone = statusTone;
 
@@ -435,7 +474,7 @@ export class CrmCustomerDrawerComponent {
       customer: c,
       contractId: v.id,
       prefill: {
-        planId: v.planId, planName: v.planName, period: v.period, dueDay: v.dueDay, timesPerWeek: v.timesPerWeek,
+        planId: v.planId, planName: v.planName, period: v.period, dueDay: v.dueDay, weeklyHours: v.weeklyHours,
         monthlyPriceReais: v.monthlyPriceReais, startDate: v.startDate, autoRenew: v.autoRenew, note: v.note,
         customerName: h?.customerName ?? c.name, customerPhone: h?.customerPhone ?? c.phone,
       },
@@ -449,7 +488,7 @@ export class CrmCustomerDrawerComponent {
       mode: 'renew',
       customer: c,
       contractId: v.id,
-      prefill: { planId: v.planId, planName: v.planName, period: v.period, dueDay: v.dueDay, timesPerWeek: v.timesPerWeek, monthlyPriceReais: v.monthlyPriceReais, autoRenew: v.autoRenew },
+      prefill: { planId: v.planId, planName: v.planName, period: v.period, dueDay: v.dueDay, weeklyHours: v.weeklyHours, monthlyPriceReais: v.monthlyPriceReais, autoRenew: v.autoRenew },
     });
   }
 

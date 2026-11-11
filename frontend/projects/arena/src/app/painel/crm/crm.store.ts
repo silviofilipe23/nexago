@@ -24,7 +24,8 @@ export interface ContractDraft {
   planName: string;
   period: CrmPeriod;
   dueDay: number;
-  timesPerWeek: number;
+  /** Banco de horas da semana (meia em meia hora). */
+  weeklyHours: number;
   monthlyPriceReais: number;
   startDate: string;
   autoRenew: boolean;

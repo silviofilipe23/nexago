@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import {
   addMonthsToDate,
   aggregateBookings,
+  bookingHours,
   buildOverview,
   contractView,
   conversionOf,
   customerKeyOf,
+  weekStartOf,
   installmentDueDate,
   renewalStartDate,
   subscriptionView,
@@ -33,7 +35,7 @@ function contract(o: Partial<CrmContractRecord> = {}): CrmContractRecord {
     planName: "Noite 2x",
     period: "monthly",
     dueDay: 5,
-    timesPerWeek: 2,
+    weeklyHours: 2,
     monthlyPriceReais: 260,
     startDate: "2026-10-01",
     autoRenew: true,
@@ -61,7 +63,7 @@ function sub(o: Partial<ScheduleSubscriptionRecord> = {}): ScheduleSubscriptionR
     cycle: "monthly",
     monthlyPriceReais: 280,
     dueDay: 10,
-    slotsCount: 1,
+    weeklyHours: 1,
     status: "active",
     endsOn: null,
     endRequestedBy: null,
@@ -215,10 +217,33 @@ describe("aggregateBookings", () => {
   });
 });
 
+describe("banco de horas da semana", () => {
+  it("duração da reserva: fim legível, virada da meia-noite e 1h quando não há fim", () => {
+    assert.equal(bookingHours("19:00", "20:30"), 1.5);
+    assert.equal(bookingHours("23:00", "00:00"), 1);
+    assert.equal(bookingHours("19:00", ""), 1);
+    assert.equal(weekStartOf("2026-11-10"), "2026-11-09");
+    assert.equal(weekStartOf("2026-11-15"), "2026-11-09");
+  });
+
+  it("soma as horas por semana de calendário, em qualquer dia e horário, sem contar falta", () => {
+    const s = aggregateBookings([
+      booking({date: "2026-11-09", startTime: "07:00", endTime: "08:30"}), // seg desta semana
+      booking({date: "2026-11-10", startTime: "21:00", endTime: "22:00", isRecurring: true}), // hoje, pelo plano
+      booking({date: "2026-11-08", startTime: "10:00", endTime: "12:00"}), // dom: semana passada
+      booking({date: "2026-11-05", startTime: "18:00", endTime: "19:00", attendanceStatus: "no_show"}),
+    ], TODAY).get("a:u2")!;
+    assert.equal(s.weekHours.length, 8);
+    assert.equal(s.weekHours[7], 2.5);
+    assert.equal(s.weekHours[6], 2);
+    assert.equal(s.avulsoHours90d, 4.5);
+  });
+});
+
 describe("conversão de avulso", () => {
   const plans: CrmPlanOption[] = [
-    {id: "manha", name: "Manhã 1x", monthlyPriceReais: 200, timesPerWeek: 1, windows: [{weekday: 2, startTime: "07:00", endTime: "10:00"}]},
-    {id: "noite", name: "Noite 1x", monthlyPriceReais: 120, timesPerWeek: 1, windows: [{weekday: 2, startTime: "18:00", endTime: "22:00"}]},
+    {id: "manha", name: "Manhã 1x", monthlyPriceReais: 200, timesPerWeek: 1, weeklyHours: 1, windows: [{weekday: 2, startTime: "07:00", endTime: "10:00"}]},
+    {id: "noite", name: "Noite 1x", monthlyPriceReais: 120, timesPerWeek: 1, weeklyHours: 1, windows: [{weekday: 2, startTime: "18:00", endTime: "22:00"}]},
   ];
 
   it("avulso frequente vira oportunidade com o plano que cobre o horário dele", () => {
@@ -228,6 +253,15 @@ describe("conversão de avulso", () => {
     assert.equal(conv.suggestion?.planId, "noite");
     assert.equal(conv.avgMonthlyReais, 106.67);
     assert.equal(conv.suggestion?.savingsReais, -13.33);
+  });
+
+  it("a oferta é de banco de horas: pesa as horas que ele já joga antes do horário", () => {
+    // 3h por terça, 8 terças: 24h em 90 dias (13 semanas) ≈ 1,85h → 2h/sem (em meia hora).
+    const s = aggregateBookings(tuesdays(8, {endTime: "22:00"}), TODAY).get("a:u2")!;
+    const withHours = [...plans, {id: "livre", name: "Livre 2h", monthlyPriceReais: 220, timesPerWeek: 2, weeklyHours: 2, windows: []}];
+    const conv = conversionOf(s, withHours)!;
+    assert.equal(conv.weeklyHours, 2);
+    assert.equal(conv.suggestion?.planId, "livre");
   });
 
   it("quem joga pouco não é oportunidade", () => {

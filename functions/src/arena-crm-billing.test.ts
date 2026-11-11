@@ -58,7 +58,7 @@ function seed(arena: Record<string, unknown> = {}): FakeFirestore {
   fake.seedDoc("users/u1", {fullName: "Rafael Moura"});
   fake.seedDoc("arenaCrmContracts/c1", {
     arenaId: "arena1", customerKey: "a:u1", athleteId: "u1", customerName: "Rafael Moura", planName: "Noite 2x",
-    period: "monthly", dueDay: 5, timesPerWeek: 2, monthlyPriceReais: 260, startDate: "2026-09-05", autoRenew: true,
+    period: "monthly", dueDay: 5, weeklyHours: 2, monthlyPriceReais: 260, startDate: "2026-09-05", autoRenew: true,
     paidInstallments: 1, status: "active",
   });
   return fake;

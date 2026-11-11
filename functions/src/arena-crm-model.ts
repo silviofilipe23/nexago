@@ -25,6 +25,9 @@ export type CrmPeriod = typeof CRM_PERIODS[number];
 export const PERIOD_MONTHS: Record<CrmPeriod, number> = {monthly: 1, quarterly: 3, semiannual: 6, annual: 12};
 
 export const CRM_DUE_DAYS = [5, 15, 25] as const;
+/** Banco de horas da semana: de meia em meia hora. */
+export const MIN_WEEKLY_HOURS = 0.5;
+export const MAX_WEEKLY_HOURS = 40;
 
 export const CRM_STATUSES = ["active", "expiring", "not_renewed", "overdue", "canceled"] as const;
 export type CrmStatus = typeof CRM_STATUSES[number];
@@ -143,7 +146,8 @@ export interface CrmContractRecord {
   planName: string;
   period: CrmPeriod;
   dueDay: number;
-  timesPerWeek: number;
+  /** Banco de horas da semana: o mensalista joga quando quiser, até esse total (seg a dom). */
+  weeklyHours: number;
   monthlyPriceReais: number;
   startDate: string;
   autoRenew: boolean;
@@ -180,7 +184,8 @@ export interface CrmContractView {
   planName: string;
   period: CrmPeriod;
   dueDay: number;
-  timesPerWeek: number;
+  /** Horas por semana do contrato (Planos de horário: horários × duração). */
+  weeklyHours: number;
   monthlyPriceReais: number;
   startDate: string;
   /** Fim do período atual (com renovação automática, o do ciclo corrente). `null` = sem fim. */
@@ -275,7 +280,7 @@ export function contractView(c: CrmContractRecord, today: string): CrmContractVi
     planName: c.planName,
     period: c.period,
     dueDay: c.dueDay,
-    timesPerWeek: c.timesPerWeek,
+    weeklyHours: c.weeklyHours,
     monthlyPriceReais: c.monthlyPriceReais,
     startDate: c.startDate,
     endDate,
@@ -316,7 +321,8 @@ export interface ScheduleSubscriptionRecord {
   cycle: string;
   monthlyPriceReais: number;
   dueDay: number;
-  slotsCount: number;
+  /** Horários × duração do plano, em horas. */
+  weeklyHours: number;
   status: string;
   endsOn: string | null;
   endRequestedBy: string | null;
@@ -358,7 +364,7 @@ export function subscriptionView(
     planName: s.planName,
     period: CYCLE_TO_PERIOD[s.cycle] ?? "monthly",
     dueDay: s.dueDay,
-    timesPerWeek: Math.max(1, s.slotsCount),
+    weeklyHours: s.weeklyHours,
     monthlyPriceReais: s.monthlyPriceReais,
     startDate: s.startDate,
     endDate: s.endsOn,
@@ -387,6 +393,7 @@ export interface CrmBookingRecord {
   customerName?: unknown;
   date?: unknown;
   startTime?: unknown;
+  endTime?: unknown;
   status?: unknown;
   attendanceStatus?: unknown;
   amountReais?: unknown;
@@ -423,7 +430,12 @@ export interface CrmBookingStats {
   avulsoReais90d: number;
   /** Semanas (das últimas 8) com pelo menos um avulso; índice 0 = a mais antiga. */
   weekHits: boolean[];
+  /** Onde costuma jogar (informativo: o mensalista não tem horário fixo). */
   pattern: CrmPatternSlot[];
+  /** Horas jogadas por semana de calendário (seg a dom), plano e avulso; o último é a semana corrente. */
+  weekHours: number[];
+  /** Horas de avulso nos últimos 90 dias (base da oferta de banco de horas). */
+  avulsoHours90d: number;
 }
 
 function str(v: unknown): string {
@@ -460,12 +472,38 @@ function isPlanBooking(b: CrmBookingRecord): boolean {
   return b.isRecurring === true || b.coveredByPlan === true || str(b.scheduleSubscriptionId) !== "";
 }
 
+/** Segunda-feira da semana da data (a semana do banco de horas vai de seg a dom). */
+export function weekStartOf(dateKey: string): string {
+  return addDays(dateKey, -(isoWeekday(dateKey) - 1));
+}
+
+function minutesOf(time: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(time);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+/** Duração da reserva em horas (sem fim legível, 1h — o padrão da quadra). Fim 00:00 = meia-noite. */
+export function bookingHours(startTime: unknown, endTime: unknown): number {
+  const start = minutesOf(str(startTime));
+  let end = minutesOf(str(endTime));
+  if (start === null || end === null) return 1;
+  if (end <= start) end += 24 * 60;
+  const hours = (end - start) / 60;
+  return hours > 0 && hours <= 12 ? hours : 1;
+}
+
+/** Arredonda para meia hora (o banco de horas anda de 30 em 30 min). */
+export function roundHalfHour(v: number): number {
+  return Math.round(v * 2) / 2;
+}
+
 export function aggregateBookings(bookings: CrmBookingRecord[], today: string): Map<string, CrmBookingStats> {
   const months = historyMonths(today);
   const from = historyStartDate(today);
   const d28 = addDays(today, -27);
   const d90 = addDays(today, -89);
   const weeksFrom = addDays(today, -(PATTERN_WEEKS * 7 - 1));
+  const calendarFrom = addDays(weekStartOf(today), -7 * (PATTERN_WEEKS - 1));
   const out = new Map<string, CrmBookingStats & {slotWeeks: Map<string, Set<number>>}>();
 
   for (const b of bookings) {
@@ -484,6 +522,7 @@ export function aggregateBookings(bookings: CrmBookingRecord[], today: string): 
         months: months.map((month) => ({month, total: 0, plan: 0, avulso: 0, avulsoReais: 0})),
         firstDate: null, lastVisitDate: null, visits28d: 0, avulso90d: 0, avulsoReais90d: 0,
         weekHits: Array.from({length: PATTERN_WEEKS}, () => false), pattern: [],
+        weekHours: Array.from({length: PATTERN_WEEKS}, () => 0), avulsoHours90d: 0,
         slotWeeks: new Map(),
       };
       out.set(key, s);
@@ -508,9 +547,16 @@ export function aggregateBookings(bookings: CrmBookingRecord[], today: string): 
       if (!s.lastVisitDate || date > s.lastVisitDate) s.lastVisitDate = date;
       if (date >= d28) s.visits28d += 1;
     }
+    const hours = bookingHours(b.startTime, b.endTime);
     if (!plan && date >= d90) {
       s.avulso90d += 1;
       s.avulsoReais90d = round2(s.avulsoReais90d + amount);
+      s.avulsoHours90d = round2(s.avulsoHours90d + hours);
+    }
+    // Uso do banco de horas: a quadra que ele ocupou na semana, plano ou avulso (falta não conta).
+    if (!noShow && date >= calendarFrom) {
+      const week = Math.floor(daysBetween(calendarFrom, date) / 7);
+      if (week >= 0 && week < PATTERN_WEEKS) s.weekHours[week] = round2((s.weekHours[week] ?? 0) + hours);
     }
     // Horário de sempre olha tudo (plano e avulso); as semanas ativas da conversão, só avulso.
     if (date >= weeksFrom) {
@@ -550,6 +596,8 @@ export interface CrmPlanOption {
   name: string;
   monthlyPriceReais: number;
   timesPerWeek: number;
+  /** Vezes × duração do plano. */
+  weeklyHours: number;
   windows: Array<{weekday: number; startTime: string; endTime: string}>;
 }
 
@@ -558,6 +606,8 @@ export interface CrmConversion {
   avulso90d: number;
   activeWeeks: number;
   avgMonthlyReais: number;
+  /** Horas por semana que ele já joga de avulso (média de 90 dias, em meia hora): o banco de horas da oferta. */
+  weeklyHours: number;
   suggestion: {planId: string; planName: string; monthlyPriceReais: number; savingsReais: number} | null;
 }
 
@@ -565,16 +615,21 @@ function windowCovers(w: CrmPlanOption["windows"][number], slot: CrmPatternSlot)
   return w.weekday === slot.weekday && w.startTime <= slot.startTime && slot.startTime < w.endTime;
 }
 
-/** Plano que mais se parece com o que o cliente já joga: cobre o horário e tem a frequência certa. */
+/** Horas por semana que o avulso já joga (90 dias ≈ 13 semanas), em meia hora, mínimo 1h. */
+export function avulsoWeeklyHours(stats: CrmBookingStats): number {
+  return Math.max(1, roundHalfHour(stats.avulsoHours90d / 13));
+}
+
+/** Plano que mais se parece com o que o cliente já joga: as horas da semana primeiro, o horário de desempate. */
 export function suggestPlan(stats: CrmBookingStats, plans: CrmPlanOption[]): CrmPlanOption | null {
   if (plans.length === 0) return null;
-  const perWeek = Math.max(1, Math.round(stats.avulso90d / 13));
+  const hours = avulsoWeeklyHours(stats);
   const ranked = plans
     .map((p) => {
       const covered = stats.pattern.filter((slot) => p.windows.some((w) => windowCovers(w, slot))).length;
-      return {p, covered, diff: Math.abs(p.timesPerWeek - perWeek)};
+      return {p, covered, diff: Math.abs(p.weeklyHours - hours)};
     })
-    .sort((a, b) => b.covered - a.covered || a.diff - b.diff || a.p.monthlyPriceReais - b.p.monthlyPriceReais);
+    .sort((a, b) => a.diff - b.diff || b.covered - a.covered || a.p.monthlyPriceReais - b.p.monthlyPriceReais);
   return ranked[0]?.p ?? null;
 }
 
@@ -588,6 +643,7 @@ export function conversionOf(stats: CrmBookingStats, plans: CrmPlanOption[]): Cr
     avulso90d: stats.avulso90d,
     activeWeeks,
     avgMonthlyReais,
+    weeklyHours: avulsoWeeklyHours(stats),
     suggestion: plan ? {
       planId: plan.id,
       planName: plan.name,
@@ -632,6 +688,10 @@ export interface CrmCustomer {
   lastVisitDate: string | null;
   daysSinceVisit: number | null;
   visitsPerWeek: number;
+  /** Média de horas por semana nas 4 últimas semanas fechadas. */
+  hoursPerWeek: number;
+  /** Horas jogadas por semana (seg a dom), 8 semanas; a última é a corrente. */
+  weekHours: number[];
   pattern: CrmPatternSlot[];
   weekHits: boolean[];
   conversion: CrmConversion | null;
@@ -804,6 +864,8 @@ export function buildOverview(input: BuildOverviewInput): CrmOverview {
       lastVisitDate,
       daysSinceVisit,
       visitsPerWeek: st ? round2(st.visits28d / 4) : 0,
+      hoursPerWeek: st?.weekHours ? round2(st.weekHours.slice(-5, -1).reduce((a, h) => a + h, 0) / 4) : 0,
+      weekHours: st?.weekHours ?? Array.from({length: PATTERN_WEEKS}, () => 0),
       pattern: st?.pattern ?? [],
       weekHits: st?.weekHits ?? Array.from({length: PATTERN_WEEKS}, () => false),
       conversion: live || !st ? null : conversionOf(st, input.plans),

@@ -525,11 +525,11 @@ class _SchedulePlanSignupPageState
             if (pending != null) _pendingBanner(pending),
             if (_mode == _Mode.offer)
               ..._offerSection(a, offer)
-            else if (a.plan.isFlexible)
+            else if (_flexibleSignup(a))
               ..._flexSection(a)
             else
               ..._slotSection(a),
-            if (a.arenaDefinesCourt && !a.plan.isFlexible) ...[
+            if (a.arenaDefinesCourt && !_flexibleSignup(a)) ...[
               const SizedBox(height: 12),
               _definesCourtNote(),
             ],
@@ -584,6 +584,11 @@ class _SchedulePlanSignupPageState
   }
 
   // ── Plano livre: sem dia/horário para escolher ────────────────────────
+
+  /// Assinar plano livre. A troca de horário segue pedindo dia/hora: é de
+  /// quem assinou como fixo antes de o plano virar livre.
+  bool _flexibleSignup(SchedulePlanAvailability a) =>
+      a.plan.isFlexible && _mode != _Mode.change;
 
   List<Widget> _flexSection(SchedulePlanAvailability a) {
     final colors = context.themeColors;
@@ -1124,7 +1129,7 @@ class _SchedulePlanSignupPageState
       a.onlineBilling && _methodOf(a.plan) != SchedulePaymentMethod.onsite;
 
   bool _readyForSlots(SchedulePlanAvailability a) {
-    if (a.plan.isFlexible) return scheduleSpotsLeft(a.plan) > 0;
+    if (_flexibleSignup(a)) return scheduleSpotsLeft(a.plan) > 0;
     if (_days.length != a.plan.timesPerWeek || _time == null) return false;
     return scheduleTimesForWeekdays(a.days, _days).any((t) =>
         t.startTime == _time && t.bookable(primeCapReached: a.primeCapReached));

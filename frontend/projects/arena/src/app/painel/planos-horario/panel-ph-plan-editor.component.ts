@@ -116,8 +116,8 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
                 <div>
                   <div class="field-label">Como o assinante joga</div>
                   <div class="chip-row" data-testid="ph-plan-booking-mode">
-                    <button type="button" class="sm-chip" [class.active]="d().bookingMode === 'flexible'" [disabled]="modeLocked()" (click)="setMode('flexible')">Horário livre</button>
-                    <button type="button" class="sm-chip" [class.active]="d().bookingMode === 'fixed'" [disabled]="modeLocked()" (click)="setMode('fixed')">Horário fixo</button>
+                    <button type="button" class="sm-chip" [class.active]="d().bookingMode === 'flexible'" (click)="setMode('flexible')">Horário livre</button>
+                    <button type="button" class="sm-chip" [class.active]="d().bookingMode === 'fixed'" (click)="setMode('fixed')">Horário fixo</button>
                   </div>
                   <p class="hint">
                     @if (d().bookingMode === 'flexible') {
@@ -125,7 +125,7 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
                     } @else {
                       Escolhe dias e horário ao assinar e fica com eles toda semana.
                     }
-                    @if (modeLocked()) { O plano já tem assinantes: o modo não muda mais. }
+                    @if (modeChangedWithSubscribers()) { Vale para quem assinar daqui pra frente: os {{ occupied() }} assinante(s) atuais continuam como assinaram. }
                   </p>
                 </div>
                 <div class="row-2">
@@ -526,8 +526,11 @@ export class PanelPhPlanEditorComponent {
     return this.store.courts().filter((c) => c.status === 'active' || ids.has(c.id));
   });
 
-  /** Assinaturas vivas foram feitas num modo: com assinantes, o modo não muda (o servidor também recusa). */
-  protected readonly modeLocked = computed(() => !!this.planId && (this.store.plans().find((p) => p.id === this.planId)?.occupiedCount ?? 0) > 0);
+  /** Cada assinatura guarda o modo em que foi feita: trocar o modo só vale para quem assinar depois. */
+  protected readonly modeChangedWithSubscribers = computed(() => {
+    const stored = this.planId ? this.store.plans().find((p) => p.id === this.planId) : null;
+    return !!stored && stored.bookingMode !== this.d().bookingMode && this.occupied() > 0;
+  });
   /** Fixo vira uma série por dia (até 3x); livre é uma cota da semana (até 7x). */
   protected readonly frequencyOptions = computed(() => (this.d().bookingMode === 'flexible' ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3]));
 

@@ -101,7 +101,9 @@ Pedido do dono: quem assina pode reservar a qualquer horário, desde que dentro 
   Usos = reservas vivas cobertas da semana; cancelar devolve. Trava `arenaScheduleFlexWeeks/{sub}_{segunda}`.
   O plano vem antes do banco de horas do mensalista; se cobriu, o banco não é tocado.
 - Sem reposição, feriado nem troca de horário no livre (não há horário marcado). Pausa e cancelamento iguais.
-- Modo não muda com assinantes (`occupiedCount > 0`). Portal: plano novo nasce livre.
+- Trocar o modo do plano vale para quem assinar depois: cada assinatura guarda o seu no `planSnapshot` e segue
+  como foi feita (plano pode ter assinantes fixos antigos e livres novos). Portal: plano novo nasce livre.
+  `getArenaSchedulePlanAvailability` devolve dias/horários também no livre (troca de horário do fixo antigo, app antigo).
 - Índice: `arenaBookings (scheduleFlexSubscriptionId, date)`.
 
 ## Modelo (escrita 100% via Cloud Functions)

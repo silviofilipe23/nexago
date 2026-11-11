@@ -1,12 +1,16 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
+import { Location } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
+import { bookingCanCheckInNow, bookingCanMarkNoShow } from '../agenda/capacity-hours';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
 import { fetchCourtsList } from '../courts/courts-repository';
 import type { ArenaCourt } from '../courts/court.model';
+import { AvatarComponent } from '../ui/avatar.component';
 import { IconComponent } from '../ui/icon.component';
+import type { PersonPhotoEntry } from '../ui/person-photo.service';
 import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -25,7 +29,38 @@ import {
   type ArenaBooking,
 } from './arena-booking.model';
 import { bookingCanChangeCourt, changeBookingCourt, clubSessionDayLabel, courtAssignOptions } from './booking-court-change';
-import { cancelBookingByManager, checkInBookingByManager, resolveAthleteLabel, restoreBookingByManager, watchBooking } from './bookings-repository';
+import {
+  BOOKING_MAX_PLAYERS,
+  bookingKindLabel,
+  bookingLiveState,
+  bookingTakesGuests,
+  bookingTimeline,
+  durationLabel,
+  longDateLabel,
+  paymentStatusView,
+  perPlayerLabel,
+  timelineWhen,
+} from './booking-detail';
+import {
+  cancelBookingByManager,
+  checkInBookingByManager,
+  markNoShowByManager,
+  resolveAthleteProfile,
+  restoreBookingByManager,
+  watchBooking,
+} from './bookings-repository';
+
+/** Jogador no card "Jogadores": o responsável primeiro, depois quem entrou por convite/link. */
+interface BookingPlayer {
+  key: string;
+  name: string;
+  photoUrl: string | null;
+  owner: boolean;
+  role: string;
+  meta: string;
+  /** Linha sob o nome na foto ampliada. */
+  zoomMeta: string;
+}
 
 const ATTENDANCE_TONE: Record<string, PillTone | undefined> = {
   checked_in: 'green',
@@ -52,16 +87,23 @@ export function bookingChannelLabel(channel: string | null): string {
   }
 }
 
-/** Detalhe de uma reserva (`arenaBookings`) pro gestor: check-in manual (front desk) e
- *  cancelamento com 60s pra desfazer — espelha `ArenaBookingDetailsPage` (Flutter), sem as
- *  ações de bloqueio/contato de atleta (fora do escopo desta 1ª leva). */
+/** Detalhe de uma reserva (`arenaBookings`) pro gestor — canvas "Reserva · detalhe completo"
+ *  (página Arena): horário em destaque com a situação agora, ações da recepção (check-in,
+ *  definir/trocar quadra, falta, cancelar com 60s pra desfazer), jogadores com foto ampliada
+ *  (setas navegam entre eles), pagamento e linha do tempo. */
 @Component({
   selector: 'ar-panel-booking-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, ModalComponent, RouterLink],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, ModalComponent, RouterLink, AvatarComponent],
   template: `
     <ar-panel-shell>
       <ar-page-header [title]="headerTitle()" [subtitle]="headerSubtitle()">
+        @if (resolvedBooking()) {
+          <button type="button" class="ar-ghost-btn" (click)="copyCode()">
+            <ar-icon name="tag" [size]="14" />
+            {{ copied() ? 'Código copiado' : 'Copiar código' }}
+          </button>
+        }
         <button type="button" class="ar-ghost-btn" (click)="back()">Voltar</button>
       </ar-page-header>
 
@@ -70,16 +112,17 @@ export function bookingChannelLabel(channel: string | null): string {
           <ar-panel-card pad="lg">
             <p class="state-text">Carregando reserva…</p>
           </ar-panel-card>
-        } @else if (!booking()) {
+        } @else if (!resolvedBooking()) {
           <ar-panel-card pad="lg">
             <p class="state-text">Reserva não encontrada.</p>
           </ar-panel-card>
         } @else {
+          @let b = resolvedBooking()!;
           @if (errorMessage(); as err) {
-            <div class="error-banner">{{ err }}</div>
+            <div class="error-banner" role="alert">{{ err }}</div>
           }
           @if (successMessage(); as ok) {
-            <div class="success-banner">{{ ok }}</div>
+            <div class="success-banner" role="status">{{ ok }}</div>
           }
           @if (undoSecondsLeft(); as secs) {
             <div class="undo-banner">
@@ -87,106 +130,211 @@ export function bookingChannelLabel(channel: string | null): string {
             </div>
           }
 
-          <div class="grid">
-            <ar-panel-card title="Cliente" class="card-span">
-              <div class="row"><span class="label">Nome</span><span class="value">{{ customerLabel() }}</span></div>
-              <div class="row"><span class="label">Participantes</span><span class="value">{{ booking()!.confirmedParticipants }}</span></div>
-              @if (booking()!.isRecurring) {
-                <div class="row"><span class="label">Tipo</span><span class="value">Horário fixo (mensalista)</span></div>
-              }
-              @if (booking()!.classSessionId; as classSessionId) {
-                <div class="row"><span class="label">Tipo</span><span class="value">Aula (bloqueio da quadra)</span></div>
-              }
-              @if (professorLabel(); as professor) {
-                <!-- Reserva feita como professor (vínculo com "Reservar quadras"): o horário é de aula dele. -->
-                <div class="row"><span class="label">Reservou como</span><span class="value"><ar-pill tone="blue">{{ professor }}</ar-pill></span></div>
-              }
-            </ar-panel-card>
-
-            <ar-panel-card title="Horário">
-              <div class="row"><span class="label">Data</span><span class="value">{{ booking()!.dateKey }}</span></div>
-              @if (unassigned()) {
-                <div class="row"><span class="label">Quadra</span><span class="value"><ar-pill tone="yellow">A definir</ar-pill></span></div>
-                <div class="row"><span class="label">Provisória</span><span class="value">{{ resolvedBooking()!.courtName }}</span></div>
-              } @else {
-                <div class="row"><span class="label">Quadra</span><span class="value">{{ resolvedBooking()!.courtName }}</span></div>
-              }
-              @if (booking()!.sportLabel; as sport) {
-                <div class="row"><span class="label">Esporte</span><span class="value">{{ sport }}</span></div>
-              }
-              <div class="row"><span class="label">Horário</span><span class="value">{{ booking()!.startTime }}–{{ booking()!.endTime }}</span></div>
-              <div class="row"><span class="label">Código</span><span class="value">{{ displayBookingCode(booking()!.id) }}</span></div>
-              @if (unassigned()) {
-                <p class="notice">
-                  <ar-icon name="alert-triangle" [size]="14" />
-                  @if (booking()!.clubSessionId) {
-                    <span>O clubinho fica sempre com quadra provisória: hoje na <strong>{{ resolvedBooking()!.courtName }}</strong>. A equipe troca quando quiser, e o sistema pode trocá-la se uma aula, um plano ou outra reserva precisar dela.</span>
-                  } @else {
-                    <span>A recepção define a quadra na chegada. Até lá a reserva segura a <strong>{{ resolvedBooking()!.courtName }}</strong> como provisória — o sistema pode trocá-la se uma aula, um plano ou outra reserva precisar dela.</span>
-                  }
-                </p>
-              }
-            </ar-panel-card>
-
-            <ar-panel-card title="Pagamento">
-              <div class="row"><span class="label">Valor</span><span class="value">{{ formatBRL(booking()!.amountReais) }}</span></div>
-              <div class="row"><span class="label">Canal</span><span class="value">{{ channelLabel(booking()!.paymentChannel) }}</span></div>
-              <div class="row"><span class="label">Situação</span><span class="value">{{ booking()!.paymentStatus ?? '—' }}</span></div>
-              @if (professorDiscount(); as discount) {
-                <!-- Desconto do vínculo do professor: substitui promoção e cupom (vale o menor preço). -->
-                <div class="row">
-                  <span class="label">Desconto professor</span>
-                  <span class="value">{{ discount }}@if (booking()!.professorDiscountReais; as reais) { (-{{ formatBRL(reais) }})}</span>
+          <div class="layout">
+            <div class="stack">
+              <section class="card hero" aria-label="Horário da reserva">
+                <div class="hero-top">
+                  <div class="hero-main">
+                    <div class="when">{{ longDate() }}</div>
+                    <div class="time">{{ b.startTime }} <span>–</span> {{ b.endTime }}</div>
+                    <div class="facts">
+                      <b>{{ unassigned() ? 'Quadra a definir' : b.courtName }}</b>
+                      @if (b.sportLabel; as sport) { <span>{{ sport }}</span> }
+                      <span>{{ duration() }}</span>
+                      <span>{{ kind() }}</span>
+                    </div>
+                    <div class="pills">
+                      <ar-pill [tone]="statusTone()">{{ statusLabel(b.status) }}</ar-pill>
+                      <ar-pill [tone]="payment().tone">{{ payment().label }}</ar-pill>
+                      <ar-pill [tone]="attendanceTone[b.attendanceStatus] ?? 'dim'">{{ attendanceLabel(b.attendanceStatus) }}</ar-pill>
+                      @if (professorLabel(); as professor) {
+                        <ar-pill tone="blue">{{ professor }}</ar-pill>
+                      }
+                    </div>
+                  </div>
+                  <div class="live" [class]="'live tone-' + live().tone">
+                    <span class="label">Situação agora</span>
+                    <span class="live-v">{{ live().headline }}</span>
+                    <span class="live-s">{{ live().detail }}</span>
+                    @if (live().progress; as progress) {
+                      <div class="bar" role="progressbar" aria-label="Tempo de jogo" [attr.aria-valuenow]="progressPct()" aria-valuemin="0" aria-valuemax="100">
+                        <i [style.width.%]="progressPct()"></i>
+                      </div>
+                      <div class="ticks"><span>{{ b.startTime }}</span><span>{{ b.endTime }}</span></div>
+                    }
+                  </div>
                 </div>
-              }
-              @if (booking()!.athletePricingLabel; as tierLabel) {
-                <!-- Preço por perfil (aluno/professor validado pela arena): não acumula com promoção e cupom. -->
-                <div class="row">
-                  <span class="label">Preço por perfil</span>
-                  <span class="value">{{ tierLabel }}@if (booking()!.athletePricingDiscountReais; as reais) { (-{{ formatBRL(reais) }})}</span>
-                </div>
-              }
-              @if (booking()!.couponCode; as code) {
-                <div class="row"><span class="label">Cupom</span><span class="value">{{ code }} (-{{ formatBRL(booking()!.couponDiscountReais) }})</span></div>
-              }
-            </ar-panel-card>
 
-            <ar-panel-card title="Status" class="card-span">
-              <div class="status-row">
-                <ar-pill tone="dim">{{ statusLabel(booking()!.status) }}</ar-pill>
-                <ar-pill [tone]="attendanceTone[booking()!.attendanceStatus] ?? 'dim'">{{ attendanceLabel(booking()!.attendanceStatus) }}</ar-pill>
-              </div>
-
-              <div class="actions">
-                @if (showCheckIn()) {
-                  <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="checkingIn() || readOnly()" (click)="checkIn()">
-                    <ar-icon name="check" [size]="14" />
-                    {{ checkingIn() ? 'Registrando…' : 'Fazer check-in' }}
-                  </button>
-                }
-                @if (canChangeCourt()) {
-                  <button
-                    type="button"
-                    class="ar-mini-btn"
-                    [class.ar-mini-btn-primary]="definable()"
-                    [disabled]="readOnly()"
-                    (click)="openCourtChange()"
-                  >
-                    <ar-icon name="courts" [size]="14" />
-                    {{ definable() ? 'Definir quadra' : 'Trocar quadra' }}
-                  </button>
-                }
-                @if (booking()!.classSessionId; as classSessionId) {
-                  <a class="ar-mini-btn" [routerLink]="['/painel/aulas/aula', classSessionId]">Abrir aula</a>
-                }
-                @if (canCancel()) {
-                  <button type="button" class="ar-ghost-btn danger-link" [disabled]="readOnly()" (click)="showCancelConfirm.set(true)">
+                @if (unassigned()) {
+                  <p class="notice">
                     <ar-icon name="alert-triangle" [size]="14" />
-                    Cancelar reserva
-                  </button>
+                    @if (b.clubSessionId) {
+                      <span>O clubinho fica sempre com quadra provisória: hoje na <strong>{{ b.courtName }}</strong>. A equipe troca quando quiser, e o sistema pode trocá-la se uma aula, um plano ou outra reserva precisar dela.</span>
+                    } @else {
+                      <span>A recepção define a quadra na chegada. Até lá a reserva segura a <strong>{{ b.courtName }}</strong> como provisória — o sistema pode trocá-la se uma aula, um plano ou outra reserva precisar dela.</span>
+                    }
+                  </p>
                 }
-              </div>
-            </ar-panel-card>
+
+                @if (hasActions()) {
+                  <div class="hero-actions">
+                    @if (showCheckIn()) {
+                      <button type="button" class="ar-mini-btn ar-mini-btn-primary act" [disabled]="checkingIn() || readOnly()" (click)="checkIn()">
+                        <ar-icon name="check" [size]="15" />
+                        {{ checkingIn() ? 'Registrando…' : 'Fazer check-in' }}
+                      </button>
+                    }
+                    @if (canChangeCourt()) {
+                      <button type="button" class="ar-mini-btn act" [class.ar-mini-btn-primary]="definable() && !showCheckIn()" [disabled]="readOnly()" (click)="openCourtChange()">
+                        <ar-icon name="courts" [size]="15" />
+                        {{ definable() ? 'Definir quadra' : 'Trocar quadra' }}
+                      </button>
+                    }
+                    @if (canMarkNoShow()) {
+                      <button type="button" class="ar-mini-btn act" [disabled]="markingNoShow() || readOnly()" (click)="markNoShow()">
+                        {{ markingNoShow() ? 'Marcando…' : 'Marcar falta' }}
+                      </button>
+                    }
+                    @if (b.classSessionId; as classSessionId) {
+                      <a class="ar-mini-btn act" [routerLink]="['/painel/aulas/aula', classSessionId]">Abrir aula</a>
+                    }
+                    <span class="spacer"></span>
+                    @if (canCancel()) {
+                      <button type="button" class="ar-ghost-btn danger-link" [disabled]="readOnly()" (click)="showCancelConfirm.set(true)">
+                        <ar-icon name="alert-triangle" [size]="14" />
+                        Cancelar reserva
+                      </button>
+                    }
+                  </div>
+                }
+              </section>
+
+              @if (!b.classSessionId) {
+                <section class="card" aria-label="Jogadores">
+                  <div class="card-h">
+                    <div>
+                      <h2 class="card-title">Jogadores</h2>
+                      <div class="count">
+                        {{ players().length }}@if (freeSlots().length > 0) { de {{ maxPlayers }}}
+                        <small>{{ players().length === 1 ? 'confirmado' : 'confirmados' }}</small>
+                      </div>
+                    </div>
+                    @if (players().length > 1) {
+                      <div class="stackav" aria-hidden="true">
+                        @for (p of players(); track p.key) {
+                          <ar-avatar [name]="p.name" [photoUrl]="p.photoUrl" [size]="30" />
+                        }
+                      </div>
+                    }
+                  </div>
+                  <div class="players">
+                    @for (p of players(); track p.key) {
+                      <div class="player" [class.owner]="p.owner">
+                        <ar-avatar
+                          [class.ring]="p.owner"
+                          [name]="p.name"
+                          [photoUrl]="p.photoUrl"
+                          [size]="56"
+                          zoomable
+                          [personRole]="p.role"
+                          [meta]="p.zoomMeta"
+                          [gallery]="gallery()"
+                        />
+                        <div class="p-main">
+                          <div class="p-name">
+                            {{ p.name }}
+                            @if (p.owner) { <span class="tag">{{ p.role }}</span> }
+                          </div>
+                          <div class="p-meta">{{ p.meta }}</div>
+                        </div>
+                      </div>
+                    }
+                    @for (slot of freeSlots(); track slot) {
+                      <div class="empty">
+                        <span class="empty-av" aria-hidden="true">+</span>
+                        <span>Vaga livre — o responsável pode convidar pelo app até o fim do horário.</span>
+                      </div>
+                    }
+                  </div>
+                  @if (gallery().length > 0) {
+                    <p class="hint"><ar-icon name="search" [size]="13" />Clique na foto para ampliar e conferir quem chegou.</p>
+                  }
+                </section>
+              }
+
+              <section class="card" aria-label="Linha do tempo">
+                <div class="card-h"><h2 class="card-title">Linha do tempo</h2></div>
+                @if (timeline().length === 0) {
+                  <p class="state-text">Sem eventos registrados nesta reserva.</p>
+                } @else {
+                  <ol class="tl">
+                    @for (e of timeline(); track $index) {
+                      <li>
+                        <span class="node" [class]="'node n-' + e.tone"><i></i></span>
+                        <div class="tl-body">
+                          <div class="tl-what">{{ e.title }}</div>
+                          @if (e.detail) { <div class="tl-sub">{{ e.detail }}</div> }
+                        </div>
+                        <span class="tl-when">{{ when(e.at) }}</span>
+                      </li>
+                    }
+                  </ol>
+                }
+              </section>
+            </div>
+
+            <div class="stack side">
+              <section class="card" aria-label="Pagamento">
+                <div class="card-h">
+                  <h2 class="card-title">Pagamento</h2>
+                  <ar-pill [tone]="payment().tone">{{ payment().label }}</ar-pill>
+                </div>
+                @if (b.couponCode; as code) {
+                  <div class="row"><span>Cupom {{ code }}</span><b class="mono minus">− {{ formatBRL(b.couponDiscountReais) }}</b></div>
+                }
+                @if (professorDiscount(); as discount) {
+                  <!-- Desconto do vínculo do professor: substitui promoção e cupom (vale o menor preço). -->
+                  <div class="row">
+                    <span>Desconto professor ({{ discount }})</span>
+                    <b class="mono minus">@if (b.professorDiscountReais; as reais) {− {{ formatBRL(reais) }}} @else {aplicado}</b>
+                  </div>
+                }
+                @if (b.athletePricingLabel; as tierLabel) {
+                  <!-- Preço por perfil (aluno/professor validado pela arena): não acumula com promoção e cupom. -->
+                  <div class="row">
+                    <span>Preço {{ tierLabel }}</span>
+                    <b class="mono minus">@if (b.athletePricingDiscountReais; as reais) {− {{ formatBRL(reais) }}} @else {aplicado}</b>
+                  </div>
+                }
+                <div class="row"><span>Forma</span><b>{{ channelLabel(b.paymentChannel) }}</b></div>
+                <div class="total"><span class="total-l">Total</span><span class="total-v">{{ formatBRL(b.amountReais) }}</span></div>
+                @if (perPlayer(); as each) {
+                  <div class="split"><span>Por jogador ({{ players().length }} confirmados)</span><b>{{ each }}</b></div>
+                }
+              </section>
+
+              <section class="card" aria-label="Detalhes">
+                <div class="card-h"><h2 class="card-title">Detalhes</h2></div>
+                <div class="row"><span>Código</span><b class="mono code">{{ code() }}</b></div>
+                <div class="row"><span>Tipo</span><b>{{ kind() }}</b></div>
+                @if (unassigned()) {
+                  <div class="row"><span>Quadra</span><b class="warn">A definir</b></div>
+                  <div class="row"><span>Provisória</span><b>{{ b.courtName }}</b></div>
+                } @else {
+                  <div class="row"><span>Quadra</span><b>{{ b.courtName }}</b></div>
+                }
+                @if (b.sportLabel; as sport) {
+                  <div class="row"><span>Esporte</span><b>{{ sport }}</b></div>
+                }
+                <div class="row"><span>Duração</span><b>{{ duration() }}</b></div>
+                @if (b.createdAt; as created) {
+                  <div class="row"><span>Criada em</span><b class="mono">{{ when(created) }}</b></div>
+                }
+                @if (b.cancelReason && b.canceledAt) {
+                  <div class="row"><span>Motivo do cancelamento</span><b>{{ b.cancelReason }}</b></div>
+                }
+              </section>
+            </div>
           </div>
         }
       </div>
@@ -463,50 +611,471 @@ export function bookingChannelLabel(channel: string | null): string {
       cursor: default;
     }
 
-    .grid {
+    .layout {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 20px;
+      align-items: start;
     }
 
-    .card-span {
-      grid-column: 1 / -1;
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      min-width: 0;
     }
 
+    .card {
+      background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line);
+      border-radius: 18px;
+      padding: 22px 24px;
+    }
+
+    .card-h {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--nx-text);
+      margin: 0;
+    }
+
+    .label {
+      font-family: var(--nx-font-mono);
+      font-size: 9.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+    }
+
+    /* Hero: o horário em destaque + "situação agora" + ações da recepção. */
+    .hero {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .hero-top {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 24px;
+      padding: 26px 28px 22px;
+    }
+
+    .when {
+      font-family: var(--nx-font-mono);
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--nx-orange-400);
+    }
+
+    .time {
+      font-family: var(--nx-font-display);
+      font-weight: 800;
+      font-size: 52px;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      color: var(--nx-text);
+      margin: 12px 0 10px;
+    }
+
+    .time span {
+      color: var(--nx-text-dim);
+      font-weight: 600;
+    }
+
+    .facts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      font-size: 13.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .facts b {
+      color: var(--nx-text);
+      font-weight: 600;
+    }
+
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .live {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-self: start;
+      padding: 16px;
+      border-radius: 14px;
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+    }
+
+    .live.tone-live {
+      border-color: rgba(255, 106, 26, 0.45);
+    }
+
+    .live-v {
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 24px;
+      color: var(--nx-text);
+    }
+
+    .live.tone-live .live-v {
+      color: var(--nx-orange-400);
+    }
+
+    .live.tone-canceled .live-v {
+      color: var(--nx-live);
+    }
+
+    .live-s {
+      font-size: 12.5px;
+      line-height: 1.45;
+      color: var(--nx-text-mute);
+    }
+
+    .bar {
+      height: 6px;
+      border-radius: 999px;
+      background: var(--nx-surface-2);
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .bar i {
+      display: block;
+      height: 100%;
+      background: var(--nx-orange-500);
+    }
+
+    .ticks {
+      display: flex;
+      justify-content: space-between;
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      color: var(--nx-text-dim);
+    }
+
+    .hero .notice {
+      margin: 0 28px 22px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 28px;
+      border-top: 1px solid var(--nx-line);
+      background: var(--nx-surface-1);
+    }
+
+    .hero-actions .act {
+      height: 44px;
+      padding: 0 18px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+
+    .spacer {
+      flex: 1;
+    }
+
+    /* Jogadores */
+    .count {
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--nx-text);
+      margin-top: 6px;
+    }
+
+    .count small {
+      font-family: var(--nx-font-ui);
+      font-weight: 500;
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+      margin-left: 4px;
+    }
+
+    .stackav {
+      display: flex;
+    }
+
+    .stackav ar-avatar {
+      border: 2px solid var(--nx-surface-0);
+      margin-left: -8px;
+    }
+
+    .stackav ar-avatar:first-child {
+      margin-left: 0;
+    }
+
+    .players {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .player {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+      padding: 14px;
+      border-radius: 14px;
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+    }
+
+    .player.owner {
+      border-color: rgba(255, 106, 26, 0.35);
+      background: rgba(255, 106, 26, 0.05);
+    }
+
+    .player ar-avatar.ring {
+      box-shadow:
+        0 0 0 2px var(--nx-surface-0),
+        0 0 0 4px var(--nx-orange-500);
+    }
+
+    .p-main {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .p-name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-weight: 600;
+      font-size: 14.5px;
+      color: var(--nx-text);
+    }
+
+    .p-meta {
+      font-size: 12px;
+      color: var(--nx-text-mute);
+      margin-top: 4px;
+    }
+
+    .tag {
+      font-family: var(--nx-font-mono);
+      font-size: 8.5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--nx-orange-400);
+    }
+
+    .empty {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px dashed var(--nx-line-strong);
+      color: var(--nx-text-mute);
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+
+    .empty-av {
+      flex: none;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: 1.5px dashed var(--nx-line-strong);
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      color: var(--nx-text-dim);
+    }
+
+    .hint {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--nx-text-dim);
+      margin: 14px 0 0;
+    }
+
+    /* Linha do tempo */
+    .tl {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .tl li {
+      position: relative;
+      display: grid;
+      grid-template-columns: 20px minmax(0, 1fr) auto;
+      gap: 12px;
+      padding-bottom: 18px;
+    }
+
+    .tl li:last-child {
+      padding-bottom: 0;
+    }
+
+    .tl li:not(:last-child)::before {
+      content: '';
+      position: absolute;
+      left: 9px;
+      top: 20px;
+      bottom: 0;
+      width: 1px;
+      background: var(--nx-line);
+    }
+
+    .node {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line-strong);
+      display: grid;
+      place-items: center;
+    }
+
+    .node i {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--nx-orange-500);
+    }
+
+    .node.n-green i {
+      background: var(--nx-win);
+    }
+
+    .node.n-yellow i {
+      background: #f4c543;
+    }
+
+    .node.n-red i {
+      background: var(--nx-live);
+    }
+
+    .node.n-dim i {
+      background: var(--nx-text-dim);
+    }
+
+    .tl-what {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--nx-text);
+    }
+
+    .tl-sub {
+      font-size: 12px;
+      color: var(--nx-text-mute);
+      margin-top: 3px;
+    }
+
+    .tl-when {
+      font-family: var(--nx-font-mono);
+      font-size: 10.5px;
+      color: var(--nx-text-dim);
+      white-space: nowrap;
+    }
+
+    /* Coluna lateral */
     .row {
       display: flex;
       justify-content: space-between;
       gap: 12px;
-      padding: 8px 0;
+      padding: 9px 0;
       border-bottom: 1px solid var(--nx-line);
       font-size: 13px;
+      color: var(--nx-text-mute);
     }
 
     .row:last-child {
       border-bottom: none;
     }
 
-    .label {
-      color: var(--nx-text-dim);
-    }
-
-    .value {
+    .row b {
       color: var(--nx-text);
       font-weight: 600;
       text-align: right;
     }
 
-    .status-row {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 16px;
+    .row b.mono {
+      font-family: var(--nx-font-mono);
+      font-size: 12.5px;
     }
 
-    .actions {
+    .row b.minus {
+      color: var(--nx-win);
+    }
+
+    .row b.code {
+      color: var(--nx-orange-400);
+    }
+
+    .row b.warn {
+      color: #f4c543;
+    }
+
+    .total {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-top: 6px;
+      padding-top: 14px;
+      border-top: 1px solid var(--nx-line-strong);
+    }
+
+    .total-l {
+      font-weight: 600;
+      font-size: 13.5px;
+      color: var(--nx-text);
+    }
+
+    .total-v {
+      font-family: var(--nx-font-display);
+      font-weight: 800;
+      font-size: 30px;
+      letter-spacing: -0.02em;
+      color: var(--nx-text);
+    }
+
+    .split {
       display: flex;
       align-items: center;
-      gap: 14px;
-      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: var(--nx-surface-1);
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .split b {
+      font-family: var(--nx-font-display);
+      font-size: 15px;
+      color: var(--nx-text);
     }
 
     .danger-link {
@@ -578,8 +1147,30 @@ export function bookingChannelLabel(channel: string | null): string {
       background: #ff564c;
     }
 
-    @media (max-width: 900px) {
-      .grid {
+    @media (max-width: 1100px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .body {
+        padding: 16px;
+      }
+      .hero-top {
+        grid-template-columns: 1fr;
+        padding: 20px;
+      }
+      .hero-actions {
+        padding: 14px 20px;
+      }
+      .hero .notice {
+        margin: 0 20px 18px;
+      }
+      .time {
+        font-size: 40px;
+      }
+      .players {
         grid-template-columns: 1fr;
       }
     }
@@ -587,6 +1178,7 @@ export function bookingChannelLabel(channel: string | null): string {
 })
 export class PanelBookingDetailComponent {
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
   private readonly arenaContext = inject(ArenaContextService);
   private readonly access = inject(ArenaAccessService);
   private readonly destroyRef = inject(DestroyRef);
@@ -611,6 +1203,12 @@ export class PanelBookingDetailComponent {
     () => new Map(this.courts().map((c) => [c.id, c.name])),
   );
   protected readonly athleteLabel = signal<string | null>(null);
+  protected readonly athletePhoto = signal<string | null>(null);
+  /** Fotos dos convidados que entraram sem `avatarUrl` na reserva (busca no perfil público). */
+  private readonly guestPhotos = signal<ReadonlyMap<string, string | null>>(new Map());
+  protected readonly maxPlayers = BOOKING_MAX_PLAYERS;
+  protected readonly markingNoShow = signal(false);
+  protected readonly copied = signal(false);
 
   protected readonly errorMessage = signal<string | null>(null);
   protected readonly checkingIn = signal(false);
@@ -639,7 +1237,7 @@ export class PanelBookingDetailComponent {
 
   protected readonly showCheckIn = computed(() => {
     const b = this.resolvedBooking();
-    return b != null && bookingShowsCheckInAction(b);
+    return b != null && bookingShowsCheckInAction(b) && this.checkInOpen();
   });
 
   protected readonly canCancel = computed(() => {
@@ -676,6 +1274,115 @@ export class PanelBookingDetailComponent {
     return left > 0 ? left : null;
   });
 
+  protected readonly code = computed(() => displayBookingCode(this.booking()?.id ?? '').replace('#', ''));
+  protected readonly longDate = computed(() => longDateLabel(this.booking()?.dateKey ?? ''));
+  protected readonly duration = computed(() => {
+    const b = this.booking();
+    return b ? durationLabel(b.startTime, b.endTime) : '';
+  });
+  protected readonly kind = computed(() => {
+    const b = this.booking();
+    return b ? bookingKindLabel(b) : '';
+  });
+  protected readonly payment = computed(() => {
+    const b = this.booking();
+    return paymentStatusView(b?.paymentStatus ?? null, b?.paymentChannel ?? null);
+  });
+  protected readonly statusTone = computed<PillTone>(() => {
+    const s = this.booking()?.status.toLowerCase().trim() ?? '';
+    if (s === 'canceled' || s === 'cancelled') return 'red';
+    if (s === 'pending_payment') return 'yellow';
+    if (s === 'completed') return 'dim';
+    return 'green';
+  });
+  /** Atualiza a cada segundo junto com o relógio do "desfazer" — barato, é só aritmética. */
+  protected readonly live = computed(() => {
+    const b = this.booking();
+    return b
+      ? bookingLiveState(b, new Date(this.nowTick()))
+      : { headline: '', detail: '', progress: null, tone: 'done' as const };
+  });
+  protected readonly progressPct = computed(() => Math.round((this.live().progress ?? 0) * 100));
+
+  /** Na janela da recepção (20 min antes até 15 min depois do fim) — a mesma da agenda Por horário;
+   *  fora dela o `checkInBookingByManager` recusaria. */
+  private readonly checkInOpen = computed(() => {
+    const b = this.booking();
+    return b != null && bookingCanCheckInNow(b, new Date(this.nowTick()));
+  });
+
+  protected readonly canMarkNoShow = computed(() => {
+    const b = this.booking();
+    return b != null && this.undoDeadlineMs() == null && bookingCanMarkNoShow(b, new Date(this.nowTick()));
+  });
+  protected readonly hasActions = computed(
+    () => this.showCheckIn() || this.canChangeCourt() || this.canMarkNoShow() || this.canCancel() || !!this.booking()?.classSessionId,
+  );
+  protected readonly takesGuests = computed(() => {
+    const b = this.booking();
+    return b != null && bookingTakesGuests(b);
+  });
+
+  protected readonly players = computed<BookingPlayer[]>(() => {
+    const b = this.resolvedBooking();
+    if (!b) return [];
+    const where = `${b.courtName} · ${b.startTime}–${b.endTime}`;
+    const owner: BookingPlayer = b.athleteId
+      ? {
+          key: b.athleteId,
+          name: this.customerLabel(),
+          photoUrl: this.athletePhoto(),
+          owner: true,
+          role: b.bookedAsProfessor ? 'Professor responsável' : 'Responsável',
+          meta: b.createdAt ? `Reservou em ${timelineWhen(b.createdAt).replace(' · ', ' às ')}` : 'Responsável pela reserva',
+          zoomMeta: `${where} · responsável`,
+        }
+      : {
+          key: 'customer',
+          name: this.customerLabel(),
+          photoUrl: null,
+          owner: true,
+          role: 'Cliente',
+          meta: 'Reserva feita na recepção · sem conta no app',
+          zoomMeta: where,
+        };
+    const guests = (b.participants ?? []).map<BookingPlayer>((p) => ({
+      key: p.uid,
+      name: p.name,
+      photoUrl: p.avatarUrl ?? this.guestPhotos().get(p.uid) ?? null,
+      owner: false,
+      role: 'Convidado',
+      meta: `${p.via === 'link' ? 'Entrou pelo link' : 'Convidado'}${p.joinedAt ? ` · ${timelineWhen(p.joinedAt).replace(' · ', ' às ')}` : ''}`,
+      zoomMeta: `${where} · ${p.via === 'link' ? 'entrou pelo link' : 'convidado'}`,
+    }));
+    return [owner, ...guests];
+  });
+
+  /** Vagas livres até lotar (dono + 3), só em reserva que aceita convidado e ainda não acabou
+   *  (o convite vale até o fim do horário). */
+  protected readonly freeSlots = computed(() => {
+    const tone = this.live().tone;
+    if (!this.takesGuests() || (tone !== 'upcoming' && tone !== 'live')) return [];
+    const free = Math.max(0, BOOKING_MAX_PLAYERS - this.players().length);
+    return Array.from({ length: free }, (_, i) => i);
+  });
+
+  /** Fotos que dá pra ampliar, na ordem do card — o visualizador navega entre elas. */
+  protected readonly gallery = computed<PersonPhotoEntry[]>(() =>
+    this.players()
+      .filter((p): p is BookingPlayer & { photoUrl: string } => !!p.photoUrl)
+      .map((p) => ({ photoUrl: p.photoUrl, role: p.role, name: p.name, meta: p.zoomMeta })),
+  );
+
+  protected readonly perPlayer = computed(() => perPlayerLabel(this.booking()?.amountReais ?? null, this.players().length));
+
+  protected readonly timeline = computed(() => {
+    const b = this.resolvedBooking();
+    return b ? bookingTimeline(b, this.customerLabel()) : [];
+  });
+
+  protected readonly when = timelineWhen;
+
   protected readonly headerTitle = computed(() => {
     const b = this.resolvedBooking();
     return b ? `Reserva ${this.displayBookingCode(b.id)}` : 'Reserva';
@@ -685,7 +1392,7 @@ export class PanelBookingDetailComponent {
     const b = this.resolvedBooking();
     if (!b) return '';
     const court = b.allocationStatus === 'unassigned' ? 'Quadra a definir' : b.courtName;
-    return `${court} · ${b.dateKey} · ${b.startTime}–${b.endTime}`;
+    return `${court} · ${longDateLabel(b.dateKey)}`;
   });
 
   /** Reserva feita como professor: "Professor · equipe da arena" / "Professor · independente". */
@@ -722,8 +1429,12 @@ export class PanelBookingDetailComponent {
         this.booking.set(booking);
         this.loading.set(false);
         if (booking?.athleteId) {
-          void resolveAthleteLabel(db, booking.athleteId).then((label) => this.athleteLabel.set(label));
+          void resolveAthleteProfile(db, booking.athleteId).then((profile) => {
+            this.athleteLabel.set(profile.name);
+            this.athletePhoto.set(profile.photoUrl);
+          });
         }
+        this.resolveGuestPhotos(db, booking);
         if (booking?.canceledAt && (booking.status === 'canceled' || booking.status === 'cancelled')) {
           const deadline = booking.canceledAt.getTime() + UNDO_WINDOW_SECONDS * 1000;
           this.undoDeadlineMs.set(deadline > Date.now() ? deadline : null);
@@ -740,8 +1451,48 @@ export class PanelBookingDetailComponent {
     });
   }
 
+  /** Volta pra onde o gestor veio (agenda, lista de reservas, CRM); aberta direto pelo link,
+   *  cai na lista de reservas. */
   protected back(): void {
+    if (this.router.lastSuccessfulNavigation?.previousNavigation) {
+      this.location.back();
+      return;
+    }
     void this.router.navigate(['/painel/reservas']);
+  }
+
+  protected async copyCode(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.code());
+      this.copied.set(true);
+      setTimeout(() => this.copied.set(false), 2000);
+    } catch {
+      this.errorMessage.set('Não foi possível copiar o código.');
+    }
+  }
+
+  protected async markNoShow(): Promise<void> {
+    const b = this.booking();
+    if (!b || this.readOnly()) return;
+    this.markingNoShow.set(true);
+    this.errorMessage.set(null);
+    try {
+      await markNoShowByManager(arenaFirestore(), b.id);
+    } catch (err) {
+      this.errorMessage.set(err instanceof Error ? err.message : 'Não foi possível marcar a falta.');
+    } finally {
+      this.markingNoShow.set(false);
+    }
+  }
+
+  /** Convidado gravado sem `avatarUrl` (app antigo): a foto sai do perfil público, com cache. */
+  private resolveGuestPhotos(db: ReturnType<typeof arenaFirestore>, booking: ArenaBooking | null): void {
+    const missing = (booking?.participants ?? []).filter((p) => !p.avatarUrl && !this.guestPhotos().has(p.uid));
+    for (const p of missing) {
+      void resolveAthleteProfile(db, p.uid).then((profile) => {
+        this.guestPhotos.update((m) => new Map(m).set(p.uid, profile.photoUrl));
+      });
+    }
   }
 
   protected async checkIn(): Promise<void> {

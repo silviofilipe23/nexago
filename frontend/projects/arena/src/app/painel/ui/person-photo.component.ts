@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, effect, ElementRef, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, viewChild } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
-import { PersonPhotoService, type PersonPhoto, type PersonPhotoOrigin } from './person-photo.service';
+import { PersonPhotoService, type PersonPhoto, type PersonPhotoEntry, type PersonPhotoOrigin } from './person-photo.service';
 import { IconComponent } from './icon.component';
 
 const EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
@@ -36,9 +36,37 @@ function transformFromOrigin(box: DOMRect, origin: PersonPhotoOrigin): string {
   template: `
     @if (photo(); as p) {
       <div #scrim class="ar-pp-scrim" (click)="close()"></div>
+      @if (gallery().length > 1) {
+        <button type="button" class="ar-pp-nav prev" aria-label="Foto anterior" (click)="step(-1)">
+          <ar-icon name="chevron-left" [size]="18" [strokeWidth]="2" />
+        </button>
+        <button type="button" class="ar-pp-nav next" aria-label="Próxima foto" (click)="step(1)">
+          <ar-icon name="chevron-right" [size]="18" [strokeWidth]="2" />
+        </button>
+        <div class="ar-pp-strip">
+          <div class="ar-pp-thumbs">
+            @for (g of gallery(); track g.photoUrl + g.name; let i = $index) {
+              <button
+                type="button"
+                class="ar-pp-thumb"
+                [class.on]="i === index()"
+                [attr.aria-current]="i === index() ? 'true' : null"
+                [attr.aria-label]="'Ver foto de ' + g.name"
+                (click)="show(g)"
+              >
+                <img [src]="g.photoUrl" alt="" loading="lazy" decoding="async" />
+              </button>
+            }
+          </div>
+          <span class="ar-pp-count">{{ index() + 1 }} de {{ gallery().length }} · setas navegam · Esc fecha</span>
+        </div>
+      }
       <div #card class="ar-pp-card" role="dialog" aria-modal="true" [attr.aria-label]="'Foto de ' + p.name">
         <figure class="ar-pp-frame">
-          <img [src]="p.photoUrl" [alt]="'Foto de ' + p.name" />
+          <!-- Recria a <img> a cada troca de foto na galeria: a nova entra com fade, sem piscar a anterior. -->
+          @for (url of [p.photoUrl]; track url) {
+            <img [src]="url" [alt]="'Foto de ' + p.name" />
+          }
         </figure>
         <div class="ar-pp-id">
           <span class="ar-pp-kicker">{{ p.role }}</span>
@@ -147,13 +175,104 @@ function transformFromOrigin(box: DOMRect, origin: PersonPhotoOrigin): string {
     .ar-pp-close:hover {
       background: rgba(5, 5, 5, 0.88);
     }
+    .ar-pp-frame img {
+      animation: ar-pp-fade var(--nx-d-fast, 160ms) ease-out;
+    }
+    @keyframes ar-pp-fade {
+      from {
+        opacity: 0;
+      }
+    }
+    .ar-pp-nav {
+      position: absolute;
+      top: 50%;
+      z-index: 1;
+      width: 48px;
+      height: 48px;
+      margin-top: -24px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border-radius: var(--nx-r-pill);
+      border: 1px solid var(--nx-line-strong);
+      background: var(--nx-surface-1);
+      color: var(--nx-text);
+      cursor: pointer;
+      transition: background var(--nx-d-fast) var(--nx-ease-out);
+    }
+    .ar-pp-nav:hover {
+      background: var(--nx-surface-2);
+    }
+    .ar-pp-nav.prev {
+      left: max(16px, calc(50% - 260px));
+    }
+    .ar-pp-nav.next {
+      right: max(16px, calc(50% - 260px));
+    }
+    .ar-pp-strip {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 20px;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .ar-pp-thumbs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 0 16px;
+    }
+    .ar-pp-thumb {
+      width: 48px;
+      height: 48px;
+      padding: 0;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 2px solid var(--nx-line-strong);
+      background: var(--nx-surface-2);
+      cursor: pointer;
+      opacity: 0.7;
+      transition:
+        opacity var(--nx-d-fast) var(--nx-ease-out),
+        border-color var(--nx-d-fast) var(--nx-ease-out);
+    }
+    .ar-pp-thumb:hover,
+    .ar-pp-thumb.on {
+      opacity: 1;
+    }
+    .ar-pp-thumb.on {
+      border-color: var(--nx-orange-500);
+      box-shadow: 0 0 0 3px rgba(255, 106, 26, 0.3);
+    }
+    .ar-pp-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .ar-pp-count {
+      font-family: var(--nx-font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--nx-text-mute);
+    }
   `,
 })
 export class PersonPhotoComponent {
   private readonly service = inject(PersonPhotoService);
   private readonly doc = inject(DOCUMENT);
 
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
   protected readonly photo = this.service.photo;
+  protected readonly index = this.service.index;
+  protected readonly gallery = computed(() => this.photo()?.gallery ?? []);
 
   private readonly card = viewChild<ElementRef<HTMLElement>>('card');
   private readonly scrim = viewChild<ElementRef<HTMLElement>>('scrim');
@@ -187,11 +306,31 @@ export class PersonPhotoComponent {
       this.close();
       return;
     }
-    // O card tem um único controle focável, então prender o Tab nele já basta pra ser modal.
+    if (this.gallery().length > 1 && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+      event.preventDefault();
+      this.step(event.key === 'ArrowLeft' ? -1 : 1);
+      return;
+    }
+    // Modal: o Tab roda só entre os botões do visualizador (fechar, setas e miniaturas).
     if (event.key === 'Tab') {
       event.preventDefault();
-      this.closeBtn()?.nativeElement.focus();
+      const buttons = Array.from(this.host.nativeElement.querySelectorAll<HTMLButtonElement>('button'));
+      if (buttons.length === 0) return;
+      const at = buttons.indexOf(this.doc.activeElement as HTMLButtonElement);
+      const next = at < 0 ? 0 : (at + (event.shiftKey ? -1 : 1) + buttons.length) % buttons.length;
+      buttons[next]!.focus();
     }
+  }
+
+  /** Troca de foto na galeria: sem a animação de abertura (o card já está na tela). */
+  protected step(delta: number): void {
+    this.service.step(delta);
+    this.entered = this.photo();
+  }
+
+  protected show(entry: PersonPhotoEntry): void {
+    this.service.show(entry);
+    this.entered = this.photo();
   }
 
   protected close(): void {

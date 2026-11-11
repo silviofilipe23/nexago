@@ -84,6 +84,26 @@ Fora desta etapa (anotado para o PR): cobrança online (Asaas Pix automático/ca
 para os 9", sugestão baseada na ocupação do avulso (usamos a ocupação de fixos), multa de saída, convite com aceite
 para o rateio.
 
+## Plano de horário livre (11/11/2026)
+
+Pedido do dono: quem assina pode reservar a qualquer horário, desde que dentro do plano. O plano ganha
+`bookingMode: 'fixed' | 'flexible'` (ausente = `fixed`, os planos de antes seguem iguais).
+
+- **Livre** = cota da semana: até `timesPerWeek` reservas por semana (seg–dom), cada uma cobrindo até
+  `durationMinutes` dos horários que caem nas `windows` (e nas quadras do plano, quando a arena escolhe quadra).
+  `timesPerWeek` vai até 7 no livre (o fixo segue até 3) e pode repetir o dia.
+- Assinar não escolhe dia/horário nem quadra; não há série, prime cap nem fila. A assinatura grava em
+  `planSnapshot` o `bookingMode`, as `windows` e os `courtIds`; `slots: []`. 1ª proporcional pelos dias com janela.
+- A reserva é a normal (`quoteArenaBooking`/`createArenaBooking`): `arena-schedule-flex.ts` acha a assinatura
+  livre `active` do atleta (titular ou rateio) que vale na data e aplica um uso. A reserva coberta grava
+  `scheduleFlexSubscriptionId`, `scheduleFlexMinutes`, `scheduleFlexDiscountReais`, `schedulePlanName`,
+  `coveredByScheduleFlex` — **não** `scheduleSubscriptionId` (que liga reposição/troca de quadra da série fixa).
+  Usos = reservas vivas cobertas da semana; cancelar devolve. Trava `arenaScheduleFlexWeeks/{sub}_{segunda}`.
+  O plano vem antes do banco de horas do mensalista; se cobriu, o banco não é tocado.
+- Sem reposição, feriado nem troca de horário no livre (não há horário marcado). Pausa e cancelamento iguais.
+- Modo não muda com assinantes (`occupiedCount > 0`). Portal: plano novo nasce livre.
+- Índice: `arenaBookings (scheduleFlexSubscriptionId, date)`.
+
 ## Modelo (escrita 100% via Cloud Functions)
 
 `arenas/{arenaId}/schedulePlans/{planId}`

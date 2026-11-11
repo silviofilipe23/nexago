@@ -409,6 +409,11 @@ export function slotsLabel(slots: readonly Pick<SubscriptionSlot, 'weekday' | 's
   return sorted.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.startTime}`).join(' · ');
 }
 
+/** Horários da assinatura na lista: os do fixo, ou "Livre · 2x/sem" no plano livre. */
+export function subscriptionSlotsLabel(sub: Pick<ScheduleSubscription, 'flexible' | 'timesPerWeek' | 'slots'>): string {
+  return sub.flexible ? `Livre · ${sub.timesPerWeek}x/sem` : slotsLabel(sub.slots);
+}
+
 export function slotCourtsLabel(slots: readonly Pick<SubscriptionSlot, 'courtName'>[]): string {
   return [...new Set(slots.map((s) => s.courtName))].join(', ');
 }
@@ -423,7 +428,7 @@ export interface SubscriberCsvRow {
   sub: Pick<
     ScheduleSubscription,
     'holderName' | 'holderPhone' | 'members' | 'planName' | 'slots' | 'cycle' | 'monthlyPriceReais' | 'paymentMethod' | 'makeupBalance'
-  >;
+  > & Partial<Pick<ScheduleSubscription, 'flexible' | 'timesPerWeek'>>;
   state: Pick<SubscriberState, 'label'>;
   nextDue: string | null;
 }
@@ -442,7 +447,7 @@ export function subscribersCsv(rows: readonly SubscriberCsvRow[]): string {
       sub.holderPhone ?? '',
       Math.max(1, sub.members.length),
       sub.planName,
-      slotsLabel(sub.slots),
+      sub.flexible ? subscriptionSlotsLabel({flexible: true, timesPerWeek: sub.timesPerWeek ?? 1, slots: []}) : slotsLabel(sub.slots),
       slotCourtsLabel(sub.slots),
       CYCLE_LABEL[sub.cycle],
       sub.monthlyPriceReais.toFixed(2).replace('.', ','),

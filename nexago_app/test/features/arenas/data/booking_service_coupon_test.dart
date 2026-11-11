@@ -161,6 +161,30 @@ void main() {
     });
   });
 
+  group('BookingService — plano de horário livre', () {
+    test('quote coberta pelo plano: aceita total 0 e lê o plano', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'quoteArenaBooking': {
+          'amountReais': 0,
+          'lineItems': <dynamic>[],
+          'schedulePlanName': 'Manhã livre',
+          'schedulePlanTimesPerWeek': 2,
+          'schedulePlanUsesLeft': 2,
+          'scheduleFlexMinutes': 60,
+          'scheduleFlexDiscountReais': 80,
+          'schedulePlanBlockedReason': null,
+        },
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      final quote = await service.quoteBooking(args: args);
+
+      expect(quote.amountReais, 0);
+      expect(quote.coveredByPlanCoverage, isTrue);
+      expect(quote.planCoverageLineLabel, 'Manhã livre · 1h');
+    });
+  });
+
   group('BookingService — banco de horas do mensalista', () {
     test('quote coberta inteira: aceita total 0 e lê o banco', () async {
       final functions = _FakeFirebaseFunctions(responses: {

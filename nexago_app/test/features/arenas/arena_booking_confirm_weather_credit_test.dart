@@ -352,4 +352,63 @@ void main() {
       expect(find.text('coberta pelo seu plano'), findsNothing);
     });
   });
+
+  group('plano de horário livre', () {
+    testWidgets('coberta pelo plano: sem forma de pagamento, confirma no local',
+        (tester) async {
+      final r = await pumpConfirm(
+        tester,
+        quoteResponse: {
+          'amountReais': 0,
+          'lineItems': <dynamic>[],
+          'schedulePlanName': 'Manhã livre',
+          'schedulePlanTimesPerWeek': 2,
+          'schedulePlanUsesLeft': 2,
+          'scheduleFlexMinutes': 60,
+          'scheduleFlexDiscountReais': 70,
+        },
+        createResponse: {
+          'bookingId': 'b8',
+          'amountReais': 0,
+          'paymentMode': 'onsite',
+          'scheduleFlexMinutes': 60,
+          'scheduleFlexDiscountReais': 70,
+        },
+      );
+
+      expect(find.text('Manhã livre · 1h'), findsOneWidget);
+      expect(
+        find.text('Usa 1 dos 2 horários da semana: depois desta, resta 1.'),
+        findsOneWidget,
+      );
+      expect(find.text('coberta pelo seu plano'), findsOneWidget);
+      expect(find.text('FORMA DE PAGAMENTO'), findsNothing);
+
+      await tester.tap(confirmCta());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('tela de sucesso'), findsOneWidget);
+      final extra = r.successExtras.last as BookingSuccessArgs;
+      expect(extra.paymentLabel, 'Coberta pelo seu plano: nada a pagar.');
+    });
+
+    testWidgets('fora do plano: aviso e pagamento normal', (tester) async {
+      await pumpConfirm(
+        tester,
+        quoteResponse: {
+          'amountReais': 70,
+          'lineItems': <dynamic>[],
+          'schedulePlanName': 'Manhã livre',
+          'schedulePlanTimesPerWeek': 2,
+          'schedulePlanUsesLeft': 2,
+          'schedulePlanBlockedReason': 'outside_window',
+        },
+      );
+
+      expect(find.textContaining('fora do seu plano'), findsOneWidget);
+      expect(find.text('FORMA DE PAGAMENTO'), findsOneWidget);
+      expect(find.text('coberta pelo seu plano'), findsNothing);
+    });
+  });
 }

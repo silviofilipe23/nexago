@@ -437,7 +437,8 @@ class _ArenaBookingConfirmPageState
   ) {
     final amount = created.amountReais;
     final credit = created.weatherCreditAppliedReais;
-    final paymentLabel = created.isCoveredByMemberHours
+    final paymentLabel =
+        created.isCoveredByMemberHours || created.isCoveredBySchedulePlan
         ? 'Coberta pelo seu plano: nada a pagar.'
         : created.isCoveredByWeatherCredit
         ? 'Pago com crédito de chuva.'
@@ -617,24 +618,40 @@ class _ArenaBookingConfirmPageState
         !professorDiscount &&
         quote != null &&
         quote.hasAthletePricing;
-    // Banco de horas do mensalista: entra por cima do perfil/professor.
-    final memberHours = !_quoting && quote != null && quote.hasMemberHours;
+    // Banco de horas do mensalista ou plano de horário livre: entra por cima
+    // do perfil/professor (um dos dois por reserva).
+    final memberHours = !_quoting && quote != null && quote.hasPlanCoverage;
     // Coberta inteira pelo plano: nada a pagar, sem escolher forma de
     // pagamento (o servidor confirma no local).
-    final coveredByPlan = memberHours && quote.coveredByMemberHours;
-    final memberNote = !_quoting && quote != null && quote.isMember
+    final coveredByPlan = memberHours && quote.coveredByPlanCoverage;
+    // Plano livre aparece quando cobriu ou quando o banco não entrou.
+    final schedulePlanNote =
+        !_quoting &&
+            quote != null &&
+            quote.schedulePlanNotice != null &&
+            (quote.hasSchedulePlan || !quote.hasMemberHours)
         ? (
-            title: quote.memberHoursPlanName ?? 'Banco de horas',
-            message: quote.memberHoursNoticeIsWarning
-                ? quote.memberHoursNotice!
-                : [
-                    quote.memberHoursBalanceLabel!,
-                    if (quote.memberHoursNotice != null)
-                      quote.memberHoursNotice!,
-                  ].join('. '),
-            warning: quote.memberHoursNoticeIsWarning,
+            title: quote.schedulePlanName ?? 'Plano de horário',
+            message: quote.schedulePlanNotice!,
+            warning:
+                !quote.hasSchedulePlan && quote.schedulePlanNoticeIsWarning,
           )
         : null;
+    final memberNote =
+        schedulePlanNote ??
+        (!_quoting && quote != null && quote.isMember
+            ? (
+                title: quote.memberHoursPlanName ?? 'Banco de horas',
+                message: quote.memberHoursNoticeIsWarning
+                    ? quote.memberHoursNotice!
+                    : [
+                        quote.memberHoursBalanceLabel!,
+                        if (quote.memberHoursNotice != null)
+                          quote.memberHoursNotice!,
+                      ].join('. '),
+                warning: quote.memberHoursNoticeIsWarning,
+              )
+            : null);
     final durationCompact = formatCourtDurationLabel(args);
     final courtLineLabel = durationCompact.isEmpty
         ? 'Quadra'
@@ -777,10 +794,10 @@ class _ArenaBookingConfirmPageState
                                       ? quote.athletePricingValueLabel
                                       : null,
                                   memberHoursLineLabel: memberHours
-                                      ? quote.memberHoursLineLabel
+                                      ? quote.planCoverageLineLabel
                                       : null,
                                   memberHoursAmountLabel: memberHours
-                                      ? quote.memberHoursValueLabel
+                                      ? quote.planCoverageValueLabel
                                       : null,
                                   weatherCreditAmountLabel: creditApplied > 0
                                       ? '\u2212 ${formatBRL(creditApplied)}'

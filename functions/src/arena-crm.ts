@@ -110,8 +110,10 @@ function contractWeeklyHours(d: Data): number {
 
 /** Horários × duração do plano (snapshot da assinatura; 1h se não houver). */
 function subscriptionWeeklyHours(d: Data): number {
-  const slots = Array.isArray(d["slots"]) ? d["slots"].length : 1;
   const snapshot = (d["planSnapshot"] ?? {}) as Data;
+  // Plano livre não tem horários: vale a cota da semana.
+  const slots = snapshot["bookingMode"] === "flexible" ? num(snapshot["timesPerWeek"], 1) :
+    Array.isArray(d["slots"]) ? d["slots"].length : 1;
   const minutes = num(snapshot["durationMinutes"], 60) || 60;
   return Math.round(Math.max(1, slots) * minutes / 30) / 2;
 }

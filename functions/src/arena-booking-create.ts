@@ -57,11 +57,21 @@ import {
   applyMemberHours,
   loadMemberHoursContext,
   NO_MEMBER_HOURS,
+  NO_MEMBER_HOURS_QUOTE,
   quoteMemberHours,
   reserveMemberMinutesInTransaction,
   type MemberHoursOutcome,
   type MemberHoursQuote,
 } from "./arena-member-hours";
+import {
+  applyFlexPlan,
+  loadFlexPlanContext,
+  NO_FLEX_PLAN,
+  quoteFlexPlan,
+  reserveFlexUseInTransaction,
+  type FlexPlanOutcome,
+  type FlexPlanQuote,
+} from "./arena-schedule-flex";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -263,7 +273,8 @@ async function quoteInternal(
   input: BookingInput,
   athleteId: string,
 ): Promise<
-  BookingTotalResult & CouponPricingOutcome & ProfessorCourtDiscountOutcome & AthletePricingOutcome & MemberHoursQuote
+  BookingTotalResult & CouponPricingOutcome & ProfessorCourtDiscountOutcome & AthletePricingOutcome & MemberHoursQuote &
+  FlexPlanQuote
 > {
   const arenaId = input.arenaId?.trim();
   const dateKey = parseDateKey(input.date ?? "");
@@ -319,6 +330,13 @@ async function quoteInternal(
   const athleteRule = await loadAthletePricingRule(getFirestore(), arenaId, ctx.arenaData, athleteId);
   const {result, coupon, professor, athletePricing} = applyAthleteDiscounts(withCoupon, athleteRule, discount);
   assertPositiveBookingTotal(result);
+  // Plano de horário livre: um uso da semana cobre o horário dentro da janela (R$ 0). Vem antes do
+  // banco de horas (já está pago); se cobriu, o banco não é tocado. Professor nunca usa.
+  const flexCtx = input.asProfessor === true ? null : await loadFlexPlanContext(getFirestore(), {arenaId, athleteId, dateKey});
+  const flex = await quoteFlexPlan(getFirestore(), flexCtx, {result, coupon}, resolved.floating ? null : courtId);
+  if (flex.subscription) {
+    return {...flex.result, ...flex.coupon, ...professor, ...athletePricing, ...NO_MEMBER_HOURS_QUOTE, ...flex.quote};
+  }
   // Mensalista (arena com banco de horas ligado): as horas da semana saem a R$ 0. Reserva como
   // professor nunca usa o banco.
   const memberCtx = input.asProfessor === true ? null : await loadMemberHoursContext(getFirestore(), {
@@ -329,7 +347,7 @@ async function quoteInternal(
     today: dayKeyFromEventDate(new Date()),
   });
   const member = await quoteMemberHours(getFirestore(), memberCtx, {result, coupon});
-  return {...member.result, ...member.coupon, ...professor, ...athletePricing, ...member.quote};
+  return {...member.result, ...member.coupon, ...professor, ...athletePricing, ...member.quote, ...flex.quote};
 }
 
 export interface BookingPaymentPlan {
@@ -453,6 +471,12 @@ export const quoteArenaBooking = onCall({
     memberHoursDiscountReais: total.memberHoursDiscountReais,
     memberHoursPlanName: total.memberHoursPlanName,
     memberHoursBlockedReason: total.memberHoursBlockedReason,
+    schedulePlanName: total.schedulePlanName,
+    schedulePlanTimesPerWeek: total.schedulePlanTimesPerWeek,
+    schedulePlanUsesLeft: total.schedulePlanUsesLeft,
+    scheduleFlexMinutes: total.scheduleFlexMinutes,
+    scheduleFlexDiscountReais: total.scheduleFlexDiscountReais,
+    schedulePlanBlockedReason: total.schedulePlanBlockedReason,
   };
 });
 
@@ -522,7 +546,9 @@ export const createArenaBooking = onCall({
     dateKey,
     today: dayKeyFromEventDate(new Date()),
   });
-  const memberMayCover = memberCtx != null && !memberCtx.blocked;
+  // Plano de horário livre: o uso da semana é fechado na transação (contagem fresca).
+  const flexCtx = professorBooking ? null : await loadFlexPlanContext(getFirestore(), {arenaId, athleteId, dateKey});
+  const memberMayCover = (memberCtx != null && !memberCtx.blocked) || flexCtx != null;
   const paymentFlags = readArenaPaymentFlags(ctx.arenaData);
   const paymentMode: PaymentMode =
     input.paymentMode === "pix" ? "pix" : "onsite";
@@ -603,6 +629,11 @@ export const createArenaBooking = onCall({
   let total = baseTotal;
   let couponOutcome = baseCoupon;
   let member: MemberHoursOutcome = NO_MEMBER_HOURS;
+  let flexOutcome: FlexPlanOutcome = NO_FLEX_PLAN;
+  // Assinatura livre que cobre (escolhida com a contagem de agora; reconferida na transação).
+  const flexPick = flexCtx ?
+    (await quoteFlexPlan(db, flexCtx, {result: baseTotal, coupon: baseCoupon}, resolved.floating ? null : courtId)).subscription :
+    null;
 
   await ensurePeakRuleSatisfied({
     db,
@@ -618,7 +649,8 @@ export const createArenaBooking = onCall({
   if (
     input.clientAmountReais != null &&
     Math.abs(input.clientAmountReais - total.amountReais) > 0.02 &&
-    !memberCtx
+    !memberCtx &&
+    !flexCtx
   ) {
     logger.warn("createArenaBooking: client amount mismatch", {
       client: input.clientAmountReais,
@@ -698,8 +730,24 @@ export const createArenaBooking = onCall({
       total = baseTotal;
       couponOutcome = baseCoupon;
       member = NO_MEMBER_HOURS;
+      flexOutcome = NO_FLEX_PLAN;
       let commitMemberHours: (() => void) | null = null;
-      if (memberCtx && memberMayCover) {
+      let commitFlexUse: (() => void) | null = null;
+      if (flexCtx && flexPick) {
+        const reserved = await reserveFlexUseInTransaction(transaction, db, flexCtx, flexPick, bookingId);
+        const applied = applyFlexPlan(
+          {result: baseTotal, coupon: baseCoupon},
+          flexPick,
+          {weekday: flexCtx.weekday, courtId: resolved.floating ? null : courtId, usesLeft: reserved.usesLeft},
+        );
+        if (applied.flex.scheduleFlexMinutes > 0) {
+          total = applied.result;
+          couponOutcome = applied.coupon;
+          flexOutcome = applied.flex;
+          commitFlexUse = reserved.commit;
+        }
+      }
+      if (memberCtx && !memberCtx.blocked && flexOutcome.scheduleFlexMinutes === 0) {
         const reserved = await reserveMemberMinutesInTransaction(transaction, db, memberCtx, bookingId);
         const applied = applyMemberHours(
           {result: baseTotal, coupon: baseCoupon},
@@ -812,6 +860,8 @@ export const createArenaBooking = onCall({
         ...(athletePricing.athletePricingTier ? athletePricing : {}),
         // Banco de horas do mensalista: quanto saiu do banco (é o que conta o saldo da semana).
         ...(member.memberHoursMinutes > 0 ? {...member, coveredByMemberHours: amountReais <= 0} : {}),
+        // Plano de horário livre: quanto o plano cobriu (é o que conta os usos da semana).
+        ...(flexOutcome.scheduleFlexMinutes > 0 ? {...flexOutcome, coveredByScheduleFlex: amountReais <= 0} : {}),
         pricingLineItems: total.lineItems.map((l) => ({
           startTime: l.startTime,
           endTime: l.endTime,
@@ -825,6 +875,7 @@ export const createArenaBooking = onCall({
       commitCouponRedemption?.();
       commitWeatherCredit?.();
       commitMemberHours?.();
+      commitFlexUse?.();
       if (claim?.ok) claim.commit(transaction);
 
       // Cópia do total fora do alcance dos clientes: é dela que o PIX, a
@@ -907,6 +958,9 @@ export const createArenaBooking = onCall({
     ...athletePricing,
     memberHoursMinutes: member.memberHoursMinutes,
     memberHoursDiscountReais: member.memberHoursDiscountReais,
+    scheduleFlexMinutes: flexOutcome.scheduleFlexMinutes,
+    scheduleFlexDiscountReais: flexOutcome.scheduleFlexDiscountReais,
+    schedulePlanName: flexOutcome.schedulePlanName,
     bookedAs: professorStamp?.bookedAs ?? "athlete",
     /** `unassigned`: a quadra é definida pela recepção (não mostrar a provisória ao atleta). */
     allocationStatus: resolved.floating ? "unassigned" : "assigned",

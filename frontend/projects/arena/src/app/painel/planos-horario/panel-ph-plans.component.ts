@@ -322,7 +322,11 @@ export class PanelPhPlansComponent {
       return {
         plan,
         window: windowsLabel(plan.windows),
-        chips: [`${plan.timesPerWeek}x por semana`, durationLabel(plan.durationMinutes), ...this.courtsChips(plan)],
+        chips: [
+          ...(plan.bookingMode === 'flexible' ? ['Horário livre', `até ${plan.timesPerWeek}x por semana`] : [`${plan.timesPerWeek}x por semana`]),
+          durationLabel(plan.durationMinutes),
+          ...this.courtsChips(plan),
+        ],
         subscribers: mine.length,
         revenue: mine.reduce((s, sub) => s + sub.monthlyPriceReais, 0),
         discount: planEconomy(plan)?.discountPercent ?? null,

@@ -317,6 +317,32 @@ export function effectiveStartDate(startDate: string, startTime: string, todayKe
   return occurrenceStartMs(todayKey, startTime) <= nowMs ? addDaysToDateKey(todayKey, 1) : todayKey;
 }
 
+/** Assinatura de plano livre (sem séries: reserva pelo fluxo normal, dentro das janelas). */
+export function isFlexibleSubscription(sub: Data): boolean {
+  const snapshot = sub["planSnapshot"];
+  return !!snapshot && typeof snapshot === "object" && (snapshot as Data)["bookingMode"] === "flexible";
+}
+
+/** Dias da semana com janela no plano (a base da 1ª proporcional do plano livre). */
+export function planWindowWeekdays(plan: Pick<ParsedSchedulePlan, "windows">): number[] {
+  return [...new Set(plan.windows.map((w) => w.weekday))].sort((a, b) => a - b);
+}
+
+/** Dias que contam no proporcional: os do horário fixo, ou os das janelas do plano livre. */
+export function billingWeekdaysOf(sub: Data): number[] {
+  if (isFlexibleSubscription(sub)) {
+    const windows = (sub["planSnapshot"] as Data)["windows"];
+    const days = Array.isArray(windows) ? (windows as Data[]).map((w) => Number(w["weekday"])) : [];
+    const valid = [...new Set(days.filter((d) => Number.isInteger(d) && d >= 1 && d <= 7))].sort((a, b) => a - b);
+    return valid.length > 0 ? valid : [1, 2, 3, 4, 5, 6, 7];
+  }
+  return Array.isArray(sub["slots"]) ? (sub["slots"] as Data[]).map((s) => Number(s["weekday"])) : [];
+}
+
+const FLEXIBLE_WHEN = "horário livre";
+/** O plano livre não tem quadra fixa: cada reserva escolhe a sua. */
+const FLEXIBLE_COURT = {courtId: "", courtName: ""};
+
 function seriesDoc(input: {
   arenaId: string; arenaName: string; courtId: string; courtName: string; weekday: number;
   startTime: string; endTime: string; holderAthleteId: string | null; holderName: string;
@@ -453,7 +479,11 @@ export async function createSubscriptionCore(
   const plan = parseSchedulePlan(planSnap.data() as Data);
   if (plan.status !== "active") throw new HttpsError("failed-precondition", "Este plano não está disponível.");
 
-  const {weekdays, startTime, endTime} = validateChosenSlots(plan, req.weekdays, req.startTime);
+  // Livre: não há dia/horário escolhido; a 1ª proporcional conta os dias de janela que sobram no mês.
+  const flexible = plan.bookingMode === "flexible";
+  const {weekdays, startTime, endTime} = flexible ?
+    {weekdays: planWindowWeekdays(plan), startTime: "00:00", endTime: "00:00"} :
+    validateChosenSlots(plan, req.weekdays, req.startTime);
   const cycle = str(req.cycle) as ScheduleCycle;
   if (!(CYCLES as readonly string[]).includes(cycle) || !isCycleEnabled(plan, cycle)) {
     throw new HttpsError("invalid-argument", "Ciclo indisponível neste plano.");
@@ -467,7 +497,7 @@ export async function createSubscriptionCore(
     throw new HttpsError("invalid-argument", "Data de início inválida.");
   }
   if (!req.holder.name) throw new HttpsError("invalid-argument", "Informe o titular.");
-  const startDate = effectiveStartDate(req.startDate, startTime, todayKey, nowMs);
+  const startDate = flexible ? req.startDate : effectiveStartDate(req.startDate, startTime, todayKey, nowMs);
 
   const membersBase = await resolveMembers(db, plan, req.holder, req.memberAthleteIds);
   const settings = await loadScheduleSettings(db, req.arenaId);
@@ -490,7 +520,7 @@ export async function createSubscriptionCore(
   const paymentDeadlineMs = pending ? nowMs + SIGNUP_PAYMENT_WINDOW_MS : null;
 
   const subRef = db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).doc();
-  const seriesRefs = weekdays.map(() => db.collection(ARENA_RECURRING_BOOKINGS).doc());
+  const seriesRefs = flexible ? [] : weekdays.map(() => db.collection(ARENA_RECURRING_BOOKINGS).doc());
 
   const court = await db.runTransaction(async (tx: Transaction) => {
     const freshPlan = await tx.get(pRef);
@@ -502,6 +532,9 @@ export async function createSubscriptionCore(
     const occ = await readArenaOccupancy(db, req.arenaId, (q) => tx.get(q));
 
     if (fresh.status !== "active") throw new HttpsError("failed-precondition", "Este plano não está disponível.");
+    if (fresh.bookingMode !== plan.bookingMode) {
+      throw new HttpsError("aborted", "O plano acabou de mudar. Tente de novo.");
+    }
     // Entrada da fila: o atleta aceita a oferta dele (viva); o gestor converte qualquer entrada aberta.
     let offerHoldsSeat = false;
     if (entrySnap) {
@@ -530,7 +563,7 @@ export async function createSubscriptionCore(
     if (!offerHoldsSeat && fresh.occupiedCount + liveOffersForPlan(occ, req.planId, nowMs, entryId) >= fresh.capacity) {
       throw new HttpsError("resource-exhausted", "Este plano está lotado. Entre na lista de espera.");
     }
-    const picked = pickCourt({
+    const picked = flexible ? FLEXIBLE_COURT : pickCourt({
       ...planCourtsOf(arena, fresh, occ.courts), weekdays, startMin, endMin,
       busy: busyBlocksOf(occ, {fromDate: startDate, nowMs, excludeEntryId: entryId}),
       preferredCourtId: req.preferredCourtId,
@@ -544,7 +577,7 @@ export async function createSubscriptionCore(
       );
     }
     const slots = weekdays.map((weekday) => ({weekday, startTime, endTime}));
-    if (!fitsPrimeCap({
+    if (!flexible && !fitsPrimeCap({
       usedMinutes: planSeriesPrimeMinutes(occ, settings.primeWindows),
       addedMinutes: primeMinutesOfSlots(settings.primeWindows, slots),
       capacityMinutes: primeCapacityMinutes(settings.primeWindows, occ.activeCourts),
@@ -553,10 +586,10 @@ export async function createSubscriptionCore(
       throw new HttpsError("resource-exhausted", "O horário nobre já está no limite de planos.");
     }
 
-    const subSlots: SubscriptionSlot[] = weekdays.map((weekday, i) => ({
+    const subSlots: SubscriptionSlot[] = flexible ? [] : weekdays.map((weekday, i) => ({
       weekday, startTime, endTime, courtId: picked.courtId, courtName: picked.courtName, seriesId: seriesRefs[i]!.id,
     }));
-    weekdays.forEach((weekday, i) => {
+    if (!flexible) weekdays.forEach((weekday, i) => {
       tx.set(seriesRefs[i]!, seriesDoc({
         arenaId: req.arenaId, arenaName, courtId: picked.courtId, courtName: picked.courtName, weekday, startTime, endTime,
         holderAthleteId: req.holder.athleteId, holderName: req.holder.name, startDate, endDate: null, todayKey,
@@ -569,8 +602,11 @@ export async function createSubscriptionCore(
       planId: req.planId,
       planName: fresh.name,
       planSnapshot: {
+        bookingMode: fresh.bookingMode,
         timesPerWeek: fresh.timesPerWeek,
         durationMinutes: fresh.durationMinutes,
+        // Livre: a reserva confere a janela e as quadras do que foi assinado.
+        ...(flexible ? {windows: fresh.windows, courtIds: planCourtsOf(arena, fresh, occ.courts).courtIds} : {}),
         rules: fresh.rules,
         overdueReleaseDays: fresh.billing.overdueReleaseDays,
         dueDay,
@@ -628,11 +664,11 @@ export async function createSubscriptionCore(
 
   const skippedDates = await materializeSubscriptionSeries(db, seriesRefs.map((r) => r.id), todayKey, true, nowMs);
 
-  const when = `${weekdays.map((d) => WEEKDAY_LABELS_PT[d]).join(", ")} · ${startTime}`;
+  const when = flexible ? FLEXIBLE_WHEN : `${weekdays.map((d) => WEEKDAY_LABELS_PT[d]).join(", ")} · ${startTime}`;
   if (req.audience === "manager") {
     await notifyScheduleSafe(req.holder.athleteId, {
       title: "Plano de horário confirmado 🎾",
-      body: `${plan.name} em ${arenaName}: ${when} · ${court.courtName}.`,
+      body: `${plan.name} em ${arenaName}: ${when}${court.courtName ? ` · ${court.courtName}` : ""}.`,
       type: "schedule_plan_subscribed",
       data: {subscriptionId: subRef.id, arenaId: req.arenaId},
     });
@@ -681,8 +717,9 @@ async function notifyMembersAdded(
   }
 }
 
-/** "Seg, Qua · 19:00" das vagas da assinatura. */
+/** "Seg, Qua · 19:00" das vagas da assinatura (ou "horário livre"). */
 function whenOfSlots(sub: Data): string {
+  if (isFlexibleSubscription(sub)) return FLEXIBLE_WHEN;
   const slots = Array.isArray(sub["slots"]) ? (sub["slots"] as Data[]) : [];
   if (slots.length === 0) return "";
   const days = slots.map((x) => WEEKDAY_LABELS_PT[Number(x["weekday"])] ?? "").filter(Boolean).join(", ");
@@ -812,6 +849,9 @@ export async function changeSubscriptionSlotsCore(
   if (!planSnap.exists) throw new HttpsError("not-found", "Plano não encontrado.");
   const plan = parseSchedulePlan(planSnap.data() as Data);
   const snapshot = (data["planSnapshot"] ?? {}) as Data;
+  if (isFlexibleSubscription(data)) {
+    throw new HttpsError("failed-precondition", "No plano de horário livre você reserva quando quiser: não há horário para trocar.");
+  }
   const timesPerWeek = Number(snapshot["timesPerWeek"] ?? plan.timesPerWeek);
   const durationMinutes = Number(snapshot["durationMinutes"] ?? plan.durationMinutes);
   const {weekdays, startTime, endTime} = validateChosenSlots(
@@ -1003,7 +1043,7 @@ export async function resumeSubscriptionCore(
     const owner = subChargeOwner(subscriptionId, sub);
     const billedThrough = typeof sub["billedThrough"] === "string" ? sub["billedThrough"] : null;
     const resumesBilling = billedThrough == null || billedThrough < month;
-    const weekdays = Array.isArray(sub["slots"]) ? (sub["slots"] as Data[]).map((s) => Number(s["weekday"])) : [];
+    const weekdays = billingWeekdaysOf(sub);
     const planned = resumesBilling ?
       buildPayerCharges(owner, month, "resume",
         monthKeyOf(fromKey) === month ? proratedAmount(Number(sub["monthlyPriceReais"] ?? 0), weekdays, fromKey).amountReais : 0,

@@ -214,10 +214,12 @@ class BookingService {
     final map = Map<String, dynamic>.from(data);
     final amount = (map['amountReais'] as num?)?.toDouble();
     final memberHoursMinutes = _nonNegativeInt(map['memberHoursMinutes']);
-    // Total 0 só vale quando o banco de horas do mensalista cobriu a reserva.
+    final scheduleFlexMinutes = _nonNegativeInt(map['scheduleFlexMinutes']);
+    // Total 0 só vale quando o banco de horas do mensalista ou o plano de
+    // horário cobriu a reserva.
     if (amount == null ||
         amount < 0 ||
-        (amount == 0 && memberHoursMinutes <= 0)) {
+        (amount == 0 && memberHoursMinutes <= 0 && scheduleFlexMinutes <= 0)) {
       throw BookingException(
         'Configure o preço da quadra antes de reservar.',
       );
@@ -274,6 +276,14 @@ class BookingService {
       memberHoursDiscountReais: _nonNegative(map['memberHoursDiscountReais']),
       memberHoursPlanName: _trimmedOrNull(map['memberHoursPlanName']),
       memberHoursBlockedReason: _trimmedOrNull(map['memberHoursBlockedReason']),
+      schedulePlanName: _trimmedOrNull(map['schedulePlanName']),
+      schedulePlanTimesPerWeek:
+          _nonNegativeInt(map['schedulePlanTimesPerWeek']),
+      schedulePlanUsesLeft: _nonNegativeInt(map['schedulePlanUsesLeft']),
+      scheduleFlexMinutes: scheduleFlexMinutes,
+      scheduleFlexDiscountReais: _nonNegative(map['scheduleFlexDiscountReais']),
+      schedulePlanBlockedReason:
+          _trimmedOrNull(map['schedulePlanBlockedReason']),
     );
   }
 
@@ -387,6 +397,7 @@ class BookingService {
         memberHoursMinutes: _nonNegativeInt(data['memberHoursMinutes']),
         memberHoursDiscountReais:
             _nonNegative(data['memberHoursDiscountReais']),
+        scheduleFlexMinutes: _nonNegativeInt(data['scheduleFlexMinutes']),
       );
     } on FirebaseFunctionsException catch (e) {
       throw BookingException(_mapFunctionsMessage(e), code: _functionsCode(e));
@@ -942,6 +953,7 @@ class CreateBookingResult {
     this.weatherCreditAppliedReais = 0,
     this.memberHoursMinutes = 0,
     this.memberHoursDiscountReais = 0,
+    this.scheduleFlexMinutes = 0,
   });
 
   /// `paymentMode` da resposta quando o crédito de chuva cobriu tudo.
@@ -971,9 +983,16 @@ class CreateBookingResult {
   /// Quanto o banco de horas tirou do preço (0 sem banco).
   final double memberHoursDiscountReais;
 
+  /// Minutos cobertos pelo plano de horário livre (0 sem plano).
+  final int scheduleFlexMinutes;
+
   /// O banco de horas cobriu tudo: confirmada no local, nada a pagar.
   bool get isCoveredByMemberHours =>
       memberHoursMinutes > 0 && amountReais <= 0;
+
+  /// O plano de horário livre cobriu tudo: confirmada, nada a pagar.
+  bool get isCoveredBySchedulePlan =>
+      scheduleFlexMinutes > 0 && amountReais <= 0;
 
   bool get isPix => paymentMode == 'pix';
 

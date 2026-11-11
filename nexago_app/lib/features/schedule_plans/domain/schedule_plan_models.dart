@@ -128,6 +128,13 @@ DateTime? spDate(Object? raw) {
 
 /// Janela de início do plano: o atleta escolhe o início dentro dela e o fim
 /// (início + duração) não passa de [endTime].
+/// Como o assinante usa o plano. Ausente no doc = fixo (planos de antes).
+enum ScheduleBookingMode { fixed, flexible }
+
+ScheduleBookingMode scheduleBookingModeFromKey(String? key) => key == 'flexible'
+    ? ScheduleBookingMode.flexible
+    : ScheduleBookingMode.fixed;
+
 class SchedulePlanWindow {
   const SchedulePlanWindow({
     required this.weekday,
@@ -259,6 +266,7 @@ class SchedulePlan {
     required this.name,
     this.description,
     this.status = 'active',
+    this.bookingMode = ScheduleBookingMode.fixed,
     this.timesPerWeek = 1,
     this.durationMinutes = 60,
     this.windows = const [],
@@ -282,6 +290,10 @@ class SchedulePlan {
   final String name;
   final String? description;
   final String status;
+
+  /// Fixo (dias e horário escolhidos ao assinar) ou livre (reserva quando
+  /// quiser dentro das janelas, até [timesPerWeek] por semana).
+  final ScheduleBookingMode bookingMode;
   final int timesPerWeek;
   final int durationMinutes;
   final List<SchedulePlanWindow> windows;
@@ -298,6 +310,8 @@ class SchedulePlan {
   final SchedulePlanRules rules;
 
   bool get isActive => status == 'active';
+
+  bool get isFlexible => bookingMode == ScheduleBookingMode.flexible;
 
   /// Ciclos ligados, na ordem mensal → trimestral → anual. Sem nenhum ligado
   /// (doc antigo), o mensal.
@@ -352,6 +366,7 @@ class SchedulePlan {
       name: spStr(m['name'], 'Plano'),
       description: spStrOrNull(m['description']),
       status: spStr(m['status'], 'active'),
+      bookingMode: scheduleBookingModeFromKey(spStrOrNull(m['bookingMode'])),
       timesPerWeek: spInt(m['timesPerWeek'], 1).clamp(1, 7),
       durationMinutes: spInt(m['durationMinutes'], 60),
       windows: [
@@ -812,6 +827,9 @@ class ScheduleSubscription {
     this.planName = '',
     this.timesPerWeek = 1,
     this.durationMinutes = 60,
+    this.bookingMode = ScheduleBookingMode.fixed,
+    this.windows = const [],
+    this.weekUsage,
     this.rules = const SchedulePlanRules(),
     this.holderAthleteId,
     this.holderName = '',
@@ -849,6 +867,14 @@ class ScheduleSubscription {
   final String planName;
   final int timesPerWeek;
   final int durationMinutes;
+
+  /// Livre: o atleta reserva pelo fluxo normal dentro de [windows]; as
+  /// [occurrences] são as reservas que o plano cobriu.
+  final ScheduleBookingMode bookingMode;
+  final List<SchedulePlanWindow> windows;
+
+  /// Usos da semana corrente (só no livre).
+  final ScheduleWeekUsage? weekUsage;
   final SchedulePlanRules rules;
   final String? holderAthleteId;
   final String holderName;
@@ -881,6 +907,8 @@ class ScheduleSubscription {
 
   ScheduleAutopayConsent? autopayFor(String uid) => autopay[uid];
 
+  bool get isFlexible => bookingMode == ScheduleBookingMode.flexible;
+
   factory ScheduleSubscription.fromMap(Map<String, dynamic> m, {String? id}) {
     final snapshot = spMap(m['planSnapshot']);
     final pauseUsed = spMap(m['pauseDaysUsed']);
@@ -904,6 +932,15 @@ class ScheduleSubscription {
       timesPerWeek:
           spInt(snapshot['timesPerWeek'], slots.isEmpty ? 1 : slots.length),
       durationMinutes: spInt(snapshot['durationMinutes'], 60),
+      bookingMode:
+          scheduleBookingModeFromKey(spStrOrNull(snapshot['bookingMode'])),
+      windows: [
+        for (final w in spMapList(snapshot['windows']))
+          SchedulePlanWindow.fromMap(w),
+      ]..removeWhere((w) => w.weekday < 1 || w.weekday > 7),
+      weekUsage: m['weekUsage'] is Map
+          ? ScheduleWeekUsage.fromMap(spMap(m['weekUsage']))
+          : null,
       rules: SchedulePlanRules.fromMap(spMap(snapshot['rules'])),
       holderAthleteId: spStrOrNull(m['holderAthleteId']),
       holderName: spStr(m['holderName']),
@@ -943,6 +980,31 @@ class ScheduleSubscription {
       },
     );
   }
+}
+
+/// Usos do plano livre na semana corrente (seg a dom).
+class ScheduleWeekUsage {
+  const ScheduleWeekUsage({
+    required this.used,
+    required this.timesPerWeek,
+    this.weekStart,
+    this.weekEnd,
+  });
+
+  final int used;
+  final int timesPerWeek;
+  final DateTime? weekStart;
+  final DateTime? weekEnd;
+
+  int get left => (timesPerWeek - used).clamp(0, timesPerWeek);
+
+  factory ScheduleWeekUsage.fromMap(Map<String, dynamic> m) =>
+      ScheduleWeekUsage(
+        used: spInt(m['used']),
+        timesPerWeek: spInt(m['timesPerWeek']),
+        weekStart: spDate(m['weekStart']),
+        weekEnd: spDate(m['weekEnd']),
+      );
 }
 
 /// Entrada da lista de espera com vaga oferecida ao atleta.

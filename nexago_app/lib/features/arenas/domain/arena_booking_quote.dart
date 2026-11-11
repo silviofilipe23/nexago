@@ -38,6 +38,12 @@ class ArenaBookingQuote {
     this.memberHoursDiscountReais = 0,
     this.memberHoursPlanName,
     this.memberHoursBlockedReason,
+    this.schedulePlanName,
+    this.schedulePlanTimesPerWeek = 0,
+    this.schedulePlanUsesLeft = 0,
+    this.scheduleFlexMinutes = 0,
+    this.scheduleFlexDiscountReais = 0,
+    this.schedulePlanBlockedReason,
   });
 
   final double amountReais;
@@ -100,6 +106,84 @@ class ArenaBookingQuote {
   /// Por que o banco não entrou: `overdue`, `exhausted` ou `coupon_cheaper`.
   final String? memberHoursBlockedReason;
 
+  /// Plano de horário livre do atleta nesta arena (`null` sem plano livre).
+  /// Servidor antigo não devolve os campos `schedule*`.
+  final String? schedulePlanName;
+
+  /// Vezes por semana do plano (0 = sem plano livre).
+  final int schedulePlanTimesPerWeek;
+
+  /// Usos que sobravam na semana ANTES desta reserva.
+  final int schedulePlanUsesLeft;
+
+  /// Minutos desta reserva cobertos pelo plano (0 = o plano não cobriu).
+  final int scheduleFlexMinutes;
+
+  /// Quanto o plano tirou do preço ([amountReais] já vem com ele aplicado).
+  final double scheduleFlexDiscountReais;
+
+  /// Por que o plano não cobriu: `exhausted`, `outside_window` ou
+  /// `coupon_cheaper`.
+  final String? schedulePlanBlockedReason;
+
+  static const String schedulePlanOutsideWindow = 'outside_window';
+
+  /// Atleta com plano de horário livre nesta arena.
+  bool get isSchedulePlanMember => schedulePlanTimesPerWeek > 0;
+
+  /// O plano de horário cobriu ao menos parte desta reserva (um uso).
+  bool get hasSchedulePlan => scheduleFlexMinutes > 0;
+
+  /// Banco de horas ou plano de horário cobriu ao menos parte da reserva.
+  bool get hasPlanCoverage => hasMemberHours || hasSchedulePlan;
+
+  /// Coberta inteira pelo banco de horas ou pelo plano: nada a pagar.
+  bool get coveredByPlanCoverage => hasPlanCoverage && amountReais <= 0;
+
+  /// O que o plano/banco tirou do preço (só um dos dois entra por reserva).
+  double get planCoverageDiscountReais =>
+      memberHoursDiscountReais + scheduleFlexDiscountReais;
+
+  /// "Plano Manhã · 1h" ou "Banco de horas · 1h" — `null` sem cobertura.
+  String? get planCoverageLineLabel => hasSchedulePlan
+      ? '${schedulePlanName ?? 'Plano de horário'} · '
+          '${formatMemberHours(scheduleFlexMinutes)}'
+      : memberHoursLineLabel;
+
+  /// "−R$ 80,00" — `null` sem cobertura.
+  String? get planCoverageValueLabel => hasSchedulePlan
+      ? '\u2212${formatBRL(scheduleFlexDiscountReais)}'
+      : memberHoursValueLabel;
+
+  /// O plano não cobriu por um motivo que muda o preço: o aviso tem destaque.
+  bool get schedulePlanNoticeIsWarning =>
+      schedulePlanBlockedReason == memberHoursExhausted ||
+      schedulePlanBlockedReason == schedulePlanOutsideWindow;
+
+  /// Texto do plano de horário livre na confirmação — `null` sem plano.
+  String? get schedulePlanNotice {
+    if (!isSchedulePlanMember) return null;
+    if (hasSchedulePlan) {
+      final after = schedulePlanUsesLeft - 1;
+      return after <= 0
+          ? 'Usa o último horário do plano nesta semana.'
+          : 'Usa 1 dos $schedulePlanTimesPerWeek horários da semana: '
+              'depois desta, ${after == 1 ? 'resta 1' : 'restam $after'}.';
+    }
+    switch (schedulePlanBlockedReason) {
+      case memberHoursExhausted:
+        return 'Seus horários do plano nesta semana acabaram: esta reserva '
+            'sai pelo preço normal.';
+      case schedulePlanOutsideWindow:
+        return 'Este horário fica fora do seu plano: sai pelo preço normal. '
+            'Escolha um horário dentro do plano para usar a vaga da semana.';
+      case memberHoursCouponCheaper:
+        return 'O cupom deixou esta reserva mais barata: seu horário do plano '
+            'fica guardado.';
+    }
+    return null;
+  }
+
   static const String memberHoursOverdue = 'overdue';
   static const String memberHoursExhausted = 'exhausted';
   static const String memberHoursCouponCheaper = 'coupon_cheaper';
@@ -115,7 +199,7 @@ class ArenaBookingQuote {
 
   /// Preço antes do banco de horas (total + desconto do banco).
   double get amountBeforeMemberHoursReais =>
-      ((amountReais + memberHoursDiscountReais) * 100).roundToDouble() / 100;
+      ((amountReais + planCoverageDiscountReais) * 100).roundToDouble() / 100;
 
   /// "Banco de horas · 1h" — `null` sem horas do banco nesta reserva.
   String? get memberHoursLineLabel => hasMemberHours
@@ -190,7 +274,7 @@ class ArenaBookingQuote {
   /// Preço cheio antes do preço do perfil (total + desconto + banco de horas,
   /// que o servidor aplica por cima do preço do perfil).
   double get amountBeforeAthletePricingReais =>
-      ((amountReais + athletePricingDiscountReais + memberHoursDiscountReais) *
+      ((amountReais + athletePricingDiscountReais + planCoverageDiscountReais) *
               100)
           .roundToDouble() /
       100;
@@ -210,7 +294,7 @@ class ArenaBookingQuote {
   /// Preço cheio antes do desconto do professor (total + desconto + banco de
   /// horas, aplicado por cima).
   double get amountBeforeProfessorDiscountReais =>
-      ((amountReais + professorDiscountReais + memberHoursDiscountReais) * 100)
+      ((amountReais + professorDiscountReais + planCoverageDiscountReais) * 100)
           .roundToDouble() /
       100;
 

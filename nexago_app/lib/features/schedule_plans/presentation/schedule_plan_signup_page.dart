@@ -341,8 +341,8 @@ class _SchedulePlanSignupPageState
           final result = created = await repo.subscribe(
             arenaId: widget.arenaId,
             planId: widget.planId,
-            weekdays: [..._days]..sort(),
-            startTime: _time!,
+            weekdays: plan.isFlexible ? const [] : ([..._days]..sort()),
+            startTime: plan.isFlexible ? '' : _time!,
             cycle: cycle,
             paymentMethod: method,
             memberAthleteIds: memberIds,
@@ -355,7 +355,9 @@ class _SchedulePlanSignupPageState
               ? 'Plano assinado$court! '
                   '${result.firstChargeMonths > 1 ? 'Anual' : '1ª mensalidade'}: '
                   '${formatBRL(first)}.'
-              : 'Plano assinado$court! Seu horário é seu toda semana.';
+              : plan.isFlexible
+                  ? 'Plano assinado! Agora é só reservar dentro do seu plano.'
+                  : 'Plano assinado$court! Seu horário é seu toda semana.';
         case _Mode.offer:
           created = await repo.acceptOffer(
             entryId: widget.offerEntryId!,
@@ -523,9 +525,11 @@ class _SchedulePlanSignupPageState
             if (pending != null) _pendingBanner(pending),
             if (_mode == _Mode.offer)
               ..._offerSection(a, offer)
+            else if (a.plan.isFlexible)
+              ..._flexSection(a)
             else
               ..._slotSection(a),
-            if (a.arenaDefinesCourt) ...[
+            if (a.arenaDefinesCourt && !a.plan.isFlexible) ...[
               const SizedBox(height: 12),
               _definesCourtNote(),
             ],
@@ -577,6 +581,73 @@ class _SchedulePlanSignupPageState
         ),
       ),
     );
+  }
+
+  // ── Plano livre: sem dia/horário para escolher ────────────────────────
+
+  List<Widget> _flexSection(SchedulePlanAvailability a) {
+    final colors = context.themeColors;
+    final plan = a.plan;
+    final full = scheduleSpotsLeft(plan) == 0;
+    return [
+      const ScheduleKicker('Como funciona'),
+      const SizedBox(height: 8),
+      Container(
+        key: const Key('schedule-flex-rule'),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.brand.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.brand.withValues(alpha: 0.30)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.event_available_rounded,
+                    size: 18, color: colors.brandText),
+                const SizedBox(width: 8),
+                Text(
+                  'Horário livre',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: colors.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              scheduleFlexRuleText(
+                timesPerWeek: plan.timesPerWeek,
+                durationMinutes: plan.durationMinutes,
+                windows: plan.windows,
+              ),
+              style: TextStyle(fontSize: 13, color: colors.onSurface),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              a.arenaDefinesCourt
+                  ? 'Você não precisa escolher dia nem horário agora: reserve '
+                      'pelo app quando for jogar e a arena define a quadra.'
+                  : 'Você não precisa escolher dia nem horário agora: reserve '
+                      'pelo app quando for jogar, na quadra que estiver livre.',
+              style: TextStyle(fontSize: 12, color: colors.onSurfaceMuted),
+            ),
+          ],
+        ),
+      ),
+      if (full) ...[
+        const SizedBox(height: 10),
+        Text(
+          'Este plano está lotado no momento.',
+          key: const Key('schedule-flex-full'),
+          style: TextStyle(fontSize: 12.5, color: colors.pending),
+        ),
+      ],
+    ];
   }
 
   // ── Dias + horário ────────────────────────────────────────────────────
@@ -996,8 +1067,11 @@ class _SchedulePlanSignupPageState
       _cycleOption(plan),
     );
     final upfront = scheduleCyclePrepaidMonths(_cycleOption(plan).cycle) > 1;
-    final weekdays =
-        _mode == _Mode.offer ? (offer?.weekdays ?? const <int>[]) : _days;
+    final weekdays = _mode == _Mode.offer
+        ? (offer?.weekdays ?? const <int>[])
+        : plan.isFlexible
+            ? {for (final w in plan.windows) w.weekday}.toList()
+            : _days;
     final total = !upfront
         ? monthly
         : weekdays.isEmpty
@@ -1050,6 +1124,7 @@ class _SchedulePlanSignupPageState
       a.onlineBilling && _methodOf(a.plan) != SchedulePaymentMethod.onsite;
 
   bool _readyForSlots(SchedulePlanAvailability a) {
+    if (a.plan.isFlexible) return scheduleSpotsLeft(a.plan) > 0;
     if (_days.length != a.plan.timesPerWeek || _time == null) return false;
     return scheduleTimesForWeekdays(a.days, _days).any((t) =>
         t.startTime == _time && t.bookable(primeCapReached: a.primeCapReached));

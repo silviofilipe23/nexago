@@ -47,7 +47,7 @@ class ArenaDetailSchedulePlansSection extends ConsumerWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Seu horário fixo toda semana, pagando por mês.',
+          schedulePlansEntryLine(schedulePlansMix(plans)),
           style: theme.textTheme.bodySmall?.copyWith(
             color: colors.onSurfaceMuted,
           ),

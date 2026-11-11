@@ -1,8 +1,19 @@
 import { Timestamp } from 'firebase/firestore';
 import { friendlyCallableError } from './schedule-plan-repository';
 import { chargeFromRaw, planFromRaw, settingsFromRaw, subscriptionFromRaw, waitlistFromRaw } from './schedule-plan.model';
+import { subscriptionSlotsLabel } from './schedule-plan.logic';
 
 describe('schedule-plan.model · parse', () => {
+  it('modo do plano: ausente = fixo; flexible = livre (assinatura pelo snapshot)', () => {
+    expect(planFromRaw('p1', {}).bookingMode).toBe('fixed');
+    expect(planFromRaw('p1', { bookingMode: 'flexible' }).bookingMode).toBe('flexible');
+    const sub = subscriptionFromRaw('s1', { planSnapshot: { bookingMode: 'flexible', timesPerWeek: 2 }, slots: [] });
+    expect(sub.flexible).toBeTrue();
+    expect(sub.timesPerWeek).toBe(2);
+    expect(subscriptionSlotsLabel(sub)).toBe('Livre · 2x/sem');
+    expect(subscriptionFromRaw('s2', { planSnapshot: { timesPerWeek: 1 } }).flexible).toBeFalse();
+  });
+
   it('plano sem campos cai nos padrões do contrato', () => {
     const p = planFromRaw('p1', { name: 'Fixo Noite' });
     expect(p.status).toBe('draft');

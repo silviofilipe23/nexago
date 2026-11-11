@@ -79,7 +79,9 @@ class ArenaDetailReviewCard extends StatelessWidget {
               return Icon(
                 filled ? Icons.star_rounded : Icons.star_outline_rounded,
                 size: 16,
-                color: filled ? AppColors.pending : context.themeColors.surfaceRaised,
+                color: filled
+                    ? AppColors.pending
+                    : context.themeColors.surfaceRaised,
               );
             }),
           ),

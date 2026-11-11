@@ -509,7 +509,7 @@ final _screens = <_Screen>[
       ),
     ),
     find.byType(ArenaDetailCourtCard),
-    ['3 horários livres hoje', 'marca'],
+    ['3 livres hoje', 'marca'],
   ),
   _Screen(
     'Detalhe da arena: clubinho com lista cheia',

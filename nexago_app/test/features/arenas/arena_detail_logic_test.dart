@@ -9,9 +9,8 @@ ArenaCourt _court(String id, {bool maintenance = false}) {
     id: id,
     name: 'Quadra $id',
     sportTypes: const ['Areia'],
-    status: maintenance
-        ? ArenaCourtStatus.maintenance
-        : ArenaCourtStatus.active,
+    status:
+        maintenance ? ArenaCourtStatus.maintenance : ArenaCourtStatus.active,
     basePricePerHourReais: 70,
   );
 }
@@ -49,7 +48,11 @@ void main() {
       final slots = [
         _slot(courtId: 'c1', startTime: '10:00', day: futureDayOnly),
         _slot(courtId: 'c1', startTime: '14:00', day: futureDayOnly),
-        _slot(courtId: 'c1', startTime: '16:00', day: futureDayOnly, status: 'booked'),
+        _slot(
+            courtId: 'c1',
+            startTime: '16:00',
+            day: futureDayOnly,
+            status: 'booked'),
       ];
       expect(countFreeSlotsToday(slots, futureDay), 2);
     });
@@ -96,6 +99,83 @@ void main() {
       final now = DateTime(2026, 5, 21);
       final created = now.subtract(const Duration(days: 3));
       expect(formatRelativeReviewAge(created, now), 'há 3d');
+    });
+  });
+
+  group('seção de quadras', () {
+    ArenaCourtDaySummary s(String name, List<String> sports, {int free = 1}) =>
+        ArenaCourtDaySummary(
+          court: ArenaCourt(id: name, name: name, sportTypes: sports),
+          freeSlotsToday: free,
+        );
+
+    test('courtBadgeLabel usa o número do nome ou a inicial', () {
+      expect(courtBadgeLabel('Quadra 12'), '12');
+      expect(courtBadgeLabel('Q3 coberta'), '3');
+      expect(courtBadgeLabel('central'), 'C');
+      expect(courtBadgeLabel('  '), '?');
+    });
+
+    test('courtMetaLine junta esportes e coberta/aberta, sem superfície', () {
+      const arena = ArenaListItem(
+        id: 'a',
+        name: 'Arena',
+        locationLabel: 'GO',
+        pricePerHourReais: 80,
+      );
+      final court = ArenaCourt(
+        id: '1',
+        name: 'Quadra 1',
+        sportTypes: const ['beachTennis', 'Areia', 'Vôlei de praia'],
+      );
+      expect(courtMetaLine(arena, court),
+          'Beach tennis · Vôlei de praia · Aberta');
+    });
+
+    test('filtro por esporte só com mais de 4 quadras e mais de um esporte',
+        () {
+      final four = [
+        for (var i = 0; i < 4; i++)
+          s('Q$i', const ['beachTennis', 'footvolley'])
+      ];
+      expect(courtSportFilterOptions(four), isEmpty);
+
+      final oneSport = [
+        for (var i = 0; i < 6; i++) s('Q$i', const ['beachTennis'])
+      ];
+      expect(courtSportFilterOptions(oneSport), isEmpty);
+
+      final mixed = [
+        s('Q1', const ['beachTennis']),
+        s('Q2', const ['beachTennis', 'Vôlei de praia']),
+        s('Q3', const ['Vôlei de praia']),
+        s('Q4', const ['beachTennis']),
+        s('Q5', const ['footvolley']),
+      ];
+      final options = courtSportFilterOptions(mixed);
+      expect(options.map((o) => '${o.label}:${o.count}'),
+          ['Beach tennis:3', 'Vôlei de praia:2', 'Futevôlei:1']);
+      expect(
+          filterCourtsBySport(mixed, 'Vôlei de praia').map((c) => c.court.id),
+          ['Q2', 'Q3']);
+      expect(filterCourtsBySport(mixed, null), same(mixed));
+    });
+
+    test('courtDayStatusLabel', () {
+      expect(courtDayStatusLabel(s('Q', const [], free: 1)), '1 livre hoje');
+      expect(courtDayStatusLabel(s('Q', const [], free: 8)), '8 livres hoje');
+      expect(courtDayStatusLabel(s('Q', const [], free: 0)), 'Lotada hoje');
+      expect(
+        courtDayStatusLabel(const ArenaCourtDaySummary(
+          court: ArenaCourt(
+            id: 'm',
+            name: 'M',
+            status: ArenaCourtStatus.maintenance,
+          ),
+          freeSlotsToday: 0,
+        )),
+        'Em manutenção',
+      );
     });
   });
 }

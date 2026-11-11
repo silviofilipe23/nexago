@@ -8,6 +8,9 @@ import '../../../domain/arena_detail_logic.dart';
 import '../../../domain/arena_list_item.dart';
 import '../../../domain/court_pricing.dart';
 
+/// Linha de uma quadra no perfil público da arena: selo com o número, nome, esportes ·
+/// coberta/aberta, preço/h e horários livres hoje. Fica dentro do cartão agrupado de
+/// [ArenaDetailCourtsSection]; quadra em manutenção aparece apagada e não abre.
 class ArenaDetailCourtCard extends StatelessWidget {
   const ArenaDetailCourtCard({
     super.key,
@@ -22,150 +25,142 @@ class ArenaDetailCourtCard extends StatelessWidget {
   final double arenaFallbackPricePerHour;
   final VoidCallback? onTap;
 
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colors = context.themeColors;
     final court = summary.court;
-    final surfaceBadge = courtSurfaceBadgeLabel(arena, court);
-    final covered = arena.amenities.coveredCourt;
-    final coveredLabel = covered ? 'Coberta' : 'Aberta';
 
     final hourly = CourtPricing.resolveHourlyBase(
       court: court,
       arenaFallbackPerHourReais: arenaFallbackPricePerHour,
     );
     final priceLabel = hourly != null ? formatBRLWhole(hourly) : '—';
+    final hasFree = !court.isMaintenance && summary.hasFreeSlotsToday;
+    final statusColor = hasFree ? colors.win : colors.onSurfaceMuted;
+    final enabled = !court.isMaintenance && onTap != null;
 
-    final String statusText;
-    final Color statusColor;
-    if (court.isMaintenance) {
-      statusText = 'Em manutenção';
-      statusColor = context.themeColors.onSurfaceMuted;
-    } else if (summary.hasFreeSlotsToday) {
-      final n = summary.freeSlotsToday;
-      statusText =
-          '$n horário${n == 1 ? '' : 's'} livre${n == 1 ? '' : 's'} hoje';
-      statusColor = context.themeColors.win;
-    } else {
-      statusText = 'Lotada hoje';
-      statusColor = context.themeColors.onSurfaceMuted;
-    }
-
-    return Material(
-      color: context.themeColors.surfaceCard,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
+    return Semantics(
+      button: enabled,
       child: InkWell(
-        onTap: court.isMaintenance ? null : onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: context.themeColors.surfaceRaised,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  Icons.grid_view_rounded,
-                  color: AppColors.brand,
-                  size: 22,
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      court.name,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: context.themeColors.onSurface,
+        onTap: enabled ? onTap : null,
+        child: Opacity(
+          opacity: court.isMaintenance ? 0.45 : 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 64),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.brand.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.brand.withValues(alpha: 0.28),
                       ),
                     ),
-                    SizedBox(height: 4),
-                    Row(
+                    child: Text(
+                      courtBadgeLabel(court.name),
+                      style: AppTypography.soraRegular(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: colors.brandText,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (surfaceBadge != null) ...[
-                          _MiniBadge(label: surfaceBadge),
-                          SizedBox(width: 6),
-                        ],
                         Text(
-                          '· $coveredLabel',
-                          style: AppTypography.mono(
-                            color: context.themeColors.onSurfaceMuted,
-                            fontWeight: FontWeight.w500,
+                          court.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.soraRegular(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: colors.onSurface,
                           ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          courtMetaLine(arena, court),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colors.onSurfaceMuted,
+                                  ),
                         ),
                       ],
                     ),
-                    SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            shape: BoxShape.circle,
-                          ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text.rich(
+                        TextSpan(
+                          text: priceLabel,
+                          children: [
+                            if (hourly != null)
+                              TextSpan(
+                                text: '/h',
+                                style: AppTypography.mono(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: colors.onSurfaceMuted,
+                                ),
+                              ),
+                          ],
                         ),
-                        SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            statusText,
-                            style: AppTypography.soraRegular(
+                        style: AppTypography.mono(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
                               color: statusColor,
-                              fontWeight: FontWeight.w500,
+                              shape: BoxShape.circle,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                          const SizedBox(width: 5),
+                          Text(
+                            courtDayStatusLabel(summary),
+                            style: AppTypography.soraRegular(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: statusColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: enabled ? colors.onSurfaceMuted : Colors.transparent,
+                  ),
+                ],
               ),
-              SizedBox(width: 8),
-              Text(
-                priceLabel,
-                style: AppTypography.mono(
-                  fontWeight: FontWeight.w800,
-                  color: context.themeColors.onSurface,
-                  fontSize: 14,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MiniBadge extends StatelessWidget {
-  const _MiniBadge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: context.themeColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: AppTypography.mono(
-          fontWeight: FontWeight.w500,
-          color: context.themeColors.onSurfaceMuted,
-          fontSize: 12,
-          letterSpacing: 0.5,
         ),
       ),
     );

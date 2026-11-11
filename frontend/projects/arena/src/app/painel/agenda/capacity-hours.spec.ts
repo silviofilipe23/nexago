@@ -116,8 +116,8 @@ describe('dropBlockReason', () => {
     expect(dropBlockReason(moving, tile('c5'))).toContain('não é de Beach Tennis');
   });
 
-  it('aula, clubinho e plano não saem do lugar pelo quadro', () => {
-    expect(dropBlockReason(booking('k', 'c1', { clubSessionId: 's1' }), tile('c2'))).toContain('clubinho');
+  it('clubinho sai do lugar pelo quadro (muda a quadra da sessão)', () => {
+    expect(dropBlockReason(booking('k', 'c1', { clubSessionId: 's1' }), tile('c2'))).toBeNull();
   });
 });
 

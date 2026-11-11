@@ -103,9 +103,9 @@ describe("courtChangeBlockReason", () => {
     assert.equal(courtChangeBlockReason(bookingData({status: "pending_payment"}), NOW), null);
   });
 
-  it("aula, clubinho e plano trocam pela própria tela", () => {
+  it("aula e plano trocam pela própria tela; clubinho troca aqui", () => {
     assert.match(courtChangeBlockReason(bookingData({isClassSession: true}), NOW) ?? "", /aula/);
-    assert.match(courtChangeBlockReason(bookingData({clubSessionId: "s1"}), NOW) ?? "", /clubinho/);
+    assert.equal(courtChangeBlockReason(bookingData({clubSessionId: "s1", clubId: "c1"}), NOW), null);
     assert.match(courtChangeBlockReason(bookingData({scheduleSubscriptionId: "sub1"}), NOW) ?? "", /plano/);
   });
 
@@ -143,7 +143,9 @@ describe("changeArenaBookingCourtCore", () => {
     const fake = seed();
     const result = await move(fake);
 
-    assert.deepEqual(result, {changed: true, bookingId: BOOKING_ID, courtId: "court2", courtName: "Quadra 2", assigned: false});
+    assert.deepEqual(result, {
+      changed: true, bookingId: BOOKING_ID, courtId: "court2", courtName: "Quadra 2", assigned: false, fromCourtName: "Quadra 1",
+    });
     for (const id of locksOf("court1")) assert.equal(fake.store.has(`arenaSlotLocks/${id}`), false);
     for (const id of locksOf("court2")) {
       const lock = fake.store.get(`arenaSlotLocks/${id}`);

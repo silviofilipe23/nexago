@@ -24,7 +24,7 @@ import {
   professorDiscountLabel,
   type ArenaBooking,
 } from './arena-booking.model';
-import { bookingCanChangeCourt, changeBookingCourt, courtAssignOptions } from './booking-court-change';
+import { bookingCanChangeCourt, changeBookingCourt, clubSessionDayLabel, courtAssignOptions } from './booking-court-change';
 import { cancelBookingByManager, checkInBookingByManager, resolveAthleteLabel, restoreBookingByManager, watchBooking } from './bookings-repository';
 
 const ATTENDANCE_TONE: Record<string, PillTone | undefined> = {
@@ -220,6 +220,12 @@ export function bookingChannelLabel(channel: string | null): string {
             <p class="modal-hint">
               Se a quadra estiver ocupada nesse horário, o sistema avisa ao confirmar. Outra reserva sem quadra definida que estiver nela vai para uma quadra livre.
             </p>
+            @if (booking()!.clubSessionId) {
+              <p class="notice club-scope" data-testid="club-court-change-scope">
+                <ar-icon name="alert-triangle" [size]="14" />
+                <span>Muda só a sessão de <strong>{{ clubDay() }}</strong>. As próximas seguem nas quadras do clubinho.</span>
+              </p>
+            }
           }
 
           <div class="field-label">Motivo (opcional)</div>
@@ -231,6 +237,12 @@ export function bookingChannelLabel(channel: string | null): string {
             (input)="courtChangeReason.set($any($event.target).value)"
           />
 
+          @if (booking()!.clubSessionId && targetCourtName(); as name) {
+            <p class="notice notice-info">
+              <ar-icon name="bell" [size]="14" />
+              <span>Os participantes do clubinho recebem um aviso: “{{ booking()!.courtName }} mudou para {{ name }}”.</span>
+            </p>
+          }
           @if (booking()!.athleteId && targetCourtName(); as name) {
             <p class="notice notice-info">
               <ar-icon name="bell" [size]="14" />
@@ -407,6 +419,10 @@ export function bookingChannelLabel(channel: string | null): string {
 
     .notice strong {
       color: var(--nx-text);
+    }
+
+    .club-scope {
+      margin: 0 0 14px;
     }
 
     .notice-info {
@@ -634,6 +650,8 @@ export class PanelBookingDetailComponent {
 
   /** Reserva no modo "a arena define a quadra" ainda sem quadra definida. */
   protected readonly unassigned = computed(() => this.booking()?.allocationStatus === 'unassigned');
+  /** Dia da sessão do clubinho ("sex, 14/11"): a troca vale só para ela. */
+  protected readonly clubDay = computed(() => clubSessionDayLabel(this.booking()?.dateKey ?? ''));
 
   protected readonly courtOptions = computed(() => {
     const b = this.booking();

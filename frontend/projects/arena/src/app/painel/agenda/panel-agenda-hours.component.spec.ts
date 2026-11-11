@@ -111,6 +111,26 @@ describe('Agenda → Por horário', () => {
     expect(host(f).querySelector('.crow')?.textContent).toContain('Quadra 1');
   });
 
+  it('clubinho: "Trocar" abre o modal com o aviso de que muda só a sessão do dia', async () => {
+    const f = setup();
+    const s = f.componentInstance as unknown as Internals;
+    s.bookings.update((list) => [
+      ...list,
+      booking('club', 'c3', { athleteId: '', customerName: 'Clubinho de sexta', clubSessionId: 'club_c1_2026-11-22', sportCode: null }),
+    ]);
+    f.detectChanges();
+    host(f).querySelectorAll<HTMLButtonElement>('.hour')[1]!.click();
+    f.detectChanges();
+    await f.whenStable();
+    const rows = Array.from(host(f).querySelectorAll('.bk-n')).map((n) => n.textContent!.trim());
+    expect(rows).toContain('Clubinho de sexta');
+    const trocar = buttons(f, 'Trocar');
+    expect(trocar.length).toBe(2);
+    trocar[trocar.length - 1]!.click();
+    f.detectChanges();
+    expect(host(f).querySelector('[data-testid="hours-club-court-change-scope"]')?.textContent).toContain('dom, 22/11');
+  });
+
   it('quadro: soltar em quadra com reserva definida é recusado sem chamar o servidor', async () => {
     const f = setup();
     host(f).querySelectorAll<HTMLButtonElement>('.hour')[1]!.click();

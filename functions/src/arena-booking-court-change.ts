@@ -32,6 +32,7 @@ import {
   writeBookingCourtMove,
 } from "./arena-floating-booking";
 import {athleteSeesBookingCourt} from "./arena-booking-allocation";
+import {ARENA_CLUB_SESSIONS, CLUB_PARTICIPANTS} from "./arena-club-constants";
 
 export {targetCourtBlockReason};
 
@@ -40,6 +41,7 @@ const ARENA_SLOTS = "arenaSlots";
 const ARENA_SLOT_LOCKS = "arenaSlotLocks";
 
 export const BOOKING_COURT_CHANGED_PUSH_TYPE = "arena_booking_court_changed";
+export const CLUB_COURT_CHANGED_PUSH_TYPE = "club_session_court_changed";
 
 /** Status em que a reserva ainda segura o horário. */
 const MOVABLE_STATUSES = new Set(["active", "confirmed", "pending_payment"]);
@@ -57,6 +59,29 @@ export interface ChangeBookingCourtResult {
   courtName: string;
   /** A reserva estava sem quadra definida (modo "arena define a quadra") e agora tem. */
   assigned: boolean;
+  /** Quadra antes da troca (aviso aos participantes do clubinho). */
+  fromCourtName?: string;
+}
+
+/**
+ * Sessão do clubinho depois de trocar a quadra de um dos bloqueios dela: a quadra de origem vira a
+ * de destino em `courtIds`/`courtNames` (o app mostra as quadras da sessão por eles). Puro.
+ */
+export function clubSessionCourtsAfterMove(
+  session: DocumentData,
+  fromCourtId: string,
+  toCourtId: string,
+  toCourtName: string,
+): {courtIds: string[]; courtNames: string[]} {
+  const ids = Array.isArray(session["courtIds"]) ? (session["courtIds"] as unknown[]).map(String) : [];
+  const names = Array.isArray(session["courtNames"]) ? (session["courtNames"] as unknown[]).map(String) : [];
+  const idx = ids.indexOf(fromCourtId);
+  if (idx < 0) return {courtIds: [...ids, toCourtId], courtNames: [...names, toCourtName]};
+  const courtIds = [...ids];
+  const courtNames = [...names];
+  courtIds[idx] = toCourtId;
+  courtNames[idx] = toCourtName;
+  return {courtIds, courtNames};
 }
 
 function str(v: unknown): string {
@@ -80,9 +105,6 @@ export function parseChangeBookingCourtInput(raw: unknown): ChangeBookingCourtIn
 export function courtChangeBlockReason(booking: DocumentData, nowMs: number): string | null {
   if (booking["isClassSession"] === true || str(booking["classSessionId"])) {
     return "Esta reserva é de uma aula. Troque a quadra pela tela da aula.";
-  }
-  if (str(booking["clubSessionId"]) || str(booking["clubId"])) {
-    return "Esta reserva é de um clubinho. Troque a quadra pela tela do clubinho.";
   }
   if (str(booking["scheduleSubscriptionId"])) {
     return "Esta reserva é de um plano de horário. Troque a quadra pela tela do plano.";
@@ -194,6 +216,7 @@ export async function changeArenaBookingCourtCore(
     courtId: input.toCourtId,
     courtName: moved.courtName,
     assigned: booking["allocationStatus"] === "unassigned",
+    fromCourtName: str(booking["courtName"]) || "Quadra",
   };
 }
 
@@ -291,6 +314,13 @@ export async function moveBookingToCourt(
     }
     const move = await readBookingMove(tx, db, bookingId, {courtId: toCourtId, courtName: toCourtName}, fresh);
     if (!move) throw new HttpsError("failed-precondition", "Esta reserva não tem horário válido.");
+    // Bloqueio de uma sessão do clubinho: a sessão passa a mostrar a quadra nova.
+    const clubSessionId = str(freshData["clubSessionId"]);
+    const clubSessionRef = clubSessionId ? db.collection(ARENA_CLUB_SESSIONS).doc(clubSessionId) : null;
+    const clubSession = clubSessionRef ? await tx.get(clubSessionRef) : null;
+    if (clubSession?.exists && ["canceled", "completed"].includes(str(clubSession.data()?.["status"]))) {
+      throw new HttpsError("failed-precondition", "Esta sessão do clubinho já foi encerrada.");
+    }
 
     // Escritas.
     writeBookingCourtMove(tx, db, move, {
@@ -302,6 +332,12 @@ export async function moveBookingToCourt(
       skipDeletePaths: claim.relocatedLockPaths,
     });
     if (params.extra) tx.set(bookingRef, params.extra, {merge: true});
+    if (clubSessionRef && clubSession?.exists) {
+      tx.set(clubSessionRef, {
+        ...clubSessionCourtsAfterMove(clubSession.data() as DocumentData, fromCourtId, toCourtId, toCourtName),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+    }
     claim.commit(tx);
   });
 
@@ -377,6 +413,41 @@ export function courtChangedPushBody(booking: DocumentData, toCourtName: string,
   return `Sua reserva das ${startTime} em ${arenaName} agora é na ${toCourtName}.`;
 }
 
+/** "Clubinho X de sex, 14/11: Quadra 2 mudou para Quadra 4." Puro. */
+export function clubCourtChangedPushBody(session: DocumentData, fromCourtName: string, toCourtName: string): string {
+  const [, m, d] = str(session["date"]).split("-");
+  const when = d && m ? ` de ${d}/${m}` : "";
+  return `${str(session["clubName"]) || "Clubinho"}${when}: ${fromCourtName} mudou para ${toCourtName}.`;
+}
+
+/** Participantes confirmados e pendentes da sessão recebem o aviso da quadra nova. */
+async function notifyClubCourtChange(db: Firestore, result: ChangeBookingCourtResult): Promise<void> {
+  const booking = (await db.collection(ARENA_BOOKINGS).doc(result.bookingId).get()).data() ?? {};
+  const sessionId = str(booking["clubSessionId"]);
+  if (!sessionId) return;
+  const sessionRef = db.collection(ARENA_CLUB_SESSIONS).doc(sessionId);
+  const [session, participants] = await Promise.all([sessionRef.get(), sessionRef.collection(CLUB_PARTICIPANTS).get()]);
+  const body = clubCourtChangedPushBody(session.data() ?? {}, result.fromCourtName ?? "A quadra", result.courtName);
+  for (const p of participants.docs) {
+    const status = str(p.data()["status"]);
+    // Convidado sem conta (`guest_*`) não recebe push.
+    if ((status !== "confirmed" && status !== "pending") || p.id.startsWith("guest_")) continue;
+    const arenaId = str(booking["arenaId"]);
+    await deliverNotificationToUser({
+      userId: p.id,
+      title: "Seu clubinho mudou de quadra",
+      body,
+      type: CLUB_COURT_CHANGED_PUSH_TYPE,
+      data: {
+        type: CLUB_COURT_CHANGED_PUSH_TYPE, clubSessionId: sessionId, arenaId,
+        // `url` = rota do app; `webUrl` = portal do atleta.
+        url: `/clubinho/${sessionId}`, webUrl: `/reservar/${arenaId}/clubinho/${sessionId}`,
+      },
+      requireInteraction: false,
+    });
+  }
+}
+
 export const changeArenaBookingCourt = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
@@ -409,6 +480,11 @@ export const changeArenaBookingCourt = onCall({
     }
   } catch (e) {
     logger.warn("changeArenaBookingCourt: push ao atleta falhou", e);
+  }
+  try {
+    await notifyClubCourtChange(db, result);
+  } catch (e) {
+    logger.warn("changeArenaBookingCourt: aviso aos participantes do clubinho falhou", e);
   }
 
   logger.info("changeArenaBookingCourt: quadra trocada", {

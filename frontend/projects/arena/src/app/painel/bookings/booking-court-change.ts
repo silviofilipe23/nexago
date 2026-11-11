@@ -11,9 +11,10 @@ type CourtChangeBooking = Pick<
   'status' | 'courtId' | 'sportCode' | 'classSessionId' | 'clubSessionId' | 'scheduleSubscriptionId'
 > & Partial<Pick<ArenaBooking, 'allocationStatus'>>;
 
-/** Aula, clubinho e plano de horário trocam de quadra pela própria tela (a série manda nas travas). */
+/** Aula e plano de horário trocam de quadra pela própria tela (a série manda nas travas). O
+ *  clubinho troca aqui: muda a quadra de uma sessão (um dia). */
 export function bookingCanChangeCourt(booking: CourtChangeBooking): boolean {
-  if (booking.classSessionId || booking.clubSessionId || booking.scheduleSubscriptionId) return false;
+  if (booking.classSessionId || booking.scheduleSubscriptionId) return false;
   const s = booking.status.toLowerCase().trim();
   return s === 'active' || s === 'confirmed' || s === 'pending_payment';
 }
@@ -54,6 +55,14 @@ export interface ChangeBookingCourtResult {
 }
 
 export class BookingCourtChangeError extends Error {}
+
+/** "sex, 14/11" a partir de `AAAA-MM-DD`. */
+export function clubSessionDayLabel(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  if (!y || !m || !d) return dateKey;
+  const wd = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][new Date(y, m - 1, d).getDay()];
+  return `${wd}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+}
 
 export async function changeBookingCourt(
   functions: Functions,

@@ -23,6 +23,7 @@ import '../../domain/athlete_billing.dart';
 IconData athleteChargeKindIcon(AthleteChargeKind kind) => switch (kind) {
       AthleteChargeKind.classes => Icons.school_outlined,
       AthleteChargeKind.fixedSchedule => Icons.event_repeat_outlined,
+      AthleteChargeKind.membership => Icons.card_membership_outlined,
       AthleteChargeKind.booking => Icons.grid_view_rounded,
       AthleteChargeKind.tournament => Icons.emoji_events_outlined,
     };
@@ -39,6 +40,7 @@ Color athleteChargeKindColor(AthleteChargeKind k, AppThemeColors c) =>
     switch (k) {
       AthleteChargeKind.classes => c.onSurface,
       AthleteChargeKind.fixedSchedule => AppColors.brand,
+      AthleteChargeKind.membership => AppColors.brand,
       AthleteChargeKind.booking => AppColors.win,
       AthleteChargeKind.tournament => AppColors.pending,
     };
@@ -62,6 +64,11 @@ Future<void> openAthleteCharge(BuildContext context, AthleteCharge c) async {
       openCenterInvoice(context, centerId, invoiceId);
     case SchedulePlansTarget():
       context.pushNamed(AppRouteNames.mySchedulePlans);
+    case ArenaContractChargeTarget(:final contractId):
+      context.pushNamed(
+        AppRouteNames.myArenaContract,
+        queryParameters: {'id': contractId},
+      );
     case BookingTarget(:final booking):
       final start = parseBookingDateTime(booking.dateRaw, booking.startTime) ??
           DateTime.now();
@@ -119,6 +126,11 @@ void openRecurringCharge(BuildContext context, AthleteRecurringCharge r) {
       );
     case SchedulePlanTarget():
       context.pushNamed(AppRouteNames.mySchedulePlans);
+    case ArenaContractPlanTarget(:final contractId):
+      context.pushNamed(
+        AppRouteNames.myArenaContract,
+        queryParameters: {'id': contractId},
+      );
   }
 }
 

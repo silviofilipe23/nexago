@@ -160,7 +160,9 @@ export async function runArenaCrmReminders(db: Firestore, now: Date): Promise<Cr
               title: r.title,
               body: r.body,
               type: `arena_crm_${r.kind}`,
-              data: {url: `/arena/${arenaId}`, arenaId, ...(r.invoiceUrl ? {invoiceUrl: r.invoiceUrl, webUrl: r.invoiceUrl} : {})},
+              // `url` segue a página da arena para o app antigo da loja (só lê `url`); o app novo
+              // decide pelo tipo + `contractId` e abre Meu contrato.
+              data: {url: `/arena/${arenaId}`, arenaId, contractId: c.id, ...(r.invoiceUrl ? {invoiceUrl: r.invoiceUrl, webUrl: r.invoiceUrl} : {})},
             });
             result.sent += 1;
           } catch (err) {

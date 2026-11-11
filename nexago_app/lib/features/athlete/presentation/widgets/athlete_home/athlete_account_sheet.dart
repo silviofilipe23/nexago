@@ -7,6 +7,7 @@ import '../../../../../core/formatting/app_currency_format.dart';
 import '../../../../../core/observability/analytics_log.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_theme_colors.dart';
+import '../../../../arena_contract/application/arena_contract_providers.dart';
 import '../../../../athlete_billing/application/athlete_billing_providers.dart';
 import '../../../../athlete_billing/domain/athlete_billing.dart';
 import '../../../../auth/presentation/role_selection_page.dart';
@@ -15,7 +16,7 @@ import '../../../domain/athlete_display_name.dart';
 import '../../../domain/athlete_profile_providers.dart';
 import '../athlete_profile_avatar.dart';
 
-enum AthleteAccountAction { profile, billing, settings, switchRole }
+enum AthleteAccountAction { profile, billing, contract, settings, switchRole }
 
 /// O que o leitor de tela anuncia em toda entrada do menu da conta.
 const athleteAccountMenuSemanticLabel =
@@ -120,6 +121,7 @@ Future<void> openAthleteAccountMenu(
       action: switch (action) {
         AthleteAccountAction.profile => 'perfil',
         AthleteAccountAction.billing => 'cobrancas',
+        AthleteAccountAction.contract => 'meu_contrato',
         AthleteAccountAction.settings => 'configuracoes',
         AthleteAccountAction.switchRole => 'trocar_papel',
         null => 'fechou',
@@ -132,6 +134,8 @@ Future<void> openAthleteAccountMenu(
       context.pushNamed(AppRouteNames.athleteProfile);
     case AthleteAccountAction.billing:
       context.pushNamed(AppRouteNames.athleteBilling);
+    case AthleteAccountAction.contract:
+      context.pushNamed(AppRouteNames.myArenaContract);
     case AthleteAccountAction.settings:
       context.pushNamed(AppRouteNames.athleteSettings);
     case AthleteAccountAction.switchRole:
@@ -146,6 +150,7 @@ class _AthleteAccountSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final canSwitchRole = ref.watch(hasMultipleMobileRolesProvider);
     final billing = ref.watch(athleteChargesSummaryProvider);
+    final hasContract = ref.watch(hasArenaContractProvider).valueOrNull == true;
     void choose(AthleteAccountAction a) => Navigator.of(context).pop(a);
     // O corpo da folha já põe 12 entre os itens: espaçador aqui somava 34.
     return ProfessorLinksSheetBody(
@@ -167,6 +172,15 @@ class _AthleteAccountSheet extends ConsumerWidget {
           subtitle: athleteBillingMenuSubtitle(billing),
           onTap: () => choose(AthleteAccountAction.billing),
         ),
+        // Só para quem a arena registrou como mensalista (espelho do CRM).
+        if (hasContract)
+          ProfessorLinksSheetRow(
+            key: const Key('athlete-account-contract'),
+            icon: Icons.card_membership_outlined,
+            title: 'Meu contrato',
+            subtitle: 'Plano, parcelas e banco de horas',
+            onTap: () => choose(AthleteAccountAction.contract),
+          ),
         ProfessorLinksSheetRow(
           key: const Key('athlete-account-settings'),
           icon: Icons.settings_outlined,

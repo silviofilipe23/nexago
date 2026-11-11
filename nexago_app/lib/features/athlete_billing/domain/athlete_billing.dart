@@ -1,3 +1,5 @@
+import '../../arena_contract/domain/arena_contract.dart';
+import '../../arena_contract/domain/arena_contract_logic.dart';
 import '../../arenas/domain/my_booking_item.dart';
 import '../../athlete/domain/agenda/athlete_agenda_logic.dart'
     show parseBookingDateTime;
@@ -16,12 +18,19 @@ import '../../tournaments/domain/tournament_payment_mode.dart';
 /// reúne e se leva de volta à tela de pagar de cada origem.
 
 /// Filtro por tipo ("Aulas", "Horário fixo", "Reservas", "Torneios").
-enum AthleteChargeKind { classes, fixedSchedule, booking, tournament }
+enum AthleteChargeKind {
+  classes,
+  fixedSchedule,
+  membership,
+  booking,
+  tournament
+}
 
 extension AthleteChargeKindX on AthleteChargeKind {
   String get label => switch (this) {
         AthleteChargeKind.classes => 'Aulas',
         AthleteChargeKind.fixedSchedule => 'Horário fixo',
+        AthleteChargeKind.membership => 'Mensalidade',
         AthleteChargeKind.booking => 'Reservas',
         AthleteChargeKind.tournament => 'Torneios',
       };
@@ -30,6 +39,7 @@ extension AthleteChargeKindX on AthleteChargeKind {
   String get key => switch (this) {
         AthleteChargeKind.classes => 'aulas',
         AthleteChargeKind.fixedSchedule => 'horario-fixo',
+        AthleteChargeKind.membership => 'mensalidade',
         AthleteChargeKind.booking => 'reservas',
         AthleteChargeKind.tournament => 'torneios',
       };
@@ -81,6 +91,12 @@ class CenterInvoiceTarget extends AthleteChargeTarget {
 /// Mensalidade do horário fixo: Meus planos de horário (pagar com CPF lá).
 class SchedulePlansTarget extends AthleteChargeTarget {
   const SchedulePlansTarget();
+}
+
+/// Mensalidade do contrato de mensalista (CRM da arena): Meu contrato.
+class ArenaContractChargeTarget extends AthleteChargeTarget {
+  const ArenaContractChargeTarget(this.contractId);
+  final String contractId;
 }
 
 /// Reserva aguardando o Pix: detalhe da reserva.
@@ -188,6 +204,12 @@ class SchedulePlanTarget extends RecurringTarget {
   const SchedulePlanTarget();
 }
 
+/// Contrato de mensalista (CRM da arena): Meu contrato.
+class ArenaContractPlanTarget extends RecurringTarget {
+  const ArenaContractPlanTarget(this.contractId);
+  final String contractId;
+}
+
 /// Pagamento feito, para o histórico.
 class AthletePaidCharge {
   const AthletePaidCharge({
@@ -284,8 +306,11 @@ List<AthleteCharge> buildOpenCharges({
   List<ScheduleSubscription> subscriptions = const [],
   List<MyBookingItem> bookings = const [],
   List<MyTournamentEnrollment> enrollments = const [],
+  List<ArenaContract> arenaContracts = const [],
 }) {
   final out = <AthleteCharge>[
+    for (final c in arenaContracts)
+      if (_arenaContractCharge(c, todayKey) case final charge?) charge,
     for (final c in classCharges) _fromClassCharge(c),
     for (final center in centers)
       for (final i in center.invoices)
@@ -315,6 +340,67 @@ int _byUrgency(AthleteCharge a, AthleteCharge b) {
   final byTitle = a.title.compareTo(b.title);
   return byTitle != 0 ? byTitle : a.id.compareTo(b.id);
 }
+
+/// Mensalidade do contrato em aberto: o atraso todo, ou a próxima quando vence
+/// em até [arenaContractUpcomingDays] dias. Pagável no app só com o link da arena.
+AthleteCharge? _arenaContractCharge(ArenaContract c, String todayKey) {
+  final payee = c.arenaName.isEmpty ? 'Arena' : c.arenaName;
+  final online = c.payLink != null;
+  if (c.isOverdue) {
+    return AthleteCharge(
+      id: 'contract-${c.id}',
+      kind: AthleteChargeKind.membership,
+      title: 'Mensalidade · ${c.planName}',
+      payee: payee,
+      amountReais: c.overdueReais,
+      dueDate: c.overdueSince,
+      state: AthleteChargeState.overdue,
+      note: [
+        if (c.overdueCount > 1) '${c.overdueCount} parcelas',
+        if (!online) 'na arena',
+      ].join(' · ').ifEmptyNull,
+      target: ArenaContractChargeTarget(c.id),
+    );
+  }
+  final next = c.nextDueDate;
+  final today = DateTime.tryParse(todayKey);
+  final due = next == null ? null : DateTime.tryParse(next);
+  if (today == null || due == null) return null;
+  if (due.difference(today).inDays > arenaContractUpcomingDays) return null;
+  return AthleteCharge(
+    id: 'contract-${c.id}',
+    kind: AthleteChargeKind.membership,
+    title: 'Mensalidade · ${c.planName}',
+    payee: payee,
+    amountReais: c.monthlyPriceReais,
+    dueDate: next,
+    state: online ? AthleteChargeState.due : AthleteChargeState.direct,
+    note: online ? null : 'na arena',
+    target: ArenaContractChargeTarget(c.id),
+  );
+}
+
+/// A próxima mensalidade do contrato entra nas Cobranças quando vence em até
+/// tantos dias (antes disso, só em Planos e assinaturas e no Meu contrato).
+const arenaContractUpcomingDays = 10;
+
+AthleteRecurringCharge _fromArenaContract(ArenaContract c) =>
+    AthleteRecurringCharge(
+      id: 'contract-${c.id}',
+      kind: AthleteChargeKind.membership,
+      title: c.planName,
+      payee: c.arenaName.isEmpty ? 'Arena' : c.arenaName,
+      cycleLabel: [
+        '${arenaContractPeriodLabel(c.period)} · dia ${_two(c.dueDay)}',
+        'mensalista · ${arenaContractHoursLabel(c.weeklyHours)} por semana',
+      ].join(' · '),
+      amountReais: c.monthlyPriceReais,
+      methodLabel: c.payLink != null ? 'Pix ou cartão' : 'Na arena',
+      nextLabel: c.nextDueDate == null
+          ? null
+          : 'Próxima ${arenaContractDayMonth(c.nextDueDate)}',
+      target: ArenaContractPlanTarget(c.id),
+    );
 
 AthleteCharge _fromClassCharge(ClassChargeEntry c) {
   final online = c.canPayOnline;
@@ -494,8 +580,10 @@ List<AthleteRecurringCharge> buildRecurringCharges({
   MyTrainingPlans? plans,
   List<TrainingCenterLink> centers = const [],
   List<ScheduleSubscription> subscriptions = const [],
+  List<ArenaContract> arenaContracts = const [],
 }) =>
     [
+      for (final c in arenaContracts) _fromArenaContract(c),
       for (final s in subscriptions)
         if (s.status != ScheduleSubscriptionStatus.canceled)
           _fromSubscription(s, uid),

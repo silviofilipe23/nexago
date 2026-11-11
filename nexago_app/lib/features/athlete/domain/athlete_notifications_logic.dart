@@ -468,15 +468,16 @@ AthleteNotificationPresentation _basePresentation(
             kind: AthleteNotificationActionKind.primary,
           ),
         ],
-        routePath: appRouteForNotificationUrl(data['url']) ??
-            AppRoutes.athleteRanking,
+        routePath:
+            appRouteForNotificationUrl(data['url']) ?? AppRoutes.athleteRanking,
       );
     case 'tournament_review_request':
     case 'tournament_review_reminder':
       final reviewTournamentId = data['tournamentId'] ?? '';
       final reviewUrl = data['url'] ?? '';
       final reviewRoutePath = reviewTournamentId.isNotEmpty
-          ? AppRoutes.tournamentReview.replaceAll(':tournamentId', reviewTournamentId)
+          ? AppRoutes.tournamentReview
+              .replaceAll(':tournamentId', reviewTournamentId)
           : reviewUrl.startsWith('/')
               ? reviewUrl
               : null;
@@ -763,10 +764,12 @@ AthleteNotificationPresentation _basePresentation(
       final color = switch (type) {
         'professor_link_invite' => _professorInviteBlue,
         'professor_link_approved' ||
-        'professor_link_reactivated' => AppColors.win,
+        'professor_link_reactivated' =>
+          AppColors.win,
         'professor_link_suspended' => AppColors.live,
         'professor_link_permissions_changed' ||
-        'professor_link_court_discount_changed' => AppColors.brand,
+        'professor_link_court_discount_changed' =>
+          AppColors.brand,
         _ => AppColors.onSurfaceMuted,
       };
       return AthleteNotificationPresentation(
@@ -809,6 +812,16 @@ AthleteNotificationPresentation _basePresentation(
         routePath: resolveNotificationRoute({...data, 'type': type}),
       );
     default:
+      // Lembrete do contrato de mensalista: o `url` gravado é a página da arena (para o app
+      // antigo); o item abre Meu contrato, como o push.
+      if (isArenaContractNotificationType(type)) {
+        return AthleteNotificationPresentation(
+          icon: Icons.card_membership_outlined,
+          iconColor: AppColors.brand,
+          iconBackground: AppColors.brand.withValues(alpha: 0.12),
+          routePath: arenaContractNotificationRoute(data),
+        );
+      }
       // Mesma tradução do push: avisos do organizador (que o staff recebe aqui) traziam o
       // `url` do portal (`/painel/...`), rota que não existe no app.
       return AthleteNotificationPresentation(

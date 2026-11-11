@@ -2104,6 +2104,12 @@ service cloud.firestore {
     match /arenaCrmPaymentLinks/{linkId} {
       allow read, write: if false;
     }
+    // Espelho "tenho contrato de mensalista" (Meu contrato no app): o atleta lê o dele, só o
+    // servidor escreve (gatilho do contrato). O contrato em si continua fechado.
+    match /arenaCrmMembers/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
     // Cache da visão geral do CRM (reservas agregadas + telefone): só servidor.
     match /arenaCrmCache/{arenaId} {
       allow read, write: if false;

@@ -444,7 +444,7 @@ function str(v: unknown): string {
 function num(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
-function round2(v: number): number {
+export function round2(v: number): number {
   return Math.round(v * 100) / 100;
 }
 

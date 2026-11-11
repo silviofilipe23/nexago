@@ -143,6 +143,8 @@ describe("runArenaCrmReminders", () => {
       ["g1", "arena_crm_digest"],
     ]);
     assert.equal(sent[0]!.data["url"], "/arena/arena1");
+    // App novo abre Meu contrato pelo tipo + contractId; o `url` fica para o app antigo.
+    assert.ok(sent[0]!.data["contractId"]);
     assert.ok(fake.store.has("arenaCrmReminders/c1_overdue_7_2026-10-15"));
 
     sent.length = 0;

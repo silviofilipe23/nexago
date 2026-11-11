@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/auth/active_role_providers.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/arena_contract/application/arena_contract_providers.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/athlete_account_sheet.dart';
 import 'package:nexago_app/features/athlete_billing/application/athlete_billing_providers.dart';
 import 'package:nexago_app/features/athlete_billing/domain/athlete_billing.dart';
@@ -12,6 +13,7 @@ import 'package:nexago_app/features/athlete_billing/domain/athlete_billing.dart'
 Widget _harness({
   required bool multipleRoles,
   AthleteChargesSummary? billing = const AthleteChargesSummary(),
+  bool hasContract = false,
 }) {
   final router = GoRouter(
     routes: [
@@ -41,6 +43,11 @@ Widget _harness({
         builder: (_, __) => const Text('COBRANCAS'),
       ),
       GoRoute(
+        path: AppRoutes.myArenaContract,
+        name: AppRouteNames.myArenaContract,
+        builder: (_, __) => const Text('MEU CONTRATO'),
+      ),
+      GoRoute(
         path: AppRoutes.athleteSettings,
         name: AppRouteNames.athleteSettings,
         builder: (_, __) => const Text('AJUSTES'),
@@ -51,6 +58,8 @@ Widget _harness({
     overrides: [
       hasMultipleMobileRolesProvider.overrideWithValue(multipleRoles),
       athleteChargesSummaryProvider.overrideWith((ref) => billing),
+      hasArenaContractProvider
+          .overrideWith((ref) => Stream.value(hasContract)),
     ],
     child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
   );
@@ -139,6 +148,39 @@ void main() {
     await tester.tap(find.byKey(const Key('athlete-account-billing')));
     await tester.pumpAndSettle();
     expect(find.text('COBRANCAS'), findsOneWidget);
+  });
+
+  testWidgets('sem contrato de mensalista: sem "Meu contrato"', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_harness(multipleRoles: false));
+    await _open(tester);
+
+    expect(find.byKey(const Key('athlete-account-contract')), findsNothing);
+    expect(find.text('Meu contrato'), findsNothing);
+  });
+
+  testWidgets('mensalista: "Meu contrato" logo abaixo de Cobranças e abre a '
+      'tela', (tester) async {
+    await tester.pumpWidget(_harness(multipleRoles: false, hasContract: true));
+    await _open(tester);
+
+    final row = find.byKey(const Key('athlete-account-contract'));
+    expect(row, findsOneWidget);
+    expect(find.text('Meu contrato'), findsOneWidget);
+    expect(find.text('Plano, parcelas e banco de horas'), findsOneWidget);
+    final billing =
+        tester.getRect(find.byKey(const Key('athlete-account-billing')));
+    final contract = tester.getRect(row);
+    final settings =
+        tester.getRect(find.byKey(const Key('athlete-account-settings')));
+    expect(contract.top - billing.bottom, 12);
+    expect(settings.top - contract.bottom, 12);
+
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+    expect(find.text('MEU CONTRATO'), findsOneWidget);
+    expect(row, findsNothing);
   });
 
   test('linha de apoio de Cobranças no menu', () {

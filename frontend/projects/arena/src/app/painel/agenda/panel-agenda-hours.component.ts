@@ -402,7 +402,8 @@ export class PanelAgendaHoursComponent {
 
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda'));
   protected readonly tabs: HoursTab[] = ['Lista', 'Quadro'];
-  protected readonly tab = signal<HoursTab>('Lista');
+  /** Abre no Quadro (arrastar as reservas entre as quadras); a Lista fica a um toque. */
+  protected readonly tab = signal<HoursTab>('Quadro');
 
   protected readonly loading = signal(true);
   private readonly courts = signal<ArenaCourt[]>([]);

@@ -27,6 +27,7 @@ void openArenaBookingSlots(
   ArenaSlot? slot,
   required DateTime date,
   String? courtId,
+  String? sport,
 }) {
   final dateKey = calendarDateKey(date);
   final resolvedCourtId =
@@ -40,6 +41,7 @@ void openArenaBookingSlots(
       if (slot?.startTime.trim().isNotEmpty == true)
         'startTime': slot!.startTime.trim(),
       'date': dateKey,
+      if (sport != null && sport.trim().isNotEmpty) 'esporte': sport.trim(),
     },
     extra: arena,
   );

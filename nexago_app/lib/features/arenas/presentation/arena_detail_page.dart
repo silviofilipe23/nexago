@@ -157,7 +157,7 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
 
   static final _kmFormat = NumberFormat.decimalPattern('pt_BR');
 
-  void _openSlots({String? courtId}) {
+  void _openSlots({String? courtId, String? sport}) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     openArenaBookingSlots(
@@ -165,6 +165,7 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
       arena: widget.arena,
       date: today,
       courtId: courtId,
+      sport: sport,
     );
   }
 
@@ -327,6 +328,7 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                         today: today,
                         loading: widget.todayLoading,
                         onOpenCourt: (courtId) => _openSlots(courtId: courtId),
+                        onOpenSport: (sport) => _openSlots(sport: sport),
                       ),
                       ArenaDetailClubSection(arenaId: arena.id),
                       // Horário fixo vendido como plano (só com plano publicado).

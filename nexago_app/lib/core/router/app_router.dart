@@ -3420,6 +3420,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     ? null
                     : initialStartTime,
             forceCourtChoice: query['escolher'] == 'quadra',
+            initialSport: query['esporte']?.trim(),
           );
         },
       ),

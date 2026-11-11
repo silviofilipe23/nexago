@@ -1,9 +1,11 @@
+import 'arena_booking_allocation.dart';
 import 'arena_court.dart';
 import 'arena_search_metadata.dart';
 import 'arena_search_providers.dart';
 import 'arena_slot.dart';
 import 'arena_sport_codes.dart';
 import 'arena_list_item.dart';
+import 'capacity_slots_logic.dart';
 
 /// Resumo de disponibilidade de uma quadra no dia.
 class ArenaCourtDaySummary {
@@ -193,6 +195,74 @@ String courtDayStatusLabel(ArenaCourtDaySummary summary) {
   final n = summary.freeSlotsToday;
   if (n <= 0) return 'Lotada hoje';
   return n == 1 ? '1 livre hoje' : '$n livres hoje';
+}
+
+/// Na arena que define a quadra, a estrutura (nomes das quadras) mostra só estas antes do "+N".
+const kArenaDetailCourtTagsCollapsedCount = 6;
+
+/// Uma linha "por esporte" da seção de quadras na arena que define a quadra.
+class CapacitySportRow {
+  const CapacitySportRow({
+    required this.sport,
+    required this.label,
+    required this.courtCount,
+    required this.freeCourtsToday,
+    required this.pricePerHour,
+  });
+
+  /// Código do catálogo (vai para a grade por horário).
+  final String sport;
+  final String label;
+
+  /// Quadras que recebem o esporte (fora de manutenção).
+  final int courtCount;
+
+  /// Dessas, quantas têm horário livre hoje.
+  final int freeCourtsToday;
+  final double? pricePerHour;
+}
+
+/// Esportes reserváveis por horário (com preço e quadra que aceita), na ordem da arena, com o
+/// resumo do dia. Vazio fora do modo "a arena define a quadra" ou sem esporte configurado.
+List<CapacitySportRow> capacitySportRows(
+  ArenaBookingAllocation allocation,
+  List<ArenaCourtDaySummary> courts,
+) {
+  if (!allocation.isCapacity) return const [];
+  final plain = [for (final s in courts) s.court];
+  final freeById = {for (final s in courts) s.court.id: s.hasFreeSlotsToday};
+  return [
+    for (final sport in capacitySports(allocation, plain))
+      () {
+        final candidates = capacityCandidateCourts(allocation, plain, sport);
+        return CapacitySportRow(
+          sport: sport,
+          label: courtSportLabel(sport),
+          courtCount: candidates.length,
+          freeCourtsToday:
+              candidates.where((c) => freeById[c.id] == true).length,
+          pricePerHour: allocation.priceBySport[sport],
+        );
+      }(),
+  ];
+}
+
+/// Status do dia na linha do esporte.
+String capacitySportStatusLabel(CapacitySportRow row) {
+  final n = row.freeCourtsToday;
+  if (n <= 0) return 'Lotado hoje';
+  return '$n com horário hoje';
+}
+
+/// Ordem natural do nome da quadra ("Quadra 2" antes de "Quadra 10").
+int compareCourtNames(String a, String b) {
+  final re = RegExp(r'^(.*?)(\d+)\s*$');
+  final ma = re.firstMatch(a.trim().toLowerCase());
+  final mb = re.firstMatch(b.trim().toLowerCase());
+  if (ma != null && mb != null && ma.group(1) == mb.group(1)) {
+    return int.parse(ma.group(2)!).compareTo(int.parse(mb.group(2)!));
+  }
+  return a.toLowerCase().compareTo(b.toLowerCase());
 }
 
 String formatRelativeReviewAge(DateTime? createdAt, DateTime now) {

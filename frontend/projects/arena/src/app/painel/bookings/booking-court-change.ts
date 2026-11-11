@@ -40,7 +40,8 @@ export interface CourtChangeOption {
  *  outras, como em `courtChangeOptions`. */
 export function courtAssignOptions(booking: CourtChangeBooking, courts: readonly ArenaCourt[]): CourtChangeOption[] {
   const others = courtChangeOptions(booking, courts).map((court) => ({ court, provisional: false }));
-  if (booking.allocationStatus !== 'unassigned') return others;
+  // Clubinho fica sempre provisório: confirmar na própria quadra não muda nada.
+  if (booking.allocationStatus !== 'unassigned' || booking.clubSessionId) return others;
   const current = courts.find((c) => c.id === booking.courtId);
   return current ? [{ court: current, provisional: true }, ...others] : others;
 }

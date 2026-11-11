@@ -25,6 +25,7 @@ import {computeSlotLockIds} from "./arena-booking-waitlist";
 import {courtSportCodes} from "./arena-booking-sport";
 import {hasBlockedSlotOverlap} from "./arena-recurring-booking";
 import {parseDateKeyFromBooking} from "./slot-vacancy-alerts";
+import {ARENA_CLUB_SESSIONS} from "./arena-club-constants";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -120,6 +121,60 @@ export interface BookingMove {
   toCourtName: string;
   toLockIds: string[];
   slotDocs: DocumentSnapshot[];
+  /** Sessão do clubinho dona do bloqueio (as quadras dela acompanham a troca). */
+  clubSession: {ref: DocumentReference; data: DocumentData} | null;
+}
+
+/** Bloqueio de uma sessão do clubinho: fica sempre provisório (a equipe troca, nunca fixa). */
+export function isClubBlock(booking: DocumentData | undefined): boolean {
+  return !!str(booking?.["clubSessionId"]);
+}
+
+/**
+ * Sessão do clubinho depois de trocar a quadra de um dos bloqueios dela: a quadra de origem vira a
+ * de destino em `courtIds`/`courtNames` (o app mostra as quadras da sessão por eles). Puro.
+ */
+export function clubSessionCourtsAfterMove(
+  session: DocumentData,
+  fromCourtId: string,
+  toCourtId: string,
+  toCourtName: string,
+): {courtIds: string[]; courtNames: string[]} {
+  const ids = Array.isArray(session["courtIds"]) ? (session["courtIds"] as unknown[]).map(String) : [];
+  const names = Array.isArray(session["courtNames"]) ? (session["courtNames"] as unknown[]).map(String) : [];
+  const idx = ids.indexOf(fromCourtId);
+  if (idx < 0) return {courtIds: [...ids, toCourtId], courtNames: [...names, toCourtName]};
+  const courtIds = [...ids];
+  const courtNames = [...names];
+  courtIds[idx] = toCourtId;
+  courtNames[idx] = toCourtName;
+  return {courtIds, courtNames};
+}
+
+/**
+ * Sessões do clubinho lidas na transação (chave = a própria transação): duas quadras da mesma
+ * sessão mudando juntas atualizam a mesma cópia, sem uma apagar a troca da outra.
+ */
+const clubSessionsByTx = new WeakMap<object, Map<string, {ref: DocumentReference; data: DocumentData}>>();
+
+async function readClubSession(
+  tx: TxReader,
+  db: Firestore,
+  sessionId: string,
+): Promise<{ref: DocumentReference; data: DocumentData} | null> {
+  let cache = clubSessionsByTx.get(tx);
+  if (!cache) {
+    cache = new Map();
+    clubSessionsByTx.set(tx, cache);
+  }
+  const hit = cache.get(sessionId);
+  if (hit) return hit;
+  const ref = db.collection(ARENA_CLUB_SESSIONS).doc(sessionId);
+  const snap = await tx.get(ref);
+  if (!snap.exists) return null;
+  const entry = {ref, data: {...snap.data() as DocumentData}};
+  cache.set(sessionId, entry);
+  return entry;
 }
 
 /** Leituras de uma mudança de quadra (fase de leitura da transação). `null` se a reserva sumiu. */
@@ -148,6 +203,8 @@ export async function readBookingMove(
   const fromLocks: DocumentSnapshot[] = [];
   for (const id of fromLockIds) fromLocks.push(await tx.get(db.collection(ARENA_SLOT_LOCKS).doc(id)));
   const slots = await tx.get(db.collection(ARENA_SLOTS).where("bookingId", "==", bookingId));
+  const clubSessionId = str(booking["clubSessionId"]);
+  const clubSession = clubSessionId ? await readClubSession(tx, db, clubSessionId) : null;
 
   return {
     bookingId,
@@ -162,6 +219,7 @@ export async function readBookingMove(
     toCourtName: to.courtName,
     toLockIds,
     slotDocs: slots.docs,
+    clubSession,
   };
 }
 
@@ -183,6 +241,8 @@ export function writeBookingCourtMove(
   opts: MoveWriteOptions,
 ): void {
   const skip = opts.skipDeletePaths ?? new Set<string>();
+  // Clubinho continua provisório mesmo quando a equipe troca a quadra.
+  const assignedBy = isClubBlock(move.booking) ? undefined : opts.assignedBy;
   const owns = (snap: DocumentSnapshot | undefined) =>
     snap?.exists === true && snap.data()?.["bookingId"] === move.bookingId;
 
@@ -200,7 +260,7 @@ export function writeBookingCourtMove(
       courtId: move.toCourtId,
       movedAt: FieldValue.serverTimestamp(),
     };
-    if (opts.assignedBy) delete data["floating"];
+    if (assignedBy) delete data["floating"];
     tx.set(db.collection(ARENA_SLOT_LOCKS).doc(move.toLockIds[i]!), data);
   }
   // Trava de origem só sai se for desta reserva (nunca derruba a de outra).
@@ -222,11 +282,11 @@ export function writeBookingCourtMove(
     at: Timestamp.fromMillis(opts.nowMs),
     reason: opts.reason,
   };
-  const assignment = opts.assignedBy && move.booking["allocationStatus"] === "unassigned" ? {
+  const assignment = assignedBy && move.booking["allocationStatus"] === "unassigned" ? {
     allocationStatus: "assigned",
-    allocationSource: opts.assignedBy.source,
+    allocationSource: assignedBy.source,
     allocatedAt: FieldValue.serverTimestamp(),
-    allocatedBy: opts.assignedBy.uid,
+    allocatedBy: assignedBy.uid,
   } : {};
   tx.set(move.bookingRef, {
     courtId: move.toCourtId,
@@ -236,6 +296,13 @@ export function writeBookingCourtMove(
     courtChangedBy: opts.by,
     ...assignment,
   }, {merge: true});
+
+  if (move.clubSession) {
+    const courts = clubSessionCourtsAfterMove(move.clubSession.data, move.fromCourtId, move.toCourtId, move.toCourtName);
+    // A cópia da transação acompanha: outra troca da mesma sessão parte daqui.
+    Object.assign(move.clubSession.data, courts);
+    tx.set(move.clubSession.ref, {...courts, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+  }
 }
 
 // ---------------------------------------------------------------------------

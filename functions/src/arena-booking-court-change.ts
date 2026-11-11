@@ -27,6 +27,8 @@ import {deliverNotificationToUser} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {
   claimCourtLocks,
+  clubSessionCourtsAfterMove,
+  isClubBlock,
   readBookingMove,
   targetCourtBlockReason,
   writeBookingCourtMove,
@@ -34,7 +36,7 @@ import {
 import {athleteSeesBookingCourt} from "./arena-booking-allocation";
 import {ARENA_CLUB_SESSIONS, CLUB_PARTICIPANTS} from "./arena-club-constants";
 
-export {targetCourtBlockReason};
+export {clubSessionCourtsAfterMove, targetCourtBlockReason};
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -63,26 +65,6 @@ export interface ChangeBookingCourtResult {
   fromCourtName?: string;
 }
 
-/**
- * Sessão do clubinho depois de trocar a quadra de um dos bloqueios dela: a quadra de origem vira a
- * de destino em `courtIds`/`courtNames` (o app mostra as quadras da sessão por eles). Puro.
- */
-export function clubSessionCourtsAfterMove(
-  session: DocumentData,
-  fromCourtId: string,
-  toCourtId: string,
-  toCourtName: string,
-): {courtIds: string[]; courtNames: string[]} {
-  const ids = Array.isArray(session["courtIds"]) ? (session["courtIds"] as unknown[]).map(String) : [];
-  const names = Array.isArray(session["courtNames"]) ? (session["courtNames"] as unknown[]).map(String) : [];
-  const idx = ids.indexOf(fromCourtId);
-  if (idx < 0) return {courtIds: [...ids, toCourtId], courtNames: [...names, toCourtName]};
-  const courtIds = [...ids];
-  const courtNames = [...names];
-  courtIds[idx] = toCourtId;
-  courtNames[idx] = toCourtName;
-  return {courtIds, courtNames};
-}
 
 function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
@@ -187,8 +169,9 @@ export async function changeArenaBookingCourtCore(
 
   const fromCourtId = str(booking["courtId"]);
   if (fromCourtId === input.toCourtId) {
-    // Reserva sem quadra definida confirmada na própria provisória: só marca como definida.
-    if (booking["allocationStatus"] === "unassigned") {
+    // Reserva sem quadra definida confirmada na própria provisória: só marca como definida. O
+    // clubinho fica sempre provisório.
+    if (booking["allocationStatus"] === "unassigned" && !isClubBlock(booking)) {
       return assignBookingInPlace(db, {bookingId: input.bookingId, courtId: fromCourtId, actor: {uid, source: "staff"}, nowMs});
     }
     return {
@@ -215,7 +198,7 @@ export async function changeArenaBookingCourtCore(
     bookingId: input.bookingId,
     courtId: input.toCourtId,
     courtName: moved.courtName,
-    assigned: booking["allocationStatus"] === "unassigned",
+    assigned: booking["allocationStatus"] === "unassigned" && !isClubBlock(booking),
     fromCourtName: str(booking["courtName"]) || "Quadra",
   };
 }
@@ -314,11 +297,8 @@ export async function moveBookingToCourt(
     }
     const move = await readBookingMove(tx, db, bookingId, {courtId: toCourtId, courtName: toCourtName}, fresh);
     if (!move) throw new HttpsError("failed-precondition", "Esta reserva não tem horário válido.");
-    // Bloqueio de uma sessão do clubinho: a sessão passa a mostrar a quadra nova.
-    const clubSessionId = str(freshData["clubSessionId"]);
-    const clubSessionRef = clubSessionId ? db.collection(ARENA_CLUB_SESSIONS).doc(clubSessionId) : null;
-    const clubSession = clubSessionRef ? await tx.get(clubSessionRef) : null;
-    if (clubSession?.exists && ["canceled", "completed"].includes(str(clubSession.data()?.["status"]))) {
+    // Bloqueio de uma sessão do clubinho (a sessão acompanha a troca em `writeBookingCourtMove`).
+    if (move.clubSession && ["canceled", "completed"].includes(str(move.clubSession.data["status"]))) {
       throw new HttpsError("failed-precondition", "Esta sessão do clubinho já foi encerrada.");
     }
 
@@ -332,12 +312,6 @@ export async function moveBookingToCourt(
       skipDeletePaths: claim.relocatedLockPaths,
     });
     if (params.extra) tx.set(bookingRef, params.extra, {merge: true});
-    if (clubSessionRef && clubSession?.exists) {
-      tx.set(clubSessionRef, {
-        ...clubSessionCourtsAfterMove(clubSession.data() as DocumentData, fromCourtId, toCourtId, toCourtName),
-        updatedAt: FieldValue.serverTimestamp(),
-      }, {merge: true});
-    }
     claim.commit(tx);
   });
 

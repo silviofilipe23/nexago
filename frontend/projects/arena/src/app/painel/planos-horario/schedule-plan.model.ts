@@ -121,6 +121,8 @@ export interface ScheduleSubscription {
   /** Uids com o débito automático no cartão ligado. */
   autopayPayers: string[];
   pausedUntil: string | null;
+  /** Dias de pausa já usados no ano corrente (`pauseDaysUsed.year`); `null` = nunca pausou. */
+  pauseDaysUsed: { year: string; days: number } | null;
   makeupBalance: number;
   startDate: string;
   source: 'arena' | 'athlete' | 'waitlist';
@@ -207,6 +209,23 @@ export interface PlanOccurrence {
   courtName: string;
   status: string;
   makeup: boolean;
+  /** `checked_in`, `no_show`, `pending`… (presença marcada pela recepção ou pelo QR). */
+  attendanceStatus: string | null;
+  /** `schedule_skip` = o atleta avisou que não ia; `schedule_holiday` = feriado; demais = arena/sistema. */
+  cancelReason: string | null;
+  canceledByRole: string | null;
+}
+
+/** Crédito de reposição (`arenaScheduleCredits`). A varredura diária grava `expired`; até lá, `available` com `expiresOn` passado também já venceu. */
+export interface ScheduleCredit {
+  id: string;
+  subscriptionId: string;
+  /** `skip` (avisou que não ia), `holiday`, `arena` (cancelado pela agenda) ou `manual` ("Dar reposição"). */
+  reason: 'skip' | 'holiday' | 'arena' | 'manual';
+  status: 'available' | 'used' | 'expired';
+  sourceDate: string | null;
+  expiresOn: string;
+  usedDate: string | null;
 }
 
 // ── Padrões (contrato) ──────────────────────────────────────────────────────
@@ -391,6 +410,12 @@ function autopayPayersFromRaw(map: unknown, ids: unknown): string[] {
   return Array.isArray(ids) ? (ids as unknown[]).filter((v): v is string => typeof v === 'string' && v !== '') : [];
 }
 
+function pauseDaysUsedFromRaw(v: unknown): { year: string; days: number } | null {
+  const p = obj(v);
+  const year = str(p['year']);
+  return year ? { year, days: Math.max(0, num(p['days'], 0)) } : null;
+}
+
 export function subscriptionFromRaw(id: string, d: Raw): ScheduleSubscription {
   const snapshot = obj(d['planSnapshot']);
   return {
@@ -428,6 +453,7 @@ export function subscriptionFromRaw(id: string, d: Raw): ScheduleSubscription {
     endRequestedBy: d['endRequestedBy'] === 'athlete' ? 'athlete' : null,
     autopayPayers: autopayPayersFromRaw(d['autopay'], d['autopayAthleteIds']),
     pausedUntil: optStr(d['pausedUntil']),
+    pauseDaysUsed: pauseDaysUsedFromRaw(d['pauseDaysUsed']),
     makeupBalance: num(d['makeupBalance'], 0),
     startDate: str(d['startDate']),
     source: oneOf(d['source'], ['arena', 'athlete', 'waitlist'] as const, 'arena'),
@@ -531,5 +557,24 @@ export function occurrenceFromDoc(doc: Snap): PlanOccurrence {
     courtName: str(d['courtName'], 'Quadra'),
     status: str(d['status']),
     makeup: typeof d['scheduleMakeupCreditId'] === 'string',
+    attendanceStatus: optStr(d['attendanceStatus']),
+    cancelReason: optStr(d['cancelReason']),
+    canceledByRole: optStr(d['canceledByRole']),
   };
+}
+
+export function creditFromRaw(id: string, d: Raw): ScheduleCredit {
+  return {
+    id,
+    subscriptionId: str(d['subscriptionId']),
+    reason: oneOf(d['reason'], ['skip', 'holiday', 'arena', 'manual'] as const, 'manual'),
+    status: oneOf(d['status'], ['available', 'used', 'expired'] as const, 'available'),
+    sourceDate: optStr(d['sourceDate']),
+    expiresOn: str(d['expiresOn']),
+    usedDate: optStr(d['usedDate']),
+  };
+}
+
+export function creditFromDoc(doc: Snap): ScheduleCredit {
+  return creditFromRaw(doc.id, (doc.data() ?? {}) as Raw);
 }

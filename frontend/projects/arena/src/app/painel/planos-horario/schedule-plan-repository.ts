@@ -2,6 +2,7 @@ import { collection, doc, onSnapshot, query, where, type Firestore, type Unsubsc
 import { httpsCallable, type Functions } from 'firebase/functions';
 import {
   chargeFromDoc,
+  creditFromDoc,
   occurrenceFromDoc,
   planFromDoc,
   settingsFromRaw,
@@ -13,6 +14,7 @@ import {
   type PlanRules,
   type PlanWindow,
   type ScheduleCharge,
+  type ScheduleCredit,
   type ScheduleCycle,
   type ScheduleManualMethod,
   type SchedulePaymentForm,
@@ -129,6 +131,20 @@ export function watchSubscriptionOccurrences(
   return onSnapshot(
     query(collection(db, 'arenaBookings'), where('arenaId', '==', arenaId), where('scheduleSubscriptionId', '==', subscriptionId)),
     (snap) => onChange(snap.docs.map(occurrenceFromDoc).sort((a, b) => a.dateKey.localeCompare(b.dateKey) || a.startTime.localeCompare(b.startTime))),
+    () => onChange([]),
+  );
+}
+
+/** Créditos de reposição da assinatura (disponíveis, usados e vencidos) — para o histórico. */
+export function watchSubscriptionCredits(
+  db: Firestore,
+  arenaId: string,
+  subscriptionId: string,
+  onChange: (c: ScheduleCredit[]) => void,
+): Unsubscribe {
+  return onSnapshot(
+    query(collection(db, 'arenaScheduleCredits'), where('arenaId', '==', arenaId), where('subscriptionId', '==', subscriptionId)),
+    (snap) => onChange(snap.docs.map(creditFromDoc)),
     () => onChange([]),
   );
 }

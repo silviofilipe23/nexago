@@ -63,6 +63,7 @@ Future<List<Object?>> pumpSlots(
   ArenaListItem arenaItem = arena,
   List<ArenaCourt> courts = _oneSportCourts,
   String? primarySport,
+  String? initialSport,
 }) async {
   tester.view.physicalSize = const Size(900, 2400);
   tester.view.devicePixelRatio = 1;
@@ -76,7 +77,7 @@ Future<List<Object?>> pumpSlots(
       GoRoute(
         path: AppRoutes.arenaSlots,
         name: AppRouteNames.arenaSlots,
-        builder: (context, state) => SlotsPage(arenaId: 'a1', initialDate: day),
+        builder: (context, state) => SlotsPage(arenaId: 'a1', initialDate: day, initialSport: initialSport),
       ),
       GoRoute(
         path: AppRoutes.arenaBookingConfirm,
@@ -235,6 +236,19 @@ void main() {
       await tester.tap(find.widgetWithText(ChoiceChip, 'Beach tennis'));
       await tester.pump();
       expect(chip(tester, 'Beach tennis').selected, isTrue);
+      expect(chip(tester, 'Padel').selected, isFalse);
+    });
+
+    testWidgets('esporte escolhido no perfil da arena vence o principal do atleta', (tester) async {
+      await pumpSlots(
+        tester,
+        arenaItem: multiArena,
+        courts: multiCourts,
+        primarySport: 'PADEL',
+        initialSport: 'beachVolleyball',
+      );
+
+      expect(chip(tester, 'Vôlei de praia').selected, isTrue);
       expect(chip(tester, 'Padel').selected, isFalse);
     });
   });

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/arenas/domain/arena_booking_allocation.dart';
 import 'package:nexago_app/features/arenas/domain/arena_court.dart';
 import 'package:nexago_app/features/arenas/domain/arena_detail_logic.dart';
 import 'package:nexago_app/features/arenas/domain/arena_list_item.dart';
@@ -32,8 +33,10 @@ ArenaDetailTodaySummary _today(List<(String, List<String>)> courts) {
 
 Future<List<String>> _pump(
   WidgetTester tester,
-  ArenaDetailTodaySummary today,
-) async {
+  ArenaDetailTodaySummary today, {
+  ArenaListItem arena = _arena,
+  List<String>? openedSports,
+}) async {
   tester.view.physicalSize = const Size(402, 2400);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -44,10 +47,11 @@ Future<List<String>> _pump(
       home: Scaffold(
         body: SingleChildScrollView(
           child: ArenaDetailCourtsSection(
-            arena: _arena,
+            arena: arena,
             today: today,
             loading: false,
             onOpenCourt: opened.add,
+            onOpenSport: openedSports?.add ?? (_) {},
           ),
         ),
       ),
@@ -131,5 +135,66 @@ void main() {
     await tester.tap(find.text('Todas'));
     await tester.pumpAndSettle();
     expect(find.text('Ver todas as 6 quadras'), findsOneWidget);
+  });
+
+  ArenaListItem capacityArena({bool mixed = false}) => ArenaListItem(
+        id: 'a2',
+        name: 'Arena Capacidade',
+        locationLabel: 'Centro',
+        pricePerHourReais: 100,
+        bookingAllocation: ArenaBookingAllocation(
+          isCapacity: true,
+          allowCourtChoice: mixed,
+          priceBySport: const {'beachTennis': 120, 'beachVolleyball': 100},
+        ),
+      );
+
+  final eightCourts = _today([
+    for (var i = 1; i <= 8; i++)
+      ('Quadra $i', i.isEven ? ['beachVolleyball'] : ['beachTennis']),
+  ]);
+
+  testWidgets('arena define a quadra: linha por esporte, sem lista por quadra',
+      (tester) async {
+    final sports = <String>[];
+    final opened = await _pump(
+      tester,
+      eightCourts,
+      arena: capacityArena(),
+      openedSports: sports,
+    );
+    expect(find.text('Você reserva o horário, a arena define a quadra'),
+        findsOneWidget);
+    expect(find.byType(ArenaDetailCourtCard), findsNothing);
+    expect(find.text('Beach tennis'), findsOneWidget);
+    expect(find.text('Vôlei de praia'), findsOneWidget);
+
+    await tester.tap(find.text('Vôlei de praia'));
+    expect(sports, ['beachVolleyball']);
+
+    // Estrutura: 6 nomes + "+2 quadras", só informação.
+    expect(find.text('+2 quadras'), findsOneWidget);
+    expect(find.text('Quadra 8'), findsNothing);
+    await tester.tap(find.text('Quadra 1'));
+    expect(opened, isEmpty);
+    await tester.tap(find.text('+2 quadras'));
+    await tester.pumpAndSettle();
+    expect(find.text('Quadra 8'), findsOneWidget);
+  });
+
+  testWidgets('modo misto: esportes + "Prefiro escolher a quadra" abre a lista',
+      (tester) async {
+    final opened = await _pump(
+      tester,
+      eightCourts,
+      arena: capacityArena(mixed: true),
+    );
+    expect(find.byType(ArenaDetailCourtCard), findsNothing);
+    await tester.tap(find.textContaining('Prefiro escolher a quadra'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ArenaDetailCourtCard), findsNWidgets(4));
+    expect(find.text('Ver todas as 8 quadras'), findsOneWidget);
+    await tester.tap(find.text('Quadra 1'));
+    expect(opened, ['Quadra 1']);
   });
 }

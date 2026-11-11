@@ -54,6 +54,7 @@ class SlotsPage extends ConsumerWidget {
     this.initialCourtId,
     this.initialStartTime,
     this.forceCourtChoice = false,
+    this.initialSport,
   });
 
   final String arenaId;
@@ -65,12 +66,16 @@ class SlotsPage extends ConsumerWidget {
   /// Modo misto: o atleta tocou "Prefiro escolher a quadra" na grade por horário.
   final bool forceCourtChoice;
 
+  /// Grade por horário: esporte já escolhido (código do catálogo).
+  final String? initialSport;
+
   Widget _view(BuildContext context, ArenaListItem arena) {
     final allocation = arena.bookingAllocation;
     if (useCapacityGrid(allocation, initialCourtId: initialCourtId, forceCourtChoice: forceCourtChoice)) {
       return CapacitySlotsView(
         arena: arena,
         initialDate: initialDate,
+        initialSport: initialSport,
         onChooseCourt: allocation.allowCourtChoice
             ? () => context.pushNamed(
                   AppRouteNames.arenaSlots,

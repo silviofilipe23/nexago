@@ -130,7 +130,14 @@ function formatBRL(n: number): string {
       display: flex;
       flex-direction: column;
       gap: 16px;
-      overflow: hidden;
+      /* A página inteira rola: com o card "A arena define a quadra" aberto, rolar só a grade
+         a espremia a 0px e os botões Editar/QR sumiam. */
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    .body > * {
+      flex: none;
     }
 
     .state-text {
@@ -185,17 +192,6 @@ function formatBRL(n: number): string {
 
     .kpi-value.tone-pending {
       color: var(--nx-pending);
-    }
-
-    .grid-wrap {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      scrollbar-width: none;
-    }
-
-    .grid-wrap::-webkit-scrollbar {
-      display: none;
     }
 
     .grid {

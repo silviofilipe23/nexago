@@ -11,6 +11,7 @@ import {
 import {changeArenaBookingCourt} from "./arena-booking-court-change";
 import {setArenaBookingAllocation} from "./arena-booking-allocation";
 import {setArenaAthletePricing, setArenaAthletePricingMember} from "./arena-athlete-pricing";
+import {setArenaMemberHoursPolicy} from "./arena-member-hours";
 import {onArenaCourtBlockedRelocateFloating} from "./arena-court-block-floating";
 import {onArenaCourtMaintenanceRelocateFloating} from "./arena-court-maintenance-floating";
 import {
@@ -515,6 +516,7 @@ export {
   setArenaBookingAllocation,
   setArenaAthletePricing,
   setArenaAthletePricingMember,
+  setArenaMemberHoursPolicy,
   onArenaCourtBlockedRelocateFloating,
   onArenaCourtMaintenanceRelocateFloating,
   cancelPendingArenaBookingPayment,

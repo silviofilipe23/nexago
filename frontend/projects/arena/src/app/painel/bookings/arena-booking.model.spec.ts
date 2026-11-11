@@ -1,5 +1,5 @@
 import { Timestamp, type QueryDocumentSnapshot } from 'firebase/firestore';
-import { arenaBookingFromDoc } from './arena-booking.model';
+import { arenaBookingFromDoc, formatMemberMinutes, memberHoursFields } from './arena-booking.model';
 
 function fakeDoc(id: string, data: Record<string, unknown>): QueryDocumentSnapshot {
   return {
@@ -80,5 +80,22 @@ describe('arenaBookingFromDoc — esporte', () => {
   it('reserva sem esporte (antiga, manual) fica null', () => {
     expect(arenaBookingFromDoc(fakeDoc('b3', base)).sportLabel).toBeNull();
     expect(arenaBookingFromDoc(fakeDoc('b4', { ...base, sport: null })).sportLabel).toBeNull();
+  });
+});
+
+describe('banco de horas do mensalista na reserva', () => {
+  it('lê os minutos e o desconto; ausente = 0', () => {
+    expect(memberHoursFields({})).toEqual({ memberHoursMinutes: 0, memberHoursDiscountReais: null });
+    expect(memberHoursFields({ memberHoursMinutes: 90, memberHoursDiscountReais: 225 })).toEqual({
+      memberHoursMinutes: 90,
+      memberHoursDiscountReais: 225,
+    });
+  });
+
+  it('formata as horas', () => {
+    expect(formatMemberMinutes(90)).toBe('1h30');
+    expect(formatMemberMinutes(60)).toBe('1h');
+    expect(formatMemberMinutes(30)).toBe('30min');
+    expect(formatMemberMinutes(180)).toBe('3h');
   });
 });

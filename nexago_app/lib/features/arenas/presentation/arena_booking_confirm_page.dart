@@ -38,6 +38,7 @@ import 'widgets/booking_confirm/booking_confirm_cancellation_card.dart';
 import 'widgets/booking_confirm/booking_confirm_coupon_field.dart';
 import 'widgets/booking_confirm/booking_confirm_hero_card.dart';
 import 'widgets/booking_confirm/booking_confirm_lesson_student_picker.dart';
+import 'widgets/booking_confirm/booking_confirm_member_hours_note.dart';
 import 'widgets/booking_confirm/booking_confirm_observations_field.dart';
 import 'widgets/booking_confirm/booking_confirm_price_summary.dart';
 import 'widgets/booking_confirm/booking_confirm_professor_option.dart';
@@ -148,7 +149,9 @@ class _ArenaBookingConfirmPageState
   /// Mensagem quando o cupom não entrou: o desconto de professor ou a
   /// promoção já deixam a reserva mais barata (não acumulam).
   static String _couponNotBetterMessage(ArenaBookingQuote quote) =>
-      quote.hasProfessorDiscount
+      quote.hasMemberHours
+          ? 'O seu banco de horas já deixa esta reserva mais barata que o cupom.'
+          : quote.hasProfessorDiscount
           ? 'O desconto de professor já deixa esta reserva mais barata que o cupom.'
           : quote.hasAthletePricing
           ? 'O seu preço de ${quote.athletePricingLabel ?? 'perfil'} já deixa esta reserva mais barata que o cupom.'
@@ -350,11 +353,18 @@ class _ArenaBookingConfirmPageState
   }
 
   /// Reserva criada; pagamento combinado na arena (sem Mercado Pago).
+  ///
+  /// Coberta inteira pelo banco de horas ([coveredByPlan]): nada a pagar, o
+  /// servidor confirma no local. Vai `onsite`; só numa arena que não aceita
+  /// pagamento no local vai `pix` (o servidor recusaria `onsite` e, com total
+  /// 0, confirma no local mesmo assim).
   Future<void> _finalizeBookingPayAtArena(
     ArenaBookingConfirmArgs args, {
     required String sport,
     required bool asProfessor,
     String? lessonStudentId,
+    bool coveredByPlan = false,
+    bool onsiteEnabled = true,
   }) async {
     final user = ref.read(authServiceProvider).currentUser;
     if (user == null) {
@@ -378,7 +388,8 @@ class _ArenaBookingConfirmPageState
             sport: sport,
             asProfessor: asProfessor,
             professorStudentId: lessonStudentId,
-            useWeatherCredit: _sendWeatherCredit,
+            paymentMode: coveredByPlan && !onsiteEnabled ? 'pix' : 'onsite',
+            useWeatherCredit: _sendWeatherCredit && !coveredByPlan,
           );
       _clearLessonStudent();
       if (!mounted) return;
@@ -426,7 +437,9 @@ class _ArenaBookingConfirmPageState
   ) {
     final amount = created.amountReais;
     final credit = created.weatherCreditAppliedReais;
-    final paymentLabel = created.isCoveredByWeatherCredit
+    final paymentLabel = created.isCoveredByMemberHours
+        ? 'Coberta pelo seu plano: nada a pagar.'
+        : created.isCoveredByWeatherCredit
         ? 'Pago com crédito de chuva.'
         : credit > 0
         ? 'Crédito de chuva de ${formatBRL(credit)} aplicado. Restante de '
@@ -604,14 +617,34 @@ class _ArenaBookingConfirmPageState
         !professorDiscount &&
         quote != null &&
         quote.hasAthletePricing;
+    // Banco de horas do mensalista: entra por cima do perfil/professor.
+    final memberHours = !_quoting && quote != null && quote.hasMemberHours;
+    // Coberta inteira pelo plano: nada a pagar, sem escolher forma de
+    // pagamento (o servidor confirma no local).
+    final coveredByPlan = memberHours && quote.coveredByMemberHours;
+    final memberNote = !_quoting && quote != null && quote.isMember
+        ? (
+            title: quote.memberHoursPlanName ?? 'Banco de horas',
+            message: quote.memberHoursNoticeIsWarning
+                ? quote.memberHoursNotice!
+                : [
+                    quote.memberHoursBalanceLabel!,
+                    if (quote.memberHoursNotice != null)
+                      quote.memberHoursNotice!,
+                  ].join('. '),
+            warning: quote.memberHoursNoticeIsWarning,
+          )
+        : null;
     final durationCompact = formatCourtDurationLabel(args);
     final courtLineLabel = durationCompact.isEmpty
         ? 'Quadra'
         : 'Quadra ($durationCompact)';
     // Crédito de chuva: o card só aparece com saldo; o valor aplicado vale
     // só da cotação pedida com o card ligado.
-    final creditAvailable = quote?.weatherCreditAvailableReais ?? 0;
-    final creditApplied = !_quoting && _useWeatherCredit && quote != null
+    final creditAvailable =
+        coveredByPlan ? 0.0 : quote?.weatherCreditAvailableReais ?? 0;
+    final creditApplied =
+        !_quoting && _useWeatherCredit && quote != null && !coveredByPlan
         ? quote.weatherCreditAppliedReais
         : 0.0;
     final amountDue = creditApplied > 0
@@ -619,14 +652,18 @@ class _ArenaBookingConfirmPageState
         : displayTotal;
     final coveredByCredit = creditApplied > 0 && amountDue <= 0;
     final stickyAmount = amountDue;
-    final stickyMeta = coveredByCredit
+    final stickyMeta = coveredByPlan
+        ? 'coberta pelo seu plano'
+        : coveredByCredit
         ? 'coberto pelo crédito de chuva'
         : choice == _PaymentChoice.pix
         ? 'Pix ou cartão na próxima etapa'
         : creditApplied > 0
         ? 'a pagar na arena'
         : 'total na arena';
-    final stickyCta = choice == _PaymentChoice.pix && !coveredByCredit
+    final stickyCta = coveredByPlan
+        ? 'Confirmar reserva'
+        : choice == _PaymentChoice.pix && !coveredByCredit
         ? 'Confirmar e pagar'
         : 'Confirmar reserva';
 
@@ -724,6 +761,9 @@ class _ArenaBookingConfirmPageState
                                               : athletePricing
                                               ? quote
                                                   .amountBeforeAthletePricingReais
+                                              : memberHours
+                                              ? quote
+                                                  .amountBeforeMemberHoursReais
                                               : displayTotal,
                                         ),
                                   discountLineLabel: professorDiscount
@@ -736,6 +776,12 @@ class _ArenaBookingConfirmPageState
                                       : athletePricing
                                       ? quote.athletePricingValueLabel
                                       : null,
+                                  memberHoursLineLabel: memberHours
+                                      ? quote.memberHoursLineLabel
+                                      : null,
+                                  memberHoursAmountLabel: memberHours
+                                      ? quote.memberHoursValueLabel
+                                      : null,
                                   weatherCreditAmountLabel: creditApplied > 0
                                       ? '\u2212 ${formatBRL(creditApplied)}'
                                       : null,
@@ -744,11 +790,21 @@ class _ArenaBookingConfirmPageState
                                   totalAmountLabel:
                                       professorDiscount ||
                                           athletePricing ||
+                                          memberHours ||
                                           creditApplied > 0
                                       ? formatBRL(amountDue)
                                       : null,
                                 ),
                               ),
+                              if (memberNote != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: BookingConfirmMemberHoursNote(
+                                    title: memberNote.title,
+                                    message: memberNote.message,
+                                    warning: memberNote.warning,
+                                  ),
+                                ),
                               Padding(
                                 padding: const EdgeInsets.only(top: 14),
                                 child: BookingConfirmCouponField(
@@ -780,6 +836,9 @@ class _ArenaBookingConfirmPageState
                                   enabled: !_submitting,
                                 ),
                               ),
+                              // Coberta pelo plano: nada a pagar, sem forma
+                              // de pagamento.
+                              if (!coveredByPlan) ...[
                               Padding(
                                 padding: const EdgeInsets.only(top: 22),
                                 child: Text(
@@ -867,6 +926,7 @@ class _ArenaBookingConfirmPageState
                                         ],
                                       ),
                               ),
+                              ],
                               Padding(
                                 padding: const EdgeInsets.only(top: 16),
                                 child: Center(
@@ -894,7 +954,8 @@ class _ArenaBookingConfirmPageState
                             : formatBRL(stickyAmount),
                         ctaLabel: stickyCta,
                         submitting: _submitting,
-                        enabled: canPayHere && !_submitting,
+                        enabled:
+                            (canPayHere || coveredByPlan) && !_submitting,
                         onConfirm: () {
                           if (sport == null) {
                             HapticFeedback.heavyImpact();
@@ -908,7 +969,16 @@ class _ArenaBookingConfirmPageState
                             return;
                           }
                           HapticFeedback.mediumImpact();
-                          if (choice == _PaymentChoice.pix) {
+                          if (coveredByPlan) {
+                            _finalizeBookingPayAtArena(
+                              args,
+                              sport: sport,
+                              asProfessor: asProfessor,
+                              lessonStudentId: lessonStudentId,
+                              coveredByPlan: true,
+                              onsiteEnabled: onsiteEnabled,
+                            );
+                          } else if (choice == _PaymentChoice.pix) {
                             _confirmWithPix(
                               args,
                               sport: sport,

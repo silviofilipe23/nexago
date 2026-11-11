@@ -38,6 +38,10 @@
             Sua quadra na <strong>{{ b.arenaName }}</strong> está garantida — o pagamento de
             <strong>{{ formatBRL(b.amountDueOnsiteReais || b.amountReais) }}</strong> é feito lá, no dia do jogo.
           </p>
+        } @else if (statusKind() === 'member_hours') {
+          <p class="bc-subtitle">
+            Sua quadra na <strong>{{ b.arenaName }}</strong> está garantida — saiu do seu banco de horas, nada a pagar.
+          </p>
         } @else if (statusKind() === 'pending') {
           <p class="bc-subtitle">
             O Pix desta reserva ainda não foi pago. Volte à tela de pagamento para gerar um novo código.
@@ -60,7 +64,7 @@
           <h2 class="bc-card-title">{{ b.arenaName }}</h2>
           <span
             class="bc-pill"
-            [class.bc-pill--green]="statusKind() === 'paid' || statusKind() === 'onsite'"
+            [class.bc-pill--green]="statusKind() === 'paid' || statusKind() === 'onsite' || statusKind() === 'member_hours'"
             [class.bc-pill--yellow]="statusKind() === 'partial' || statusKind() === 'pending'"
             [class.bc-pill--red]="statusKind() === 'canceled'"
           >{{ statusLabel() }}</span>
@@ -109,6 +113,11 @@
           <div class="bc-row">
             <span class="bc-row-label">Restante na arena</span>
             <span class="bc-row-value">{{ formatBRL(b.amountDueOnsiteReais) }}</span>
+          </div>
+        } @else if (statusKind() === 'member_hours') {
+          <div class="bc-row">
+            <span class="bc-row-label">Banco de horas</span>
+            <span class="bc-row-value">&minus;{{ formatBRL(b.memberHoursDiscountReais ?? 0) }}</span>
           </div>
         } @else if (statusKind() === 'onsite') {
           <div class="bc-row">

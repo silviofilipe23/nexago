@@ -1,4 +1,10 @@
-import { parseAmountText, quoteKeyOf, validateManualBookingForm, type ManualBookingFormState } from './manual-booking-form';
+import {
+  amountAfterMemberHours,
+  parseAmountText,
+  quoteKeyOf,
+  validateManualBookingForm,
+  type ManualBookingFormState,
+} from './manual-booking-form';
 
 const TODAY = '2026-09-24';
 
@@ -138,5 +144,19 @@ describe('validateManualBookingForm', () => {
     if (!result.ok) return;
     expect(result.payload.startTime).toBe('23:00');
     expect(result.payload.endTime).toBe('00:00');
+  });
+
+  it('banco de horas só vai no payload com atleta escolhido', () => {
+    const semAtleta = validateManualBookingForm(stateOf({ useMemberHours: true }), 'arena1', TODAY);
+    expect(semAtleta.ok && 'useMemberHours' in semAtleta.payload).toBeFalse();
+    const comAtleta = validateManualBookingForm(stateOf({ athleteId: 'u1', useMemberHours: true }), 'arena1', TODAY);
+    expect(comAtleta.ok && comAtleta.payload.useMemberHours).toBeTrue();
+  });
+
+  it('valor a cobrar depois do banco de horas', () => {
+    expect(amountAfterMemberHours(150, '19:00', '20:00', 60)).toBe(0);
+    expect(amountAfterMemberHours(300, '19:00', '21:00', 60)).toBe(150);
+    expect(amountAfterMemberHours(150, '19:00', '20:00', 0)).toBe(150);
+    expect(amountAfterMemberHours(150, '23:00', '00:00', 30)).toBe(75);
   });
 });

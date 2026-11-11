@@ -11,7 +11,7 @@ export const ATHLETE_PRICING_DEFAULT_LABEL: Record<AthletePricingTier, string> =
 };
 
 export const ATHLETE_PRICING_TIER_HINT: Record<AthletePricingTier, string> = {
-  student: 'Alunos validados pela arena.',
+  student: 'Quem faz aula com os professores da arena.',
   professor: 'Ex.: professor que dá aula de outro esporte na sua quadra.',
 };
 
@@ -24,6 +24,8 @@ export interface AthletePricingTierForm {
   label: string;
   mode: AthletePricingMode;
   value: string;
+  /** Só Aluno: matrícula ativa numa turma da arena também conta, além da lista. */
+  autoFromClasses: boolean;
 }
 
 export type AthletePricingForm = Record<AthletePricingTier, AthletePricingTierForm>;
@@ -60,6 +62,7 @@ function tierFormFrom(raw: unknown, tier: AthletePricingTier): AthletePricingTie
     label,
     mode,
     value: formatValue(mode === 'fixed' ? positive(data['pricePerHourReais']) : positive(data['discountPercent'])),
+    autoFromClasses: tier === 'student' && data['autoFromClasses'] === true,
   };
 }
 
@@ -110,7 +113,11 @@ export function athletePricingPayload(arenaId: string, form: AthletePricingForm)
       discountPercent: t.mode === 'percent' ? n : null,
     };
   };
-  return { arenaId, student: tier(form.student), professor: tier(form.professor) };
+  return {
+    arenaId,
+    student: { ...tier(form.student), autoFromClasses: form.student.autoFromClasses },
+    professor: tier(form.professor),
+  };
 }
 
 /** "R$ 100/h" ou "20% de desconto" — `null` sem valor válido. */
@@ -137,4 +144,20 @@ export function athletePricingMemberFromDoc(snap: QueryDocumentSnapshot | Docume
 
 export function sortMembersByName(members: AthletePricingMember[]): AthletePricingMember[] {
   return [...members].sort((a, b) => a.athleteName.localeCompare(b.athleteName, 'pt-BR'));
+}
+
+/**
+ * Mensalista: reservas descontam do banco de horas do contrato do CRM (espelho de
+ * `functions/src/arena-member-hours.ts`). Ausente = desligado.
+ */
+export interface MemberHoursPolicyForm {
+  enabled: boolean;
+  /** Mensalidade atrasada: reserva sai pelo preço normal até pagar. */
+  blockWhenOverdue: boolean;
+}
+
+export function memberHoursPolicyFromArena(arena: Record<string, unknown> | null): MemberHoursPolicyForm {
+  const raw = arena?.['memberHoursBank'];
+  const data = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  return { enabled: data['enabled'] === true, blockWhenOverdue: data['blockWhenOverdue'] !== false };
 }

@@ -28,6 +28,8 @@ caixa). Reserva de aula, clubinho, torneio e reserva feita como professor ficam 
   semana de calendário, plano e avulso, sem contar falta. A ficha mostra "esta semana: 1h30 de 3h"
   e as 8 últimas semanas; a lista mostra a média das 4 últimas semanas fechadas. Jogando mais que o
   contratado, sugere plano maior; usando menos da metade, avisa o risco de não renovar.
+- **Reserva descontando do banco** (opcional, `arenas.memberHoursBank`): com a chave ligada em Tipos de
+  cliente, a reserva do mensalista sai a R$ 0 dentro das horas da semana. Ver `tipos-de-cliente.md`.
 - **Renovar sozinho**: ligado, o período se repete até alguém cancelar. Padrão: ligado no mensal,
   desligado nos outros.
 - **Pagamento**: baixa manual por parcelas (`paidInstallments` + subcoleção `payments`).

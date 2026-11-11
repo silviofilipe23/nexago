@@ -33,6 +33,23 @@ void main() {
     expect(find.text('R\$ 80,00'), findsOneWidget);
   });
 
+  testWidgets('banco de horas: linha do banco e total', (tester) async {
+    await _pump(
+      tester,
+      const BookingConfirmPriceSummary(
+        courtLineLabel: 'Quadra (1h)',
+        courtAmountLabel: 'R\$ 150,00',
+        memberHoursLineLabel: 'Banco de horas · 1h',
+        memberHoursAmountLabel: '−R\$ 150,00',
+        totalAmountLabel: 'R\$ 0,00',
+      ),
+    );
+    expect(find.byKey(const Key('booking-confirm-member-hours')), findsOneWidget);
+    expect(find.text('Banco de horas · 1h'), findsOneWidget);
+    expect(find.text('Total'), findsOneWidget);
+    expect(find.text('R\$ 0,00'), findsOneWidget);
+  });
+
   testWidgets('sem desconto: só a linha da quadra', (tester) async {
     await _pump(
       tester,

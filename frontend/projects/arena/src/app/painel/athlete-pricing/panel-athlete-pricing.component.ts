@@ -15,22 +15,25 @@ import {
   athletePricingFormFromArena,
   athletePricingPayload,
   athletePricingValueLabel,
+  memberHoursPolicyFromArena,
   type AthletePricingForm,
+  type MemberHoursPolicyForm,
   type AthletePricingMember,
   type AthletePricingMode,
   type AthletePricingTier,
 } from './athlete-pricing.model';
 import { AthletePricingService } from './athlete-pricing.service';
 
-/** Tela "Preço por perfil": a arena liga (opcional) o preço de Aluno e/ou Professor e diz quem é
- *  cada um. Quem não está na lista paga o preço normal da quadra (avulso). */
+/** Tela "Tipos de cliente": avulso (preço da quadra), aluno/professor (preço do perfil; aluno pode ser
+ *  reconhecido pela matrícula nas turmas) e mensalista (reserva desconta do banco de horas do
+ *  contrato do CRM). Tudo opcional: desligado, todo mundo paga o preço normal da quadra. */
 @Component({
   selector: 'ar-panel-athlete-pricing',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PanelShellComponent, PageHeaderComponent, IconComponent, AvatarComponent, PillComponent],
   template: `
     <ar-panel-shell>
-      <ar-page-header title="Preço por perfil" [subtitle]="subtitle()" />
+      <ar-page-header title="Tipos de cliente" [subtitle]="subtitle()" />
 
       <div class="body">
         @if (arenaNotFound()) {
@@ -38,10 +41,25 @@ import { AthletePricingService } from './athlete-pricing.service';
         } @else if (arenaLoading()) {
           <p class="state-text">Carregando…</p>
         } @else {
+          <section class="card types" aria-label="Como cada cliente paga">
+            <div class="type">
+              <span class="type-name">Avulso</span>
+              <span class="type-rule">Preço normal da quadra. É todo mundo que não é aluno nem mensalista.</span>
+            </div>
+            <div class="type" [class.on]="saved().student.enabled">
+              <span class="type-name">{{ saved().student.label || defaultLabel.student }}</span>
+              <span class="type-rule">{{ studentRule() }}</span>
+            </div>
+            <div class="type" [class.on]="memberPolicySaved().enabled">
+              <span class="type-name">Mensalista</span>
+              <span class="type-rule">{{ memberRule() }}</span>
+            </div>
+          </section>
+
           <section class="card" aria-labelledby="perfis-title">
             <h2 class="card-title" id="perfis-title">Perfis com preço próprio</h2>
             <p class="card-desc">
-              Opcional. Quem não estiver na lista abaixo paga o preço normal da quadra (avulso). Vale para as reservas
+              Opcional. Quem não for aluno nem professor paga o preço normal da quadra (avulso). Vale para as reservas
               feitas pelo app e pelo site; os descontos não acumulam — fica o menor entre perfil, promoção e cupom.
             </p>
 
@@ -107,6 +125,20 @@ import { AthletePricingService } from './athlete-pricing.service';
                           : 'Aplicado sobre o preço de cada quadra e horário.'
                       }}
                     </p>
+                    @if (tier === 'student') {
+                      <label class="check">
+                        <input
+                          type="checkbox"
+                          [checked]="form().student.autoFromClasses"
+                          [disabled]="readOnly()"
+                          (change)="patch('student', { autoFromClasses: $any($event.target).checked })"
+                        />
+                        <span>
+                          Reconhecer sozinho quem tem matrícula ativa numa turma da arena
+                          <small>Quem faz aula com os professores da arena já paga como aluno, sem entrar na lista.</small>
+                        </span>
+                      </label>
+                    }
                   }
                 </div>
               }
@@ -136,10 +168,59 @@ import { AthletePricingService } from './athlete-pricing.service';
             }
           </section>
 
+          <section class="card" aria-labelledby="mensalista-title">
+            <div class="tier-head">
+              <div>
+                <h2 class="card-title" id="mensalista-title">Mensalista: reservas descontam do banco de horas</h2>
+                <p class="card-desc">
+                  Quem tem contrato em Clientes paga a mensalidade e joga as horas da semana (seg a dom) sem pagar a
+                  reserva. Passou do banco, paga o preço normal. Cancelou, a hora volta. Desligado, o mensalista paga a
+                  reserva como hoje.
+                </p>
+              </div>
+              <button
+                type="button"
+                class="switch"
+                role="switch"
+                aria-labelledby="mensalista-title"
+                [class.on]="memberPolicy().enabled"
+                [attr.aria-checked]="memberPolicy().enabled"
+                [disabled]="memberReadOnly() || savingMember()"
+                (click)="patchMember({ enabled: !memberPolicy().enabled })"
+              ></button>
+            </div>
+            @if (memberPolicy().enabled) {
+              <label class="check">
+                <input
+                  type="checkbox"
+                  [checked]="memberPolicy().blockWhenOverdue"
+                  [disabled]="memberReadOnly() || savingMember()"
+                  (change)="patchMember({ blockWhenOverdue: $any($event.target).checked })"
+                />
+                <span>
+                  Mensalidade atrasada paga a reserva até quitar
+                  <small>Desmarcado, o banco continua valendo mesmo com parcela em aberto.</small>
+                </span>
+              </label>
+            }
+            @if (memberPolicyError(); as err) {
+              <div class="banner banner-error">{{ err }}</div>
+            }
+            @if (memberSaved()) {
+              <div class="banner banner-ok">Salvo. Vale para as próximas reservas.</div>
+            }
+            @if (memberReadOnly()) {
+              <p class="hint">Só quem edita a Agenda muda esta opção.</p>
+            }
+          </section>
+
           <section class="card" aria-labelledby="lista-title">
             <h2 class="card-title" id="lista-title">Atletas validados</h2>
             <p class="card-desc">
               Quem você validar aqui paga o preço do perfil. O perfil precisa estar ligado acima para valer.
+              @if (saved().student.autoFromClasses && saved().student.enabled) {
+                Alunos com matrícula ativa nas turmas já entram sozinhos; não precisa adicionar.
+              }
             </p>
 
             @if (!readOnly()) {
@@ -261,6 +342,57 @@ import { AthletePricingService } from './athlete-pricing.service';
       border-radius: 16px;
       padding: 20px 22px;
       max-width: 880px;
+    }
+    .types {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      padding: 14px;
+    }
+    .type {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--nx-line);
+      background: var(--nx-surface-1);
+    }
+    .type.on {
+      border-color: rgba(255, 106, 26, 0.55);
+    }
+    .type-name {
+      font-weight: 700;
+      font-size: 13.5px;
+      color: var(--nx-text);
+    }
+    .type-rule {
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--nx-text-mute);
+    }
+    .check {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--nx-text);
+      cursor: pointer;
+      line-height: 1.4;
+    }
+    .check input {
+      margin-top: 2px;
+      accent-color: var(--nx-orange-500);
+      width: 16px;
+      height: 16px;
+      flex: none;
+    }
+    .check small {
+      display: block;
+      font-size: 12px;
+      color: var(--nx-text-dim);
+      margin-top: 2px;
     }
     .card-title {
       font-family: var(--nx-font-display);
@@ -515,7 +647,8 @@ import { AthletePricingService } from './athlete-pricing.service';
       .body {
         padding: 16px;
       }
-      .tiers {
+      .tiers,
+      .types {
         grid-template-columns: 1fr;
       }
       .row {
@@ -538,13 +671,34 @@ export class PanelAthletePricingComponent {
   protected readonly readOnly = computed(() => !this.access.canWrite('promocoes'));
 
   /** Config gravada (ao vivo pelo doc da arena). */
-  private readonly saved = computed(() => athletePricingFormFromArena(this.arenaContext.arenaDocData()));
+  protected readonly saved = computed(() => athletePricingFormFromArena(this.arenaContext.arenaDocData()));
   protected readonly form = signal<AthletePricingForm>(athletePricingFormFromArena(null));
   protected readonly dirty = computed(() => JSON.stringify(this.form()) !== JSON.stringify(this.saved()));
   protected readonly formError = computed(() => athletePricingFormError(this.form()));
   protected readonly savingConfig = signal(false);
   protected readonly configError = signal<string | null>(null);
   protected readonly configSaved = signal(false);
+
+  /** Mensalista (banco de horas): grava na hora, área `agenda` (a mesma do CRM). */
+  protected readonly memberPolicySaved = computed(() => memberHoursPolicyFromArena(this.arenaContext.arenaDocData()));
+  private readonly memberDraft = signal<MemberHoursPolicyForm | null>(null);
+  protected readonly memberPolicy = computed(() => this.memberDraft() ?? this.memberPolicySaved());
+  protected readonly memberReadOnly = computed(() => !this.access.canWrite('agenda'));
+  protected readonly savingMember = signal(false);
+  protected readonly memberSaved = signal(false);
+  protected readonly memberPolicyError = signal<string | null>(null);
+
+  protected readonly studentRule = computed(() => {
+    const s = this.saved().student;
+    if (!s.enabled) return 'Desligado: aluno paga como avulso.';
+    const price = athletePricingValueLabel(s) ?? '—';
+    return s.autoFromClasses ? `${price}. Matrícula ativa nas turmas ou lista abaixo.` : `${price}. Só quem está na lista abaixo.`;
+  });
+  protected readonly memberRule = computed(() =>
+    this.memberPolicySaved().enabled
+      ? 'Horas da semana do contrato saem a R$ 0; o que passar é cobrado.'
+      : 'Desligado: paga a mensalidade e também a reserva.',
+  );
 
   protected readonly members = signal<AthletePricingMember[]>([]);
   protected readonly membersLoading = signal(true);
@@ -565,6 +719,7 @@ export class PanelAthletePricingComponent {
     const parts = this.tiers
       .filter((t) => this.saved()[t].enabled)
       .map((t) => `${this.saved()[t].label}: ${athletePricingValueLabel(this.saved()[t]) ?? '—'}`);
+    if (this.memberPolicySaved().enabled) parts.push('Mensalista: banco de horas');
     return parts.length ? `Avulso: preço da quadra · ${parts.join(' · ')}` : 'Desligado · todo mundo paga o preço da quadra';
   });
 
@@ -637,6 +792,25 @@ export class PanelAthletePricingComponent {
       this.configError.set((e as Error).message);
     } finally {
       this.savingConfig.set(false);
+    }
+  }
+
+  protected async patchMember(change: Partial<MemberHoursPolicyForm>): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    if (!arenaId || this.memberReadOnly()) return;
+    const next = { ...this.memberPolicy(), ...change };
+    this.memberDraft.set(next);
+    this.savingMember.set(true);
+    this.memberSaved.set(false);
+    this.memberPolicyError.set(null);
+    try {
+      await this.service.saveMemberHoursPolicy(arenaId, next);
+      this.memberSaved.set(true);
+    } catch (e) {
+      this.memberPolicyError.set((e as Error).message);
+    } finally {
+      this.memberDraft.set(null);
+      this.savingMember.set(false);
     }
   }
 

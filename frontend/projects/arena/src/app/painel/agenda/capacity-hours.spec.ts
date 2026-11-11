@@ -4,6 +4,7 @@ import type { ArenaSlot } from './arena-slot.model';
 import {
   bookingCanCheckInNow,
   bookingCanMarkNoShow,
+  bookingDetailLink,
   buildBoard,
   buildCapacityHours,
   capacityCourts,
@@ -41,6 +42,18 @@ function booking(id: string, courtId: string, overrides: Partial<ArenaBooking> =
 
 const courts = [court('c1'), court('c2'), court('c3'), court('c4')];
 const hourSlots = (start: string, end: string) => courts.map((c) => slot(c.id, start, end));
+
+describe('bookingDetailLink', () => {
+  it('reserva comum, de plano ou do clubinho abre o detalhe da reserva', () => {
+    expect(bookingDetailLink(booking('b1', 'c1'))).toEqual(['/painel/reservas', 'b1']);
+    expect(bookingDetailLink(booking('b2', 'c1', { scheduleSubscriptionId: 's1' }))).toEqual(['/painel/reservas', 'b2']);
+    expect(bookingDetailLink(booking('b3', 'c1', { clubSessionId: 'club1' }))).toEqual(['/painel/reservas', 'b3']);
+  });
+
+  it('aula abre a tela da aula', () => {
+    expect(bookingDetailLink(booking('class_x', 'c1', { classSessionId: 'sess1' }))).toEqual(['/painel/aulas/aula', 'sess1']);
+  });
+});
 
 describe('capacityCourts', () => {
   it('distribuição na ordem gravada; sem distribuição, todas', () => {

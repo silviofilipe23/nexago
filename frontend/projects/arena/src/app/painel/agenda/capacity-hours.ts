@@ -137,6 +137,12 @@ export function hourBookings(tiles: readonly BoardTile[]): ArenaBooking[] {
 
 /** Reservas provisórias da hora que "Confirmar todas" fixa na quadra que já seguram. O clubinho
  *  fica de fora: ele é sempre provisório. */
+/** Para onde vai o clique numa reserva do horário (lista e quadro), igual à grade de quadras:
+ *  aula abre a tela da aula (a reserva é só o espelho dela na agenda); o resto, o detalhe da reserva. */
+export function bookingDetailLink(booking: Pick<ArenaBooking, 'id' | 'classSessionId'>): string[] {
+  return booking.classSessionId ? ['/painel/aulas/aula', booking.classSessionId] : ['/painel/reservas', booking.id];
+}
+
 export function provisionalBookings(tiles: readonly BoardTile[]): ArenaBooking[] {
   return hourBookings(tiles).filter((b) => b.allocationStatus === 'unassigned' && !b.clubSessionId);
 }

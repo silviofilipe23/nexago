@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/arenas/domain/arena_booking_allocation.dart';
 import 'package:nexago_app/features/arenas/domain/arena_court.dart';
 import 'package:nexago_app/features/arenas/domain/arena_detail_logic.dart';
 import 'package:nexago_app/features/arenas/domain/arena_list_item.dart';
@@ -176,6 +177,63 @@ void main() {
         )),
         'Em manutenção',
       );
+    });
+  });
+
+  test('compareCourtNames: ordem natural', () {
+    final names = ['Quadra 10', 'Quadra 2', 'Central', 'Quadra 1']
+      ..sort(compareCourtNames);
+    expect(names, ['Central', 'Quadra 1', 'Quadra 2', 'Quadra 10']);
+  });
+
+  group('capacitySportRows', () {
+    ArenaCourtDaySummary c(String id, List<String> sports,
+            {int free = 0, bool maintenance = false}) =>
+        ArenaCourtDaySummary(
+          court: ArenaCourt(
+            id: id,
+            name: 'Quadra $id',
+            sportTypes: sports,
+            status: maintenance
+                ? ArenaCourtStatus.maintenance
+                : ArenaCourtStatus.active,
+          ),
+          freeSlotsToday: free,
+        );
+
+    test('fora do modo capacidade: vazio', () {
+      expect(
+        capacitySportRows(ArenaBookingAllocation.court, [
+          c('1', const ['beachTennis'])
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('um por esporte com preço e quadra; conta quadras e as livres hoje',
+        () {
+      const allocation = ArenaBookingAllocation(
+        isCapacity: true,
+        priceBySport: {
+          'beachTennis': 120,
+          'beachVolleyball': 100,
+          'footvolley': 90
+        },
+      );
+      final rows = capacitySportRows(allocation, [
+        c('1', const ['beachTennis'], free: 3),
+        c('2', const ['beachTennis', 'beachVolleyball']),
+        c('3', const ['beachVolleyball'], free: 1),
+        c('4', const ['beachTennis'], free: 2, maintenance: true),
+      ]);
+      // Futevôlei tem preço mas nenhuma quadra: fica de fora.
+      expect(rows.map((r) => r.label), ['Beach tennis', 'Vôlei de praia']);
+      expect(rows.first.courtCount, 2);
+      expect(rows.first.freeCourtsToday, 1);
+      expect(rows.first.pricePerHour, 120);
+      expect(rows.last.courtCount, 2);
+      expect(rows.last.freeCourtsToday, 1);
+      expect(capacitySportStatusLabel(rows.first), '1 com horário hoje');
     });
   });
 }

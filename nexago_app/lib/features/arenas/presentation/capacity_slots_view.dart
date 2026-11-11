@@ -38,9 +38,14 @@ class CapacitySlotsView extends ConsumerStatefulWidget {
     this.initialDate,
     this.onBack,
     this.onChooseCourt,
+    this.initialSport,
   });
 
   final ArenaListItem arena;
+
+  /// Esporte já escolhido (ex.: linha do esporte no perfil da arena). Fora dos reserváveis, vale
+  /// o padrão (principal do atleta ou o primeiro).
+  final String? initialSport;
   final DateTime? initialDate;
   final VoidCallback? onBack;
 
@@ -64,6 +69,7 @@ class _CapacitySlotsViewState extends ConsumerState<CapacitySlotsView> {
   void initState() {
     super.initState();
     _selectedDay = slotDayOnly(widget.initialDate ?? DateTime.now());
+    _sport = bookingSportCode(widget.initialSport);
   }
 
   bool _sameDay(DateTime a, DateTime b) =>

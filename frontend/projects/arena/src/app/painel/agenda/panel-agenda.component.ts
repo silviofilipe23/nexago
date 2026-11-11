@@ -10,9 +10,10 @@ import type { ArenaCourt } from '../courts/court.model';
 import { PROFESSOR_BOOKING_TAG, PROFESSOR_BOOKING_TAG_SHORT, bookingIsActive, dateKeyOf, type ArenaBooking } from '../bookings/arena-booking.model';
 import { resolveAthleteLabel, watchBookingsForArenaInRange } from '../bookings/bookings-repository';
 import { ManualBookingModalComponent } from '../bookings/manual-booking-modal.component';
+import { consecutiveBlockableSlots } from './block-range';
 import { applyBookingsOverlay, applyScheduleFilters, scheduleDayStats, type ArenaScheduleStatusFilter } from './arena-schedule-grouping';
 import { ARENA_SLOT_BLOCK_REASON_LABEL, ARENA_SLOT_BLOCK_REASONS, type ArenaSlot, type ArenaSlotBlockReason } from './arena-slot.model';
-import { blockSlot, blockVirtualSlot, fetchCourtsRaw, unblockSlot, watchArenaDaySlots, watchArenaWeekSlots } from './schedule-repository';
+import { blockSlots, fetchCourtsRaw, unblockSlot, watchArenaDaySlots, watchArenaWeekSlots } from './schedule-repository';
 import { weekDatesFor, type WeekDay } from './agenda-week-math';
 import { AgendaGridComponent, type AgendaBlock, type AgendaBlockStatus, type AgendaCourt } from '../ui/agenda-grid.component';
 import { AgendaWeekGridComponent, type AgendaWeekBlock } from '../ui/agenda-week-grid.component';
@@ -243,13 +244,30 @@ function timeToMinutes(time: string): number {
 
       @if (blockTarget(); as target) {
         <ar-modal (close)="blockTarget.set(null)">
-          <h2 class="modal-title">Bloquear horário</h2>
+          <h2 class="modal-title">{{ blockSelection().length > 1 ? 'Bloquear horários' : 'Bloquear horário' }}</h2>
           <p class="modal-subtitle">
-            {{ target.startTime }}–{{ target.endTime }} · {{ courtName(target.courtId) }}. Esse horário some da busca — ninguém consegue reservar.
+            {{ target.startTime }}–{{ blockEndTime() }} · {{ courtName(target.courtId) }}.
+            {{ blockSelection().length > 1 ? blockSelection().length + ' horários somem da busca' : 'Esse horário some da busca' }} — ninguém consegue reservar.
           </p>
 
           @if (blockError(); as err) {
             <div class="error-banner">{{ err }}</div>
+          }
+
+          @if (blockRange().length > 1) {
+            <div class="field-label">Até</div>
+            <div class="ar-filter-bar weekday-bar" role="radiogroup" aria-label="Bloquear até">
+              @for (s of blockRange(); track s.id; let i = $index) {
+                <button
+                  type="button"
+                  class="ar-chip"
+                  role="radio"
+                  [attr.aria-checked]="blockEndIndex() === i"
+                  [class.active]="blockEndIndex() === i"
+                  (click)="blockEndIndex.set(i)"
+                >{{ s.endTime }}</button>
+              }
+            </div>
           }
 
           <div class="field-label">Motivo</div>
@@ -271,7 +289,7 @@ function timeToMinutes(time: string): number {
           <div class="actions">
             <button type="button" class="ar-ghost-btn" [disabled]="blocking()" (click)="blockTarget.set(null)">Cancelar</button>
             <button type="button" class="ar-mini-btn ar-mini-btn-primary confirm-btn" [disabled]="blocking()" (click)="confirmBlock()">
-              {{ blocking() ? 'Bloqueando…' : 'Bloquear horário' }}
+              {{ blocking() ? 'Bloqueando…' : blockSelection().length > 1 ? 'Bloquear ' + blockSelection().length + ' horários' : 'Bloquear horário' }}
             </button>
           </div>
         </ar-modal>
@@ -531,6 +549,8 @@ export class PanelAgendaComponent {
   protected readonly blockNote = signal('');
   protected readonly blocking = signal(false);
   protected readonly blockError = signal<string | null>(null);
+  /** Índice, em `blockRange()`, do último horário a bloquear (0 = só o clicado). */
+  protected readonly blockEndIndex = signal(0);
 
   protected readonly unblockTarget = signal<ArenaSlot | null>(null);
   protected readonly unblocking = signal(false);
@@ -568,6 +588,18 @@ export class PanelAgendaComponent {
   protected readonly weekStats = computed(() => scheduleDayStats(this.filteredWeekSlots()));
 
   protected readonly activeFilteredSlots = computed(() => (this.view() === 'Semana' ? this.filteredWeekSlots() : this.filteredSlots()));
+
+  /** Horários livres e seguidos a partir do clicado — as opções do "Até" no modal de bloqueio.
+   *  Sai da lista SEM filtro de status: com o filtro "Disponível" ligado, um reservado no meio
+   *  sumiria da lista e a sequência passaria por cima dele. */
+  protected readonly blockRange = computed(() => {
+    const target = this.blockTarget();
+    if (!target) return [];
+    const pool = this.view() === 'Semana' ? this.weekSlotsWithOverlay() : this.slotsWithOverlay();
+    return consecutiveBlockableSlots(pool, target);
+  });
+  protected readonly blockSelection = computed(() => this.blockRange().slice(0, this.blockEndIndex() + 1));
+  protected readonly blockEndTime = computed(() => this.blockSelection().at(-1)?.endTime ?? this.blockTarget()?.endTime ?? '');
 
   protected readonly agendaWeekBlocks = computed<AgendaWeekBlock[]>(() => {
     const blocks: AgendaWeekBlock[] = [];
@@ -858,24 +890,20 @@ export class PanelAgendaComponent {
     this.blockError.set(null);
     this.blockReason.set('manutencao');
     this.blockNote.set('');
+    this.blockEndIndex.set(0);
     this.blockTarget.set(slot);
   }
 
   protected async confirmBlock(): Promise<void> {
-    const slot = this.blockTarget();
-    if (!slot) return;
+    const selection = this.blockSelection();
+    if (selection.length === 0) return;
     this.blocking.set(true);
     this.blockError.set(null);
     try {
-      const db = arenaFirestore();
-      if (slot.isVirtual) {
-        await blockVirtualSlot(db, slot, this.blockReason(), this.blockNote());
-      } else {
-        await blockSlot(db, slot.id, this.blockReason(), this.blockNote());
-      }
+      await blockSlots(arenaFirestore(), selection, this.blockReason(), this.blockNote());
       this.blockTarget.set(null);
     } catch (err) {
-      this.blockError.set(err instanceof Error ? err.message : 'Não foi possível bloquear o horário.');
+      this.blockError.set(err instanceof Error ? err.message : 'Não foi possível bloquear os horários.');
     } finally {
       this.blocking.set(false);
     }

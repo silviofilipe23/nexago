@@ -1,5 +1,5 @@
 import { fetchCourts } from '@nexago/arena-discovery';
-import { addDoc, collection, deleteField, doc, getDoc, onSnapshot, query, serverTimestamp, updateDoc, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
+import { collection, deleteField, doc, getDoc, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { arenaSlotFromDoc, type ArenaSlot, type ArenaSlotBlockReason } from './arena-slot.model';
 import { buildVirtualSlots, mergeSlots } from './virtual-slot-generator';
 import type { WeekDay } from './agenda-week-math';
@@ -78,35 +78,43 @@ function blockPayload(reason?: ArenaSlotBlockReason, note?: string): Record<stri
   return payload;
 }
 
-/** Bloqueia um slot já persistido em `arenaSlots/{slotId}`. */
-export async function blockSlot(db: Firestore, slotId: string, reason?: ArenaSlotBlockReason, note?: string): Promise<void> {
-  if (slotId.startsWith('v_')) {
-    throw new ScheduleRepositoryError('Este horário ainda não existe no Firestore. Bloqueie a partir do slot completo.');
-  }
-  const ref = doc(db, 'arenaSlots', slotId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) throw new ScheduleRepositoryError('Horário não encontrado.');
-  const status = (snap.data()['status'] as string | undefined)?.trim().toLowerCase() ?? '';
-  if (status === 'booked' || status === 'occupied' || status === 'reservado' || status === 'ocupado') {
-    throw new ScheduleRepositoryError('Este horário está reservado e não pode ser bloqueado.');
-  }
-  if (status === 'blocked' || status === 'bloqueado') return;
-  await updateDoc(ref, blockPayload(reason, note));
+function isBookedStatus(raw: unknown): boolean {
+  const status = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return status === 'booked' || status === 'occupied' || status === 'reservado' || status === 'ocupado';
 }
 
-/** Cria o doc de `arenaSlots` pra bloquear um slot virtual (sem doc ainda no Firestore). */
-export async function blockVirtualSlot(db: Firestore, slot: ArenaSlot, reason?: ArenaSlotBlockReason, note?: string): Promise<void> {
-  if (!slot.isVirtual) throw new ScheduleRepositoryError('Use blockSlot(slotId) para horários já salvos.');
-  if (slot.status === 'booked') throw new ScheduleRepositoryError('Este horário está reservado e não pode ser bloqueado.');
-  if (slot.status === 'blocked') return;
+/** Bloqueia vários horários de uma vez (ex.: 08:00–12:00 seguidos), tudo ou nada: numa
+ *  transação, relê cada slot já salvo e, se algum virou reserva no meio do caminho, não
+ *  bloqueia nenhum. Slot virtual (sem doc) ganha o doc já bloqueado; já bloqueado é pulado. */
+export async function blockSlots(db: Firestore, slots: readonly ArenaSlot[], reason?: ArenaSlotBlockReason, note?: string): Promise<void> {
+  const pending = slots.filter((s) => s.status !== 'blocked');
+  if (pending.some((s) => s.status === 'booked')) {
+    throw new ScheduleRepositoryError('Um dos horários está reservado e não pode ser bloqueado.');
+  }
+  const payload = blockPayload(reason, note);
 
-  await addDoc(collection(db, 'arenaSlots'), {
-    arenaId: slot.arenaId,
-    courtId: slot.courtId,
-    date: slot.dateKey,
-    startTime: slot.startTime,
-    endTime: slot.endTime,
-    ...blockPayload(reason, note),
+  await runTransaction(db, async (tx) => {
+    const persisted = pending.filter((s) => !s.isVirtual);
+    const snaps = await Promise.all(persisted.map((s) => tx.get(doc(db, 'arenaSlots', s.id))));
+    snaps.forEach((snap, i) => {
+      if (!snap.exists()) throw new ScheduleRepositoryError('Horário não encontrado.');
+      if (isBookedStatus(snap.data()['status'])) {
+        const s = persisted[i];
+        throw new ScheduleRepositoryError(`${s.startTime}–${s.endTime} foi reservado agora há pouco. Nada foi bloqueado.`);
+      }
+    });
+
+    snaps.forEach((snap) => tx.update(snap.ref, payload));
+    for (const s of pending.filter((p) => p.isVirtual)) {
+      tx.set(doc(collection(db, 'arenaSlots')), {
+        arenaId: s.arenaId,
+        courtId: s.courtId,
+        date: s.dateKey,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        ...payload,
+      });
+    }
   });
 }
 
@@ -119,7 +127,7 @@ export async function unblockSlot(db: Firestore, slotId: string): Promise<void> 
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new ScheduleRepositoryError('Horário não encontrado.');
   const status = (snap.data()['status'] as string | undefined)?.trim().toLowerCase() ?? '';
-  if (status === 'booked' || status === 'occupied' || status === 'reservado' || status === 'ocupado') {
+  if (isBookedStatus(status)) {
     throw new ScheduleRepositoryError('Este horário está reservado; não pode ser desbloqueado.');
   }
   if (status !== 'blocked' && status !== 'bloqueado') return;

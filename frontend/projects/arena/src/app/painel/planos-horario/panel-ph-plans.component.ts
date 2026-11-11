@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { shortDate, todayKeyLocal } from '../aulas/class.model';
+import { bookingAllocationFromArena } from '../courts/booking-allocation';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFunctions } from '../data/functions';
@@ -277,6 +278,9 @@ export class PanelPhPlansComponent {
   protected readonly formLabel = PAYMENT_FORM_LABEL;
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda') || !this.arenaContext.hasCapability('planosHorario'));
 
+  /** "A arena define a quadra": o plano não prende quadra, então o card não mostra nenhuma. */
+  private readonly capacityMode = computed(() => bookingAllocationFromArena(this.arenaContext.arenaDocData()).mode === 'capacity');
+
   protected readonly rulesOpen = signal(false);
   protected readonly holiday = signal<AlertView['holiday'] | null>(null);
   protected readonly holidayError = signal<string | null>(null);
@@ -384,8 +388,10 @@ export class PanelPhPlansComponent {
     return out;
   });
 
-  /** Um chip por quadra (até 2): nomes emendados num chip só estouravam o card com nome longo. */
+  /** Um chip por quadra (até 2): nomes emendados num chip só estouravam o card com nome longo.
+   *  Na arena que define a quadra não há quadra do plano pra mostrar (nem a de plano antigo). */
   private courtsChips(plan: SchedulePlan): string[] {
+    if (this.capacityMode()) return [];
     const n = plan.courtIds.length;
     if (n === 0) return ['Sem quadra'];
     const all = this.store.activeCourts();

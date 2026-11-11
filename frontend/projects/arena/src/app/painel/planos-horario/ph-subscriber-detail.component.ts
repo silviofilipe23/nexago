@@ -10,6 +10,8 @@ import { PanelCardComponent } from '../ui/panel-card.component';
 import { PillComponent } from '../ui/pill.component';
 import { brl, monthLong, monthYear } from './ph-format';
 import { PhIconComponent } from './planos-horario-ui';
+import { PhSubscriberHistoryComponent } from './ph-subscriber-history.component';
+import { occurrenceOutcome } from './subscriber-history';
 import {
   chargeVoidsAutopay,
   chargeVoidsOnlineLink,
@@ -30,6 +32,7 @@ import {
   WEEKDAY_SHORT,
   type PlanOccurrence,
   type ScheduleCharge,
+  type ScheduleCredit,
   type ScheduleManualMethod,
   type SchedulePlan,
   type ScheduleSubscription,
@@ -43,6 +46,7 @@ import {
   registerSchedulePayment,
   resumeScheduleSubscription,
   watchSubscriptionCharges,
+  watchSubscriptionCredits,
   watchSubscriptionOccurrences,
 } from './schedule-plan-repository';
 
@@ -57,7 +61,7 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
 @Component({
   selector: 'ar-ph-subscriber-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AvatarComponent, PillComponent, PanelCardComponent, ModalComponent, PhIconComponent],
+  imports: [AvatarComponent, PillComponent, PanelCardComponent, ModalComponent, PhIconComponent, PhSubscriberHistoryComponent],
   styleUrl: './planos-horario.scss',
   template: `
     @let s = sub();
@@ -149,6 +153,8 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
       <button type="button" class="ar-mini-btn" [disabled]="readOnly()" (click)="openDialog('makeup')"><ar-ph-icon name="undo" [size]="14" /> Dar reposição</button>
       <button type="button" class="ar-ghost-btn danger" [disabled]="readOnly()" (click)="openDialog('end')">Encerrar plano</button>
     </div>
+
+    <ar-ph-subscriber-history [sub]="s" [plan]="plan()" [charges]="charges()" [occurrences]="rawOccurrences()" [credits]="credits()" />
 
     @switch (dialog()) {
       @case ('change') {
@@ -325,8 +331,9 @@ export class PhSubscriberDetailComponent {
   protected readonly today = todayKeyLocal();
   protected readonly tomorrow = addDaysKey(this.today, 1);
 
-  private readonly charges = signal<ScheduleCharge[]>([]);
-  private readonly rawOccurrences = signal<PlanOccurrence[]>([]);
+  protected readonly charges = signal<ScheduleCharge[]>([]);
+  protected readonly rawOccurrences = signal<PlanOccurrence[]>([]);
+  protected readonly credits = signal<ScheduleCredit[]>([]);
   protected readonly dialog = signal<Dialog | null>(null);
   protected readonly paying = signal<ScheduleCharge | null>(null);
   protected readonly canceling = signal<ScheduleCharge | null>(null);
@@ -363,10 +370,12 @@ export class PhSubscriberDetailComponent {
   });
   protected readonly occurrences = computed(() =>
     this.rawOccurrences()
-      .filter((o) => o.dateKey.startsWith(this.occMonthKey()))
+      // Liberadas pelo sistema (pausa, troca de horário, saída) não são "Não vai": saem da grade.
+      .filter((o) => o.dateKey.startsWith(this.occMonthKey()) && occurrenceOutcome(o, this.today) !== null)
       .slice(0, 12)
       .map((o) => {
-        const canceled = o.status.startsWith('canceled');
+        // Reserva cancelada pode vir `cancelled` (reposição/aviso do atleta) ou `canceled`.
+        const canceled = o.status.toLowerCase().startsWith('cancel');
         const kind: OccKind = o.makeup ? 'makeup' : canceled ? 'skip' : o.dateKey === this.today ? 'today' : o.dateKey < this.today ? 'done' : 'next';
         const [, , d] = o.dateKey.split('-');
         return { id: o.id, kind, day: d ?? '', weekday: WEEKDAY_SHORT[isoWeekdayOf(o.dateKey)] ?? '', label: OCC_LABEL[kind] };
@@ -389,12 +398,14 @@ export class PhSubscriberDetailComponent {
       for (const u of unsubs) u();
       this.charges.set([]);
       this.rawOccurrences.set([]);
+      this.credits.set([]);
       this.message.set(null);
       if (!arenaId) return;
       const db = arenaFirestore();
       unsubs = [
         watchSubscriptionCharges(db, arenaId, id, (c) => this.charges.set(c)),
         watchSubscriptionOccurrences(db, arenaId, id, (o) => this.rawOccurrences.set(o)),
+        watchSubscriptionCredits(db, arenaId, id, (c) => this.credits.set(c)),
       ];
     });
     this.destroyRef.onDestroy(() => unsubs.forEach((u) => u()));

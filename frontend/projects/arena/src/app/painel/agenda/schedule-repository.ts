@@ -1,5 +1,5 @@
 import { fetchCourts } from '@nexago/arena-discovery';
-import { collection, deleteField, doc, getDoc, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
+import { collection, deleteField, doc, onSnapshot, query, runTransaction, serverTimestamp, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { arenaSlotFromDoc, type ArenaSlot, type ArenaSlotBlockReason } from './arena-slot.model';
 import { buildVirtualSlots, mergeSlots } from './virtual-slot-generator';
 import type { WeekDay } from './agenda-week-math';
@@ -118,23 +118,31 @@ export async function blockSlots(db: Firestore, slots: readonly ArenaSlot[], rea
   });
 }
 
-/** Libera um horário bloqueado (`status: available`). */
-export async function unblockSlot(db: Firestore, slotId: string): Promise<void> {
-  if (slotId.startsWith('v_')) {
+/** Libera vários horários bloqueados de uma vez (`status: available`), tudo ou nada: numa
+ *  transação, relê cada um e, se algum virou reserva no meio do caminho, não libera nenhum.
+ *  Quem já foi desbloqueado por outra pessoa é pulado. */
+export async function unblockSlots(db: Firestore, slots: readonly ArenaSlot[]): Promise<void> {
+  if (slots.some((s) => s.isVirtual || s.id.startsWith('v_'))) {
     throw new ScheduleRepositoryError('Este horário ainda não existe no Firestore. Não é possível desbloquear.');
   }
-  const ref = doc(db, 'arenaSlots', slotId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) throw new ScheduleRepositoryError('Horário não encontrado.');
-  const status = (snap.data()['status'] as string | undefined)?.trim().toLowerCase() ?? '';
-  if (isBookedStatus(status)) {
-    throw new ScheduleRepositoryError('Este horário está reservado; não pode ser desbloqueado.');
-  }
-  if (status !== 'blocked' && status !== 'bloqueado') return;
-  await updateDoc(ref, {
-    status: 'available',
-    blockedAt: deleteField(),
-    blockReason: deleteField(),
-    blockNote: deleteField(),
+  await runTransaction(db, async (tx) => {
+    const snaps = await Promise.all(slots.map((s) => tx.get(doc(db, 'arenaSlots', s.id))));
+    const toRelease = snaps.filter((snap, i) => {
+      if (!snap.exists()) throw new ScheduleRepositoryError('Horário não encontrado.');
+      const status = String(snap.data()['status'] ?? '').trim().toLowerCase();
+      if (isBookedStatus(status)) {
+        const s = slots[i];
+        throw new ScheduleRepositoryError(`${s.startTime}–${s.endTime} está reservado e não pode ser desbloqueado. Nada foi desbloqueado.`);
+      }
+      return status === 'blocked' || status === 'bloqueado';
+    });
+    for (const snap of toRelease) {
+      tx.update(snap.ref, {
+        status: 'available',
+        blockedAt: deleteField(),
+        blockReason: deleteField(),
+        blockNote: deleteField(),
+      });
+    }
   });
 }

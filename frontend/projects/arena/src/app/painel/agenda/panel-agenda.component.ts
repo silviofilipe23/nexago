@@ -10,10 +10,10 @@ import type { ArenaCourt } from '../courts/court.model';
 import { PROFESSOR_BOOKING_TAG, PROFESSOR_BOOKING_TAG_SHORT, bookingIsActive, dateKeyOf, type ArenaBooking } from '../bookings/arena-booking.model';
 import { resolveAthleteLabel, watchBookingsForArenaInRange } from '../bookings/bookings-repository';
 import { ManualBookingModalComponent } from '../bookings/manual-booking-modal.component';
-import { consecutiveBlockableSlots } from './block-range';
+import { consecutiveBlockableSlots, consecutiveUnblockableSlots } from './block-range';
 import { applyBookingsOverlay, applyScheduleFilters, scheduleDayStats, type ArenaScheduleStatusFilter } from './arena-schedule-grouping';
 import { ARENA_SLOT_BLOCK_REASON_LABEL, ARENA_SLOT_BLOCK_REASONS, type ArenaSlot, type ArenaSlotBlockReason } from './arena-slot.model';
-import { blockSlots, fetchCourtsRaw, unblockSlot, watchArenaDaySlots, watchArenaWeekSlots } from './schedule-repository';
+import { blockSlots, fetchCourtsRaw, unblockSlots, watchArenaDaySlots, watchArenaWeekSlots } from './schedule-repository';
 import { weekDatesFor, type WeekDay } from './agenda-week-math';
 import { AgendaGridComponent, type AgendaBlock, type AgendaBlockStatus, type AgendaCourt } from '../ui/agenda-grid.component';
 import { AgendaWeekGridComponent, type AgendaWeekBlock } from '../ui/agenda-week-grid.component';
@@ -297,17 +297,33 @@ function timeToMinutes(time: string): number {
 
       @if (unblockTarget(); as target) {
         <ar-modal (close)="unblockTarget.set(null)">
-          <h2 class="confirm-title">Desbloquear horário?</h2>
+          <h2 class="confirm-title">{{ unblockSelection().length > 1 ? 'Desbloquear horários?' : 'Desbloquear horário?' }}</h2>
           <p class="confirm-body">
-            {{ target.startTime }}–{{ target.endTime }} · {{ courtName(target.courtId) }} volta a ficar disponível pra reserva.
+            {{ target.startTime }}–{{ unblockEndTime() }} · {{ courtName(target.courtId) }}
+            {{ unblockSelection().length > 1 ? '— ' + unblockSelection().length + ' horários voltam a ficar disponíveis' : 'volta a ficar disponível' }} pra reserva.
           </p>
           @if (unblockError(); as err) {
             <div class="error-banner">{{ err }}</div>
           }
+          @if (unblockRange().length > 1) {
+            <div class="field-label">Até</div>
+            <div class="ar-filter-bar weekday-bar" role="radiogroup" aria-label="Desbloquear até">
+              @for (s of unblockRange(); track s.id; let i = $index) {
+                <button
+                  type="button"
+                  class="ar-chip"
+                  role="radio"
+                  [attr.aria-checked]="unblockEndIndex() === i"
+                  [class.active]="unblockEndIndex() === i"
+                  (click)="unblockEndIndex.set(i)"
+                >{{ s.endTime }}</button>
+              }
+            </div>
+          }
           <div class="confirm-actions">
             <button type="button" class="ar-ghost-btn" [disabled]="unblocking()" (click)="unblockTarget.set(null)">Voltar</button>
             <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="unblocking()" (click)="confirmUnblock()">
-              {{ unblocking() ? 'Desbloqueando…' : 'Desbloquear horário' }}
+              {{ unblocking() ? 'Desbloqueando…' : unblockSelection().length > 1 ? 'Desbloquear ' + unblockSelection().length + ' horários' : 'Desbloquear horário' }}
             </button>
           </div>
         </ar-modal>
@@ -555,6 +571,8 @@ export class PanelAgendaComponent {
   protected readonly unblockTarget = signal<ArenaSlot | null>(null);
   protected readonly unblocking = signal(false);
   protected readonly unblockError = signal<string | null>(null);
+  /** Índice, em `unblockRange()`, do último horário a desbloquear (0 = só o clicado). */
+  protected readonly unblockEndIndex = signal(0);
 
   protected readonly slotActionTarget = signal<ArenaSlot | null>(null);
   protected readonly manualBookingOpen = signal(false);
@@ -589,17 +607,28 @@ export class PanelAgendaComponent {
 
   protected readonly activeFilteredSlots = computed(() => (this.view() === 'Semana' ? this.filteredWeekSlots() : this.filteredSlots()));
 
-  /** Horários livres e seguidos a partir do clicado — as opções do "Até" no modal de bloqueio.
-   *  Sai da lista SEM filtro de status: com o filtro "Disponível" ligado, um reservado no meio
-   *  sumiria da lista e a sequência passaria por cima dele. */
+  /** Slots da visão atual SEM filtro de status — base do "Até" no bloqueio/desbloqueio: com o
+   *  filtro "Disponível" ligado, um reservado no meio sumiria da lista e a sequência passaria
+   *  por cima dele. */
+  private readonly unfilteredActiveSlots = computed(() => (this.view() === 'Semana' ? this.weekSlotsWithOverlay() : this.slotsWithOverlay()));
+
+  /** Horários livres e seguidos a partir do clicado — as opções do "Até" no modal de bloqueio. */
   protected readonly blockRange = computed(() => {
     const target = this.blockTarget();
     if (!target) return [];
-    const pool = this.view() === 'Semana' ? this.weekSlotsWithOverlay() : this.slotsWithOverlay();
-    return consecutiveBlockableSlots(pool, target);
+    return consecutiveBlockableSlots(this.unfilteredActiveSlots(), target);
   });
   protected readonly blockSelection = computed(() => this.blockRange().slice(0, this.blockEndIndex() + 1));
   protected readonly blockEndTime = computed(() => this.blockSelection().at(-1)?.endTime ?? this.blockTarget()?.endTime ?? '');
+
+  /** Mesma ideia do `blockRange`, pro desbloqueio: bloqueados e seguidos a partir do clicado. */
+  protected readonly unblockRange = computed(() => {
+    const target = this.unblockTarget();
+    if (!target) return [];
+    return consecutiveUnblockableSlots(this.unfilteredActiveSlots(), target);
+  });
+  protected readonly unblockSelection = computed(() => this.unblockRange().slice(0, this.unblockEndIndex() + 1));
+  protected readonly unblockEndTime = computed(() => this.unblockSelection().at(-1)?.endTime ?? this.unblockTarget()?.endTime ?? '');
 
   protected readonly agendaWeekBlocks = computed<AgendaWeekBlock[]>(() => {
     const blocks: AgendaWeekBlock[] = [];
@@ -860,6 +889,7 @@ export class PanelAgendaComponent {
     }
     if (slot.status === 'blocked') {
       this.unblockError.set(null);
+      this.unblockEndIndex.set(0);
       this.unblockTarget.set(slot);
     }
   }
@@ -910,15 +940,15 @@ export class PanelAgendaComponent {
   }
 
   protected async confirmUnblock(): Promise<void> {
-    const slot = this.unblockTarget();
-    if (!slot) return;
+    const selection = this.unblockSelection();
+    if (selection.length === 0) return;
     this.unblocking.set(true);
     this.unblockError.set(null);
     try {
-      await unblockSlot(arenaFirestore(), slot.id);
+      await unblockSlots(arenaFirestore(), selection);
       this.unblockTarget.set(null);
     } catch (err) {
-      this.unblockError.set(err instanceof Error ? err.message : 'Não foi possível desbloquear o horário.');
+      this.unblockError.set(err instanceof Error ? err.message : 'Não foi possível desbloquear os horários.');
     } finally {
       this.unblocking.set(false);
     }

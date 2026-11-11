@@ -69,6 +69,61 @@ export interface ArenaBooking {
    *  promoção/cupom; `null` no preço avulso. */
   athletePricingLabel?: string | null;
   athletePricingDiscountReais?: number | null;
+  /** Quem joga além do dono (`participants`, gravado só pelo servidor ao aceitar convite). */
+  participants?: BookingParticipant[];
+  /** Trocas de quadra (`courtHistory`, as últimas que o servidor guarda), da mais antiga à mais nova. */
+  courtHistory?: BookingCourtChange[];
+  /** Hora do check-in (`checkedInAt`) — pelo QR da quadra ou pela recepção. */
+  checkedInAt?: Date | null;
+}
+
+export interface BookingParticipant {
+  uid: string;
+  name: string;
+  avatarUrl: string | null;
+  /** `link` = entrou pelo link compartilhado; `direct` = convite direto do dono. */
+  via: 'link' | 'direct';
+  joinedAt: Date | null;
+}
+
+export interface BookingCourtChange {
+  fromCourtName: string;
+  toCourtName: string;
+  at: Date | null;
+  reason: string | null;
+}
+
+function participantsFrom(raw: unknown): BookingParticipant[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: BookingParticipant[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const item = entry as Record<string, unknown>;
+    const uid = optionalTrimmed(item['uid']);
+    if (!uid || seen.has(uid)) continue;
+    seen.add(uid);
+    out.push({
+      uid,
+      name: optionalTrimmed(item['name']) ?? 'Atleta',
+      avatarUrl: optionalTrimmed(item['avatarUrl']),
+      via: item['via'] === 'link' ? 'link' : 'direct',
+      joinedAt: toDate(item['joinedAt']),
+    });
+  }
+  return out;
+}
+
+function courtHistoryFrom(raw: unknown): BookingCourtChange[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
+    .map((e) => ({
+      fromCourtName: optionalTrimmed(e['fromCourtName']) ?? optionalTrimmed(e['fromCourtId']) ?? 'Quadra',
+      toCourtName: optionalTrimmed(e['toCourtName']) ?? optionalTrimmed(e['toCourtId']) ?? 'Quadra',
+      at: toDate(e['at']),
+      reason: optionalTrimmed(e['reason']),
+    }));
 }
 
 function timeStr(v: unknown): string {
@@ -130,6 +185,9 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     couponDiscountReais: typeof d['couponDiscountReais'] === 'number' ? d['couponDiscountReais'] : null,
     ...professorBookingFields(d),
     ...athletePricingFields(d),
+    participants: participantsFrom(d['participants']),
+    courtHistory: courtHistoryFrom(d['courtHistory']),
+    checkedInAt: toDate(d['checkedInAt']),
   };
 }
 

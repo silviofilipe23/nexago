@@ -1,6 +1,6 @@
 import { booleanAttribute, ChangeDetectionStrategy, Component, computed, ElementRef, inject, input, signal } from '@angular/core';
 import { initialsOf } from './initials';
-import { PersonPhotoService } from './person-photo.service';
+import { PersonPhotoService, type PersonPhotoEntry } from './person-photo.service';
 
 /** Avatar circular — foto quando há `photoUrl`, senão as iniciais do nome. Foto que falha ao
  *  carregar volta pras iniciais.
@@ -83,6 +83,8 @@ export class AvatarComponent {
   readonly personRole = input('Atleta');
   /** Contexto sob o nome no visualizador. */
   readonly meta = input<string | null>(null);
+  /** Fotos vizinhas pro visualizador navegar com setas (os jogadores da reserva). */
+  readonly gallery = input<readonly PersonPhotoEntry[] | null>(null);
 
   protected readonly photoFailed = signal(false);
   protected readonly initials = computed(() => initialsOf(this.name()));
@@ -102,6 +104,7 @@ export class AvatarComponent {
       meta: this.meta(),
       origin: { cx: box.left + box.width / 2, cy: box.top + box.height / 2, size: box.width },
       returnFocusTo: element,
+      ...(this.gallery() ? { gallery: this.gallery()! } : {}),
     });
   }
 }

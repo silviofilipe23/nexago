@@ -276,4 +276,80 @@ void main() {
     expect(pix.amountToPayNowReais, 10);
     expect(pix.paymentFraction, 1.0);
   });
+
+  group('banco de horas do mensalista', () {
+    Map<String, Object?> memberQuote({
+      double amount = 0,
+      int available = 180,
+      int minutes = 60,
+      double discount = 70,
+      String? reason,
+    }) =>
+        {
+          'amountReais': amount,
+          'lineItems': <dynamic>[],
+          'memberHoursWeeklyMinutes': 180,
+          'memberHoursAvailableMinutes': available,
+          'memberHoursMinutes': minutes,
+          'memberHoursDiscountReais': discount,
+          'memberHoursPlanName': 'Mensalista 3h',
+          'memberHoursBlockedReason': reason,
+        };
+
+    testWidgets('coberta inteira: sem forma de pagamento, confirma no local',
+        (tester) async {
+      final r = await pumpConfirm(
+        tester,
+        quoteResponse: memberQuote(),
+        createResponse: {
+          'bookingId': 'b7',
+          'amountReais': 0,
+          'paymentMode': 'onsite',
+          'memberHoursMinutes': 60,
+          'memberHoursDiscountReais': 70,
+        },
+      );
+
+      expect(find.text('Banco de horas · 1h'), findsOneWidget);
+      expect(find.text('Mensalista 3h'), findsOneWidget);
+      expect(find.text('Restam 2h de 3h nesta semana'), findsOneWidget);
+      expect(find.text('coberta pelo seu plano'), findsOneWidget);
+      expect(find.text('FORMA DE PAGAMENTO'), findsNothing);
+      expect(find.text('Pagar online'), findsNothing);
+
+      await tester.tap(confirmCta());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(r.functions.payloadOf('createArenaBooking')!['paymentMode'],
+          'onsite');
+      expect(find.text('tela de sucesso'), findsOneWidget);
+      final extra = r.successExtras.last as BookingSuccessArgs;
+      expect(extra.paymentLabel, 'Coberta pelo seu plano: nada a pagar.');
+    });
+
+    testWidgets('semana esgotada: aviso e pagamento normal', (tester) async {
+      await pumpConfirm(
+        tester,
+        quoteResponse: memberQuote(
+          amount: 70,
+          available: 0,
+          minutes: 0,
+          discount: 0,
+          reason: 'exhausted',
+        ),
+      );
+
+      expect(
+        find.text(
+          'Suas horas desta semana acabaram: esta reserva sai pelo preço normal.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('booking-confirm-member-hours')),
+          findsNothing);
+      expect(find.text('FORMA DE PAGAMENTO'), findsOneWidget);
+      expect(find.text('coberta pelo seu plano'), findsNothing);
+    });
+  });
 }

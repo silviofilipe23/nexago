@@ -35,6 +35,7 @@ import {
   type ArenaBookingArgs,
   type ArenaBookingQuote,
   type ArenaBookingCardPayment,
+  type MemberHoursBlockedReason,
   type ArenaBookingPixPayment,
 } from '../data/arena-bookings-repository';
 import {
@@ -51,6 +52,7 @@ import {
 import { searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { pixBookingCreateOptions } from './pix-booking-create-options';
 import { bookingProfessorLink, professorDiscountSummaryLabel } from './booking-as-professor';
+import { formatMemberHours, memberHoursBalanceLabel, memberHoursBlockedNotice } from './member-hours';
 import { BookingProfessorOptionComponent } from './booking-professor-option.component';
 import { ProfessorLinksService } from '../professor/professor-links.service';
 import { appliedPreviewCents } from '../data/cashback-preview';
@@ -137,6 +139,14 @@ function reconstructChain(slots: ArenaSlot[], startTime: string, count: number):
 
 function formatBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/** Por que o cupom digitado não entrou: outro desconto já saía mais barato. */
+function couponNotApplicableMessage(quote: ArenaBookingQuote): string {
+  if (quote.professorDiscountReais > 0) return 'O desconto de professor já sai mais barato que este cupom.';
+  if ((quote.memberHoursMinutes ?? 0) > 0) return 'O seu banco de horas já sai mais barato que este cupom.';
+  if (quote.athletePricingLabel) return `O seu preço de ${quote.athletePricingLabel} já sai mais barato que este cupom.`;
+  return 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.';
 }
 
 function onlyDigits(v: string): string {
@@ -243,6 +253,22 @@ export class ArenaPaymentComponent {
   /** Preço por perfil da arena (aluno/professor validado) — `null` no avulso. */
   protected readonly athletePricingLabel = signal<string | null>(null);
   protected readonly athletePricingDiscountReais = signal(0);
+  /** Banco de horas do mensalista (contrato no CRM da arena) — 0/`null` quando não se aplica. */
+  private readonly memberHoursWeeklyMinutes = signal(0);
+  private readonly memberHoursAvailableMinutes = signal(0);
+  private readonly memberHoursMinutes = signal(0);
+  protected readonly memberHoursDiscountReais = signal(0);
+  private readonly memberHoursBlockedReason = signal<MemberHoursBlockedReason | null>(null);
+  /** "1h30" — só quando o banco cobriu parte (ou toda) a reserva. */
+  protected readonly memberHoursLabel = computed(() =>
+    this.memberHoursMinutes() > 0 ? formatMemberHours(this.memberHoursMinutes()) : null,
+  );
+  protected readonly memberHoursBalance = computed(() =>
+    this.memberHoursMinutes() > 0
+      ? memberHoursBalanceLabel(this.memberHoursAvailableMinutes(), this.memberHoursMinutes(), this.memberHoursWeeklyMinutes())
+      : null,
+  );
+  protected readonly memberHoursNotice = computed(() => memberHoursBlockedNotice(this.memberHoursBlockedReason()));
   protected readonly professorDiscountLabel = computed(() => professorDiscountSummaryLabel(this.professorDiscountPercent()));
   /** Só a cotação mais recente vale — ligar/desligar "como professor" rápido dispara várias. */
   private quoteSeq = 0;
@@ -365,6 +391,17 @@ export class ArenaPaymentComponent {
     const arenaFallback = this.arena()?.pricePerHourReais ?? 0;
     return chain.reduce((sum, s) => sum + (s.priceReais ?? arenaFallback), 0);
   });
+
+  /** O banco de horas cobriu a reserva inteira: nada a pagar, sem escolher forma de pagamento —
+   *  a reserva vai como `onsite` e já nasce confirmada. */
+  protected readonly coveredByMemberHours = computed(
+    () =>
+      this.memberHoursMinutes() > 0 &&
+      this.quotedTotal() === 0 &&
+      this.pixPayment() == null &&
+      this.cardPayment() == null &&
+      this.splitBookingId() == null,
+  );
 
   /** Pix ou cartão: os dois pagam online, com sinal, código e cashback. */
   protected readonly isOnlineMethod = computed(
@@ -565,13 +602,7 @@ export class ArenaPaymentComponent {
         // O desconto de professor saiu mais barato: o cupom cai (e não é consumido).
         this.appliedCouponCode.set(null);
         this.couponDiscountReais.set(0);
-        this.couponError.set(
-          quote.professorDiscountReais > 0
-            ? 'O desconto de professor já sai mais barato que este cupom.'
-            : quote.athletePricingLabel
-              ? `O seu preço de ${quote.athletePricingLabel} já sai mais barato que este cupom.`
-              : 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.',
-        );
+        this.couponError.set(couponNotApplicableMessage(quote));
       }
     } catch (err) {
       if (!environment.production) {
@@ -601,13 +632,7 @@ export class ArenaPaymentComponent {
       } else {
         this.appliedCouponCode.set(null);
         this.couponDiscountReais.set(0);
-        this.couponError.set(
-          quote.professorDiscountReais > 0
-            ? 'O desconto de professor já sai mais barato que este cupom.'
-            : quote.athletePricingLabel
-              ? `O seu preço de ${quote.athletePricingLabel} já sai mais barato que este cupom.`
-              : 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.',
-        );
+        this.couponError.set(couponNotApplicableMessage(quote));
       }
     } catch (err) {
       this.appliedCouponCode.set(null);
@@ -625,6 +650,11 @@ export class ArenaPaymentComponent {
     this.professorDiscountReais.set(quote.professorDiscountReais);
     this.athletePricingLabel.set(quote.athletePricingLabel ?? null);
     this.athletePricingDiscountReais.set(quote.athletePricingDiscountReais ?? 0);
+    this.memberHoursWeeklyMinutes.set(quote.memberHoursWeeklyMinutes ?? 0);
+    this.memberHoursAvailableMinutes.set(quote.memberHoursAvailableMinutes ?? 0);
+    this.memberHoursMinutes.set(quote.memberHoursMinutes ?? 0);
+    this.memberHoursDiscountReais.set(quote.memberHoursDiscountReais ?? 0);
+    this.memberHoursBlockedReason.set(quote.memberHoursBlockedReason ?? null);
   }
 
   protected removeCoupon(): void {

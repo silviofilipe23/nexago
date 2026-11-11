@@ -6,6 +6,7 @@ import { fetchArenaById, arenaListItemImageUrl, courtSportLabel, type ArenaListI
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { cancelBooking, fetchArenaBooking, watchArenaBooking, type ArenaBookingDoc } from '../../data/arena-bookings-repository';
+import { formatMemberHours } from '../../reservar/member-hours';
 import { REVIEW_ALREADY_SENT_MESSAGE } from '../../data/arena-reviews-repository';
 import { BOOKING_MAX_PLAYERS, type BookingInvite } from '../../data/booking-invite-model';
 import {
@@ -395,11 +396,19 @@ export class AthleteBookingDetailComponent {
   protected readonly paymentMethodLabel = computed(() => {
     const b = this.booking();
     if (!b) return '—';
+    if (b.coveredByMemberHours === true) return 'Banco de horas do plano';
     if (b.paymentChannel === 'pix') return 'Via PIX';
     if (b.paymentChannel === 'card') return 'Cartão de crédito';
     if (b.paymentChannel === 'onsite') return 'No local';
     if (b.paymentChannel === 'weather_credit') return 'Crédito de chuva';
     return 'A confirmar';
+  });
+
+  /** Parte da reserva que saiu do banco de horas do mensalista ("1h (−R$ 150,00)"). */
+  protected readonly memberHoursLabel = computed(() => {
+    const minutes = this.booking()?.memberHoursMinutes ?? 0;
+    if (minutes <= 0) return null;
+    return `${formatMemberHours(minutes)} (−${formatBRL(this.booking()?.memberHoursDiscountReais ?? 0)})`;
   });
 
   protected readonly formatBRL = formatBRL;

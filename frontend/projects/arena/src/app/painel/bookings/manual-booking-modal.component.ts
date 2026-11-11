@@ -1,12 +1,33 @@
-import { afterRenderEffect, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, type ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
+import {
+  afterRenderEffect,
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  type ElementRef,
+  inject,
+  input,
+  output,
+  signal,
+  untracked,
+  viewChild,
+} from '@angular/core';
 import { arenaFunctions } from '../data/functions';
 import { AthleteSearchFieldComponent } from '../recurring/athlete-search-field.component';
 import { AvatarComponent } from '../ui/avatar.component';
 import type { AthleteCandidate } from '../recurring/athlete-search-filter';
 import type { ArenaCourt } from '../courts/court.model';
 import { ModalComponent } from '../ui/modal.component';
-import { dateKeyOf } from './arena-booking.model';
-import { quoteKeyOf, validateManualBookingForm, type ManualBookingFormState } from './manual-booking-form';
+import { dateKeyOf, formatMemberMinutes } from './arena-booking.model';
+import {
+  amountAfterMemberHours,
+  parseAmountText,
+  quoteKeyOf,
+  validateManualBookingForm,
+  type ManualBookingFormState,
+  type ManualMemberHours,
+} from './manual-booking-form';
 import { createManualBooking, quoteManualBooking } from './manual-booking-repository';
 
 /** Reserva de balcão: o gestor vende o horário na recepção, para um atleta da base
@@ -83,6 +104,34 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
         [value]="amountText()"
         (input)="onAmountInput($any($event.target).value)"
       />
+
+      @if (memberHours(); as mh) {
+        <div class="member-box">
+          @if (mh.blocked) {
+            <p class="member-text">
+              <b>Mensalista · {{ mh.planName }}</b> com mensalidade atrasada: paga a reserva até quitar.
+            </p>
+          } @else if (mh.coverMinutes > 0) {
+            <label class="member-check">
+              <input type="checkbox" [checked]="useMemberHours()" (change)="useMemberHours.set($any($event.target).checked)" />
+              <span>
+                <b>Descontar do banco de horas</b> · {{ mh.planName }}
+                <small>
+                  Cobre {{ fmtMinutes(mh.coverMinutes) }} · restam {{ fmtMinutes(mh.availableMinutes) }} de
+                  {{ fmtMinutes(mh.weeklyMinutes) }} nesta semana
+                </small>
+              </span>
+            </label>
+            @if (useMemberHours()) {
+              <p class="member-text">A cobrar: <b>{{ memberChargeLabel() }}</b></p>
+            }
+          } @else {
+            <p class="member-text">
+              <b>Mensalista · {{ mh.planName }}</b>: as {{ fmtMinutes(mh.weeklyMinutes) }} desta semana já foram usadas.
+            </p>
+          }
+        </div>
+      }
 
       <div class="field-label">Observação (opcional)</div>
       <input
@@ -192,6 +241,53 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
       flex: none;
     }
 
+    .member-box {
+      margin: -6px 0 18px;
+      padding: 12px 14px;
+      border-radius: var(--nx-r-2);
+      border: 1px solid rgba(255, 106, 26, 0.45);
+      background: rgba(255, 106, 26, 0.06);
+    }
+
+    .member-check {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: 13px;
+      color: var(--nx-text);
+      cursor: pointer;
+    }
+
+    .member-check input {
+      margin-top: 2px;
+      width: 16px;
+      height: 16px;
+      accent-color: var(--nx-orange-500);
+      flex: none;
+    }
+
+    .member-check small {
+      display: block;
+      color: var(--nx-text-dim);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .member-text {
+      margin: 8px 0 0;
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .member-check + .member-text,
+    .member-box > .member-text:first-child {
+      margin-top: 0;
+    }
+
+    .member-check + .member-text {
+      margin-top: 8px;
+    }
+
     .actions {
       display: flex;
       align-items: center;
@@ -226,6 +322,18 @@ export class ManualBookingModalComponent {
   protected readonly customerName = signal('');
   protected readonly amountText = signal('');
   protected readonly note = signal('');
+  /** Banco de horas do atleta escolhido (mensalista). `null` = não é / arena sem a chave. */
+  protected readonly memberHours = signal<ManualMemberHours | null>(null);
+  protected readonly useMemberHours = signal(true);
+  private lastMemberKey: string | null = null;
+  protected readonly memberChargeLabel = computed(() => {
+    const mh = this.memberHours();
+    const amount = parseAmountText(this.amountText());
+    if (!mh || amount == null) return '—';
+    const left = amountAfterMemberHours(amount, this.startValue(), this.endValue(), mh.coverMinutes);
+    return left <= 0 ? 'nada (coberta pelo plano)' : `R$ ${left.toFixed(2).replace('.', ',')}`;
+  });
+  protected readonly fmtMinutes = formatMemberMinutes;
 
   protected readonly quoting = signal(false);
   protected readonly saving = signal(false);
@@ -251,6 +359,7 @@ export class ManualBookingModalComponent {
     customerName: this.customerName(),
     amountText: this.amountText(),
     note: this.note(),
+    useMemberHours: this.useMemberHours() && (this.memberHours()?.coverMinutes ?? 0) > 0 && !this.memberHours()?.blocked,
   }));
 
   constructor() {
@@ -282,6 +391,44 @@ export class ManualBookingModalComponent {
       this.lastQuoteKey = key;
       void this.runQuote(key);
     });
+
+    // Atleta escolhido: busca o banco de horas dele (independe do valor digitado).
+    // Só as leituras que mudam o banco (quadra/data/horário/atleta): ler `formState` aqui faria o
+    // effect depender do próprio `memberHours`.
+    effect(() => {
+      const key = quoteKeyOf({
+        courtId: this.courtIdValue(),
+        dateKey: this.dateValue(),
+        startTime: this.startValue(),
+        endTime: this.endValue(),
+      });
+      const athleteId = this.athleteId();
+      const memberKey = key && athleteId ? `${key}|${athleteId}` : null;
+      if (memberKey === this.lastMemberKey) return;
+      this.lastMemberKey = memberKey;
+      untracked(() => this.memberHours.set(null));
+      if (memberKey && athleteId) void this.runMemberQuote(memberKey, athleteId);
+    });
+  }
+
+  private async runMemberQuote(memberKey: string, athleteId: string): Promise<void> {
+    const state = untracked(() => this.formState());
+    try {
+      const quote = await quoteManualBooking(arenaFunctions(), {
+        arenaId: this.arenaId(),
+        courtId: state.courtId,
+        date: state.dateKey,
+        startTime: state.startTime,
+        endTime: state.endTime,
+        athleteId,
+      });
+      if (memberKey === this.lastMemberKey) {
+        this.memberHours.set(quote.memberHours ?? null);
+        this.useMemberHours.set(true);
+      }
+    } catch {
+      // Sem a informação, a reserva segue como avulsa (o gestor digita o valor).
+    }
   }
 
   private async runQuote(key: string): Promise<void> {

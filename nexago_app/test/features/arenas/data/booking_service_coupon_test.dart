@@ -161,6 +161,115 @@ void main() {
     });
   });
 
+  group('BookingService — banco de horas do mensalista', () {
+    test('quote coberta inteira: aceita total 0 e lê o banco', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'quoteArenaBooking': {
+          'amountReais': 0,
+          'lineItems': <dynamic>[],
+          'memberHoursWeeklyMinutes': 180,
+          'memberHoursAvailableMinutes': 180,
+          'memberHoursMinutes': 60,
+          'memberHoursDiscountReais': 150,
+          'memberHoursPlanName': 'Mensalista 3h',
+          'memberHoursBlockedReason': null,
+        },
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      final quote = await service.quoteBooking(args: args);
+
+      expect(quote.amountReais, 0);
+      expect(quote.coveredByMemberHours, isTrue);
+      expect(quote.memberHoursPlanName, 'Mensalista 3h');
+      expect(quote.memberHoursLineLabel, 'Banco de horas · 1h');
+      expect(quote.memberHoursBalanceLabel, 'Restam 2h de 3h nesta semana');
+    });
+
+    test('quote com motivo de bloqueio', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'quoteArenaBooking': {
+          'amountReais': 150.0,
+          'lineItems': <dynamic>[],
+          'memberHoursWeeklyMinutes': 180,
+          'memberHoursAvailableMinutes': 120,
+          'memberHoursMinutes': 0,
+          'memberHoursDiscountReais': 0,
+          'memberHoursPlanName': null,
+          'memberHoursBlockedReason': 'overdue',
+        },
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      final quote = await service.quoteBooking(args: args);
+
+      expect(quote.isMember, isTrue);
+      expect(quote.hasMemberHours, isFalse);
+      expect(quote.memberHoursBlockedReason, 'overdue');
+      expect(quote.memberHoursNoticeIsWarning, isTrue);
+    });
+
+    test('total 0 sem banco de horas continua inválido', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'quoteArenaBooking': {'amountReais': 0, 'lineItems': <dynamic>[]},
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      expect(
+        () => service.quoteBooking(args: args),
+        throwsA(isA<BookingException>()),
+      );
+    });
+
+    test('servidor antigo (sem os campos): não é mensalista', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'quoteArenaBooking': {'amountReais': 150.0, 'lineItems': <dynamic>[]},
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      final quote = await service.quoteBooking(args: args);
+
+      expect(quote.isMember, isFalse);
+      expect(quote.hasMemberHours, isFalse);
+      expect(quote.memberHoursBlockedReason, isNull);
+    });
+
+    test('create lê memberHoursMinutes/DiscountReais', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'createArenaBooking': {
+          'bookingId': 'b1',
+          'amountReais': 0,
+          'paymentMode': 'onsite',
+          'memberHoursMinutes': 60,
+          'memberHoursDiscountReais': 150,
+        },
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      final result =
+          await service.createBookingAtomically(args: args, athleteId: 'u1');
+
+      expect(functions.calledPayloads.first?['paymentMode'], 'onsite');
+      expect(result.memberHoursMinutes, 60);
+      expect(result.memberHoursDiscountReais, 150);
+      expect(result.isCoveredByMemberHours, isTrue);
+    });
+
+    test('create sem os campos: zero', () async {
+      final functions = _FakeFirebaseFunctions(responses: {
+        'createArenaBooking': {'bookingId': 'b1', 'amountReais': 100.0},
+      });
+      final service = BookingService(_UnusedFirestore(), functions: functions);
+
+      final result =
+          await service.createBookingAtomically(args: args, athleteId: 'u1');
+
+      expect(result.memberHoursMinutes, 0);
+      expect(result.memberHoursDiscountReais, 0);
+      expect(result.isCoveredByMemberHours, isFalse);
+    });
+  });
+
   group('BookingService — desconto de professor', () {
     test('quote como professor manda asProfessor e lê o desconto', () async {
       final functions = _FakeFirebaseFunctions(responses: {

@@ -25,7 +25,16 @@ describe("validateManualBookingInput", () => {
       customerName: "João Silva",
       amountReais: 120,
       note: null,
+      useMemberHours: false,
     });
+  });
+
+  it("banco de horas só com atleta vinculado", () => {
+    assert.equal(validateManualBookingInput({...validBase, useMemberHours: true}, todayKey).useMemberHours, false);
+    assert.equal(
+      validateManualBookingInput({...validBase, athleteId: "u1", useMemberHours: true}, todayKey).useMemberHours,
+      true,
+    );
   });
 
   it("aceita atleta vinculado sem nome digitado", () => {

@@ -15,6 +15,8 @@ class BookingConfirmPriceSummary extends StatelessWidget {
     this.totalAmountLabel,
     this.weatherCreditAmountLabel,
     this.totalLineLabel = 'Total',
+    this.memberHoursLineLabel,
+    this.memberHoursAmountLabel,
   });
 
   final String courtLineLabel;
@@ -32,11 +34,18 @@ class BookingConfirmPriceSummary extends StatelessWidget {
   final String? weatherCreditAmountLabel;
   final String totalLineLabel;
 
+  /// Banco de horas do mensalista ("Banco de horas · 1h" / "−R$ 150,00").
+  /// Soma com o desconto do perfil/professor (o banco entra por cima).
+  final String? memberHoursLineLabel;
+  final String? memberHoursAmountLabel;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final hasDiscount = discountLineLabel != null && discountAmountLabel != null;
     final hasCredit = weatherCreditAmountLabel != null;
+    final hasMemberHours =
+        memberHoursLineLabel != null && memberHoursAmountLabel != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -80,6 +89,18 @@ class BookingConfirmPriceSummary extends StatelessWidget {
                   ),
                 ),
               ],
+              if (hasMemberHours) ...[
+                const SizedBox(height: 10),
+                _PriceRow(
+                  key: const Key('booking-confirm-member-hours'),
+                  label: memberHoursLineLabel!,
+                  value: memberHoursAmountLabel!,
+                  valueStyle: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: context.themeColors.readableTone(AppColors.win),
+                  ),
+                ),
+              ],
               if (hasCredit) ...[
                 const SizedBox(height: 10),
                 _PriceRow(
@@ -92,7 +113,8 @@ class BookingConfirmPriceSummary extends StatelessWidget {
                   ),
                 ),
               ],
-              if ((hasDiscount || hasCredit) && totalAmountLabel != null) ...[
+              if ((hasDiscount || hasMemberHours || hasCredit) &&
+                  totalAmountLabel != null) ...[
                 const SizedBox(height: 10),
                 _PriceRow(
                   key: const Key('booking-confirm-total'),

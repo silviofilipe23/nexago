@@ -19,6 +19,13 @@ import {claimCourtLocks} from "./arena-floating-booking";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {roundMoney} from "./mercadopago-arena-helpers";
+import {
+  loadMemberHoursContext,
+  memberHoursForManualQuote,
+  reserveMemberMinutesInTransaction,
+  spanMinutes,
+} from "./arena-member-hours";
 
 /** Reserva avulsa criada pelo gestor no balcão (sem app do atleta no meio).
  *  Mesma forma de documento do horário fixo — ver
@@ -34,6 +41,12 @@ export interface ManualBookingInput {
   customerName?: string | null;
   amountReais?: number;
   note?: string | null;
+  /**
+   * Mensalista (arena com banco de horas ligado): descontar a reserva do banco da semana.
+   * `amountReais` continua sendo o preço do horário inteiro; o servidor tira a parte coberta.
+   * Portais antigos não mandam: nada muda.
+   */
+  useMemberHours?: boolean;
 }
 
 export interface ValidManualBooking {
@@ -46,6 +59,7 @@ export interface ValidManualBooking {
   customerName: string | null;
   amountReais: number;
   note: string | null;
+  useMemberHours: boolean;
 }
 
 /** "9:00" → "09:00"; "10:00:00" → "10:00"; lixo → null. */
@@ -132,6 +146,7 @@ export function validateManualBookingInput(
     customerName,
     amountReais,
     note: trimmedOrNull(input.note),
+    useMemberHours: input.useMemberHours === true && athleteId != null,
   };
 }
 
@@ -218,8 +233,28 @@ export const quoteArenaManualBooking = onCall({
     promotions: parsePromotionsFromDocs(promoSnap.docs),
   });
 
-  return {amountReais: total.amountReais, lineItems: total.lineItems};
+  // Atleta mensalista escolhido: o portal oferece "Descontar do banco de horas".
+  const memberHours = parsed.athleteId ?
+    await memberHoursForManualQuote(db, {
+      arenaId: parsed.arenaId,
+      arenaData: ctx.arenaData,
+      athleteId: parsed.athleteId,
+      dateKey: parsed.dateKey,
+      today: dayKeyFromEventDate(new Date()),
+      startTime: parsed.startTime,
+      endTime: parsed.endTime,
+    }) :
+    null;
+
+  return {amountReais: total.amountReais, lineItems: total.lineItems, memberHours};
 });
+
+/** Preço do balcão menos a parte coberta pelo banco de horas. Puro. */
+export function manualAmountAfterMemberHours(amountReais: number, totalMinutes: number, coveredMinutes: number): number {
+  if (totalMinutes <= 0 || coveredMinutes <= 0) return amountReais;
+  const left = Math.max(0, totalMinutes - coveredMinutes);
+  return roundMoney(amountReais * left / totalMinutes);
+}
 
 /** Cria a reserva de balcão: `arenaBookings` + `arenaSlots` + `arenaSlotLocks`
  *  numa transação, mesma forma do horário fixo. */
@@ -269,9 +304,33 @@ export const createArenaManualBooking = onCall({
     `${parsed.dateKey}T${parsed.startTime}:00${ARENA_TIMEZONE_OFFSET}`,
   );
   const confirmationDeadline = new Date(startAt.getTime() - 2 * 60 * 60 * 1000);
+  const memberCtx = parsed.useMemberHours ?
+    await loadMemberHoursContext(db, {
+      arenaId: parsed.arenaId,
+      arenaData: ctx.arenaData,
+      athleteId: parsed.athleteId,
+      dateKey: parsed.dateKey,
+      today: dayKeyFromEventDate(new Date()),
+    }) :
+    null;
+  const bookingMinutes = spanMinutes(parsed.startTime, parsed.endTime);
+  let amountReais = parsed.amountReais;
+  let memberMinutes = 0;
 
   try {
     await db.runTransaction(async (transaction) => {
+      amountReais = parsed.amountReais;
+      memberMinutes = 0;
+      let commitMemberHours: (() => void) | null = null;
+      if (memberCtx && !memberCtx.blocked) {
+        const reserved = await reserveMemberMinutesInTransaction(transaction, db, memberCtx, bookingRef.id);
+        memberMinutes = Math.min(reserved.availableMinutes, bookingMinutes);
+        if (memberMinutes > 0) {
+          amountReais = manualAmountAfterMemberHours(parsed.amountReais, bookingMinutes, memberMinutes);
+          const minutes = memberMinutes;
+          commitMemberHours = () => reserved.commit(minutes);
+        }
+      }
       const claim = await claimCourtLocks(transaction, db, {
         arenaId: parsed.arenaId,
         courtId: parsed.courtId,
@@ -281,6 +340,7 @@ export const createArenaManualBooking = onCall({
         throw new HttpsError("already-exists", "Esse horário já está reservado.");
       }
       claim.commit(transaction);
+      commitMemberHours?.();
 
       transaction.set(bookingRef, {
         athleteId: parsed.athleteId,
@@ -292,10 +352,10 @@ export const createArenaManualBooking = onCall({
         date: parsed.dateKey,
         startTime: parsed.startTime,
         endTime: parsed.endTime,
-        amountReais: parsed.amountReais,
+        amountReais,
         amountToPayNowReais: 0,
         amountPaidOnlineReais: 0,
-        amountDueOnsiteReais: parsed.amountReais,
+        amountDueOnsiteReais: amountReais,
         paymentChannel: "onsite",
         paymentReceiver: null,
         paymentFraction: null,
@@ -310,6 +370,13 @@ export const createArenaManualBooking = onCall({
         createdByRole: "arena_manager",
         createdBy: uid,
         ...(parsed.note ? {managerNote: parsed.note} : {}),
+        // Banco de horas do mensalista: quanto saiu do banco (é o que conta o saldo da semana).
+        ...(memberMinutes > 0 && memberCtx ? {
+          memberHoursMinutes: memberMinutes,
+          memberHoursDiscountReais: roundMoney(Math.max(0, parsed.amountReais - amountReais)),
+          memberContractId: memberCtx.contract.contractId,
+          coveredByMemberHours: amountReais <= 0,
+        } : {}),
         createdAt: FieldValue.serverTimestamp(),
       });
 
@@ -324,7 +391,7 @@ export const createArenaManualBooking = onCall({
         status: "booked",
         bookingAthleteId: parsed.athleteId,
         bookingId: bookingRef.id,
-        priceReais: parsed.amountReais,
+        priceReais: amountReais,
         createdAt: FieldValue.serverTimestamp(),
       });
 
@@ -370,5 +437,5 @@ export const createArenaManualBooking = onCall({
     dateKey: parsed.dateKey,
   });
 
-  return {bookingId: bookingRef.id};
+  return {bookingId: bookingRef.id, amountReais, memberHoursMinutes: memberMinutes};
 });

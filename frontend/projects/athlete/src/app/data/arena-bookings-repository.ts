@@ -76,7 +76,20 @@ export interface ArenaBookingQuote {
    *  promoção/cupom saíram mais baratos. Servidor antigo não devolve. */
   athletePricingLabel?: string | null;
   athletePricingDiscountReais?: number;
+  /** Banco de horas do mensalista (contrato no CRM da arena) — 0/`null` quando não se aplica ou
+   *  servidor antigo. `memberHoursWeeklyMinutes` 0 = não é mensalista nesta arena. */
+  memberHoursWeeklyMinutes?: number;
+  /** Saldo da semana ANTES desta reserva. */
+  memberHoursAvailableMinutes?: number;
+  /** Minutos desta reserva cobertos pelo banco (saem a R$ 0; o resto é cobrado normal). */
+  memberHoursMinutes?: number;
+  memberHoursDiscountReais?: number;
+  memberHoursPlanName?: string | null;
+  /** Por que o banco não cobriu: mensalidade atrasada, horas da semana acabaram ou cupom mais barato. */
+  memberHoursBlockedReason?: MemberHoursBlockedReason | null;
 }
+
+export type MemberHoursBlockedReason = 'overdue' | 'exhausted' | 'coupon_cheaper';
 
 export interface CreateArenaBookingResult {
   bookingId: string;
@@ -93,6 +106,9 @@ export interface CreateArenaBookingResult {
   /** Ausentes em servidor antigo — trate como 0. */
   professorDiscountPercent?: number;
   professorDiscountReais?: number;
+  /** Banco de horas do mensalista aplicado nesta reserva (ausente em servidor antigo). */
+  memberHoursMinutes?: number;
+  memberHoursDiscountReais?: number;
 }
 
 export interface ArenaBookingPixPayment {
@@ -160,6 +176,11 @@ export interface ArenaBookingDoc {
   /** Parte paga com cashback, gravada pelo webhook no pagamento (0 sem saldo). Não usar
    *  `cashbackAppliedCents`: a divisão devolve a reserva de saldo sem zerar esse campo. */
   cashbackAppliedReais: number;
+  /** Banco de horas do mensalista: a reserva inteira saiu do banco (nada a pagar). */
+  coveredByMemberHours?: boolean;
+  /** Minutos e desconto que saíram do banco de horas (0 sem banco). */
+  memberHoursMinutes?: number;
+  memberHoursDiscountReais?: number;
 }
 
 export class ArenaBookingError extends Error {
@@ -267,13 +288,21 @@ export async function quoteArenaBooking(
         athletePricingTier?: string | null;
         athletePricingLabel?: string | null;
         athletePricingDiscountReais?: number;
+        memberHoursWeeklyMinutes?: number;
+        memberHoursAvailableMinutes?: number;
+        memberHoursMinutes?: number;
+        memberHoursDiscountReais?: number;
+        memberHoursPlanName?: string | null;
+        memberHoursBlockedReason?: string | null;
       }
     >(functions, 'quoteArenaBooking')({
       ...callablePayload(args, couponCode),
       ...(options.asProfessor === true ? { asProfessor: true } : {}),
     });
     const amount = Number(result.data.amountReais);
-    if (!Number.isFinite(amount) || amount <= 0) {
+    const memberHours = memberHoursFromQuote(result.data);
+    // Total 0 só vale quando o banco de horas cobriu a reserva inteira.
+    if (!Number.isFinite(amount) || amount < 0 || (amount === 0 && (memberHours.memberHoursMinutes ?? 0) <= 0)) {
       throw new ArenaBookingError('Configure o preço da quadra antes de reservar.');
     }
     const lineItems: ArenaBookingQuoteLine[] = [];
@@ -298,6 +327,7 @@ export async function quoteArenaBooking(
       professorDiscountPercent: Number(result.data.professorDiscountPercent) || 0,
       professorDiscountReais: Number(result.data.professorDiscountReais) || 0,
       ...athletePricingFromQuote(result.data),
+      ...memberHours,
     };
   } catch (err) {
     if (err instanceof ArenaBookingError) throw err;
@@ -318,6 +348,49 @@ export function athletePricingFromQuote(data: {
   }
   const label = data.athletePricingLabel?.trim() || (tier === 'student' ? 'Aluno' : 'Professor');
   return { athletePricingLabel: label, athletePricingDiscountReais: reais };
+}
+
+const MEMBER_HOURS_BLOCKED_REASONS: ReadonlySet<unknown> = new Set(['overdue', 'exhausted', 'coupon_cheaper']);
+
+type MemberHoursQuoteFields =
+  | 'memberHoursWeeklyMinutes'
+  | 'memberHoursAvailableMinutes'
+  | 'memberHoursMinutes'
+  | 'memberHoursDiscountReais'
+  | 'memberHoursPlanName'
+  | 'memberHoursBlockedReason';
+
+/** Banco de horas do mensalista devolvido pela cotação. Sem banco na semana (não é mensalista ou
+ *  servidor antigo) tudo sai zerado. */
+export function memberHoursFromQuote(data: {
+  memberHoursWeeklyMinutes?: number;
+  memberHoursAvailableMinutes?: number;
+  memberHoursMinutes?: number;
+  memberHoursDiscountReais?: number;
+  memberHoursPlanName?: string | null;
+  memberHoursBlockedReason?: string | null;
+}): Required<Pick<ArenaBookingQuote, MemberHoursQuoteFields>> {
+  const minutesOf = (v: unknown): number => Math.max(0, Math.floor(Number(v) || 0));
+  const weekly = minutesOf(data.memberHoursWeeklyMinutes);
+  if (weekly <= 0) {
+    return {
+      memberHoursWeeklyMinutes: 0,
+      memberHoursAvailableMinutes: 0,
+      memberHoursMinutes: 0,
+      memberHoursDiscountReais: 0,
+      memberHoursPlanName: null,
+      memberHoursBlockedReason: null,
+    };
+  }
+  const reason = data.memberHoursBlockedReason;
+  return {
+    memberHoursWeeklyMinutes: weekly,
+    memberHoursAvailableMinutes: minutesOf(data.memberHoursAvailableMinutes),
+    memberHoursMinutes: minutesOf(data.memberHoursMinutes),
+    memberHoursDiscountReais: Math.max(0, Number(data.memberHoursDiscountReais) || 0),
+    memberHoursPlanName: data.memberHoursPlanName?.trim() || null,
+    memberHoursBlockedReason: MEMBER_HOURS_BLOCKED_REASONS.has(reason) ? (reason as MemberHoursBlockedReason) : null,
+  };
 }
 
 /** Cria a reserva (transação server-side com locks). `paymentMode: 'onsite'` já nasce
@@ -617,6 +690,9 @@ export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): Arena
     couponDiscountReais: Number(data['couponDiscountReais']) || 0,
     asaasPaymentId: optionalStr(data['asaasPaymentId']),
     cashbackAppliedReais: Math.max(0, Number(data['cashbackAppliedReais']) || 0),
+    coveredByMemberHours: data['coveredByMemberHours'] === true,
+    memberHoursMinutes: Math.max(0, Number(data['memberHoursMinutes']) || 0),
+    memberHoursDiscountReais: Math.max(0, Number(data['memberHoursDiscountReais']) || 0),
   };
 }
 

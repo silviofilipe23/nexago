@@ -19,7 +19,7 @@ const MONTH_FULL = [
 ] as const;
 
 /** Situação de pagamento da reserva, já traduzida pra UI. */
-export type BookingStatusKind = 'paid' | 'partial' | 'onsite' | 'pending' | 'canceled';
+export type BookingStatusKind = 'paid' | 'partial' | 'onsite' | 'member_hours' | 'pending' | 'canceled';
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -105,6 +105,8 @@ export class ArenaBookingConfirmedComponent {
     const status = b.status.toLowerCase();
     if (status === 'canceled' || status === 'cancelled') return 'canceled';
     if (status === 'pending_payment') return 'pending';
+    // Coberta inteira pelo banco de horas do mensalista: nada a pagar.
+    if (b.coveredByMemberHours === true) return 'member_hours';
     // Pago online: Pix ou cartão (o cartão confirma na aprovação).
     if (b.paymentChannel === 'pix' || b.paymentChannel === 'card') {
       return b.paymentStatus === 'partial' ? 'partial' : 'paid';
@@ -120,6 +122,8 @@ export class ArenaBookingConfirmedComponent {
         return '50% pago · restante na arena';
       case 'onsite':
         return 'Confirmada · pague na arena';
+      case 'member_hours':
+        return 'Confirmada · banco de horas';
       case 'pending':
         return 'Aguardando pagamento';
       case 'canceled':

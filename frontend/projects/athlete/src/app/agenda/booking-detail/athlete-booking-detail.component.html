@@ -213,6 +213,12 @@
                 <span class="bd-payment-value">{{ code }} (-{{ formatBRL(b.couponDiscountReais) }})</span>
               </div>
             }
+            @if (memberHoursLabel(); as hours) {
+              <div class="bd-payment-row">
+                <span class="bd-payment-label">Banco de horas</span>
+                <span class="bd-payment-value">{{ hours }}</span>
+              </div>
+            }
           </div>
           }
 

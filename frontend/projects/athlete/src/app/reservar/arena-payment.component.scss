@@ -1125,3 +1125,17 @@
     color: var(--nx-text-mute);
   }
 }
+
+// ── Banco de horas do mensalista ─────────────────────────────
+.pm-member-hours-note {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--nx-text-dim);
+  margin: -4px 0 0;
+
+  &--warn {
+    color: var(--nx-pending);
+    margin: 0;
+  }
+}

@@ -63,6 +63,19 @@
             </section>
           }
 
+          @if (coveredByMemberHours()) {
+            <section class="pm-card">
+              <h2 class="pm-card-title">Pagamento</h2>
+              <div class="pm-onsite-block">
+                <p class="pm-onsite-text">
+                  Esta reserva sai do seu <strong>banco de horas</strong>: nada a pagar, nem agora nem na arena.
+                </p>
+                @if (memberHoursBalance(); as balance) {
+                  <p class="pm-defer-note">{{ balance }}</p>
+                }
+              </div>
+            </section>
+          } @else {
           <section class="pm-card">
             <h2 class="pm-card-title">Forma de pagamento</h2>
             <div class="pm-method-row">
@@ -405,6 +418,7 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
             <span>Pagamento online processado com segurança pela nexaGO. O horário só é bloqueado para outros atletas quando a reserva é criada.</span>
           </div>
+          }
         </div>
 
         <div class="pm-col pm-col--side">
@@ -445,6 +459,18 @@
                 <span class="pm-summary-label">Preço {{ tierLabel }}</span>
                 <span class="pm-summary-value pm-summary-value--discount">&minus;{{ formatBRL(athletePricingDiscountReais()) }}</span>
               </div>
+            }
+            @if (memberHoursLabel(); as hours) {
+              <div class="pm-summary-row">
+                <span class="pm-summary-label">Banco de horas · {{ hours }}</span>
+                <span class="pm-summary-value pm-summary-value--discount">&minus;{{ formatBRL(memberHoursDiscountReais()) }}</span>
+              </div>
+              @if (memberHoursBalance(); as balance) {
+                <p class="pm-member-hours-note">{{ balance }}</p>
+              }
+            }
+            @if (memberHoursNotice(); as notice) {
+              <p class="pm-member-hours-note pm-member-hours-note--warn" role="status">{{ notice }}</p>
             }
             @if (appliedCouponCode(); as code) {
               <div class="pm-summary-row">
@@ -499,7 +525,7 @@
               }
             </div>
 
-            @if (isOnlineMethod() && pixFraction() === 0.5) {
+            @if (!coveredByMemberHours() && isOnlineMethod() && pixFraction() === 0.5) {
               <div class="pm-summary-row">
                 <span class="pm-summary-label">Restante na arena</span>
                 <span class="pm-summary-value">{{ formatBRL(pixAmountOnsite()) }}</span>
@@ -507,12 +533,12 @@
             }
             <div class="pm-summary-total-row">
               <span class="pm-summary-label">
-                {{ splitBookingId() ? 'Dividido com amigos' : isOnlineMethod() ? 'Você paga agora' : 'Você paga na arena' }}
+                {{ coveredByMemberHours() ? 'Você paga' : splitBookingId() ? 'Dividido com amigos' : isOnlineMethod() ? 'Você paga agora' : 'Você paga na arena' }}
               </span>
-              <strong class="pm-summary-total">{{ isOnlineMethod() ? formatBRL(pixChargeNow()) : formatBRL(totalPrice()) }}</strong>
+              <strong class="pm-summary-total">{{ coveredByMemberHours() ? formatBRL(0) : isOnlineMethod() ? formatBRL(pixChargeNow()) : formatBRL(totalPrice()) }}</strong>
             </div>
 
-            @if (selectedMethod() === 'onsite') {
+            @if (coveredByMemberHours() || selectedMethod() === 'onsite') {
               <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="confirmOnsite()">
                 {{ processing() ? 'Confirmando…' : 'Confirmar reserva' }}
               </button>

@@ -24,6 +24,7 @@ import {
   displayBookingCode,
   enrichCourtName,
   formatBRL,
+  formatMemberMinutes,
   professorBookingLabel,
   professorDiscountLabel,
   type ArenaBooking,
@@ -313,6 +314,13 @@ export function bookingChannelLabel(channel: string | null): string {
                   <div class="row">
                     <span>Preço {{ tierLabel }}</span>
                     <b class="mono minus">@if (b.athletePricingDiscountReais; as reais) {− {{ formatBRL(reais) }}} @else {aplicado}</b>
+                  </div>
+                }
+                @if (b.memberHoursMinutes) {
+                  <!-- Mensalista: horas que saíram do banco de horas do contrato (Clientes). -->
+                  <div class="row">
+                    <span>Banco de horas · {{ formatMemberMinutes(b.memberHoursMinutes) }}</span>
+                    <b class="mono minus">@if (b.memberHoursDiscountReais; as reais) {− {{ formatBRL(reais) }}} @else {aplicado}</b>
                   </div>
                 }
                 <div class="row"><span>Forma</span><b>{{ channelLabel(b.paymentChannel) }}</b></div>
@@ -1205,6 +1213,7 @@ export class PanelBookingDetailComponent {
 
   protected readonly attendanceTone = ATTENDANCE_TONE;
   protected readonly formatBRL = formatBRL;
+  protected readonly formatMemberMinutes = formatMemberMinutes;
   protected readonly attendanceLabel = attendanceLabel;
   protected readonly statusLabel = bookingStatusLabel;
   protected readonly displayBookingCode = displayBookingCode;

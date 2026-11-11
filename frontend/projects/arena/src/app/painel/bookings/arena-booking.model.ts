@@ -69,6 +69,9 @@ export interface ArenaBooking {
    *  promoção/cupom; `null` no preço avulso. */
   athletePricingLabel?: string | null;
   athletePricingDiscountReais?: number | null;
+  /** Mensalista: minutos que saíram do banco de horas do contrato (0 = não usou). */
+  memberHoursMinutes?: number;
+  memberHoursDiscountReais?: number | null;
   /** Quem joga além do dono (`participants`, gravado só pelo servidor ao aceitar convite). */
   participants?: BookingParticipant[];
   /** Trocas de quadra (`courtHistory`, as últimas que o servidor guarda), da mais antiga à mais nova. */
@@ -185,6 +188,7 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     couponDiscountReais: typeof d['couponDiscountReais'] === 'number' ? d['couponDiscountReais'] : null,
     ...professorBookingFields(d),
     ...athletePricingFields(d),
+    ...memberHoursFields(d),
     participants: participantsFrom(d['participants']),
     courtHistory: courtHistoryFrom(d['courtHistory']),
     checkedInAt: toDate(d['checkedInAt']),
@@ -195,6 +199,25 @@ type ProfessorBookingFields = Pick<
   ArenaBooking,
   'bookedAsProfessor' | 'professorRelationshipType' | 'professorDiscountPercent' | 'professorDiscountReais'
 >;
+
+export function memberHoursFields(d: Record<string, unknown>): Pick<ArenaBooking, 'memberHoursMinutes' | 'memberHoursDiscountReais'> {
+  const minutes = d['memberHoursMinutes'];
+  const reais = d['memberHoursDiscountReais'];
+  if (typeof minutes !== 'number' || minutes <= 0) return { memberHoursMinutes: 0, memberHoursDiscountReais: null };
+  return {
+    memberHoursMinutes: Math.round(minutes),
+    memberHoursDiscountReais: typeof reais === 'number' && reais > 0 ? reais : null,
+  };
+}
+
+/** 90 → "1h30", 60 → "1h", 30 → "30min". */
+export function formatMemberMinutes(minutes: number): string {
+  const m = Math.max(0, Math.round(minutes));
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  if (h === 0) return `${rest}min`;
+  return rest ? `${h}h${String(rest).padStart(2, '0')}` : `${h}h`;
+}
 
 function athletePricingFields(d: Record<string, unknown>): Pick<ArenaBooking, 'athletePricingLabel' | 'athletePricingDiscountReais'> {
   const tier = d['athletePricingTier'];

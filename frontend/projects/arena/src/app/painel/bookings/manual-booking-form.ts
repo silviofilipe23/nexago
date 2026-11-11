@@ -11,6 +11,8 @@ export interface ManualBookingFormState {
   customerName: string;
   amountText: string;
   note: string;
+  /** Mensalista: descontar do banco de horas (o servidor tira a parte coberta do valor). */
+  useMemberHours?: boolean;
 }
 
 export interface ManualBookingPayload {
@@ -23,6 +25,7 @@ export interface ManualBookingPayload {
   customerName?: string;
   amountReais: number;
   note?: string;
+  useMemberHours?: boolean;
 }
 
 export type ManualBookingFormResult =
@@ -118,6 +121,25 @@ export function validateManualBookingForm(
       ...(athleteId ? { athleteId } : {}),
       ...(customerName ? { customerName } : {}),
       ...(note ? { note } : {}),
+      ...(athleteId && state.useMemberHours ? { useMemberHours: true } : {}),
     },
   };
+}
+
+/** Banco de horas do atleta escolhido (`quoteArenaManualBooking` com `athleteId`). */
+export interface ManualMemberHours {
+  weeklyMinutes: number;
+  availableMinutes: number;
+  coverMinutes: number;
+  planName: string;
+  blocked: boolean;
+}
+
+/** O que sobra a cobrar depois do banco (espelha `manualAmountAfterMemberHours` no servidor). */
+export function amountAfterMemberHours(amountReais: number, startTime: string, endTime: string, coverMinutes: number): number {
+  const span = spanOf(startTime, endTime);
+  if (!span || coverMinutes <= 0) return amountReais;
+  const total = span.end - span.start;
+  const left = Math.max(0, total - coverMinutes);
+  return Math.round((amountReais * left) / total * 100) / 100;
 }

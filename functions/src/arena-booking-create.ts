@@ -53,6 +53,15 @@ import {hasBlockedSlotOverlap} from "./arena-recurring-booking";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {arenaBookingStartAt} from "./arena-booking-start-at";
 import {arenaBlockApplies} from "./arena-block-guard";
+import {
+  applyMemberHours,
+  loadMemberHoursContext,
+  NO_MEMBER_HOURS,
+  quoteMemberHours,
+  reserveMemberMinutesInTransaction,
+  type MemberHoursOutcome,
+  type MemberHoursQuote,
+} from "./arena-member-hours";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -253,7 +262,9 @@ async function resolveBookingCourt(
 async function quoteInternal(
   input: BookingInput,
   athleteId: string,
-): Promise<BookingTotalResult & CouponPricingOutcome & ProfessorCourtDiscountOutcome & AthletePricingOutcome> {
+): Promise<
+  BookingTotalResult & CouponPricingOutcome & ProfessorCourtDiscountOutcome & AthletePricingOutcome & MemberHoursQuote
+> {
   const arenaId = input.arenaId?.trim();
   const dateKey = parseDateKey(input.date ?? "");
   const startTime = input.startTime?.trim() ?? "";
@@ -307,7 +318,18 @@ async function quoteInternal(
   );
   const athleteRule = await loadAthletePricingRule(getFirestore(), arenaId, ctx.arenaData, athleteId);
   const {result, coupon, professor, athletePricing} = applyAthleteDiscounts(withCoupon, athleteRule, discount);
-  return {...result, ...coupon, ...professor, ...athletePricing};
+  assertPositiveBookingTotal(result);
+  // Mensalista (arena com banco de horas ligado): as horas da semana saem a R$ 0. Reserva como
+  // professor nunca usa o banco.
+  const memberCtx = input.asProfessor === true ? null : await loadMemberHoursContext(getFirestore(), {
+    arenaId,
+    arenaData: ctx.arenaData,
+    athleteId,
+    dateKey,
+    today: dayKeyFromEventDate(new Date()),
+  });
+  const member = await quoteMemberHours(getFirestore(), memberCtx, {result, coupon});
+  return {...member.result, ...member.coupon, ...professor, ...athletePricing, ...member.quote};
 }
 
 export interface BookingPaymentPlan {
@@ -330,6 +352,17 @@ export function bookingPaymentPlan(params: {
   paymentMode: PaymentMode;
   paymentFraction: number;
 }): BookingPaymentPlan {
+  // Coberta inteira pelo banco de horas do mensalista: nada a pagar, nem online nem no balcão.
+  if (params.amountReais <= 0) {
+    return {
+      channel: "onsite",
+      status: "active",
+      paymentStatus: "none",
+      paymentFraction: null,
+      amountToPayNowReais: 0,
+      amountDueOnsiteReais: 0,
+    };
+  }
   const credit = Math.max(0, Math.min(params.weatherCreditReais, params.amountReais));
   const net = roundMoney(params.amountReais - credit);
   if (net <= 0) {
@@ -382,7 +415,6 @@ export const quoteArenaBooking = onCall({
   }
   const input = (request.data ?? {}) as BookingInput;
   const total = await quoteInternal(input, request.auth.uid);
-  assertPositiveBookingTotal(total);
   // Saldo de chuva nesta arena: o app mostra o "Usar crédito" só quando há.
   const credit = await weatherCreditSummary(
     getFirestore(),
@@ -415,6 +447,12 @@ export const quoteArenaBooking = onCall({
     athletePricingTier: total.athletePricingTier,
     athletePricingLabel: total.athletePricingLabel,
     athletePricingDiscountReais: total.athletePricingDiscountReais,
+    memberHoursWeeklyMinutes: total.memberHoursWeeklyMinutes,
+    memberHoursAvailableMinutes: total.memberHoursAvailableMinutes,
+    memberHoursMinutes: total.memberHoursMinutes,
+    memberHoursDiscountReais: total.memberHoursDiscountReais,
+    memberHoursPlanName: total.memberHoursPlanName,
+    memberHoursBlockedReason: total.memberHoursBlockedReason,
   };
 });
 
@@ -476,6 +514,15 @@ export const createArenaBooking = onCall({
     ctx.courtData = withCapacityPrice(ctx.courtData, resolved.allocation, bookingSportCode(input.sport)) ?? {};
   }
   const sport = resolveBookingSport(input.sport, ctx.courtData);
+  // Banco de horas do mensalista: o desconto é fechado na transação (saldo fresco).
+  const memberCtx = professorBooking ? null : await loadMemberHoursContext(getFirestore(), {
+    arenaId,
+    arenaData: ctx.arenaData,
+    athleteId,
+    dateKey,
+    today: dayKeyFromEventDate(new Date()),
+  });
+  const memberMayCover = memberCtx != null && !memberCtx.blocked;
   const paymentFlags = readArenaPaymentFlags(ctx.arenaData);
   const paymentMode: PaymentMode =
     input.paymentMode === "pix" ? "pix" : "onsite";
@@ -486,7 +533,8 @@ export const createArenaBooking = onCall({
       "Esta arena não aceita pagamento online (PIX).",
     );
   }
-  if (paymentMode === "onsite" && !paymentFlags.onsitePaymentEnabled) {
+  // Coberta inteira pelo banco não tem nada a pagar no local: conferido na transação.
+  if (paymentMode === "onsite" && !paymentFlags.onsitePaymentEnabled && !memberMayCover) {
     throw new HttpsError(
       "failed-precondition",
       "Esta arena não aceita pagamento no local.",
@@ -535,8 +583,8 @@ export const createArenaBooking = onCall({
     selectedSlotStartTimes: input.selectedSlotStartTimes,
   });
   const {
-    result: total,
-    coupon: couponOutcome,
+    result: baseTotal,
+    coupon: baseCoupon,
     professor: professorDiscount,
     athletePricing,
   } = applyAthleteDiscounts(
@@ -551,7 +599,10 @@ export const createArenaBooking = onCall({
     professorBooking?.courtDiscount ?? null,
   );
 
-  assertPositiveBookingTotal(total);
+  assertPositiveBookingTotal(baseTotal);
+  let total = baseTotal;
+  let couponOutcome = baseCoupon;
+  let member: MemberHoursOutcome = NO_MEMBER_HOURS;
 
   await ensurePeakRuleSatisfied({
     db,
@@ -566,7 +617,8 @@ export const createArenaBooking = onCall({
 
   if (
     input.clientAmountReais != null &&
-    Math.abs(input.clientAmountReais - total.amountReais) > 0.02
+    Math.abs(input.clientAmountReais - total.amountReais) > 0.02 &&
+    !memberCtx
   ) {
     logger.warn("createArenaBooking: client amount mismatch", {
       client: input.clientAmountReais,
@@ -576,7 +628,7 @@ export const createArenaBooking = onCall({
     });
   }
 
-  const amountReais = total.amountReais;
+  let amountReais = total.amountReais;
   if (paymentMode === "pix" && roundMoney(amountReais * paymentFraction) <= 0) {
     throw new HttpsError("failed-precondition", "Valor PIX inválido.");
   }
@@ -639,6 +691,35 @@ export const createArenaBooking = onCall({
             "Esse horário acabou de ser reservado. Escolha outro.",
           );
         }
+      }
+
+      // Mensalista: saldo da semana relido aqui (duas reservas juntas não gastam a mesma hora).
+      // A transação pode repetir: tudo parte do preço de antes do banco.
+      total = baseTotal;
+      couponOutcome = baseCoupon;
+      member = NO_MEMBER_HOURS;
+      let commitMemberHours: (() => void) | null = null;
+      if (memberCtx && memberMayCover) {
+        const reserved = await reserveMemberMinutesInTransaction(transaction, db, memberCtx, bookingId);
+        const applied = applyMemberHours(
+          {result: baseTotal, coupon: baseCoupon},
+          reserved.availableMinutes,
+          memberCtx.contract.contractId,
+        );
+        total = applied.result;
+        couponOutcome = applied.coupon;
+        member = applied.member;
+        if (member.memberHoursMinutes > 0) {
+          const minutes = member.memberHoursMinutes;
+          commitMemberHours = () => reserved.commit(minutes);
+        }
+      }
+      amountReais = total.amountReais;
+      if (paymentMode === "onsite" && !paymentFlags.onsitePaymentEnabled && amountReais > 0) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Esta arena não aceita pagamento no local.",
+        );
       }
 
       // Revalida vigência/limites do cupom com dados frescos (mesma fase de
@@ -729,6 +810,8 @@ export const createArenaBooking = onCall({
         ...(professorDiscount.professorDiscountPercent > 0 ? professorDiscount : {}),
         // Preço do perfil (aluno/professor da arena): a arena vê na reserva por que saiu mais barato.
         ...(athletePricing.athletePricingTier ? athletePricing : {}),
+        // Banco de horas do mensalista: quanto saiu do banco (é o que conta o saldo da semana).
+        ...(member.memberHoursMinutes > 0 ? {...member, coveredByMemberHours: amountReais <= 0} : {}),
         pricingLineItems: total.lineItems.map((l) => ({
           startTime: l.startTime,
           endTime: l.endTime,
@@ -741,6 +824,7 @@ export const createArenaBooking = onCall({
 
       commitCouponRedemption?.();
       commitWeatherCredit?.();
+      commitMemberHours?.();
       if (claim?.ok) claim.commit(transaction);
 
       // Cópia do total fora do alcance dos clientes: é dela que o PIX, a
@@ -821,6 +905,8 @@ export const createArenaBooking = onCall({
     professorDiscountPercent: professorDiscount.professorDiscountPercent,
     professorDiscountReais: professorDiscount.professorDiscountReais,
     ...athletePricing,
+    memberHoursMinutes: member.memberHoursMinutes,
+    memberHoursDiscountReais: member.memberHoursDiscountReais,
     bookedAs: professorStamp?.bookedAs ?? "athlete",
     /** `unassigned`: a quadra é definida pela recepção (não mostrar a provisória ao atleta). */
     allocationStatus: resolved.floating ? "unassigned" : "assigned",

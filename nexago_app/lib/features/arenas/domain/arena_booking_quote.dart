@@ -32,6 +32,12 @@ class ArenaBookingQuote {
     this.weatherCreditNextExpiresAt,
     this.weatherCreditAppliedReais = 0,
     this.amountAfterCreditReais,
+    this.memberHoursWeeklyMinutes = 0,
+    this.memberHoursAvailableMinutes = 0,
+    this.memberHoursMinutes = 0,
+    this.memberHoursDiscountReais = 0,
+    this.memberHoursPlanName,
+    this.memberHoursBlockedReason,
   });
 
   final double amountReais;
@@ -74,6 +80,97 @@ class ArenaBookingQuote {
   /// Total depois do crédito; `null` quando o servidor não devolve.
   final double? amountAfterCreditReais;
 
+  /// Banco de horas da semana do contrato de mensalista (0 = não é
+  /// mensalista nesta arena, ou a arena não liga o banco). Servidor antigo
+  /// não devolve os campos `memberHours*`.
+  final int memberHoursWeeklyMinutes;
+
+  /// Saldo da semana ANTES desta reserva.
+  final int memberHoursAvailableMinutes;
+
+  /// Minutos desta reserva cobertos pelo banco.
+  final int memberHoursMinutes;
+
+  /// Quanto o banco tirou do preço ([amountReais] já vem com ele aplicado).
+  final double memberHoursDiscountReais;
+
+  /// Nome do plano do contrato (`null` sem contrato ou sem nome).
+  final String? memberHoursPlanName;
+
+  /// Por que o banco não entrou: `overdue`, `exhausted` ou `coupon_cheaper`.
+  final String? memberHoursBlockedReason;
+
+  static const String memberHoursOverdue = 'overdue';
+  static const String memberHoursExhausted = 'exhausted';
+  static const String memberHoursCouponCheaper = 'coupon_cheaper';
+
+  /// Atleta mensalista com banco de horas nesta arena.
+  bool get isMember => memberHoursWeeklyMinutes > 0;
+
+  /// O banco cobriu ao menos parte desta reserva.
+  bool get hasMemberHours => memberHoursMinutes > 0;
+
+  /// O banco cobriu a reserva inteira: nada a pagar.
+  bool get coveredByMemberHours => hasMemberHours && amountReais <= 0;
+
+  /// Preço antes do banco de horas (total + desconto do banco).
+  double get amountBeforeMemberHoursReais =>
+      ((amountReais + memberHoursDiscountReais) * 100).roundToDouble() / 100;
+
+  /// "Banco de horas · 1h" — `null` sem horas do banco nesta reserva.
+  String? get memberHoursLineLabel => hasMemberHours
+      ? 'Banco de horas · ${formatMemberHours(memberHoursMinutes)}'
+      : null;
+
+  /// "−R$ 150,00" — `null` sem horas do banco nesta reserva.
+  String? get memberHoursValueLabel =>
+      hasMemberHours ? '\u2212${formatBRL(memberHoursDiscountReais)}' : null;
+
+  /// Saldo da semana depois desta reserva.
+  int get memberHoursRemainingMinutes {
+    final left = memberHoursAvailableMinutes - memberHoursMinutes;
+    return left < 0 ? 0 : left;
+  }
+
+  /// "Restam 2h de 3h nesta semana" — `null` quando não é mensalista.
+  String? get memberHoursBalanceLabel {
+    if (!isMember) return null;
+    final weekly = formatMemberHours(memberHoursWeeklyMinutes);
+    final left = memberHoursRemainingMinutes;
+    if (left <= 0) return 'Sem horas restantes de $weekly nesta semana';
+    return 'Restam ${formatMemberHours(left)} de $weekly nesta semana';
+  }
+
+  /// O banco não entrou por um motivo que muda o preço (atraso ou semana
+  /// esgotada): o aviso merece destaque.
+  bool get memberHoursNoticeIsWarning =>
+      memberHoursBlockedReason == memberHoursOverdue ||
+      memberHoursBlockedReason == memberHoursExhausted;
+
+  /// Aviso do porquê o banco não entrou — `null` sem motivo.
+  String? get memberHoursNotice {
+    if (!isMember) return null;
+    switch (memberHoursBlockedReason) {
+      case memberHoursOverdue:
+        return 'Mensalidade em aberto: esta reserva sai pelo preço normal até você pagar.';
+      case memberHoursExhausted:
+        return 'Suas horas desta semana acabaram: esta reserva sai pelo preço normal.';
+      case memberHoursCouponCheaper:
+        return 'O cupom deixou esta reserva mais barata: suas horas da semana ficam guardadas.';
+    }
+    return null;
+  }
+
+  /// 90 → "1h30", 60 → "1h", 30 → "30min".
+  static String formatMemberHours(int minutes) {
+    final m = minutes < 0 ? 0 : minutes;
+    final h = m ~/ 60;
+    final rest = m % 60;
+    if (h == 0) return '${rest}min';
+    if (rest == 0) return '${h}h';
+    return '${h}h${rest.toString().padLeft(2, '0')}';
+  }
+
   bool get hasWeatherCredit => weatherCreditAvailableReais > 0;
 
   /// O que sobra para pagar depois do crédito aplicado.
@@ -90,9 +187,13 @@ class ArenaBookingQuote {
   bool get hasAthletePricing =>
       athletePricingTier != null && athletePricingDiscountReais > 0;
 
-  /// Preço cheio antes do preço do perfil (total + desconto).
+  /// Preço cheio antes do preço do perfil (total + desconto + banco de horas,
+  /// que o servidor aplica por cima do preço do perfil).
   double get amountBeforeAthletePricingReais =>
-      ((amountReais + athletePricingDiscountReais) * 100).roundToDouble() / 100;
+      ((amountReais + athletePricingDiscountReais + memberHoursDiscountReais) *
+              100)
+          .roundToDouble() /
+      100;
 
   /// "Preço Aluno" — `null` sem preço de perfil.
   String? get athletePricingLineLabel {
@@ -106,9 +207,12 @@ class ArenaBookingQuote {
       ? '\u2212${formatBRL(athletePricingDiscountReais)}'
       : null;
 
-  /// Preço cheio antes do desconto do professor (total + desconto).
+  /// Preço cheio antes do desconto do professor (total + desconto + banco de
+  /// horas, aplicado por cima).
   double get amountBeforeProfessorDiscountReais =>
-      ((amountReais + professorDiscountReais) * 100).roundToDouble() / 100;
+      ((amountReais + professorDiscountReais + memberHoursDiscountReais) * 100)
+          .roundToDouble() /
+      100;
 
   /// O desconto cobriu só parte dos horários (faixa do vínculo, ex.:
   /// 08:00–17:00): tirou menos que o % sobre o preço cheio de todas as linhas.

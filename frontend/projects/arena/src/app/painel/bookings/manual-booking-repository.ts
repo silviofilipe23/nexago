@@ -1,5 +1,5 @@
 import { httpsCallable, type Functions } from 'firebase/functions';
-import type { ManualBookingPayload } from './manual-booking-form';
+import type { ManualBookingPayload, ManualMemberHours } from './manual-booking-form';
 
 /** Reserva de balcão: escrita 100% via Cloud Functions — a criação exige transação
  *  com `arenaSlotLocks`, que o client não consegue garantir sozinho. Mesmo desenho
@@ -13,10 +13,14 @@ export interface ManualBookingQuoteInput {
   date: string;
   startTime: string;
   endTime: string;
+  /** Com atleta escolhido, a cotação traz o banco de horas dele (mensalista). */
+  athleteId?: string;
 }
 
 export interface ManualBookingQuote {
   amountReais: number;
+  /** `null`/ausente = não é mensalista (ou arena sem banco de horas ligado). */
+  memberHours?: ManualMemberHours | null;
 }
 
 function mapFunctionsError(err: unknown): ManualBookingError {

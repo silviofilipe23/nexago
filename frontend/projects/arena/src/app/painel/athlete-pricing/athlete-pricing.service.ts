@@ -49,6 +49,10 @@ export class AthletePricingService {
     return call('setArenaAthletePricing', payload);
   }
 
+  saveMemberHoursPolicy(arenaId: string, policy: { enabled: boolean; blockWhenOverdue: boolean }): Promise<void> {
+    return call('setArenaMemberHoursPolicy', { arenaId, ...policy });
+  }
+
   setMember(arenaId: string, athleteId: string, tier: AthletePricingTier | null, note: string | null = null): Promise<void> {
     return call('setArenaAthletePricingMember', { arenaId, athleteId, tier, note });
   }

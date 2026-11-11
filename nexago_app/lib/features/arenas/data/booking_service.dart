@@ -213,7 +213,11 @@ class BookingService {
     }
     final map = Map<String, dynamic>.from(data);
     final amount = (map['amountReais'] as num?)?.toDouble();
-    if (amount == null || amount <= 0) {
+    final memberHoursMinutes = _nonNegativeInt(map['memberHoursMinutes']);
+    // Total 0 só vale quando o banco de horas do mensalista cobriu a reserva.
+    if (amount == null ||
+        amount < 0 ||
+        (amount == 0 && memberHoursMinutes <= 0)) {
       throw BookingException(
         'Configure o preço da quadra antes de reservar.',
       );
@@ -262,12 +266,27 @@ class BookingService {
       weatherCreditAppliedReais: _nonNegative(map['weatherCreditAppliedReais']),
       amountAfterCreditReais:
           (map['amountAfterCreditReais'] as num?)?.toDouble(),
+      memberHoursWeeklyMinutes:
+          _nonNegativeInt(map['memberHoursWeeklyMinutes']),
+      memberHoursAvailableMinutes:
+          _nonNegativeInt(map['memberHoursAvailableMinutes']),
+      memberHoursMinutes: memberHoursMinutes,
+      memberHoursDiscountReais: _nonNegative(map['memberHoursDiscountReais']),
+      memberHoursPlanName: _trimmedOrNull(map['memberHoursPlanName']),
+      memberHoursBlockedReason: _trimmedOrNull(map['memberHoursBlockedReason']),
     );
   }
 
   static double _nonNegative(Object? raw) {
     final v = raw is num ? raw.toDouble() : 0.0;
     return v.isFinite && v > 0 ? v : 0;
+  }
+
+  static int _nonNegativeInt(Object? raw) => _nonNegative(raw).round();
+
+  static String? _trimmedOrNull(Object? raw) {
+    final v = raw is String ? raw.trim() : '';
+    return v.isEmpty ? null : v;
   }
 
   /// Reserva via callable `createArenaBooking` (preço validado no servidor).
@@ -336,7 +355,10 @@ class BookingService {
       final resultMode = (data['paymentMode'] as String?) ?? paymentMode;
       // Coberta pelo crédito de chuva: já nasce paga, sem webhook do Pix para
       // avisar o gestor — avisa como a reserva no local.
+      // Coberta pelo banco de horas: o servidor confirma no local mesmo que o
+      // app tenha pedido Pix — avisa como a reserva no local.
       if (paymentMode == 'onsite' ||
+          resultMode == 'onsite' ||
           resultMode == CreateBookingResult.weatherCreditMode) {
         await _notifyArenaBookingCreatedSafe(bookingId);
       }
@@ -362,6 +384,9 @@ class BookingService {
             (data['professorDiscountReais'] as num?)?.toDouble() ?? 0,
         weatherCreditAppliedReais:
             _nonNegative(data['weatherCreditAppliedReais']),
+        memberHoursMinutes: _nonNegativeInt(data['memberHoursMinutes']),
+        memberHoursDiscountReais:
+            _nonNegative(data['memberHoursDiscountReais']),
       );
     } on FirebaseFunctionsException catch (e) {
       throw BookingException(_mapFunctionsMessage(e), code: _functionsCode(e));
@@ -915,6 +940,8 @@ class CreateBookingResult {
     this.professorDiscountPercent = 0,
     this.professorDiscountReais = 0,
     this.weatherCreditAppliedReais = 0,
+    this.memberHoursMinutes = 0,
+    this.memberHoursDiscountReais = 0,
   });
 
   /// `paymentMode` da resposta quando o crédito de chuva cobriu tudo.
@@ -937,6 +964,16 @@ class CreateBookingResult {
 
   /// Crédito de chuva aplicado na reserva (0 sem crédito).
   final double weatherCreditAppliedReais;
+
+  /// Minutos cobertos pelo banco de horas do mensalista (0 sem banco).
+  final int memberHoursMinutes;
+
+  /// Quanto o banco de horas tirou do preço (0 sem banco).
+  final double memberHoursDiscountReais;
+
+  /// O banco de horas cobriu tudo: confirmada no local, nada a pagar.
+  bool get isCoveredByMemberHours =>
+      memberHoursMinutes > 0 && amountReais <= 0;
 
   bool get isPix => paymentMode == 'pix';
 

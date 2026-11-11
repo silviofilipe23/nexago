@@ -7,6 +7,10 @@
  *   - Aluno (validado pela arena): preço fixo por hora OU % de desconto.
  *   - Professor (ex.: dá aula de outro esporte): preço fixo por hora OU % de desconto.
  *
+ * Aluno também pode ser reconhecido sozinho (`student.autoFromClasses`): matrícula ativa numa turma
+ * da arena (`arenaClassEnrollments`), ou seja, faz aula com um professor da arena. A lista manual
+ * vem antes (quem está nela como Professor continua Professor).
+ *
  * Arena sem `athletePricing` (ou com os dois perfis desligados) não lê nada a mais e nada muda.
  *
  * Mesma régua de cupom × promoção × desconto do professor: descontos NÃO acumulam, vale o menor
@@ -25,6 +29,7 @@ import type {CouponPricingOutcome} from "./arena-coupons";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {assertArenaAreaAccess} from "./arena-area-access";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {ARENA_CLASS_ENROLLMENTS} from "./arena-class-constants";
 
 export const ARENA_ATHLETE_PRICING_MEMBERS = "arenaAthletePricingMembers";
 
@@ -47,6 +52,8 @@ export interface AthletePricingTierConfig {
   pricePerHourReais: number | null;
   /** % sobre o preço cheio (modo "percent"), inteiro 1–90. */
   discountPercent: number | null;
+  /** Só Aluno: matrícula ativa numa turma da arena também conta (além da lista). */
+  autoFromClasses?: boolean;
 }
 
 export type AthletePricingConfig = Record<AthletePricingTier, AthletePricingTierConfig>;
@@ -117,6 +124,7 @@ function readTier(raw: unknown, tier: AthletePricingTier): AthletePricingTierCon
     mode,
     pricePerHourReais: price != null ? roundMoney(price) : null,
     discountPercent: percent,
+    autoFromClasses: tier === "student" && data["autoFromClasses"] === true,
   };
 }
 
@@ -242,7 +250,26 @@ export async function loadAthletePricingRule(
   const snap = await db.collection(ARENA_ATHLETE_PRICING_MEMBERS)
     .doc(athletePricingMemberId(arenaId, athleteId))
     .get();
-  return athletePricingRuleFor(config, snap.exists ? snap.data() : null);
+  const listed = athletePricingRuleFor(config, snap.exists ? snap.data() : null);
+  if (listed || snap.exists || !studentFromClassesEnabled(config)) return listed;
+  const enrolled = await hasActiveClassEnrollment(db, arenaId, athleteId);
+  return enrolled ? athletePricingRuleFor(config, {tier: "student"}) : null;
+}
+
+/** Aluno reconhecido pela matrícula: perfil Aluno ligado com a opção marcada. Puro. */
+export function studentFromClassesEnabled(config: AthletePricingConfig): boolean {
+  return config.student.enabled && config.student.autoFromClasses === true;
+}
+
+/** Matrícula ativa numa turma da arena (Aulas). Puro. */
+export function isActiveArenaEnrollment(d: DocumentData, arenaId: string): boolean {
+  return d["arenaId"] === arenaId && d["status"] === "active";
+}
+
+/** Tem matrícula ativa em alguma turma da arena? (índice simples por `athleteId`). */
+export async function hasActiveClassEnrollment(db: Firestore, arenaId: string, athleteId: string): Promise<boolean> {
+  const snap = await db.collection(ARENA_CLASS_ENROLLMENTS).where("athleteId", "==", athleteId).get();
+  return snap.docs.some((d) => isActiveArenaEnrollment(d.data(), arenaId));
 }
 
 // ---------------------------------------------------------------------------
@@ -277,6 +304,7 @@ function parseTierInput(raw: unknown, tier: AthletePricingTier): AthletePricingT
     mode,
     pricePerHourReais: price != null && price <= MAX_PRICE_PER_HOUR ? roundMoney(price) : null,
     discountPercent: percent != null && percent >= 1 && percent <= MAX_PERCENT ? percent : null,
+    autoFromClasses: tier === "student" && data["autoFromClasses"] === true,
   };
 }
 

@@ -154,8 +154,9 @@ class SchedulePlansRepository {
   Future<ScheduleSubscribeResult> subscribe({
     required String arenaId,
     required String planId,
-    required List<int> weekdays,
-    required String startTime,
+    // Plano livre: vazios (o atleta reserva depois, dentro das janelas).
+    List<int> weekdays = const [],
+    String startTime = '',
     required SchedulePlanCycle cycle,
     required SchedulePaymentMethod paymentMethod,
     List<String> memberAthleteIds = const [],
@@ -165,8 +166,8 @@ class SchedulePlansRepository {
       {
         'arenaId': arenaId,
         'planId': planId,
-        'weekdays': weekdays,
-        'startTime': startTime,
+        if (weekdays.isNotEmpty) 'weekdays': weekdays,
+        if (startTime.isNotEmpty) 'startTime': startTime,
         'cycle': cycle.key,
         'paymentMethod': paymentMethod.key,
         if (memberAthleteIds.isNotEmpty) 'memberAthleteIds': memberAthleteIds,

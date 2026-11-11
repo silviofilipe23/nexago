@@ -102,7 +102,11 @@ describe('Planos de horário · telas', () => {
     setup();
     const text = render(PanelPhPlanEditorComponent);
     expect(text).toContain('Janela permitida');
-    expect(text).toContain('Reposição de falta');
+    // Plano novo nasce de horário livre: sem reposição/feriado (não há horário marcado).
+    expect(text).toContain('Como o assinante joga');
+    expect(text).toContain('Reserva quando quiser pelo app');
+    expect(text).toContain('7x');
+    expect(text).not.toContain('Reposição de falta');
     expect(text).toContain('Publicar plano');
   });
 

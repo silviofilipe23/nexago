@@ -82,7 +82,9 @@ class _ArenaSchedulePlansPageState
           : NexaBottomActionBar(
               action: SchedulePrimaryButton(
                 key: const Key('schedule-plans-choose'),
-                label: 'Escolher meu horário',
+                label: selected.isFlexible
+                    ? 'Assinar este plano'
+                    : 'Escolher meu horário',
                 onPressed: () => _choose(selected),
               ),
             ),
@@ -98,6 +100,7 @@ class _ArenaSchedulePlansPageState
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
           children: [
             _Intro(
+              mix: schedulePlansMix(list),
               arenaDefinesCourt: ref
                       .watch(arenaByIdProvider(widget.arenaId))
                       .valueOrNull
@@ -122,7 +125,9 @@ class _ArenaSchedulePlansPageState
 }
 
 class _Intro extends StatelessWidget {
-  const _Intro({this.arenaDefinesCourt = false});
+  const _Intro({required this.mix, this.arenaDefinesCourt = false});
+
+  final SchedulePlansMix mix;
 
   /// A arena define a quadra a cada jogo (reservas por capacidade).
   final bool arenaDefinesCourt;
@@ -130,13 +135,14 @@ class _Intro extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final intro = schedulePlansIntro(mix, arenaDefinesCourt: arenaDefinesCourt);
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 4, 2, 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Seu horário,\ntoda semana.',
+            intro.title,
             style: AppTypography.soraRegular(
               fontSize: 24,
               fontWeight: FontWeight.w800,
@@ -147,11 +153,7 @@ class _Intro extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            arenaDefinesCourt
-                ? 'Mesmo horário toda semana; a arena define a quadra a cada '
-                    'jogo. Paga por mês e gasta menos que no avulso.'
-                : 'Mesma quadra, mesmo horário. Paga por mês e gasta menos '
-                    'que no avulso.',
+            intro.body,
             key: const Key('schedule-plans-intro'),
             style: TextStyle(
               fontSize: 13,
@@ -294,7 +296,7 @@ class _EmptyPlans extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Esta arena ainda não vende horário fixo por plano.',
+              'Esta arena ainda não vende planos de horário.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,

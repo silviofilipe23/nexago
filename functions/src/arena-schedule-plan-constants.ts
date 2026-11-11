@@ -90,10 +90,28 @@ export interface SchedulePlanRules {
   weather: boolean;
 }
 
+/**
+ * Como o assinante usa o plano:
+ * - `fixed`: escolhe dias e horário ao assinar e fica com eles toda semana (série de horário fixo).
+ * - `flexible`: reserva quando quiser, pelo fluxo normal, dentro das janelas do plano, até
+ *   `timesPerWeek` vezes por semana (seg a dom); cada uso cobre até `durationMinutes`.
+ * Ausente no doc = `fixed` (planos de antes do modo).
+ */
+export const BOOKING_MODES = ["fixed", "flexible"] as const;
+export type ScheduleBookingMode = typeof BOOKING_MODES[number];
+
+/** Vezes por semana: o fixo vira uma série por dia (até 3); o livre é uma cota da semana. */
+export const MAX_TIMES_PER_WEEK: Record<ScheduleBookingMode, number> = {fixed: 3, flexible: 7};
+
+export function bookingModeOf(raw: unknown): ScheduleBookingMode {
+  return raw === "flexible" ? "flexible" : "fixed";
+}
+
 export interface SchedulePlanData {
   name: string;
   description: string | null;
   status: SchedulePlanStatus;
+  bookingMode: ScheduleBookingMode;
   timesPerWeek: number;
   durationMinutes: number;
   windows: PlanWindow[];
@@ -557,7 +575,9 @@ export function validateSchedulePlanInput(
   const description = str(raw["description"]).slice(0, 500) || null;
   const status = raw["status"] == null ? "draft" : str(raw["status"]);
   if (!(PLAN_STATUSES as readonly string[]).includes(status)) throw new HttpsError("invalid-argument", "Status do plano inválido.");
-  const timesPerWeek = intInRange(raw["timesPerWeek"], 1, 1, 3, "Vezes por semana: de 1 a 3.");
+  const bookingMode = bookingModeOf(raw["bookingMode"]);
+  const maxTimes = MAX_TIMES_PER_WEEK[bookingMode];
+  const timesPerWeek = intInRange(raw["timesPerWeek"], 1, 1, maxTimes, `Vezes por semana: de 1 a ${maxTimes}.`);
   const durationMinutes = num(raw["durationMinutes"], 60);
   if (!(PLAN_DURATIONS as readonly number[]).includes(durationMinutes)) {
     throw new HttpsError("invalid-argument", "Duração: 60, 90 ou 120 minutos.");
@@ -568,7 +588,8 @@ export function validateSchedulePlanInput(
       throw new HttpsError("invalid-argument", "Cada janela precisa caber ao menos um horário do plano.");
     }
   }
-  if (new Set(windows.map((w) => w.weekday)).size < timesPerWeek) {
+  // No livre as vezes são uma cota da semana: pode repetir o dia.
+  if (bookingMode === "fixed" && new Set(windows.map((w) => w.weekday)).size < timesPerWeek) {
     throw new HttpsError("invalid-argument", "O plano precisa de janelas em dias suficientes para as vezes por semana.");
   }
   const courtIds = Array.isArray(raw["courtIds"]) ? (raw["courtIds"] as unknown[]).map(str).filter(Boolean) : [];
@@ -616,7 +637,7 @@ export function validateSchedulePlanInput(
     throw new HttpsError("invalid-argument", "Liberar o horário após 1, 3 ou 7 dias de atraso.");
   }
   return {
-    name, description, status: status as SchedulePlanStatus, timesPerWeek, durationMinutes, windows, courtIds,
+    name, description, status: status as SchedulePlanStatus, bookingMode, timesPerWeek, durationMinutes, windows, courtIds,
     capacity, monthlyPriceReais, referenceHourlyReais, cycles,
     billing: {methods: methods as ScheduleBillingMethod[], dueDay, overdueReleaseDays},
     rules: parsePlanRulesInput(raw["rules"]),
@@ -644,6 +665,7 @@ export function parseSchedulePlan(data: Record<string, unknown>): ParsedSchedule
     name: str(data["name"]) || "Plano",
     description: str(data["description"]) || null,
     status: (PLAN_STATUSES as readonly string[]).includes(status) ? status as SchedulePlanStatus : "draft",
+    bookingMode: bookingModeOf(data["bookingMode"]),
     timesPerWeek: Number(data["timesPerWeek"] ?? 1) || 1,
     durationMinutes: Number(data["durationMinutes"] ?? 60) || 60,
     windows,

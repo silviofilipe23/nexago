@@ -108,8 +108,17 @@ String scheduleWindowsSummary(List<SchedulePlanWindow> windows) {
   }).join(' · ');
 }
 
-/// "2x por semana · 1h · Seg–Sex, 18h–23h".
+/// "2x por semana · 1h · Seg–Sex, 18h–23h"; no livre,
+/// "Horário livre · até 2x por semana · 1h cada · Seg–Sex, 6h–12h".
 String schedulePlanSubtitle(SchedulePlan plan) {
+  if (plan.isFlexible) {
+    return [
+      'Horário livre',
+      'até ${plan.timesPerWeek}x por semana',
+      '${scheduleDurationLabel(plan.durationMinutes)} cada',
+      scheduleWindowsSummary(plan.windows),
+    ].where((s) => s.isNotEmpty).join(' · ');
+  }
   return [
     '${plan.timesPerWeek}x por semana',
     scheduleDurationLabel(plan.durationMinutes),
@@ -778,3 +787,73 @@ List<int> scheduleToggleWeekday(List<int> current, int weekday, int limit) {
   }
   return next;
 }
+
+// ── Plano livre ─────────────────────────────────────────────────────────
+
+/// "Você reserva quando quiser, até 2x por semana (1h cada), dentro de:
+/// Seg–Sex, 6h–12h."
+String scheduleFlexRuleText({
+  required int timesPerWeek,
+  required int durationMinutes,
+  required List<SchedulePlanWindow> windows,
+}) {
+  final vezes = timesPerWeek == 1 ? '1 vez' : '$timesPerWeek vezes';
+  final where = scheduleWindowsSummary(windows);
+  return 'Você reserva quando quiser, até $vezes por semana '
+      '(${scheduleDurationLabel(durationMinutes)} cada)'
+      '${where.isEmpty ? '' : ', dentro de: $where'}.';
+}
+
+/// "1 de 2 usados nesta semana" / "Semana completa: 2 de 2 usados".
+String scheduleWeekUsageLabel(ScheduleWeekUsage usage) {
+  final base = '${usage.used} de ${usage.timesPerWeek} '
+      '${usage.timesPerWeek == 1 ? 'usado' : 'usados'} nesta semana';
+  return usage.left == 0 ? 'Semana completa: $base' : base;
+}
+
+/// Modo dos planos que a arena vende: só fixo, só livre ou os dois.
+enum SchedulePlansMix { fixed, flexible, mixed }
+
+SchedulePlansMix schedulePlansMix(Iterable<SchedulePlan> plans) {
+  final flex = plans.where((p) => p.isFlexible).length;
+  if (flex == 0) return SchedulePlansMix.fixed;
+  return flex == plans.length
+      ? SchedulePlansMix.flexible
+      : SchedulePlansMix.mixed;
+}
+
+/// Título e texto do topo da lista de planos (A1).
+({String title, String body}) schedulePlansIntro(
+  SchedulePlansMix mix, {
+  required bool arenaDefinesCourt,
+}) =>
+    switch (mix) {
+      SchedulePlansMix.flexible => (
+          title: 'Jogue quando\nquiser.',
+          body: 'Reserve qualquer horário dentro do seu plano, até as vezes da '
+              'semana. Paga por mês e gasta menos que no avulso.',
+        ),
+      SchedulePlansMix.mixed => (
+          title: 'Seu plano,\nseu ritmo.',
+          body: 'Horário fixo toda semana ou livre para reservar dentro do '
+              'plano. Paga por mês e gasta menos que no avulso.',
+        ),
+      SchedulePlansMix.fixed => (
+          title: 'Seu horário,\ntoda semana.',
+          body: arenaDefinesCourt
+              ? 'Mesmo horário toda semana; a arena define a quadra a cada '
+                  'jogo. Paga por mês e gasta menos que no avulso.'
+              : 'Mesma quadra, mesmo horário. Paga por mês e gasta menos '
+                  'que no avulso.',
+        ),
+    };
+
+/// Linha do card "Planos de horário" no detalhe da arena.
+String schedulePlansEntryLine(SchedulePlansMix mix) => switch (mix) {
+      SchedulePlansMix.flexible =>
+        'Reserve quando quiser dentro do plano, pagando por mês.',
+      SchedulePlansMix.mixed =>
+        'Horário fixo ou livre dentro do plano, pagando por mês.',
+      SchedulePlansMix.fixed =>
+        'Seu horário fixo toda semana, pagando por mês.',
+    };

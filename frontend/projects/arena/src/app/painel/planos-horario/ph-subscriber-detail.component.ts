@@ -75,7 +75,7 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
         <ar-pill [tone]="state().tone">{{ state().label }}</ar-pill>
       </div>
       <div class="slot">
-        <span class="slot-time">{{ s.slots[0]?.startTime ?? '—' }}</span>
+        <span class="slot-time">{{ s.flexible ? 'Livre' : (s.slots[0]?.startTime ?? '—') }}</span>
         <span class="slot-text">{{ slotText() }}</span>
       </div>
       <div class="occ-head">
@@ -144,7 +144,9 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
     }
 
     <div class="actions">
-      <button type="button" class="ar-mini-btn" [disabled]="readOnly() || s.status === 'canceled'" (click)="openDialog('change')"><ar-ph-icon name="swap" [size]="14" /> Trocar horário</button>
+      @if (!s.flexible) {
+        <button type="button" class="ar-mini-btn" [disabled]="readOnly() || s.status === 'canceled'" (click)="openDialog('change')"><ar-ph-icon name="swap" [size]="14" /> Trocar horário</button>
+      }
       @if (s.status === 'paused') {
         <button type="button" class="ar-mini-btn" [disabled]="readOnly()" (click)="openDialog('resume')"><ar-ph-icon name="pause" [size]="13" /> Retomar</button>
       } @else {
@@ -349,6 +351,10 @@ export class PhSubscriberDetailComponent {
 
   protected readonly slotText = computed(() => {
     const s = this.sub();
+    if (s.flexible) {
+      const win = windowsLabel(this.plan()?.windows ?? []);
+      return `Horário livre · até ${s.timesPerWeek}x por semana · ${durationLabel(s.durationMinutes)}${win ? ` · ${win}` : ''}`;
+    }
     const days = [...s.slots].sort((a, b) => a.weekday - b.weekday).map((x) => WEEKDAY_LONG[x.weekday]!.toLowerCase());
     const dayText = days.length <= 1 ? days.join('') : `${days.slice(0, -1).join(', ')} e ${days[days.length - 1]}`;
     const text = `${dayText.charAt(0).toUpperCase()}${dayText.slice(1)} · ${slotCourtsLabel(s.slots)} · ${durationLabel(s.durationMinutes)}`;

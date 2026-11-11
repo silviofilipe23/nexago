@@ -15,7 +15,7 @@ import {
   nextDueDate,
   playersLabel,
   slotCourtsLabel,
-  slotsLabel,
+  subscriptionSlotsLabel,
   subscribersCsv,
   type SubscriberFilter,
   type SubscriberState,
@@ -146,7 +146,7 @@ export class PanelPhSubscribersComponent {
   protected readonly cycleLabel = CYCLE_LABEL;
   protected readonly shortDate = shortDate;
   protected readonly players = playersLabel;
-  protected readonly slots = (s: ScheduleSubscription) => slotsLabel(s.slots);
+  protected readonly slots = (s: ScheduleSubscription) => subscriptionSlotsLabel(s);
   protected readonly courts = (s: ScheduleSubscription) => slotCourtsLabel(s.slots);
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda') || !this.arenaContext.hasCapability('planosHorario'));
 

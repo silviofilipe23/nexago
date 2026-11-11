@@ -34,6 +34,7 @@ import {
   type PlanBilling,
   type PlanCycles,
   type PlanRules,
+  type ScheduleBookingMode,
   type SchedulePaymentForm,
   type SchedulePlan,
   type SchedulePlanStatus,
@@ -45,6 +46,7 @@ interface EditorDraft {
   name: string;
   description: string;
   status: SchedulePlanStatus;
+  bookingMode: ScheduleBookingMode;
   timesPerWeek: number;
   durationMinutes: number;
   cells: Set<string>;
@@ -111,11 +113,26 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
                   <div class="field-label">Nome do plano</div>
                   <input class="input-box" type="text" maxlength="60" placeholder="Ex.: Fixo Noite" [value]="d().name" (input)="patch({ name: $any($event.target).value })" />
                 </div>
+                <div>
+                  <div class="field-label">Como o assinante joga</div>
+                  <div class="chip-row" data-testid="ph-plan-booking-mode">
+                    <button type="button" class="sm-chip" [class.active]="d().bookingMode === 'flexible'" [disabled]="modeLocked()" (click)="setMode('flexible')">Horário livre</button>
+                    <button type="button" class="sm-chip" [class.active]="d().bookingMode === 'fixed'" [disabled]="modeLocked()" (click)="setMode('fixed')">Horário fixo</button>
+                  </div>
+                  <p class="hint">
+                    @if (d().bookingMode === 'flexible') {
+                      Reserva quando quiser pelo app, dentro da janela, até {{ d().timesPerWeek }}x por semana. Cada reserva usa uma vez da semana e sai a R$ 0.
+                    } @else {
+                      Escolhe dias e horário ao assinar e fica com eles toda semana.
+                    }
+                    @if (modeLocked()) { O plano já tem assinantes: o modo não muda mais. }
+                  </p>
+                </div>
                 <div class="row-2">
                   <div>
-                    <div class="field-label">Frequência</div>
+                    <div class="field-label">{{ d().bookingMode === 'flexible' ? 'Vezes por semana' : 'Frequência' }}</div>
                     <div class="chip-row">
-                      @for (n of [1, 2, 3]; track n) {
+                      @for (n of frequencyOptions(); track n) {
                         <button type="button" class="sm-chip" [class.active]="d().timesPerWeek === n" (click)="patch({ timesPerWeek: n })">{{ n }}x</button>
                       }
                     </div>
@@ -147,8 +164,13 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
                     }
                   </div>
                   <p class="hint">
-                    O atleta escolhe o dia e a hora dentro da janela.
-                    {{ capacityMode() ? 'A arena define a quadra a cada jogo.' : 'A mesma quadra fica com ele toda semana.' }}
+                    @if (d().bookingMode === 'flexible') {
+                      O atleta reserva qualquer horário dentro da janela.
+                      {{ capacityMode() ? 'A arena define a quadra a cada jogo.' : 'A reserva vale nas quadras do plano.' }}
+                    } @else {
+                      O atleta escolhe o dia e a hora dentro da janela.
+                      {{ capacityMode() ? 'A arena define a quadra a cada jogo.' : 'A mesma quadra fica com ele toda semana.' }}
+                    }
                   </p>
                   @if (customWindows()) {
                     <p class="hint">Este plano tem janelas com horário próprio; mexer na grade troca pelas faixas inteiras.</p>
@@ -273,6 +295,8 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
           </div>
 
           <ar-panel-card class="rules" title="Regras do plano" kicker="Faltas, feriados e grupo">
+            <!-- Plano livre: não há horário marcado para faltar nem feriado para repor. -->
+            @if (d().bookingMode === 'fixed') {
             <div class="rule">
               <ar-ph-icon-box icon="undo" [tone]="d().rules.makeup.enabled ? 'orange' : 'dim'" [size]="32" />
               <div class="rule-body">
@@ -307,6 +331,7 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
                 </div>
               </div>
             </div>
+            }
             <div class="rule">
               <ar-ph-icon-box icon="pause" [tone]="d().rules.pause.enabled ? 'orange' : 'dim'" [size]="32" />
               <div class="rule-body">
@@ -501,13 +526,22 @@ export class PanelPhPlanEditorComponent {
     return this.store.courts().filter((c) => c.status === 'active' || ids.has(c.id));
   });
 
+  /** Assinaturas vivas foram feitas num modo: com assinantes, o modo não muda (o servidor também recusa). */
+  protected readonly modeLocked = computed(() => !!this.planId && (this.store.plans().find((p) => p.id === this.planId)?.occupiedCount ?? 0) > 0);
+  /** Fixo vira uma série por dia (até 3x); livre é uma cota da semana (até 7x). */
+  protected readonly frequencyOptions = computed(() => (this.d().bookingMode === 'flexible' ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3]));
+
+  protected setMode(bookingMode: ScheduleBookingMode): void {
+    this.d.update((d) => ({ ...d, bookingMode, timesPerWeek: bookingMode === 'fixed' ? Math.min(d.timesPerWeek, 3) : d.timesPerWeek }));
+  }
+
   protected readonly problems = computed(() => {
     const d = this.d();
     const out: string[] = [];
     if (d.name.trim().length < 2) out.push('Dê um nome ao plano');
     const windows = this.windows();
     if (windows.length === 0) out.push('Marque ao menos uma faixa na janela');
-    else if (new Set(windows.map((w) => w.weekday)).size < d.timesPerWeek) out.push(`A janela precisa de ${d.timesPerWeek} dias para um plano ${d.timesPerWeek}x`);
+    else if (d.bookingMode === 'fixed' && new Set(windows.map((w) => w.weekday)).size < d.timesPerWeek) out.push(`A janela precisa de ${d.timesPerWeek} dias para um plano ${d.timesPerWeek}x`);
     if (d.courtIds.length === 0 && !this.capacityMode()) out.push('Escolha ao menos uma quadra');
     if (this.capacityValue() < 1 || this.capacityValue() > 500) out.push('Vagas entre 1 e 500');
     if (this.priceValue() <= 0) out.push('Informe o valor mensal');
@@ -557,7 +591,7 @@ export class PanelPhPlanEditorComponent {
 
   private blankDraft(): EditorDraft {
     return {
-      name: '', description: '', status: 'draft', timesPerWeek: 1, durationMinutes: 60, cells: new Set(), courtIds: [],
+      name: '', description: '', status: 'draft', bookingMode: 'flexible', timesPerWeek: 1, durationMinutes: 60, cells: new Set(), courtIds: [],
       capacity: '20', price: '', reference: '', cycles: clone(DEFAULT_PLAN_CYCLES), billing: clone(DEFAULT_PLAN_BILLING),
       rules: clone(DEFAULT_PLAN_RULES),
     };
@@ -565,7 +599,8 @@ export class PanelPhPlanEditorComponent {
 
   private fromPlan(p: SchedulePlan): EditorDraft {
     return {
-      name: p.name, description: p.description ?? '', status: p.status, timesPerWeek: p.timesPerWeek, durationMinutes: p.durationMinutes,
+      name: p.name, description: p.description ?? '', status: p.status, bookingMode: p.bookingMode, timesPerWeek: p.timesPerWeek,
+      durationMinutes: p.durationMinutes,
       cells: gridFromWindows(p.windows), courtIds: [...p.courtIds], capacity: String(p.capacity), price: priceText(p.monthlyPriceReais),
       reference: priceText(p.referenceHourlyReais), cycles: clone(p.cycles), billing: clone(p.billing), rules: clone(p.rules),
     };
@@ -577,7 +612,7 @@ export class PanelPhPlanEditorComponent {
     const band = BANDS.find((b) => b.id === q.get('faixa'));
     const days = (q.get('dias') ?? '').split(',').map(Number).filter((n) => n >= 1 && n <= 7);
     if (!band || days.length === 0) return;
-    this.d.update((d) => ({ ...d, name: `Fixo ${band.label}`, cells: new Set(days.map((day) => windowCellKey(day, band.id))) }));
+    this.d.update((d) => ({ ...d, name: `${d.bookingMode === 'flexible' ? 'Livre' : 'Fixo'} ${band.label}`, cells: new Set(days.map((day) => windowCellKey(day, band.id))) }));
   }
 
   protected patch(change: Partial<EditorDraft>): void {
@@ -653,6 +688,7 @@ export class PanelPhPlanEditorComponent {
         name: d.name.trim(),
         description: d.description.trim() || null,
         status,
+        bookingMode: d.bookingMode,
         timesPerWeek: d.timesPerWeek,
         durationMinutes: d.durationMinutes,
         windows: this.windows(),

@@ -659,6 +659,139 @@ void main() {
       expect(find.text('PAGAR s1_2026-11_0'), findsOneWidget);
     });
   });
+
+  group('plano de horário livre', () {
+    final flexAvailability = SchedulePlanAvailability.fromMap({
+      'plan': {
+        'name': 'Manhã livre',
+        'bookingMode': 'flexible',
+        'timesPerWeek': 2,
+        'durationMinutes': 60,
+        'monthlyPriceReais': 300,
+        'capacity': 20,
+        'occupiedCount': 3,
+        'windows': [
+          for (final w in [1, 2, 3, 4, 5])
+            {'weekday': w, 'startTime': '06:00', 'endTime': '12:00'},
+        ],
+        'cycles': {
+          'monthly': {'enabled': true},
+        },
+        'billing': {
+          'methods': ['onsite'],
+        },
+      },
+      'days': const [],
+    }, arenaId: 'a1', planId: 'p1');
+
+    testWidgets('não pede dia nem horário e assina sem eles', (tester) async {
+      tester.view.physicalSize = const Size(1170, 2532);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final repo = _SubscribeRepo(false);
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, __) =>
+                const SchedulePlanSignupPage(arenaId: 'a1', planId: 'p1'),
+          ),
+          GoRoute(
+            path: AppRoutes.mySchedulePlans,
+            builder: (_, __) => const Text(
+              'MEU PLANO',
+              textDirection: TextDirection.ltr,
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            schedulePlansUidProvider.overrideWith((ref) => 'u1'),
+            schedulePlanAvailabilityProvider
+                .overrideWith((ref, key) async => flexAvailability),
+            schedulePlansRepositoryProvider.overrideWithValue(repo),
+            myScheduleSubscriptionsProvider.overrideWith(
+              (ref) async => MyScheduleSubscriptions.fromMap(const {}),
+            ),
+          ],
+          child: MaterialApp.router(
+            theme: AppTheme.dark,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const ValueKey('schedule-day-1')), findsNothing);
+      expect(find.byKey(const Key('schedule-flex-rule')), findsOneWidget);
+      expect(
+        find.textContaining('até 2 vezes por semana (1h cada)'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Seg–Sex, 6h–12h'), findsOneWidget);
+
+      final submit = tester.widget<FilledButton>(find.descendant(
+        of: find.byKey(const Key('schedule-signup-submit')),
+        matching: find.byType(FilledButton),
+      ));
+      expect(submit.onPressed, isNotNull);
+      await tester.tap(find.byKey(const Key('schedule-signup-submit')));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(repo.sentWeekdays, isEmpty);
+      expect(repo.sentStartTime, isEmpty);
+      expect(find.text('MEU PLANO'), findsOneWidget);
+    });
+
+    testWidgets('plano livre lotado não deixa assinar', (tester) async {
+      tester.view.physicalSize = const Size(1170, 2532);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final full = SchedulePlanAvailability.fromMap({
+        'plan': {
+          ...{
+            'name': 'Manhã livre',
+            'bookingMode': 'flexible',
+            'timesPerWeek': 2,
+            'monthlyPriceReais': 300,
+            'windows': [
+              {'weekday': 1, 'startTime': '06:00', 'endTime': '12:00'},
+            ],
+          },
+          'capacity': 3,
+          'occupiedCount': 3,
+        },
+        'days': const [],
+      }, arenaId: 'a1', planId: 'p1');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            schedulePlansUidProvider.overrideWith((ref) => 'u1'),
+            schedulePlanAvailabilityProvider
+                .overrideWith((ref, key) async => full),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: const SchedulePlanSignupPage(arenaId: 'a1', planId: 'p1'),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.byKey(const Key('schedule-flex-full')), findsOneWidget);
+      final submit = tester.widget<FilledButton>(find.descendant(
+        of: find.byKey(const Key('schedule-signup-submit')),
+        matching: find.byType(FilledButton),
+      ));
+      expect(submit.onPressed, isNull);
+    });
+  });
 }
 
 /// 1ª mensalidade que o servidor devolve (proporcional ao mês).
@@ -680,8 +813,8 @@ class _AutopayRepo implements SchedulePlansRepository {
   Future<ScheduleSubscribeResult> subscribe({
     required String arenaId,
     required String planId,
-    required List<int> weekdays,
-    required String startTime,
+    List<int> weekdays = const [],
+    String startTime = '',
     required SchedulePlanCycle cycle,
     required SchedulePaymentMethod paymentMethod,
     List<String> memberAthleteIds = const [],
@@ -735,28 +868,33 @@ class _SubscribeRepo implements SchedulePlansRepository {
   _SubscribeRepo(this.pending);
 
   final bool pending;
+  List<int>? sentWeekdays;
+  String? sentStartTime;
 
   @override
   Future<ScheduleSubscribeResult> subscribe({
     required String arenaId,
     required String planId,
-    required List<int> weekdays,
-    required String startTime,
+    List<int> weekdays = const [],
+    String startTime = '',
     required SchedulePlanCycle cycle,
     required SchedulePaymentMethod paymentMethod,
     List<String> memberAthleteIds = const [],
-  }) async =>
-      ScheduleSubscribeResult.fromMap({
-        'subscriptionId': 's1',
-        'courtName': 'Quadra 1',
-        'firstCharge': {
-          'chargeId': 's1_2026-11_0',
-          'amountReais': 90,
-          'dueDate': '2026-11-10',
-        },
-        'status': pending ? 'pending_payment' : 'active',
-        if (pending) 'paymentDeadline': '2026-11-03T13:30:00.000Z',
-      });
+  }) async {
+    sentWeekdays = weekdays;
+    sentStartTime = startTime;
+    return ScheduleSubscribeResult.fromMap({
+      'subscriptionId': 's1',
+      'courtName': 'Quadra 1',
+      'firstCharge': {
+        'chargeId': 's1_2026-11_0',
+        'amountReais': 90,
+        'dueDate': '2026-11-10',
+      },
+      'status': pending ? 'pending_payment' : 'active',
+      if (pending) 'paymentDeadline': '2026-11-03T13:30:00.000Z',
+    });
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

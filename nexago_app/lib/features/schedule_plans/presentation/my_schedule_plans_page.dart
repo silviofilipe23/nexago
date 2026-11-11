@@ -316,6 +316,11 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
     );
   }
 
+  /// Plano livre: abre os horários da arena; a cotação mostra o plano cobrindo.
+  void _book(ScheduleSubscription sub) {
+    context.push(AppRoutes.arenaSlots.replaceAll(':arenaId', sub.arenaId));
+  }
+
   Widget _content(MyScheduleSubscriptions data) {
     final uid = ref.watch(schedulePlansUidProvider);
     final now = _now;
@@ -360,36 +365,53 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
     final live = sub.status == ScheduleSubscriptionStatus.active;
     final paused = sub.status == ScheduleSubscriptionStatus.paused;
     final pauseLeft = schedulePauseDaysLeft(sub, now);
+    final usage = sub.weekUsage;
     final actions = <ScheduleActionTile>[
-      ScheduleActionTile(
-        key: const Key('schedule-action-skip'),
-        icon: Icons.skip_next_rounded,
-        title: 'Não vou nesta semana',
-        subtitle:
-            sub.rules.makeupEnabled ? 'Vira reposição' : 'Libera o horário',
-        onTap: live && skippable.isNotEmpty && !_busy ? () => _skip(sub) : null,
-      ),
-      ScheduleActionTile(
-        key: const Key('schedule-action-makeup'),
-        icon: Icons.undo_rounded,
-        title: 'Usar reposição',
-        subtitle: credits.isEmpty
-            ? 'Nenhuma disponível'
-            : credits.length == 1
-                ? '1 disponível'
-                : '${credits.length} disponíveis',
-        onTap: credits.isNotEmpty && !paused && !_busy
-            ? () => _useMakeup(sub)
-            : null,
-      ),
-      if (holder)
+      // Plano livre: reserva pelo fluxo normal da arena, dentro das janelas.
+      if (sub.isFlexible)
         ScheduleActionTile(
-          key: const Key('schedule-action-change'),
-          icon: Icons.swap_horiz_rounded,
-          title: 'Trocar horário',
-          subtitle: 'Se houver vaga',
-          onTap: live && !_busy ? () => _change(sub) : null,
+          key: const Key('schedule-action-book'),
+          icon: Icons.add_circle_outline_rounded,
+          title: 'Reservar horário',
+          subtitle: usage == null
+              ? 'Dentro do seu plano'
+              : usage.left == 0
+                  ? 'Semana completa'
+                  : '${usage.left} ${usage.left == 1 ? 'livre' : 'livres'} nesta semana',
+          onTap: live && !_busy ? () => _book(sub) : null,
         ),
+      if (!sub.isFlexible) ...[
+        ScheduleActionTile(
+          key: const Key('schedule-action-skip'),
+          icon: Icons.skip_next_rounded,
+          title: 'Não vou nesta semana',
+          subtitle:
+              sub.rules.makeupEnabled ? 'Vira reposição' : 'Libera o horário',
+          onTap:
+              live && skippable.isNotEmpty && !_busy ? () => _skip(sub) : null,
+        ),
+        ScheduleActionTile(
+          key: const Key('schedule-action-makeup'),
+          icon: Icons.undo_rounded,
+          title: 'Usar reposição',
+          subtitle: credits.isEmpty
+              ? 'Nenhuma disponível'
+              : credits.length == 1
+                  ? '1 disponível'
+                  : '${credits.length} disponíveis',
+          onTap: credits.isNotEmpty && !paused && !_busy
+              ? () => _useMakeup(sub)
+              : null,
+        ),
+        if (holder)
+          ScheduleActionTile(
+            key: const Key('schedule-action-change'),
+            icon: Icons.swap_horiz_rounded,
+            title: 'Trocar horário',
+            subtitle: 'Se houver vaga',
+            onTap: live && !_busy ? () => _change(sub) : null,
+          ),
+      ],
       if (holder && paused)
         ScheduleActionTile(
           key: const Key('schedule-action-resume'),
@@ -426,6 +448,10 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
                 .isCapacity ??
             false,
       ),
+      if (sub.isFlexible) ...[
+        const SizedBox(height: 12),
+        ScheduleFlexUsageCard(subscription: sub),
+      ],
       for (final key in months) ...[
         const SizedBox(height: 16),
         Row(
@@ -704,6 +730,12 @@ class ScheduleHeroCard extends StatelessWidget {
               '${scheduleDayMonth(next.date)}';
       time = '${next.startTime} – ${next.endTime}';
       court = next.courtName;
+    } else if (sub.isFlexible) {
+      kicker = 'Horário livre · até ${sub.timesPerWeek}x por semana';
+      time = scheduleWindowsSummary(sub.windows).isEmpty
+          ? 'Reserve quando quiser'
+          : scheduleWindowsSummary(sub.windows);
+      court = '';
     } else {
       final slot = sub.slots.isEmpty ? null : sub.slots.first;
       kicker = sub.slots.isEmpty
@@ -762,7 +794,9 @@ class ScheduleHeroCard extends StatelessWidget {
                 TextSpan(
                   text: [
                     if (sub.arenaName.isNotEmpty) '',
-                    if (arenaDefinesCourt)
+                    if (sub.isFlexible && next == null)
+                      ''
+                    else if (arenaDefinesCourt)
                       'quadra na chegada'
                     else if (court.isNotEmpty)
                       court,
@@ -818,6 +852,72 @@ class ScheduleHeroCard extends StatelessWidget {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Plano livre: regra do plano e usos da semana corrente.
+class ScheduleFlexUsageCard extends StatelessWidget {
+  const ScheduleFlexUsageCard({super.key, required this.subscription});
+
+  final ScheduleSubscription subscription;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final sub = subscription;
+    final usage = sub.weekUsage;
+    return Container(
+      key: const Key('schedule-flex-usage'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surfaceCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (usage != null && usage.timesPerWeek > 0) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    scheduleWeekUsageLabel(usage),
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                ),
+                for (var i = 0; i < usage.timesPerWeek && i < 7; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Icon(
+                      i < usage.used
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      size: 16,
+                      color: i < usage.used
+                          ? colors.brandText
+                          : colors.onSurfaceMuted,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+          ],
+          Text(
+            scheduleFlexRuleText(
+              timesPerWeek: sub.timesPerWeek,
+              durationMinutes: sub.durationMinutes,
+              windows: sub.windows,
+            ),
+            style: TextStyle(fontSize: 12, color: colors.onSurfaceMuted),
+          ),
         ],
       ),
     );
@@ -1240,7 +1340,7 @@ class _EmptyMyPlans extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Quando você assinar um horário fixo numa arena, ele aparece '
+              'Quando você assinar um plano de horário numa arena, ele aparece '
               'aqui com as próximas datas e a mensalidade.',
               textAlign: TextAlign.center,
               style: TextStyle(

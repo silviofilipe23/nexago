@@ -83,13 +83,20 @@ import { SchedulePlansStore } from './schedule-plans.store';
         </div>
 
         @if (plan(); as p) {
+          @if (p.bookingMode === 'flexible') {
+            <p class="hint spaced" data-testid="ph-add-flexible-hint">
+              Plano de horário livre: o atleta reserva quando quiser, até {{ p.timesPerWeek }}x por semana, dentro de {{ windowHint() }}.
+            </p>
+          } @else {
           <div class="field-label spaced">Dias ({{ p.timesPerWeek }}x por semana)</div>
           <div class="chip-row">
             @for (d of weekdays; track d) {
               <button type="button" class="sm-chip" [class.active]="days().includes(d)" [disabled]="!windowDays().includes(d)" (click)="toggleDay(d)">{{ dayShort[d] }}</button>
             }
           </div>
+          }
           <div class="row-2">
+            @if (p.bookingMode !== 'flexible') {
             <div>
               <div class="field-label spaced">Início</div>
               <input class="input-box" type="time" step="1800" [value]="startTime()" (input)="startTime.set($any($event.target).value)" />
@@ -97,6 +104,7 @@ import { SchedulePlansStore } from './schedule-plans.store';
                 <p class="hint">Janela: {{ windowHint() }}</p>
               }
             </div>
+            }
             <div>
               <div class="field-label spaced">Começa em</div>
               <input class="input-box" type="date" [min]="today" [value]="startDate()" (input)="startDate.set($any($event.target).value)" />
@@ -194,7 +202,9 @@ export class PhAddSubscriberModalComponent {
   protected readonly valid = computed(() => {
     const p = this.plan();
     const holder = this.mode() === 'athlete' ? this.athlete() != null : this.name().trim().length >= 2;
-    return holder && p != null && this.days().length === p.timesPerWeek && /^\d{2}:\d{2}$/.test(this.startTime()) && !!this.startDate();
+    if (!holder || p == null || !this.startDate()) return false;
+    // Plano livre: sem dia/horário (o atleta reserva depois, dentro das janelas).
+    return p.bookingMode === 'flexible' || (this.days().length === p.timesPerWeek && /^\d{2}:\d{2}$/.test(this.startTime()));
   });
 
   protected pickPlan(p: SchedulePlan): void {
@@ -228,15 +238,15 @@ export class PhAddSubscriberModalComponent {
         ...(this.mode() === 'athlete' && a
           ? { holderAthleteId: a.athleteId }
           : { holderName: this.name().trim(), ...(this.phone().trim() ? { holderPhone: this.phone().trim() } : {}) }),
-        weekdays: this.days(),
-        startTime: this.startTime(),
+        weekdays: p.bookingMode === 'flexible' ? [] : this.days(),
+        startTime: p.bookingMode === 'flexible' ? '' : this.startTime(),
         cycle: this.cycle(),
         paymentMethod: this.method(),
         startDate: this.startDate(),
       });
       const skipped = res.skippedDates?.length ?? 0;
       this.result.set(
-        (this.capacityMode() ? 'Assinatura criada.' : `Assinatura criada na ${res.courtName}.`) +
+        (this.capacityMode() || p.bookingMode === 'flexible' ? 'Assinatura criada.' : `Assinatura criada na ${res.courtName}.`) +
           (skipped ? ` ${skipped} data${skipped === 1 ? '' : 's'} já tinha${skipped === 1 ? '' : 'm'} reserva avulsa e ficou${skipped === 1 ? '' : 'ram'} de fora.` : ''),
       );
     } catch (err) {

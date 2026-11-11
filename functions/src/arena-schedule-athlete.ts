@@ -22,6 +22,10 @@ import {
   str,
 } from "./arena-schedule-plan-constants";
 import {requireUid, rethrowSchedule} from "./arena-schedule-plans";
+import {isFlexibleSubscription} from "./arena-schedule-subscriptions";
+import {usedFlexUses} from "./arena-schedule-flex";
+import {isArenaBookingInactive} from "./arena-booking-app-payment";
+import {addDays, weekStartOf} from "./arena-crm-model";
 
 type Data = Record<string, unknown>;
 
@@ -87,16 +91,22 @@ export async function getMySubscriptionsCore(db: Firestore, uid: string, todayKe
   // Encerradas somem; "Sai em dd/mm" segue aparecendo até encerrar.
   const subs = subsSnap.docs.filter((d) => d.data()["status"] !== "canceled");
 
+  const weekStart = weekStartOf(todayKey);
+  const weekEnd = addDays(weekStart, 6);
   const subscriptions = await Promise.all(subs.map(async (doc) => {
+    // Plano livre: as reservas que o plano cobriu (o atleta reserva quando quiser) no lugar das ocorrências.
+    const flexible = isFlexibleSubscription(doc.data() as Data);
     const [bookings, credits, charges] = await Promise.all([
-      db.collection("arenaBookings").where("scheduleSubscriptionId", "==", doc.id).get(),
+      flexible ?
+        db.collection("arenaBookings").where("scheduleFlexSubscriptionId", "==", doc.id).get() :
+        db.collection("arenaBookings").where("scheduleSubscriptionId", "==", doc.id).get(),
       db.collection(ARENA_SCHEDULE_CREDITS).where("subscriptionId", "==", doc.id).get(),
       db.collection(ARENA_SCHEDULE_CHARGES).where("subscriptionId", "==", doc.id).get(),
     ]);
     const occurrences = bookings.docs
       .map((b) => ({id: b.id, data: b.data() as Data}))
       .filter((b) => str(b.data["date"]) >= fromKey && str(b.data["date"]) <= untilKey)
-      .filter((b) => isVisibleOccurrence(b.data))
+      .filter((b) => flexible ? !isArenaBookingInactive(b.data) && Number(b.data["scheduleFlexMinutes"]) > 0 : isVisibleOccurrence(b.data))
       .map((b) => ({
         bookingId: b.id,
         date: str(b.data["date"]),
@@ -106,10 +116,21 @@ export async function getMySubscriptionsCore(db: Firestore, uid: string, todayKe
         status: occurrenceStatus(b.data, todayKey, nowMs),
       }))
       .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+    const snapshot = (doc.data()["planSnapshot"] ?? {}) as Data;
     return {
       subscriptionId: doc.id,
       ...ownAutopayOnly(toPlain(doc.data()) as Data, uid),
       occurrences,
+      // Plano livre: usos da semana corrente (seg a dom), para "1 de 2 nesta semana".
+      ...(flexible ? {
+        weekUsage: {
+          weekStart,
+          weekEnd,
+          timesPerWeek: Number(snapshot["timesPerWeek"] ?? 0) || 0,
+          used: usedFlexUses(bookings.docs.map((b) => b.data())
+            .filter((b) => str(b["date"]) >= weekStart && str(b["date"]) <= weekEnd)),
+        },
+      } : {}),
       credits: credits.docs
         .filter((c) => c.data()["status"] !== "expired")
         .map((c) => ({creditId: c.id, ...(toPlain(c.data()) as Data)})),

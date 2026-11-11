@@ -49,11 +49,19 @@ export interface PlanRules {
   weather: boolean;
 }
 
+/**
+ * Como o assinante usa o plano: `fixed` escolhe dias e horário ao assinar (série toda semana);
+ * `flexible` reserva quando quiser dentro das janelas, até `timesPerWeek` por semana.
+ * Ausente no doc = `fixed` (planos de antes do modo).
+ */
+export type ScheduleBookingMode = 'fixed' | 'flexible';
+
 export interface SchedulePlan {
   id: string;
   name: string;
   description: string | null;
   status: SchedulePlanStatus;
+  bookingMode: ScheduleBookingMode;
   timesPerWeek: number;
   durationMinutes: number;
   windows: PlanWindow[];
@@ -103,6 +111,9 @@ export interface ScheduleSubscription {
   planId: string;
   planName: string;
   durationMinutes: number;
+  /** Plano livre: sem horários (`slots` vazio); reserva quando quiser, até `timesPerWeek` por semana. */
+  flexible: boolean;
+  timesPerWeek: number;
   holderAthleteId: string | null;
   holderName: string;
   holderPhone: string | null;
@@ -346,6 +357,7 @@ export function planFromRaw(id: string, d: Raw): SchedulePlan {
     name: str(d['name'], 'Plano'),
     description: optStr(d['description']),
     status: oneOf(d['status'], ['draft', 'active', 'archived'] as const, 'draft'),
+    bookingMode: d['bookingMode'] === 'flexible' ? 'flexible' : 'fixed',
     timesPerWeek: num(d['timesPerWeek'], 1),
     durationMinutes: num(d['durationMinutes'], 60),
     windows: windowsFromRaw(d['windows']),
@@ -424,6 +436,8 @@ export function subscriptionFromRaw(id: string, d: Raw): ScheduleSubscription {
     planId: str(d['planId']),
     planName: str(d['planName'], 'Plano'),
     durationMinutes: num(snapshot['durationMinutes'], 60),
+    flexible: snapshot['bookingMode'] === 'flexible',
+    timesPerWeek: num(snapshot['timesPerWeek'], 1),
     holderAthleteId: optStr(d['holderAthleteId']),
     holderName: str(d['holderName'], 'Assinante'),
     holderPhone: optStr(d['holderPhone']),

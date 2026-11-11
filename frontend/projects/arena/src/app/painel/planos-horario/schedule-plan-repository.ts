@@ -19,6 +19,7 @@ import {
   type ScheduleManualMethod,
   type SchedulePaymentForm,
   type SchedulePlan,
+  type ScheduleBookingMode,
   type SchedulePlanStatus,
   type ScheduleSettings,
   type ScheduleSubscription,
@@ -157,6 +158,8 @@ export interface SchedulePlanInput {
   name: string;
   description: string | null;
   status: SchedulePlanStatus;
+  /** Ausente = fixo no servidor (portal antigo). */
+  bookingMode: ScheduleBookingMode;
   timesPerWeek: number;
   durationMinutes: number;
   windows: PlanWindow[];

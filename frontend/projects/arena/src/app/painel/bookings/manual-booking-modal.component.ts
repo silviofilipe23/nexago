@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
+import { afterRenderEffect, ChangeDetectionStrategy, Component, computed, DestroyRef, effect, type ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
 import { arenaFunctions } from '../data/functions';
 import { AthleteSearchFieldComponent } from '../recurring/athlete-search-field.component';
 import { AvatarComponent } from '../ui/avatar.component';
@@ -26,7 +26,7 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
       }
 
       <div class="field-label">Quadra</div>
-      <select class="input-box" [value]="courtIdValue()" (change)="courtIdValue.set($any($event.target).value)">
+      <select #courtSelect class="input-box" (change)="courtIdValue.set($any($event.target).value)">
         <option value="">Selecione a quadra</option>
         @for (c of courts(); track c.id) {
           <option [value]="c.id">{{ c.name }}</option>
@@ -217,6 +217,7 @@ export class ManualBookingModalComponent {
   readonly created = output<string>();
 
   protected readonly courtIdValue = signal('');
+  private readonly courtSelect = viewChild<ElementRef<HTMLSelectElement>>('courtSelect');
   protected readonly dateValue = signal('');
   protected readonly startValue = signal('');
   protected readonly endValue = signal('');
@@ -263,6 +264,16 @@ export class ManualBookingModalComponent {
       this.dateValue.set(this.dateKey());
       this.startValue.set(this.startTime() ?? '');
       this.endValue.set(this.endTime() ?? '');
+    });
+
+    // A quadra clicada na grade tem que aparecer escolhida. `[value]` no <select> não serve:
+    // é aplicado antes de o @for criar as <option>, o navegador não acha a quadra e mostra
+    // "Selecione a quadra". Depois do render as opções já existem.
+    afterRenderEffect(() => {
+      const select = this.courtSelect()?.nativeElement;
+      const courtId = this.courtIdValue();
+      this.courts();
+      if (select && select.value !== courtId) select.value = courtId;
     });
 
     effect(() => {

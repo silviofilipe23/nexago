@@ -79,7 +79,8 @@ class _ClubSessionCard extends StatelessWidget {
             color: context.themeColors.surfaceCard,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+              color:
+                  context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
             ),
           ),
           child: Padding(

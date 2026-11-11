@@ -58,8 +58,9 @@ class ArenaDetailHero extends StatelessWidget {
                   )
                 : Icon(
                     isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color:
-                        isFavorite ? const Color(0xFFE53935) : AppColors.white,
+                    color: isFavorite
+                        ? const Color(0xFFE53935)
+                        : AppColors.white,
                     size: 22,
                   ),
           ),
@@ -117,19 +118,19 @@ class _CircleIconButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: Colors.black.withValues(alpha: 0.45),
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: SizedBox(
-            width: 40,
-            height: 40,
-            child: Center(
-              child: child ?? Icon(icon, color: AppColors.white, size: 22),
-            ),
+      color: Colors.black.withValues(alpha: 0.45),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Center(
+            child: child ?? Icon(icon, color: AppColors.white, size: 22),
           ),
         ),
+      ),
       ),
     );
   }

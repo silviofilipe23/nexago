@@ -60,12 +60,13 @@ class ArenaDetailReviewsSection extends StatelessWidget {
               color: context.themeColors.onSurfaceMuted,
             ),
           )
-        else ...[
-          for (var i = 0; i < top.length; i++) ...[
-            if (i > 0) SizedBox(height: 10),
-            ArenaDetailReviewCard(review: top[i], now: now),
+        else
+          ...[
+            for (var i = 0; i < top.length; i++) ...[
+              if (i > 0) SizedBox(height: 10),
+              ArenaDetailReviewCard(review: top[i], now: now),
+            ],
           ],
-        ],
       ],
     );
   }

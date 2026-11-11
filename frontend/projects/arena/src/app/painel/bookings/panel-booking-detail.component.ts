@@ -28,6 +28,7 @@ import {
   professorDiscountLabel,
   type ArenaBooking,
 } from './arena-booking.model';
+import { bookingContactsKey, bookingWhatsappText, fetchBookingContacts, whatsappLink } from './booking-contacts';
 import { bookingCanChangeCourt, changeBookingCourt, clubSessionDayLabel, courtAssignOptions } from './booking-court-change';
 import {
   BOOKING_MAX_PLAYERS,
@@ -60,6 +61,8 @@ interface BookingPlayer {
   meta: string;
   /** Linha sob o nome na foto ampliada. */
   zoomMeta: string;
+  /** `wa.me` com a mensagem da reserva; `null` sem telefone (o botão some). */
+  whatsappUrl: string | null;
 }
 
 const ATTENDANCE_TONE: Record<string, PillTone | undefined> = {
@@ -247,6 +250,12 @@ export function bookingChannelLabel(channel: string | null): string {
                           </div>
                           <div class="p-meta">{{ p.meta }}</div>
                         </div>
+                        @if (p.whatsappUrl; as wa) {
+                          <a class="ar-mini-btn wa-btn" [href]="wa" target="_blank" rel="noopener" [attr.aria-label]="'WhatsApp de ' + p.name">
+                            <ar-icon name="message" [size]="14" />
+                            WhatsApp
+                          </a>
+                        }
                       </div>
                     }
                     @for (slot of freeSlots(); track slot) {
@@ -870,6 +879,11 @@ export function bookingChannelLabel(channel: string | null): string {
       color: var(--nx-text);
     }
 
+    .wa-btn {
+      flex: none;
+      text-decoration: none;
+    }
+
     .p-meta {
       font-size: 12px;
       color: var(--nx-text-mute);
@@ -1206,6 +1220,9 @@ export class PanelBookingDetailComponent {
   protected readonly athletePhoto = signal<string | null>(null);
   /** Fotos dos convidados que entraram sem `avatarUrl` na reserva (busca no perfil público). */
   private readonly guestPhotos = signal<ReadonlyMap<string, string | null>>(new Map());
+  /** WhatsApp dos jogadores (uid → dígitos), pela callable: o telefone não está no doc. */
+  private readonly contacts = signal<ReadonlyMap<string, string>>(new Map());
+  private contactsKey: string | null = null;
   protected readonly maxPlayers = BOOKING_MAX_PLAYERS;
   protected readonly markingNoShow = signal(false);
   protected readonly copied = signal(false);
@@ -1327,6 +1344,12 @@ export class PanelBookingDetailComponent {
     const b = this.resolvedBooking();
     if (!b) return [];
     const where = `${b.courtName} · ${b.startTime}–${b.endTime}`;
+    const contacts = this.contacts();
+    const arenaName = this.arenaContext.arenaName();
+    const wa = (uid: string, name: string) => {
+      const digits = contacts.get(uid);
+      return digits ? whatsappLink(digits, bookingWhatsappText(b, name, arenaName)) : null;
+    };
     const owner: BookingPlayer = b.athleteId
       ? {
           key: b.athleteId,
@@ -1336,6 +1359,7 @@ export class PanelBookingDetailComponent {
           role: b.bookedAsProfessor ? 'Professor responsável' : 'Responsável',
           meta: b.createdAt ? `Reservou em ${timelineWhen(b.createdAt).replace(' · ', ' às ')}` : 'Responsável pela reserva',
           zoomMeta: `${where} · responsável`,
+          whatsappUrl: wa(b.athleteId, this.customerLabel()),
         }
       : {
           key: 'customer',
@@ -1345,6 +1369,7 @@ export class PanelBookingDetailComponent {
           role: 'Cliente',
           meta: 'Reserva feita na recepção · sem conta no app',
           zoomMeta: where,
+          whatsappUrl: null,
         };
     const guests = (b.participants ?? []).map<BookingPlayer>((p) => ({
       key: p.uid,
@@ -1354,6 +1379,7 @@ export class PanelBookingDetailComponent {
       role: 'Convidado',
       meta: `${p.via === 'link' ? 'Entrou pelo link' : 'Convidado'}${p.joinedAt ? ` · ${timelineWhen(p.joinedAt).replace(' · ', ' às ')}` : ''}`,
       zoomMeta: `${where} · ${p.via === 'link' ? 'entrou pelo link' : 'convidado'}`,
+      whatsappUrl: wa(p.uid, p.name),
     }));
     return [owner, ...guests];
   });
@@ -1435,6 +1461,7 @@ export class PanelBookingDetailComponent {
           });
         }
         this.resolveGuestPhotos(db, booking);
+        this.resolveContacts(booking);
         if (booking?.canceledAt && (booking.status === 'canceled' || booking.status === 'cancelled')) {
           const deadline = booking.canceledAt.getTime() + UNDO_WINDOW_SECONDS * 1000;
           this.undoDeadlineMs.set(deadline > Date.now() ? deadline : null);
@@ -1486,6 +1513,23 @@ export class PanelBookingDetailComponent {
   }
 
   /** Convidado gravado sem `avatarUrl` (app antigo): a foto sai do perfil público, com cache. */
+  /** Busca de novo só quando muda quem joga (alguém entrou). Falha (callable fora do ar,
+   *  sem acesso) só esconde o botão. */
+  private resolveContacts(booking: ArenaBooking | null): void {
+    const key = bookingContactsKey(booking);
+    if (key === this.contactsKey) return;
+    this.contactsKey = key;
+    if (!booking || !key) {
+      this.contacts.set(new Map());
+      return;
+    }
+    fetchBookingContacts(arenaFunctions(), booking.id)
+      .then((contacts) => {
+        if (this.contactsKey === key) this.contacts.set(contacts);
+      })
+      .catch(() => undefined);
+  }
+
   private resolveGuestPhotos(db: ReturnType<typeof arenaFirestore>, booking: ArenaBooking | null): void {
     const missing = (booking?.participants ?? []).filter((p) => !p.avatarUrl && !this.guestPhotos().has(p.uid));
     for (const p of missing) {

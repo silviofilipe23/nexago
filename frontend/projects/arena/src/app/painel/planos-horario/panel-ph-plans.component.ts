@@ -117,7 +117,7 @@ interface AlertView {
                 </div>
                 <div class="chip-row">
                   @for (t of c.chips; track $index) {
-                    <span class="sm-chip">{{ t }}</span>
+                    <span class="sm-chip" [title]="t">{{ t }}</span>
                   }
                 </div>
                 <div class="plan-foot">
@@ -228,12 +228,14 @@ interface AlertView {
     .plan.draft { border-style: dashed; border-color: var(--nx-line-strong); }
     .plan-head { display: flex; align-items: flex-start; gap: 10px; }
     .plan-titles { flex: 1; min-width: 0; }
-    .plan-name { font-family: var(--nx-font-display); font-weight: 700; font-size: 15.5px; color: var(--nx-text); }
+    .plan-name { font-family: var(--nx-font-display); font-weight: 700; font-size: 15.5px; color: var(--nx-text); overflow-wrap: anywhere; }
     .plan-window { font-family: var(--nx-font-mono); font-size: 10.5px; color: var(--nx-text-dim); margin-top: 4px; }
     .price-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
     .price { font-family: var(--nx-font-mono); font-weight: 800; font-size: 24px; letter-spacing: -0.02em; color: var(--nx-text); }
     .per, .dim { font-size: 12px; color: var(--nx-text-dim); }
     .off { margin-left: auto; font-family: var(--nx-font-mono); font-size: 10.5px; font-weight: 700; color: var(--nx-win); }
+    /* Chip nunca passa da largura do card: nome de quadra gigante corta com "…" (o title mostra inteiro). */
+    .plan .sm-chip { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 24px; box-sizing: border-box; }
     .plan-foot { margin-top: auto; }
     .foot-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--nx-text-mute); margin-bottom: 7px; }
     .foot-row b, .mono { font-family: var(--nx-font-mono); color: var(--nx-text); font-weight: 700; }
@@ -316,7 +318,7 @@ export class PanelPhPlansComponent {
       return {
         plan,
         window: windowsLabel(plan.windows),
-        chips: [`${plan.timesPerWeek}x por semana`, durationLabel(plan.durationMinutes), this.courtsLabel(plan)],
+        chips: [`${plan.timesPerWeek}x por semana`, durationLabel(plan.durationMinutes), ...this.courtsChips(plan)],
         subscribers: mine.length,
         revenue: mine.reduce((s, sub) => s + sub.monthlyPriceReais, 0),
         discount: planEconomy(plan)?.discountPercent ?? null,
@@ -382,13 +384,14 @@ export class PanelPhPlansComponent {
     return out;
   });
 
-  private courtsLabel(plan: SchedulePlan): string {
+  /** Um chip por quadra (até 2): nomes emendados num chip só estouravam o card com nome longo. */
+  private courtsChips(plan: SchedulePlan): string[] {
     const n = plan.courtIds.length;
-    if (n === 0) return 'Sem quadra';
+    if (n === 0) return ['Sem quadra'];
     const all = this.store.activeCourts();
-    if (all.length > 1 && all.every((c) => plan.courtIds.includes(c.id))) return 'Todas as quadras';
-    if (n <= 2) return plan.courtNames.join(' · ') || `${n} quadra${n === 1 ? '' : 's'}`;
-    return `${n} quadras`;
+    if (all.length > 1 && all.every((c) => plan.courtIds.includes(c.id))) return ['Todas as quadras'];
+    if (n <= 2) return plan.courtNames.length > 0 ? [...plan.courtNames] : [`${n} quadra${n === 1 ? '' : 's'}`];
+    return [`${n} quadras`];
   }
 
   protected async applyHoliday(date: string): Promise<void> {

@@ -166,7 +166,7 @@ type HoursTab = 'Lista' | 'Quadro';
                         @if (!readOnly()) {
                           @if (canAssign(b)) {
                             <button type="button" class="ar-ghost-btn sm" [disabled]="busy(b.id)" (click)="openAssign(b)">
-                              {{ b.allocationStatus === 'unassigned' ? 'Definir quadra' : 'Trocar' }}
+                              {{ b.allocationStatus === 'unassigned' && !b.clubSessionId ? 'Definir quadra' : 'Trocar' }}
                             </button>
                           }
                           @if (canCheckIn(b)) {
@@ -234,7 +234,7 @@ type HoursTab = 'Lista' | 'Quadro';
 
       @if (assignTarget(); as b) {
         <ar-modal (close)="closeAssign()">
-          <h2 class="confirm-title">{{ b.allocationStatus === 'unassigned' ? 'Definir quadra' : 'Trocar quadra' }}</h2>
+          <h2 class="confirm-title">{{ b.allocationStatus === 'unassigned' && !b.clubSessionId ? 'Definir quadra' : 'Trocar quadra' }}</h2>
           <p class="confirm-body">{{ b.startTime }}–{{ b.endTime }}@if (b.sportLabel; as s) { · {{ s }}} · {{ customer(b) }}</p>
           @if (assignOptions().length === 0) {
             <p class="confirm-body">Nenhuma outra quadra ativa deste esporte.</p>

@@ -74,6 +74,11 @@ describe('courtAssignOptions', () => {
     expect(options.map((o) => [o.court.id, o.provisional])).toEqual([['c1', true], ['c2', false]]);
   });
 
+  it('clubinho provisório não oferece a própria quadra (ele não é fixado)', () => {
+    const options = courtAssignOptions(booking({ allocationStatus: 'unassigned', clubSessionId: 's1' } as never), [court('c1'), court('c2')]);
+    expect(options.map((o) => [o.court.id, o.provisional])).toEqual([['c2', false]]);
+  });
+
   it('reserva com quadra definida não oferece a atual', () => {
     const options = courtAssignOptions(booking({ allocationStatus: 'assigned' } as never), [court('c1'), court('c2')]);
     expect(options.map((o) => o.court.id)).toEqual(['c2']);

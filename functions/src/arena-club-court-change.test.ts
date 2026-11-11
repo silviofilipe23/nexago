@@ -11,6 +11,7 @@ import {
   clubSessionCourtsAfterMove,
 } from "./arena-booking-court-change";
 import {computeSlotLockIds} from "./arena-booking-waitlist";
+import {claimCourtLocks, relocateFloatingOffCourt} from "./arena-floating-booking";
 
 const ARENA = "arena1";
 const MANAGER = "mgr";
@@ -94,5 +95,79 @@ describe("clubinho: trocar quadra pela agenda", () => {
       clubCourtChangedPushBody({clubName: "Clubinho de sexta", date: "2030-07-26"}, "Quadra 1", "Quadra 3"),
       "Clubinho de sexta de 26/07: Quadra 1 mudou para Quadra 3.",
     );
+  });
+});
+
+describe("clubinho provisório (arena que define a quadra)", () => {
+  async function capacitySetup(): Promise<{fake: FakeFirestore; db: Firestore}> {
+    const fake = new FakeFirestore();
+    const db = fake as unknown as Firestore;
+    fake.seedDoc(`arenas/${ARENA}`, {
+      name: "Arena Sol", managerUserId: MANAGER,
+      bookingAllocation: {mode: "capacity", courtIds: ["courtA", "courtB", "courtC", "courtD"], priceBySport: {}},
+    });
+    for (const [id, name] of [["courtA", "Quadra 1"], ["courtB", "Quadra 2"], ["courtC", "Quadra 3"], ["courtD", "Quadra 4"]]) {
+      fake.seedDoc(`arenas/${ARENA}/courts/${id}`, {name, status: "active"});
+    }
+    await materializeClubSession(db, "c1", club, DATE, "series");
+    return {fake, db};
+  }
+  const locksOf = (courtId: string) =>
+    computeSlotLockIds({arenaId: ARENA, courtId, dateKey: DATE, startTime: "15:00", endTime: "17:00"});
+
+  it("nasce provisório: reserva `unassigned` e travas flutuantes", async () => {
+    const {fake} = await capacitySetup();
+    const booking = fake.store.get(`arenaBookings/${bookingId}`)!;
+    assert.equal(booking["allocationStatus"], "unassigned");
+    for (const id of locksOf("courtA")) assert.equal(fake.store.get(`arenaSlotLocks/${id}`)?.["floating"], true);
+  });
+
+  it("arena em que o atleta escolhe a quadra: segue fixo", async () => {
+    const {fake} = await setup();
+    assert.equal(fake.store.get(`arenaBookings/${bookingId}`)!["allocationStatus"], undefined);
+    for (const id of locksOf("courtA")) assert.equal(fake.store.get(`arenaSlotLocks/${id}`)?.["floating"], undefined);
+  });
+
+  it("a equipe troca e ele continua provisório", async () => {
+    const {fake, db} = await capacitySetup();
+    const result = await changeArenaBookingCourtCore(db, MANAGER, {bookingId, toCourtId: "courtC", reason: null}, NOW);
+    assert.equal(result.assigned, false);
+    const booking = fake.store.get(`arenaBookings/${bookingId}`)!;
+    assert.equal(booking["courtId"], "courtC");
+    assert.equal(booking["allocationStatus"], "unassigned");
+    for (const id of locksOf("courtC")) assert.equal(fake.store.get(`arenaSlotLocks/${id}`)?.["floating"], true);
+    assert.deepEqual(fake.store.get(sessionPath)!["courtIds"], ["courtC", "courtB"]);
+
+    // Confirmar na própria quadra não fixa o clubinho.
+    const same = await changeArenaBookingCourtCore(db, MANAGER, {bookingId, toCourtId: "courtC", reason: null}, NOW);
+    assert.equal(same.changed, false);
+    assert.equal(fake.store.get(`arenaBookings/${bookingId}`)!["allocationStatus"], "unassigned");
+  });
+
+  it("quadra em manutenção empurra o clubinho e a sessão acompanha", async () => {
+    const {fake, db} = await capacitySetup();
+    fake.seedDoc(`arenas/${ARENA}/courts/courtA`, {name: "Quadra 1", status: "maintenance"});
+    await relocateFloatingOffCourt(db, ARENA, "courtA", "2030-07-01", NOW);
+    const booking = fake.store.get(`arenaBookings/${bookingId}`)!;
+    assert.equal(booking["courtId"], "courtC");
+    assert.deepEqual(fake.store.get(sessionPath)!["courtIds"], ["courtC", "courtB"]);
+    assert.deepEqual(fake.store.get(sessionPath)!["courtNames"], ["Quadra 3", "Quadra 2"]);
+  });
+
+  it("duas quadras da mesma sessão empurradas na mesma transação: a sessão fica com as duas novas", async () => {
+    const {fake, db} = await capacitySetup();
+    await db.runTransaction(async (tx) => {
+      const taken = new Set<string>();
+      const refs = (courtId: string) => locksOf(courtId).map((id) => db.collection("arenaSlotLocks").doc(id));
+      const a = await claimCourtLocks(tx, db, {arenaId: ARENA, courtId: "courtA", lockRefs: refs("courtA")},
+        {takenLockPaths: taken, flowWritesTargetLocks: false, nowMs: NOW});
+      const b = await claimCourtLocks(tx, db, {arenaId: ARENA, courtId: "courtB", lockRefs: refs("courtB")},
+        {takenLockPaths: taken, flowWritesTargetLocks: false, nowMs: NOW});
+      assert.ok(a.ok && b.ok);
+      if (a.ok) a.commit(tx);
+      if (b.ok) b.commit(tx);
+    });
+    const courts = (fake.store.get(sessionPath)!["courtIds"] as string[]).slice().sort();
+    assert.deepEqual(courts, ["courtC", "courtD"]);
   });
 });

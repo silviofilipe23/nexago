@@ -250,3 +250,10 @@ Trava (`arenaSlotLocks`): `floating: true` enquanto a reserva estiver `unassigne
   por horário). Por dentro a série continua numa quadra, então o horário fixo desconta da
   capacidade. O app não mostra quadra (horários "livre"/"última vaga", Meu plano "quadra na
   chegada", reposição sem quadra).
+- **Clubinho sempre provisório** (arena que define a quadra): cada quadra da sessão nasce `unassigned`
+  com travas `floating`, como a reserva do atleta. A equipe troca a quadra a qualquer hora (detalhe,
+  "Trocar" no Por horário ou arrastando no Quadro) e ele continua provisório; "Confirmar todas" e
+  "Definir quadra" não o fixam. Aula, plano, bloqueio ou manutenção podem empurrá-lo para outra quadra
+  livre. Toda mudança de quadra (equipe ou sistema) atualiza `courtIds`/`courtNames` da sessão
+  (`writeBookingCourtMove`); o aviso aos participantes sai só na troca feita pela equipe. Clubinho não
+  tem "Chegou"/"Faltou" na agenda. Arena em que o atleta escolhe a quadra: segue fixo.

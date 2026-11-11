@@ -50,6 +50,7 @@ import {debitArenaWalletForClubRefund} from "./arena-wallet";
 import {resolveAthleteDisplay} from "./arena-club-join";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {claimCourtLocks} from "./arena-floating-booking";
+import {readBookingAllocation} from "./arena-booking-allocation";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -181,6 +182,10 @@ export async function materializeClubSession(
   }
 
   const startAt = clubSessionStartAt(dateKey, club.startTime);
+  // Arena que define a quadra: o clubinho fica com quadras provisórias (trava flutuante), que a
+  // equipe troca a qualquer hora e que outros fluxos podem empurrar para outra quadra livre.
+  const arenaSnap = await db.collection("arenas").doc(club.arenaId).get();
+  const provisional = readBookingAllocation(arenaSnap.data()).mode === "capacity";
 
   try {
     const result = await db.runTransaction(async (tx: Transaction) => {
@@ -273,6 +278,7 @@ export async function materializeClubSession(
           isClubSession: true,
           clubId,
           clubSessionId: sessionRef.id,
+          ...(provisional ? {allocationStatus: "unassigned", allocationSource: "auto"} : {}),
           createdByRole: "arena_manager",
           createdAt: FieldValue.serverTimestamp(),
         });
@@ -306,6 +312,7 @@ export async function materializeClubSession(
             bookingId,
             bookingAthleteId: null,
             clubSessionId: sessionRef.id,
+            ...(provisional ? {floating: true} : {}),
             createdAt: FieldValue.serverTimestamp(),
           });
         }

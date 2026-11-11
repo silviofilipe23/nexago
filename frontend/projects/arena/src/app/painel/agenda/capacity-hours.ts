@@ -135,9 +135,10 @@ export function hourBookings(tiles: readonly BoardTile[]): ArenaBooking[] {
   return rows.map((r) => r.booking);
 }
 
-/** Reservas provisórias da hora que "Confirmar todas" fixa na quadra que já seguram. */
+/** Reservas provisórias da hora que "Confirmar todas" fixa na quadra que já seguram. O clubinho
+ *  fica de fora: ele é sempre provisório. */
 export function provisionalBookings(tiles: readonly BoardTile[]): ArenaBooking[] {
-  return hourBookings(tiles).filter((b) => b.allocationStatus === 'unassigned');
+  return hourBookings(tiles).filter((b) => b.allocationStatus === 'unassigned' && !b.clubSessionId);
 }
 
 /**
@@ -165,7 +166,8 @@ export function dropBlockReason(booking: ArenaBooking, tile: BoardTile): string 
 
 /** "Faltou" só depois do início, e só sem check-in/falta já marcados. */
 export function bookingCanMarkNoShow(booking: ArenaBooking, now: Date): boolean {
-  if (!holdsCourt(booking) || booking.classSessionId) return false;
+  // Aula e clubinho têm presença por aluno/participante, não por reserva.
+  if (!holdsCourt(booking) || booking.classSessionId || booking.clubSessionId) return false;
   if (booking.attendanceStatus === 'checked_in' || booking.attendanceStatus === 'no_show') return false;
   const [y, m, d] = booking.dateKey.split('-').map(Number);
   if (!y || !m || !d) return false;
@@ -176,7 +178,7 @@ export function bookingCanMarkNoShow(booking: ArenaBooking, now: Date): boolean 
 /** "Chegou" na janela do check-in da recepção (`checkInBookingByManager`): de 20 min antes do
  *  início até 15 min depois do fim. */
 export function bookingCanCheckInNow(booking: ArenaBooking, now: Date): boolean {
-  if (!bookingShowsCheckInAction(booking) || booking.classSessionId) return false;
+  if (!bookingShowsCheckInAction(booking) || booking.classSessionId || booking.clubSessionId) return false;
   const [y, m, d] = booking.dateKey.split('-').map(Number);
   if (!y || !m || !d) return false;
   const [s, e] = span(booking.startTime, booking.endTime);

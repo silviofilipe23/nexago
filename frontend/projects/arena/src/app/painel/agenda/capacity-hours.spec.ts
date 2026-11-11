@@ -80,6 +80,15 @@ describe('buildBoard e resumo da hora', () => {
     expect(hourBookings(board).map((b) => b.id)).toEqual(['a', 'b']);
     expect(provisionalBookings(board).map((b) => b.id)).toEqual(['a']);
   });
+
+  it('"Confirmar todas" deixa o clubinho provisório de fora', () => {
+    const board = buildBoard(H19, courts, slots, [
+      booking('a', 'c3', { allocationStatus: 'unassigned' }),
+      booking('club', 'c2', { allocationStatus: 'unassigned', clubSessionId: 's1' }),
+    ]);
+    expect(hourBookings(board).map((b) => b.id).sort()).toEqual(['a', 'club']);
+    expect(provisionalBookings(board).map((b) => b.id)).toEqual(['a']);
+  });
 });
 
 describe('buildCapacityHours', () => {
@@ -127,6 +136,9 @@ describe('bookingCanMarkNoShow', () => {
     expect(bookingCanMarkNoShow(b, new Date(2026, 10, 22, 18, 59))).toBeFalse();
     expect(bookingCanMarkNoShow(b, new Date(2026, 10, 22, 19, 0))).toBeTrue();
     expect(bookingCanMarkNoShow({ ...b, attendanceStatus: 'checked_in' }, new Date(2026, 10, 22, 20))).toBeFalse();
+    // Clubinho: presença é por participante.
+    expect(bookingCanMarkNoShow({ ...b, clubSessionId: 's1' }, new Date(2026, 10, 22, 19, 0))).toBeFalse();
+    expect(bookingCanCheckInNow({ ...b, clubSessionId: 's1' }, new Date(2026, 10, 22, 19, 0))).toBeFalse();
   });
 });
 

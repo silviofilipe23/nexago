@@ -116,7 +116,9 @@ describe('Agenda → Por horário', () => {
     const s = f.componentInstance as unknown as Internals;
     s.bookings.update((list) => [
       ...list,
-      booking('club', 'c3', { athleteId: '', customerName: 'Clubinho de sexta', clubSessionId: 'club_c1_2026-11-22', sportCode: null }),
+      booking('club', 'c3', {
+        athleteId: '', customerName: 'Clubinho de sexta', clubSessionId: 'club_c1_2026-11-22', sportCode: null, allocationStatus: 'unassigned',
+      }),
     ]);
     f.detectChanges();
     host(f).querySelectorAll<HTMLButtonElement>('.hour')[1]!.click();
@@ -124,9 +126,12 @@ describe('Agenda → Por horário', () => {
     await f.whenStable();
     const rows = Array.from(host(f).querySelectorAll('.bk-n')).map((n) => n.textContent!.trim());
     expect(rows).toContain('Clubinho de sexta');
+    // Provisório, mas "Trocar" (nunca "Definir quadra"); "Confirmar todas" não conta o clubinho.
     const trocar = buttons(f, 'Trocar');
     expect(trocar.length).toBe(2);
-    trocar[trocar.length - 1]!.click();
+    expect(buttons(f, 'Definir quadra').length).toBe(1);
+    expect(buttons(f, 'Confirmar todas (1)').length).toBe(1);
+    trocar[0]!.click();
     f.detectChanges();
     expect(host(f).querySelector('[data-testid="hours-club-court-change-scope"]')?.textContent).toContain('dom, 22/11');
   });

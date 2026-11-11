@@ -119,7 +119,11 @@ export function bookingChannelLabel(channel: string | null): string {
               @if (unassigned()) {
                 <p class="notice">
                   <ar-icon name="alert-triangle" [size]="14" />
-                  <span>A recepção define a quadra na chegada. Até lá a reserva segura a <strong>{{ resolvedBooking()!.courtName }}</strong> como provisória — o sistema pode trocá-la se uma aula, um plano ou outra reserva precisar dela.</span>
+                  @if (booking()!.clubSessionId) {
+                    <span>O clubinho fica sempre com quadra provisória: hoje na <strong>{{ resolvedBooking()!.courtName }}</strong>. A equipe troca quando quiser, e o sistema pode trocá-la se uma aula, um plano ou outra reserva precisar dela.</span>
+                  } @else {
+                    <span>A recepção define a quadra na chegada. Até lá a reserva segura a <strong>{{ resolvedBooking()!.courtName }}</strong> como provisória — o sistema pode trocá-la se uma aula, um plano ou outra reserva precisar dela.</span>
+                  }
                 </p>
               }
             </ar-panel-card>
@@ -164,12 +168,12 @@ export function bookingChannelLabel(channel: string | null): string {
                   <button
                     type="button"
                     class="ar-mini-btn"
-                    [class.ar-mini-btn-primary]="unassigned()"
+                    [class.ar-mini-btn-primary]="definable()"
                     [disabled]="readOnly()"
                     (click)="openCourtChange()"
                   >
                     <ar-icon name="courts" [size]="14" />
-                    {{ unassigned() ? 'Definir quadra' : 'Trocar quadra' }}
+                    {{ definable() ? 'Definir quadra' : 'Trocar quadra' }}
                   </button>
                 }
                 @if (booking()!.classSessionId; as classSessionId) {
@@ -189,7 +193,7 @@ export function bookingChannelLabel(channel: string | null): string {
 
       @if (showCourtChange()) {
         <ar-modal (close)="closeCourtChange()">
-          <h2 class="confirm-title">{{ unassigned() ? 'Definir quadra' : 'Trocar quadra' }}</h2>
+          <h2 class="confirm-title">{{ definable() ? 'Definir quadra' : 'Trocar quadra' }}</h2>
           <p class="confirm-body modal-sub">
             {{ booking()!.startTime }}–{{ booking()!.endTime }}@if (booking()!.sportLabel; as sport) { · {{ sport }}} · {{ customerLabel() }}
           </p>
@@ -198,7 +202,7 @@ export function bookingChannelLabel(channel: string | null): string {
             <p class="confirm-body">Nenhuma outra quadra ativa deste esporte.</p>
           } @else {
             <div class="field-label">{{ booking()!.sportLabel ? 'Quadras de ' + booking()!.sportLabel : 'Quadras' }}</div>
-            <div class="court-grid" role="radiogroup" [attr.aria-label]="unassigned() ? 'Quadra' : 'Nova quadra'">
+            <div class="court-grid" role="radiogroup" [attr.aria-label]="definable() ? 'Quadra' : 'Nova quadra'">
               @for (option of courtOptions(); track option.court.id) {
                 <label
                   class="court-tile"
@@ -650,6 +654,8 @@ export class PanelBookingDetailComponent {
 
   /** Reserva no modo "a arena define a quadra" ainda sem quadra definida. */
   protected readonly unassigned = computed(() => this.booking()?.allocationStatus === 'unassigned');
+  /** Provisória que a equipe pode fixar ("Definir quadra"). O clubinho fica sempre provisório. */
+  protected readonly definable = computed(() => this.unassigned() && !this.booking()?.clubSessionId);
   /** Dia da sessão do clubinho ("sex, 14/11"): a troca vale só para ela. */
   protected readonly clubDay = computed(() => clubSessionDayLabel(this.booking()?.dateKey ?? ''));
 

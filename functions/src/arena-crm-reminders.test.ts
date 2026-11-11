@@ -18,7 +18,7 @@ const ON = DEFAULT_REMINDER_SETTINGS;
 function contract(o: Partial<CrmContractRecord> = {}): CrmContractRecord {
   return {
     id: "c1", arenaId: "arena1", customerKey: "a:u1", athleteId: "u1", customerName: "Rafael Moura", customerPhone: null,
-    planId: null, planName: "Noite 2x", period: "monthly", dueDay: 15, timesPerWeek: 2, monthlyPriceReais: 260,
+    planId: null, planName: "Noite 2x", period: "monthly", dueDay: 15, weeklyHours: 2, monthlyPriceReais: 260,
     startDate: "2026-09-15", autoRenew: true, paidInstallments: 2, status: "active", canceledOn: null, cancelReason: null,
     renewedFromId: null, renewedToId: null, note: null, createdAt: null, ...o,
   };

@@ -3,6 +3,7 @@ import { AvatarComponent } from '../ui/avatar.component';
 import { IconComponent } from '../ui/icon.component';
 import { PillComponent } from '../ui/pill.component';
 import {
+  hoursLabel,
   PERIOD_LABEL,
   contractEndLine,
   daysAgo,
@@ -32,7 +33,7 @@ const STATUS_FILTERS: ReadonlyArray<{ id: Filter; label: string; color?: string 
   { id: 'walk_in', label: 'Avulsos' },
 ];
 
-/** Aba Clientes: a base inteira (contratos, Planos de horário e avulsos) com status e frequência. */
+/** Aba Clientes: a base inteira (contratos, Planos de horário e avulsos) com status e horas jogadas por semana. */
 @Component({
   selector: 'ar-crm-customers',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -74,7 +75,7 @@ const STATUS_FILTERS: ReadonlyArray<{ id: Filter; label: string; color?: string 
       <section class="card table-card" aria-label="Lista de clientes">
         <div class="ar-table-scroll">
           <div class="table">
-            <div class="tr th"><span>Cliente</span><span>Contrato</span><span>Venc.</span><span>Frequência · 6 meses</span><span>Mensal</span><span>Status</span><span>Último jogo</span><span></span></div>
+            <div class="tr th"><span>Cliente</span><span>Contrato</span><span>Venc.</span><span>Horas/sem · 6 meses</span><span>Mensal</span><span>Status</span><span>Último jogo</span><span></span></div>
             @for (c of visible(); track c.key) {
               <div class="tr">
                 <button type="button" class="who" (click)="ui.openCustomer(c.key)">
@@ -98,7 +99,7 @@ const STATUS_FILTERS: ReadonlyArray<{ id: Filter; label: string; color?: string 
                       <i [style.height.%]="bar(m.total)"><b [style.height.%]="m.total ? (m.plan / m.total) * 100 : 0"></b></i>
                     }
                   </span>
-                  <span class="mono" [class.warn]="low(c)">{{ c.visitsPerWeek.toLocaleString('pt-BR') }}<small>/sem{{ c.contract ? ' · contrato ' + c.contract.timesPerWeek + 'x' : '' }}</small></span>
+                  <span class="mono" [class.warn]="low(c)">{{ hoursLabel(c.hoursPerWeek ?? 0) }}<small>/sem{{ c.contract ? ' · de ' + hoursLabel(c.contract.weeklyHours) : '' }}</small></span>
                 </span>
                 <span class="money">{{ c.contract && c.kind === 'member' ? money(c.contract.monthlyPriceReais) : c.conversion ? money(c.conversion.avgMonthlyReais) : '—' }}</span>
                 <span><ar-pill [tone]="tone(c)">{{ label(c) }}</ar-pill></span>
@@ -182,6 +183,7 @@ export class CrmCustomersComponent {
   protected readonly dueOptions = [0, 5, 15, 25];
   protected readonly periodLabel = PERIOD_LABEL;
   protected readonly money = money;
+  protected readonly hoursLabel = hoursLabel;
   protected readonly masked = maskedPhone;
   protected readonly endLine = contractEndLine;
   protected readonly ago = daysAgo;
@@ -234,7 +236,7 @@ export class CrmCustomersComponent {
   }
 
   protected low(c: CrmCustomer): boolean {
-    return c.kind === 'member' && !!c.contract && c.visitsPerWeek < c.contract.timesPerWeek / 2;
+    return c.kind === 'member' && !!c.contract && (c.hoursPerWeek ?? 0) < c.contract.weeklyHours / 2;
   }
 
   protected exportCsv(): void {

@@ -13,6 +13,7 @@ import {
   formatPhone,
   maskedPhone,
   money,
+  hoursLabel,
   monthShort,
   normalizeSearch,
   shortDate,
@@ -30,7 +31,7 @@ interface Picked {
   detail: string;
 }
 
-/** Novo contrato / editar / renovar: plano, período, vencimento 5/15/25, frequência e valor,
+/** Novo contrato / editar / renovar: plano, período, vencimento 5/15/25, horas por semana e valor,
  *  com o resumo (total, fim e parcelas) ao lado. */
 @Component({
   selector: 'ar-crm-contract-modal',
@@ -114,13 +115,13 @@ interface Picked {
               </div>
             </div>
             <div class="field">
-              <span class="field-l" id="fq-l">Frequência combinada</span>
-              <div class="freq" role="radiogroup" aria-labelledby="fq-l">
-                @for (n of [1, 2, 3, 4, 5]; track n) {
-                  <button type="button" role="radio" [class.on]="times() === n" [attr.aria-checked]="times() === n" (click)="times.set(n)">{{ n }}x</button>
-                }
+              <span class="field-l" id="fq-l">Horas por semana</span>
+              <div class="freq hours" role="group" aria-labelledby="fq-l">
+                <button type="button" aria-label="Meia hora a menos" [disabled]="hours() <= minHours" (click)="stepHours(-0.5)">−</button>
+                <output aria-live="polite">{{ hoursLabel(hours()) }}</output>
+                <button type="button" aria-label="Meia hora a mais" [disabled]="hours() >= maxHours" (click)="stepHours(0.5)">+</button>
               </div>
-              <span class="hint">por semana · o CRM avisa quando jogar menos</span>
+              <span class="hint">no dia e horário que quiser, seg a dom · o CRM avisa quando usar pouco</span>
             </div>
           </div>
 
@@ -149,6 +150,7 @@ interface Picked {
           <div class="big">{{ money(summary().total) }}<small> {{ totalLabel() }}</small></div>
           <div>
             <div class="kv"><span>Mensal</span><b>{{ money(price()) }}</b></div>
+            <div class="kv"><span>Horas por semana</span><b>{{ hoursLabel(hours()) }}</b></div>
             <div class="kv"><span>Parcelas</span><b>{{ summary().months }} · dia {{ pad(dueDay()) }}</b></div>
             <div class="kv"><span>Fim do período</span><b>{{ shortDate(summary().endDate) }}</b></div>
             @if (savings() > 0) { <div class="kv"><span>Economia do cliente</span><b class="good">{{ money(savings()) }}</b></div> }
@@ -199,6 +201,10 @@ interface Picked {
     .freq { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--nx-surface-1); border: 1px solid var(--nx-line); align-self: flex-start; }
     .freq button { min-width: 48px; padding: 9px 10px; border-radius: 8px; font: 700 13px var(--nx-font-ui); color: var(--nx-text-mute); background: none; border: none; cursor: pointer; }
     .freq button.on { background: var(--nx-orange-500); color: var(--nx-text-on-orange); }
+    .hours { align-items: center; }
+    .hours button { font-size: 18px; line-height: 1; }
+    .hours button:disabled { opacity: .35; cursor: default; }
+    .hours output { min-width: 64px; text-align: center; font: 700 15px var(--nx-font-display); color: var(--nx-text); }
     .toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border-radius: 12px; background: var(--nx-surface-1); border: 1px solid var(--nx-line); }
     .switch { width: 42px; height: 24px; border-radius: 999px; background: var(--nx-surface-2); border: 1px solid var(--nx-line-strong); position: relative; flex: none; padding: 0; cursor: pointer; }
     .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--nx-text-mute); transition: left 140ms; }
@@ -248,7 +254,11 @@ export class CrmContractModalComponent implements OnInit {
   protected readonly priceText = signal('');
   protected readonly period = signal<CrmPeriod>('monthly');
   protected readonly dueDay = signal(5);
-  protected readonly times = signal(1);
+  /** Banco de horas da semana, de meia em meia hora. */
+  protected readonly hours = signal(2);
+  protected readonly minHours = 0.5;
+  protected readonly maxHours = 40;
+  protected readonly hoursLabel = hoursLabel;
   protected readonly startDate = signal('');
   protected readonly autoRenew = signal(true);
   protected readonly note = signal('');
@@ -264,7 +274,7 @@ export class CrmContractModalComponent implements OnInit {
     this.priceText.set(p.monthlyPriceReais ? String(p.monthlyPriceReais).replace('.', ',') : '');
     this.period.set(p.period ?? 'monthly');
     this.dueDay.set(p.dueDay && DUE_DAYS.includes(p.dueDay) ? p.dueDay : 5);
-    this.times.set(p.timesPerWeek ?? 1);
+    this.hours.set(p.weeklyHours ?? 2);
     this.startDate.set(p.startDate ?? this.store.today());
     this.autoRenew.set(p.autoRenew ?? (p.period ?? 'monthly') === 'monthly');
     this.note.set(p.note ?? '');
@@ -302,7 +312,7 @@ export class CrmContractModalComponent implements OnInit {
     const s = this.state();
     if (s.mode === 'renew') return 'O contrato novo começa no dia seguinte ao fim do atual, com as condições que você escolher.';
     if (s.mode === 'edit') return 'Mudanças valem para as parcelas em aberto. Pagamentos já registrados ficam como estão.';
-    return s.customer?.conversion ? 'Veio da oferta: plano, valor e frequência já preenchidos.' : 'Cliente, plano e condições. O CRM acompanha vencimentos e frequência.';
+    return s.customer?.conversion ? 'Veio da oferta: plano, valor e horas da semana já preenchidos.' : 'Cliente, plano e condições. O CRM acompanha vencimentos e o uso das horas.';
   });
   protected readonly cta = computed(() => ({ new: 'Criar contrato', edit: 'Salvar alterações', renew: 'Renovar' })[this.state().mode]);
   protected readonly totalLabel = computed(() => {
@@ -319,13 +329,17 @@ export class CrmContractModalComponent implements OnInit {
     if (this.state().mode === 'new') this.autoRenew.set(p === 'monthly');
   }
 
+  protected stepHours(delta: number): void {
+    this.hours.update((h) => Math.min(this.maxHours, Math.max(this.minHours, Math.round((h + delta) * 2) / 2)));
+  }
+
   protected onPlanName(name: string): void {
     this.planName.set(name);
     const plan = this.plans().find((p) => normalizeSearch(p.name) === normalizeSearch(name));
     this.planId.set(plan?.id ?? null);
     if (plan) {
       this.priceText.set(String(plan.monthlyPriceReais).replace('.', ','));
-      this.times.set(Math.min(5, Math.max(1, plan.timesPerWeek)));
+      this.hours.set(plan.weeklyHours ?? Math.max(1, plan.timesPerWeek));
     }
   }
 
@@ -373,7 +387,7 @@ export class CrmContractModalComponent implements OnInit {
           planName: this.planName().trim(),
           period: this.period(),
           dueDay: this.dueDay(),
-          timesPerWeek: this.times(),
+          weeklyHours: this.hours(),
           monthlyPriceReais: this.price(),
           startDate: this.startDate() || this.store.today(),
           autoRenew: this.autoRenew(),

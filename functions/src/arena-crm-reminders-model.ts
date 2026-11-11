@@ -150,7 +150,7 @@ export function planContractReminders(
       refDate: v.endDate,
       installment: null,
       title: `Seu plano termina em ${v.daysToEnd} dias`,
-      body: `Seu ${plan} na ${arenaName} termina em ${dm(v.endDate)}. Fale com a arena para renovar e manter seu horário.`,
+      body: `Seu ${plan} na ${arenaName} termina em ${dm(v.endDate)}. Fale com a arena para renovar e manter suas horas da semana.`,
     });
   }
 
@@ -165,8 +165,8 @@ export function planContractReminders(
         installment: null,
         title: "Sentimos sua falta!",
         body: lastVisit ?
-          `Faz ${days} dias que você não joga na ${arenaName}. Seu horário do ${plan} continua garantido, te esperamos!` :
-          `Faz tempo que não te vemos na quadra da ${arenaName}. Seu horário do ${plan} está garantido, te esperamos!`,
+          `Faz ${days} dias que você não joga na ${arenaName}. Suas horas do ${plan} estão te esperando: é só reservar.` :
+          `Faz tempo que não te vemos na quadra da ${arenaName}. Suas horas do ${plan} estão te esperando: é só reservar.`,
       });
     }
   }

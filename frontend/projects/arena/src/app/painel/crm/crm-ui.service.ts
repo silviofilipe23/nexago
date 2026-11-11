@@ -36,7 +36,7 @@ export class CrmUiService {
     this.contractForm.set({ mode: 'new', customer, prefill, contractId: null });
   }
 
-  /** Oferta aceita: contrato nasce com o plano sugerido, o valor e a frequência que ele já joga. */
+  /** Oferta aceita: contrato nasce com o plano sugerido, o valor e as horas que ele já joga por semana. */
   contractFromOffer(c: CrmCustomer): void {
     const s = c.conversion?.suggestion;
     const plan = s ? this.store.overview()?.plans.find((p) => p.id === s.planId) : undefined;
@@ -44,7 +44,8 @@ export class CrmUiService {
       planId: s?.planId ?? null,
       planName: s?.planName ?? '',
       monthlyPriceReais: s?.monthlyPriceReais ?? c.conversion?.avgMonthlyReais ?? 0,
-      timesPerWeek: plan?.timesPerWeek ?? Math.max(1, c.pattern.length),
+      // O banco de horas nasce com as horas que ele já joga de avulso.
+      weeklyHours: c.conversion?.weeklyHours ?? plan?.weeklyHours ?? 2,
     });
   }
 

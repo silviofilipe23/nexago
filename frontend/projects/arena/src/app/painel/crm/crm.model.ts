@@ -20,7 +20,8 @@ export interface CrmContractView {
   planName: string;
   period: CrmPeriod;
   dueDay: number;
-  timesPerWeek: number;
+  /** Banco de horas da semana (seg a dom): joga quando quiser, até esse total. */
+  weeklyHours: number;
   monthlyPriceReais: number;
   startDate: string;
   endDate: string | null;
@@ -71,6 +72,8 @@ export interface CrmConversion {
   avulso90d: number;
   activeWeeks: number;
   avgMonthlyReais: number;
+  /** Horas por semana que ele já joga de avulso (a oferta de banco de horas). */
+  weeklyHours?: number;
   suggestion: { planId: string; planName: string; monthlyPriceReais: number; savingsReais: number } | null;
 }
 
@@ -103,6 +106,11 @@ export interface CrmCustomer {
   lastVisitDate: string | null;
   daysSinceVisit: number | null;
   visitsPerWeek: number;
+  /** Média de horas por semana nas 4 últimas semanas fechadas. */
+  hoursPerWeek?: number;
+  /** Horas jogadas por semana (seg a dom), 8 semanas; a última é a corrente. */
+  weekHours?: number[];
+  /** Onde costuma jogar (informativo: mensalista não tem horário fixo). */
   pattern: CrmPatternSlot[];
   weekHits: boolean[];
   conversion: CrmConversion | null;
@@ -125,6 +133,8 @@ export interface CrmPlanOption {
   name: string;
   monthlyPriceReais: number;
   timesPerWeek: number;
+  /** Vezes × duração do plano. */
+  weeklyHours?: number;
   windows: Array<{ weekday: number; startTime: string; endTime: string }>;
 }
 
@@ -180,7 +190,7 @@ export interface ReminderOutcome {
 export const REMINDER_OPTIONS: ReadonlyArray<{ id: keyof ReminderSettings; title: string; desc: string; when: string[] }> = [
   { id: 'due', title: 'Mensalidade vencendo', desc: 'Aviso antes e no dia do vencimento.', when: ['3 dias antes', 'no dia'] },
   { id: 'overdue', title: 'Mensalidade atrasada', desc: 'Cobrança gentil, sem citar multa.', when: ['+1 dia', '+7 dias'] },
-  { id: 'renewal', title: 'Contrato terminando', desc: 'Convite para renovar e manter o horário.', when: ['15 dias antes', '3 dias antes'] },
+  { id: 'renewal', title: 'Contrato terminando', desc: 'Convite para renovar e manter as horas da semana.', when: ['15 dias antes', '3 dias antes'] },
   { id: 'absence', title: 'Sentimos sua falta', desc: 'Mensalista sem jogar há 14 dias. Uma vez por sumiço.', when: ['14 dias sem jogar'] },
   { id: 'teamDigest', title: 'Resumo do dia para o time', desc: 'Dono e gestores: quantos vencem, atrasaram e sumiram.', when: ['9h'] },
 ];
@@ -313,6 +323,25 @@ export function monthYear(dateKey: string | null | undefined): string {
   return `${monthShort(dateKey.slice(0, 7))}/${dateKey.slice(2, 4)}`;
 }
 
+/** "4h" / "1h30" — horas do banco da semana. Média jogada arredonda para 15 min ("1h08" não ajuda ninguém). */
+export function hoursLabel(hours: number): string {
+  const total = Math.round((hours * 60) / 15) * 15;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return m ? `${m}min` : '0h';
+  return m ? `${h}h${String(m).padStart(2, '0')}` : `${h}h`;
+}
+
+/** Uso do banco de horas na semana corrente: horas jogadas, contratadas e o que sobra. */
+export function weekUsage(c: CrmCustomer): { used: number; total: number; left: number; pct: number } | null {
+  const v = c.contract;
+  const total = v?.weeklyHours ?? 0;
+  // Só contrato em vigor: quem não renovou ou cancelou não tem banco nesta semana.
+  if (!total || v?.status === 'not_renewed' || v?.status === 'canceled') return null;
+  const used = c.weekHours?.at(-1) ?? 0;
+  return { used, total, left: Math.max(0, total - used), pct: Math.min(100, Math.round((used / total) * 100)) };
+}
+
 /** "19h" / "19h30" */
 export function hourLabel(time: string): string {
   const [h, m] = time.split(':');
@@ -427,7 +456,7 @@ export function contactLine(contact: CrmContact | null, today: string): string {
 export type OfferTemplate = 'savings' | 'slot' | 'discount';
 export const OFFER_TEMPLATES: ReadonlyArray<{ id: OfferTemplate; label: string }> = [
   { id: 'savings', label: 'Economia' },
-  { id: 'slot', label: 'Horário garantido' },
+  { id: 'slot', label: 'Joga quando quiser' },
   { id: 'discount', label: '1º mês com desconto' },
 ];
 
@@ -436,15 +465,16 @@ export function offerMessage(c: CrmCustomer, arenaName: string, template: OfferT
   const conv = c.conversion;
   const plan = conv?.suggestion;
   const habit = patternPhrase(c.pattern);
+  const hours = hoursLabel(conv?.weeklyHours ?? 1);
   const hello = `Oi, ${name}! Aqui é da ${arenaName}. Vi que você joga com a gente ${habit}.`;
-  if (!plan) return `${hello} Que tal deixar esse horário fixo como mensalista? A quadra fica garantida pra você toda semana. Posso te mandar as condições?`;
+  if (!plan) return `${hello} Que tal virar mensalista? Você fica com ${hours} por semana pra jogar no dia e no horário que quiser. Posso te mandar as condições?`;
   if (template === 'discount') {
     return `${hello} Se fechar o plano ${plan.planName} esta semana, o 1º mês sai com desconto. Quer que eu te mande os detalhes?`;
   }
   if (template === 'savings' && plan.savingsReais > 0) {
-    return `${hello} Que tal garantir esse horário fixo com o plano ${plan.planName}? Fica ${money(plan.monthlyPriceReais)}/mês, ${money(Math.round(plan.savingsReais))} a menos do que você gasta hoje, e a quadra é sua toda semana. Quer que eu reserve?`;
+    return `${hello} Como mensalista no plano ${plan.planName}, você fica com ${hours} por semana pra jogar quando quiser, por ${money(plan.monthlyPriceReais)}/mês: ${money(Math.round(plan.savingsReais))} a menos do que você gasta hoje. Quer que eu monte pra você?`;
   }
-  return `${hello} Que tal deixar esse horário fixo com o plano ${plan.planName} por ${money(plan.monthlyPriceReais)}/mês? A quadra fica garantida pra você toda semana, sem precisar correr pra reservar. Quer que eu reserve?`;
+  return `${hello} Que tal o plano ${plan.planName} por ${money(plan.monthlyPriceReais)}/mês? São ${hours} por semana pra usar no dia e no horário que quiser, sem pagar cada reserva. Quer que eu monte pra você?`;
 }
 
 export function queueMessage(queue: CrmQueueId, c: CrmCustomer, item: CrmQueueItem, arenaName: string): string {
@@ -456,12 +486,12 @@ export function queueMessage(queue: CrmQueueId, c: CrmCustomer, item: CrmQueueIt
     return `Oi, ${name}! Tudo bem? Aqui é da ${arenaName}. Passando pra lembrar que a mensalidade do ${plan} está em aberto (${money(v?.overdueReais ?? item.amountReais)}). Se já pagou, me avisa que eu dou baixa. ${payLine(v)}`;
   case 'dueThisWeek':
     return item.kind === 'term_end'
-      ? `Oi, ${name}! Aqui é da ${arenaName}. Seu contrato do ${plan} termina em ${dayMonth(item.date)}. Bora renovar e manter seu horário garantido? Posso deixar tudo pronto pra você.`
+      ? `Oi, ${name}! Aqui é da ${arenaName}. Seu contrato do ${plan} termina em ${dayMonth(item.date)}. Bora renovar e manter suas horas da semana? Posso deixar tudo pronto pra você.`
       : `Oi, ${name}! Aqui é da ${arenaName}. A mensalidade do ${plan} (${money(item.amountReais)}) vence em ${dayMonth(item.date)}. ${payLine(v)} Qualquer coisa, é só chamar!`;
   case 'notRenewed':
     return `Oi, ${name}! Sentimos sua falta aqui na ${arenaName}. Seu ${plan} terminou em ${dayMonth(item.date)} e dá pra voltar com as mesmas condições. Quer que eu renove pra você?`;
   case 'absent':
-    return `Oi, ${name}! Faz ${c.daysSinceVisit ?? 'alguns'} dias que você não aparece na ${arenaName}. Está tudo bem? Seu horário do ${plan} continua garantido, te esperamos na quadra!`;
+    return `Oi, ${name}! Faz ${c.daysSinceVisit ?? 'alguns'} dias que você não aparece na ${arenaName}. Está tudo bem? Suas horas do ${plan} estão te esperando, é só reservar quando quiser!`;
   }
 }
 
@@ -533,7 +563,7 @@ function csvCell(v: string | number | null | undefined): string {
 
 /** CSV (separador `;`, como o Excel em pt-BR abre) da lista filtrada. */
 export function customersCsv(customers: readonly CrmCustomer[]): string {
-  const head = ['Cliente', 'Telefone', 'Status', 'Plano', 'Período', 'Vencimento', 'Mensal', 'Frequência/semana', 'Reservas 6 meses', 'Último jogo'];
+  const head = ['Cliente', 'Telefone', 'Status', 'Plano', 'Período', 'Vencimento', 'Mensal', 'Horas/semana (contrato)', 'Horas/semana (jogadas)', 'Reservas 6 meses', 'Último jogo'];
   const lines = customers.map((c) => [
     c.name,
     formatPhone(c.phone) ?? '',
@@ -542,7 +572,8 @@ export function customersCsv(customers: readonly CrmCustomer[]): string {
     c.contract ? PERIOD_LABEL[c.contract.period] : '',
     c.contract ? `dia ${c.contract.dueDay}` : '',
     c.contract ? c.contract.monthlyPriceReais.toFixed(2).replace('.', ',') : '',
-    c.visitsPerWeek.toString().replace('.', ','),
+    c.contract ? c.contract.weeklyHours.toString().replace('.', ',') : '',
+    (c.hoursPerWeek ?? 0).toString().replace('.', ','),
     c.bookings6m,
     c.lastVisitDate ? shortDate(c.lastVisitDate) : '',
   ].map(csvCell).join(';'));
@@ -586,7 +617,11 @@ export function customerInsight(c: CrmCustomer, today: string): string | null {
       return `Caiu de ${before.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} para ${recent.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} jogos por mês${risk}`;
     }
     if (c.absent) return `Não joga há ${c.daysSinceVisit ?? 'muitos'} dias. Mensalista sumido costuma cancelar no vencimento seguinte.`;
-    if (c.visitsPerWeek > v.timesPerWeek) return `Joga ${c.visitsPerWeek.toLocaleString('pt-BR')}x por semana, mais do que o contrato (${v.timesPerWeek}x). Dá pra oferecer um plano maior.`;
+    const played = c.hoursPerWeek ?? 0;
+    if (played > v.weeklyHours) return `Joga ${hoursLabel(played)} por semana, mais do que as ${hoursLabel(v.weeklyHours)} do contrato. Dá pra oferecer um plano com mais horas.`;
+    if (v.source === 'contract' && played > 0 && played < v.weeklyHours / 2) {
+      return `Usa ${hoursLabel(played)} das ${hoursLabel(v.weeklyHours)} por semana. Quem paga e não usa costuma não renovar: vale lembrar que as horas são dele.`;
+    }
     return null;
   }
   const conv = c.conversion;

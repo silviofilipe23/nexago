@@ -15,6 +15,7 @@ import { PillComponent, type PillTone } from '../ui/pill.component';
 import { AthleteLevelDialogComponent } from './athlete-level-dialog.component';
 import {
   AthletesRepository,
+  isReviewBot,
   type AthleteBaseRow,
   type AthleteBaseStatus,
   type AthleteBaseSummary,
@@ -35,9 +36,17 @@ const STATUS: Record<AthleteBaseStatus, { label: string; tone: PillTone }> = {
   never_signed_in: { label: 'Nunca entrou', tone: 'yellow' },
   inactive: { label: 'Inativa', tone: 'dim' },
   disabled: { label: 'Desativada', tone: 'red' },
+  review_bot: { label: 'Robô da loja', tone: 'dim' },
 };
 
-const STATUS_ORDER: readonly AthleteBaseStatus[] = ['active', 'incomplete', 'never_signed_in', 'inactive', 'disabled'];
+const STATUS_ORDER: readonly AthleteBaseStatus[] = [
+  'active',
+  'incomplete',
+  'never_signed_in',
+  'inactive',
+  'disabled',
+  'review_bot',
+];
 
 /** Minúsculas e sem acento: "brunao" acha "Brunão". */
 function fold(value: string): string {
@@ -126,6 +135,8 @@ const DAY_MS = 86_400_000;
         <p class="rule">
           <strong>Atleta ativo</strong> = conta de atleta com cadastro completo que já entrou pelo menos uma vez,
           não marcada como inativa. Marcar inativa não bloqueia o login nem apaga dados — só tira a conta dos números.
+          <strong>Robô da loja</strong> = conta que a revisão da Google Play cria a cada versão enviada; fica fora de
+          todos os números.
         </p>
 
         <bo-panel-card pad="sm" kicker="base completa · sem paginação" title="Contas">
@@ -376,7 +387,14 @@ export class PanelAtletasComponent {
   }
 
   protected readonly statusCounts = computed(() => {
-    const counts: Record<AthleteBaseStatus, number> = { active: 0, incomplete: 0, never_signed_in: 0, inactive: 0, disabled: 0 };
+    const counts: Record<AthleteBaseStatus, number> = {
+      active: 0,
+      incomplete: 0,
+      never_signed_in: 0,
+      inactive: 0,
+      disabled: 0,
+      review_bot: 0,
+    };
     for (const row of this.rows()) counts[row.status]++;
     return counts;
   });
@@ -580,6 +598,7 @@ export class PanelAtletasComponent {
   /** Mesma precedência do servidor (`athlete-base-model.statusOf`). */
   private statusOf(row: AthleteBaseRow): AthleteBaseStatus {
     if (row.disabled) return 'disabled';
+    if (isReviewBot(row.email, row.profileComplete)) return 'review_bot';
     if (row.inactive) return 'inactive';
     if (row.lastSignInMs == null) return 'never_signed_in';
     if (!row.profileComplete) return 'incomplete';
@@ -594,7 +613,7 @@ export class PanelAtletasComponent {
   private recount(): void {
     const current = this.summary();
     if (!current) return;
-    const athletes = this.rows().filter((r) => r.isAthlete);
+    const athletes = this.rows().filter((r) => r.isAthlete && r.status !== 'review_bot');
     const by = (s: AthleteBaseStatus) => athletes.filter((r) => r.status === s).length;
     const active = athletes.filter((r) => r.status === 'active');
     this.summary.set({
@@ -604,6 +623,7 @@ export class PanelAtletasComponent {
       neverSignedIn: by('never_signed_in'),
       inactive: by('inactive'),
       disabled: by('disabled'),
+      reviewBots: this.rows().filter((r) => r.status === 'review_bot').length,
       activeSeenLast30d: active.filter((r) => r.lastSeenMs != null && Date.now() - r.lastSeenMs <= 30 * DAY_MS).length,
     });
   }

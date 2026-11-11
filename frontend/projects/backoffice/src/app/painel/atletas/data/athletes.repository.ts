@@ -63,7 +63,19 @@ export interface AthleteRowSummary {
 }
 
 /** Situação da conta na base — espelho de `functions/src/athlete-base-model.ts`. */
-export type AthleteBaseStatus = 'active' | 'incomplete' | 'never_signed_in' | 'inactive' | 'disabled';
+export type AthleteBaseStatus = 'active' | 'incomplete' | 'never_signed_in' | 'inactive' | 'disabled' | 'review_bot';
+
+/**
+ * Robô das lojas (revisão e pre-launch report da Google Play) — espelho de `isReviewBot` em
+ * `functions/src/athlete-base-model.ts`. `nome.12345@gmail.com` só conta enquanto o cadastro
+ * está incompleto; o domínio do Test Lab é sempre robô.
+ */
+export function isReviewBot(email: string | null | undefined, profileComplete: boolean): boolean {
+  const value = (email ?? '').trim().toLowerCase();
+  if (!value) return false;
+  if (value.endsWith('@cloudtestlabaccounts.com')) return true;
+  return !profileComplete && /^[a-z]+\.\d{5}@gmail\.com$/.test(value);
+}
 
 export interface AthleteBaseRow extends BackofficeUser {
   nickname: string | null;
@@ -88,6 +100,8 @@ export interface AthleteBaseSummary {
   neverSignedIn: number;
   inactive: number;
   disabled: number;
+  /** Robôs das lojas, fora de todos os outros números. Ausente em callable antigo. */
+  reviewBots?: number;
   activeSeenLast30d: number;
   activeByMonth: { month: string; count: number }[];
 }

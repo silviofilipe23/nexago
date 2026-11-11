@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   isAthleteAccount,
   isProfileComplete,
+  isReviewBot,
   lastMonths,
   monthKeyOf,
   primaryLevel,
@@ -61,6 +62,33 @@ describe("athlete-base-model.statusOf", () => {
   });
 });
 
+describe("athlete-base-model.isReviewBot", () => {
+  it("pre-launch report da Play é sempre robô", () => {
+    assert.equal(isReviewBot("abc.def.123@cloudtestlabaccounts.com", false), true);
+    assert.equal(isReviewBot("abc.def.123@cloudtestlabaccounts.com", true), true);
+  });
+  it("revisão da Play (nome.12345@gmail.com) é robô só com cadastro incompleto", () => {
+    assert.equal(isReviewBot("daniel.48213@gmail.com", false), true);
+    assert.equal(isReviewBot("Daniel.48213@Gmail.com", false), true);
+    assert.equal(isReviewBot("daniel.48213@gmail.com", true), false);
+  });
+  it("e-mails parecidos de gente de verdade não são robô", () => {
+    assert.equal(isReviewBot("daniel.4821@gmail.com", false), false);
+    assert.equal(isReviewBot("daniel.482139@gmail.com", false), false);
+    assert.equal(isReviewBot("daniel48213@gmail.com", false), false);
+    assert.equal(isReviewBot("joao.silva.48213@gmail.com", false), false);
+    assert.equal(isReviewBot("daniel.48213@hotmail.com", false), false);
+    assert.equal(isReviewBot(null, false), false);
+  });
+  it("robô vence nunca entrou/incompleto/inativa; desativada no Auth vence o robô", () => {
+    const mark = {reason: "x", markedAtMs: NOW, markedByName: "Ops"};
+    assert.equal(row({email: "ana.12345@gmail.com", profileComplete: false}).status, "review_bot");
+    assert.equal(row({email: "ana.12345@gmail.com", profileComplete: false, inactive: mark}).status, "review_bot");
+    assert.equal(row({email: "ana.12345@gmail.com", profileComplete: false, disabled: true}).status, "disabled");
+    assert.equal(row({email: "ana.12345@gmail.com"}).status, "active");
+  });
+});
+
 describe("athlete-base-model.primaryLevel", () => {
   it("usa o esporte principal; sem principal, só o único esporte", () => {
     assert.deepEqual(
@@ -87,6 +115,20 @@ describe("athlete-base-model meses", () => {
 });
 
 describe("athlete-base-model.summarizeAthleteBase", () => {
+  it("robôs das lojas saem de todos os números de atleta", () => {
+    const s = summarizeAthleteBase([
+      row({uid: "a"}),
+      row({uid: "b", profileComplete: false}),
+      row({uid: "bot1", email: "ana.12345@gmail.com", profileComplete: false}),
+      row({uid: "bot2", email: "x@cloudtestlabaccounts.com", profileComplete: false, roles: []}),
+    ], NOW);
+    assert.equal(s.accounts, 4);
+    assert.equal(s.athletes, 2);
+    assert.equal(s.active, 1);
+    assert.equal(s.incomplete, 1);
+    assert.equal(s.neverSignedIn, 0);
+    assert.equal(s.reviewBots, 2);
+  });
   it("conta só atletas e separa cada situação", () => {
     const rows = [
       row({uid: "a"}),

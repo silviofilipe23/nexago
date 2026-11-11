@@ -6,6 +6,11 @@
  * e `scripts/audit-recent-signups.js`); "entrou" é o `lastSignInTime` do Auth, que só existe
  * depois de um login de verdade (conta criada pelo Admin SDK e nunca usada não tem).
  *
+ * Robôs das lojas (11/11/2026): a revisão e o pre-launch report da Google Play entram no app a
+ * cada versão enviada e largam a conta no onboarding — cerca de 3 contas por release, todas
+ * "cadastro incompleto". Ficam com a situação `review_bot` e saem de todos os números da base
+ * (inclusive "Contas de atleta"), sem apagar nada.
+ *
  * A marca manual de inativa (`backofficeUserFlags/{uid}.inactive`) tira a conta da contagem sem
  * apagar nada: o atleta continua entrando e usando o app normalmente.
  *
@@ -14,8 +19,12 @@
 
 export const USER_FLAGS = "backofficeUserFlags";
 
-/** Precedência: desativada no Auth > marcada inativa > nunca entrou > cadastro incompleto > ativa. */
-export type AthleteBaseStatus = "active" | "incomplete" | "never_signed_in" | "inactive" | "disabled";
+/**
+ * Precedência: desativada no Auth > robô da loja > marcada inativa > nunca entrou >
+ * cadastro incompleto > ativa.
+ */
+export type AthleteBaseStatus =
+  "active" | "incomplete" | "never_signed_in" | "inactive" | "disabled" | "review_bot";
 
 export interface InactiveMark {
   reason: string | null;
@@ -63,6 +72,8 @@ export interface AthleteBaseSummary {
   neverSignedIn: number;
   inactive: number;
   disabled: number;
+  /** Contas de robô das lojas (fora de `athletes` e de todos os outros números). */
+  reviewBots: number;
   /** Ativos que abriram o app ou o portal nos últimos 30 dias. */
   activeSeenLast30d: number;
   /** Atletas ativos acumulados ao fim de cada um dos últimos 12 meses, pela data do cadastro. */
@@ -86,6 +97,22 @@ export function isProfileComplete(data: Data | undefined): boolean {
     data["onboardingCompleted"] === true ||
     (onboarding != null && typeof onboarding === "object" && onboarding["completedAt"] != null)
   );
+}
+
+/** Domínio das contas do pre-launch report da Google Play (Firebase Test Lab). */
+const TEST_LAB_DOMAIN = "@cloudtestlabaccounts.com";
+/** Contas da revisão da Google Play: `nome.12345@gmail.com` (exatamente 5 dígitos). */
+const PLAY_REVIEW_EMAIL = /^[a-z]+\.\d{5}@gmail\.com$/;
+
+/**
+ * Conta de robô das lojas. O padrão `nome.12345@gmail.com` só vale enquanto o cadastro está
+ * incompleto: uma pessoa de verdade com esse e-mail que conclui o cadastro volta a contar.
+ */
+export function isReviewBot(email: string | null | undefined, profileComplete: boolean): boolean {
+  const value = (email ?? "").trim().toLowerCase();
+  if (!value) return false;
+  if (value.endsWith(TEST_LAB_DOMAIN)) return true;
+  return !profileComplete && PLAY_REVIEW_EMAIL.test(value);
 }
 
 export function isAthleteAccount(roles: readonly string[]): boolean {
@@ -123,8 +150,11 @@ export function inactiveMarkOf(flags: Data | undefined, toMs: (v: unknown) => nu
   };
 }
 
-export function statusOf(row: Pick<AthleteBaseRow, "disabled" | "inactive" | "lastSignInMs" | "profileComplete">): AthleteBaseStatus {
+export function statusOf(
+  row: Pick<AthleteBaseRow, "disabled" | "inactive" | "lastSignInMs" | "profileComplete"> & {email?: string | null},
+): AthleteBaseStatus {
   if (row.disabled) return "disabled";
+  if (isReviewBot(row.email, row.profileComplete)) return "review_bot";
   if (row.inactive) return "inactive";
   if (row.lastSignInMs == null) return "never_signed_in";
   if (!row.profileComplete) return "incomplete";
@@ -152,7 +182,7 @@ export function lastMonths(nowMs: number, count: number): string[] {
 }
 
 export function summarizeAthleteBase(rows: readonly AthleteBaseRow[], nowMs: number): AthleteBaseSummary {
-  const athletes = rows.filter((r) => r.isAthlete);
+  const athletes = rows.filter((r) => r.isAthlete && r.status !== "review_bot");
   const count = (status: AthleteBaseStatus) => athletes.filter((r) => r.status === status).length;
   const active = athletes.filter((r) => r.status === "active");
   const months = lastMonths(nowMs, 12);
@@ -169,6 +199,7 @@ export function summarizeAthleteBase(rows: readonly AthleteBaseRow[], nowMs: num
     neverSignedIn: count("never_signed_in"),
     inactive: count("inactive"),
     disabled: count("disabled"),
+    reviewBots: rows.filter((r) => r.status === "review_bot").length,
     activeSeenLast30d: active.filter((r) => r.lastSeenMs != null && nowMs - r.lastSeenMs <= 30 * DAY_MS).length,
     activeByMonth,
   };

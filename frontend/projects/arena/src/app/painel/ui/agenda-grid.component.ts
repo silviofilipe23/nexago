@@ -52,7 +52,11 @@ const NON_CLICKABLE: ReadonlySet<AgendaBlockStatus> = new Set(['manutencao']);
  *  Quadras que não couberem lado a lado empurram a grade pra rolagem horizontal em vez de
  *  espremer em silêncio (mesmo raciocínio da classe global de tabela larga, aplicado aqui à
  *  mão porque o layout é de blocos posicionados por cálculo, não uma tabela de
- *  `grid-template-columns`). */
+ *  `grid-template-columns`).
+ *  Vai como `width` (base do flex) no cabeçalho E na coluna, não `min-width`: com `min-width`
+ *  cada linha media pela própria largura intrínseca — o cabeçalho pelo texto das modalidades
+ *  (~181px) e a coluna, que só tem blocos absolutos, pelo piso (120px). Com 12 quadras o
+ *  cabeçalho passava a grade e as últimas quadras ficavam sem horários embaixo. */
 const MIN_COURT_COL_PX = 120;
 
 /** Grade de quadras × horário (protótipo ArAgendaGrade), com blocos posicionados por cálculo —
@@ -72,7 +76,7 @@ const MIN_COURT_COL_PX = 120;
                por baixo do espaço vazio e fica "colado" acima da coluna de horário fixada. -->
           <div class="gutter-spacer"></div>
           @for (c of courts(); track c.id) {
-            <div class="court-head" [style.minWidth.px]="minCourtColPx">
+            <div class="court-head" [style.width.px]="minCourtColPx">
               <div class="court-name">{{ c.name }}</div>
               <div class="court-sport">{{ c.sport }}</div>
             </div>
@@ -97,7 +101,7 @@ const MIN_COURT_COL_PX = 120;
 
           <div class="columns">
             @for (c of courts(); track c.id) {
-              <div class="column" [style.minWidth.px]="minCourtColPx">
+              <div class="column" [style.width.px]="minCourtColPx">
                 @for (b of positionedByCourt()[c.id] ?? []; track b.start) {
                   <div
                     class="block"
@@ -186,9 +190,14 @@ const MIN_COURT_COL_PX = 120;
       background: var(--nx-surface-0);
     }
 
+    /* Mesma regra de '.column' (base = width de MIN_COURT_COL_PX, cresce igual, não encolhe):
+       é o que mantém cada cabeçalho exatamente em cima da sua coluna. */
     .court-head {
-      flex: 1;
+      flex: 1 0 auto;
+      box-sizing: border-box;
+      padding: 0 6px;
       text-align: center;
+      overflow-wrap: anywhere;
     }
 
     .court-name {
@@ -290,7 +299,8 @@ const MIN_COURT_COL_PX = 120;
     }
 
     .column {
-      flex: 1;
+      flex: 1 0 auto;
+      box-sizing: border-box;
       position: relative;
       border-left: 1px solid var(--nx-line);
     }

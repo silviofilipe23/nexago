@@ -81,7 +81,8 @@ abstract final class AppRoutes {
   static const String professorEnroll = '/professor/acoes/:arenaId/matricular';
   static const String professorConvertTrial =
       '/professor/acoes/:arenaId/experimental';
-  static const String professorNewLesson = '/professor/acoes/:arenaId/nova-aula';
+  static const String professorNewLesson =
+      '/professor/acoes/:arenaId/nova-aula';
   static const String professorMakeup =
       '/professor/acoes/:arenaId/reposicao/:studentId';
   static const String professorWaitlist =
@@ -104,8 +105,7 @@ abstract final class AppRoutes {
 
   /// Comunicado do professor para o ATLETA (push `professor_notice`). Abre no
   /// modo Atleta.
-  static const String professorNoticeForStudent =
-      '/aviso-professor/:noticeId';
+  static const String professorNoticeForStudent = '/aviso-professor/:noticeId';
 
   /// Pagamento ao professor independente confirmado (B17) e o comprovante
   /// (B19), no modo Atleta. Abre pela Agenda (volta do Asaas) e pelo push
@@ -137,7 +137,8 @@ abstract final class AppRoutes {
       '/professor/mais/planos-de-aula/editar';
 
   /// Modo aula (H6, `?planId=`) e o registro pós-aula (H7, `?planId=`).
-  static const String professorLessonLive = '/professor/mais/planos-de-aula/aula';
+  static const String professorLessonLive =
+      '/professor/mais/planos-de-aula/aula';
   static const String professorLessonReview =
       '/professor/mais/planos-de-aula/registro';
 
@@ -484,6 +485,10 @@ abstract final class AppRoutes {
   static const String schedulePlanPayment =
       '/meus-planos-horario/pagar/:chargeId';
 
+  /// Meu contrato: contrato de mensalista do CRM da arena (`?id=` abre um
+  /// contrato). Destino dos lembretes automáticos do contrato (`arena_crm_*`).
+  static const String myArenaContract = '/meu-contrato';
+
   /// Cobranças do atleta: tudo que ele paga num lugar (aulas, horário fixo,
   /// reservas e inscrições). `?aba=recorrentes|historico`, `?tipo=aulas|…`.
   static const String athleteBilling = '/cobrancas';
@@ -629,8 +634,7 @@ abstract final class AppRoutes {
 
   /// Personalizar (app 02b nome / 02c imagem), aberta pelo bloco
   /// "Personalize" da página do produto com o SKU escolhido (`?sku=`).
-  static const String storeCustomize =
-      '/loja/produto/:productId/personalizar';
+  static const String storeCustomize = '/loja/produto/:productId/personalizar';
 
   /// Todas as avaliações do produto (resumo, caimento, filtros e a lista),
   /// aberta pelo "Ver todas" da página do produto; `?tamanho=` é o valor do
@@ -730,7 +734,8 @@ abstract final class AppRoutes {
   /// Horários fixos / mensalistas (gestor).
   static const String arenaRecurring = '/arena/bookings/recurring';
   static const String arenaRecurringNew = '/arena/bookings/recurring/new';
-  static const String arenaRecurringCreated = '/arena/bookings/recurring/created';
+  static const String arenaRecurringCreated =
+      '/arena/bookings/recurring/created';
   static const String arenaRecurringDetail =
       '/arena/bookings/recurring/series/:seriesId';
 
@@ -849,8 +854,7 @@ abstract final class AppRoutes {
   static const String arenaPlanActivated = '/arena/settings/plan/activated';
 
   /// Aguardando confirmação PIX/cartão da assinatura.
-  static const String arenaSubscriptionPending =
-      '/arena/settings/plan/pending';
+  static const String arenaSubscriptionPending = '/arena/settings/plan/pending';
 
   /// Catálogo de produtos (gestor).
   static const String arenaProducts = '/arena/products';
@@ -865,7 +869,8 @@ abstract final class AppRoutes {
   static const String arenaProductStock = '/arena/products/stock';
 
   /// Repor estoque: `/arena/products/:productId/restock`
-  static const String arenaProductRestock = '/arena/products/:productId/restock';
+  static const String arenaProductRestock =
+      '/arena/products/:productId/restock';
 
   /// Pós-exclusão de produto (desfazer).
   static const String arenaProductDeleted = '/arena/products/deleted';
@@ -885,8 +890,7 @@ abstract final class AppRoutes {
       '/arena/comandas/:comandaId/quick-add';
   static const String arenaComandaPayment =
       '/arena/comandas/:comandaId/payment';
-  static const String arenaComandaClosed =
-      '/arena/comandas/:comandaId/closed';
+  static const String arenaComandaClosed = '/arena/comandas/:comandaId/closed';
 
   /// Bloqueio do atleta ao tentar reservar.
   static const String arenaBookingBlocked = '/arena/:arenaId/book/blocked';
@@ -1032,8 +1036,7 @@ abstract final class AppRoutes {
       '/convite-dupla/:externalInviteId';
 
   /// Convite de parceiro para torneio: `/torneios-convite/:inviteId`
-  static const String tournamentPartnerInvite =
-      '/torneios-convite/:inviteId';
+  static const String tournamentPartnerInvite = '/torneios-convite/:inviteId';
 
   /// Detalhe de liga: `/ligas/:leagueId`
   static const String leagueDetail = '/ligas/:leagueId';
@@ -1149,8 +1152,7 @@ abstract final class AppRouteNames {
   static const String athleteTrainingCheckIn = 'athleteTrainingCheckIn';
   static const String athleteTrainingAgenda = 'athleteTrainingAgenda';
   static const String athleteTrainingMore = 'athleteTrainingMore';
-  static const String athleteTrainingPrivateLink =
-      'athleteTrainingPrivateLink';
+  static const String athleteTrainingPrivateLink = 'athleteTrainingPrivateLink';
   static const String athleteTrainingArenaClass = 'athleteTrainingArenaClass';
   static const String athleteTrainingCenter = 'athleteTrainingCenter';
   static const String athleteTrainingCenterSession =
@@ -1213,14 +1215,16 @@ abstract final class AppRouteNames {
       'organizerTournamentPublished';
   static const String organizerLeagueCreateIdentity =
       'organizerLeagueCreateIdentity';
-  static const String organizerLeagueCreateSeason = 'organizerLeagueCreateSeason';
+  static const String organizerLeagueCreateSeason =
+      'organizerLeagueCreateSeason';
   static const String organizerLeagueCreateCategories =
       'organizerLeagueCreateCategories';
   static const String organizerLeagueCreateRanking =
       'organizerLeagueCreateRanking';
   static const String organizerLeagueCreateStages =
       'organizerLeagueCreateStages';
-  static const String organizerLeagueCreateReview = 'organizerLeagueCreateReview';
+  static const String organizerLeagueCreateReview =
+      'organizerLeagueCreateReview';
   static const String organizerLeaguePublished = 'organizerLeaguePublished';
   static const String organizerLeagueStageCreateLocation =
       'organizerLeagueStageCreateLocation';
@@ -1231,11 +1235,14 @@ abstract final class AppRouteNames {
   static const String organizerLeagueStagePublished =
       'organizerLeagueStagePublished';
   static const String organizerTournamentDetail = 'organizerTournamentDetail';
-  static const String organizerTournamentUniforms = 'organizerTournamentUniforms';
+  static const String organizerTournamentUniforms =
+      'organizerTournamentUniforms';
   static const String organizerTournamentCategories =
       'organizerTournamentCategories';
-  static const String organizerTournamentOverview = 'organizerTournamentOverview';
-  static const String organizerTournamentFinancial = 'organizerTournamentFinancial';
+  static const String organizerTournamentOverview =
+      'organizerTournamentOverview';
+  static const String organizerTournamentFinancial =
+      'organizerTournamentFinancial';
   static const String organizerTournamentOperations =
       'organizerTournamentOperations';
   static const String organizerTournamentStaff = 'organizerTournamentStaff';
@@ -1296,6 +1303,7 @@ abstract final class AppRouteNames {
   static const String arenaSchedulePlanSignup = 'arenaSchedulePlanSignup';
   static const String mySchedulePlans = 'mySchedulePlans';
   static const String schedulePlanPayment = 'schedulePlanPayment';
+  static const String myArenaContract = 'myArenaContract';
   static const String athleteBilling = 'athleteBilling';
   static const String savedPaymentCard = 'savedPaymentCard';
   static const String paymentCardNew = 'paymentCardNew';
@@ -1462,8 +1470,7 @@ abstract final class AppRouteNames {
   static const String tournamentPrizes = 'tournamentPrizes';
   static const String tournamentPodium = 'tournamentPodium';
   static const String tournamentReview = 'tournamentReview';
-  static const String tournamentEnrolledAthletes =
-      'tournamentEnrolledAthletes';
+  static const String tournamentEnrolledAthletes = 'tournamentEnrolledAthletes';
   static const String tournamentPredictions = 'tournamentPredictions';
   static const String tournamentDoubleEliminationBracket =
       'tournamentDoubleEliminationBracket';
@@ -1492,8 +1499,7 @@ abstract final class AppRouteNames {
   static const String tournamentRegistrationUniform =
       'tournamentRegistrationUniform';
   static const String tournamentPartnerInvite = 'tournamentPartnerInvite';
-  static const String tournamentExternalInvite =
-      'tournamentExternalInvite';
+  static const String tournamentExternalInvite = 'tournamentExternalInvite';
   static const String leagueDetail = 'leagueDetail';
   static const String tournamentDiscoveryList = 'tournamentDiscoveryList';
   static const String athleteRanking = 'athleteRanking';

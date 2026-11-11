@@ -168,6 +168,21 @@ String? arenaWeatherNotificationRoute(String type, Map<String, dynamic> data) {
       AppRoutes.myBookings;
 }
 
+/// Lembretes automáticos do contrato de mensalista do CRM da arena
+/// (`arena_crm_due_soon`, `_overdue_7`…; `functions/src/arena-crm-reminders.ts`).
+/// O resumo do dia (`arena_crm_digest`) é do gestor e não entra.
+bool isArenaContractNotificationType(String type) =>
+    type.startsWith('arena_crm_') && type != 'arena_crm_digest';
+
+/// Meu contrato no contrato do push. O `url` do payload é `/arena/{id}` para o
+/// app antigo da loja (sem a tela); este build decide pelo tipo.
+String arenaContractNotificationRoute(Map<String, dynamic> data) {
+  final id = (data['contractId'] as String?)?.trim() ?? '';
+  return id.isEmpty
+      ? AppRoutes.myArenaContract
+      : '${AppRoutes.myArenaContract}?id=${Uri.encodeQueryComponent(id)}';
+}
+
 /// Pushes dos Planos de horário (`arena_schedule_*` / `schedule_plan_*`).
 bool isSchedulePlanNotificationType(String type) =>
     type.startsWith('arena_schedule_') || type.startsWith('schedule_plan_');
@@ -285,9 +300,8 @@ Future<bool> _awaitSettledSession(WidgetRef ref) async {
   final current = ref.read(authProvider);
   if (!current.isLoading) return current.valueOrNull != null;
   try {
-    final user = await ref
-        .read(authProvider.future)
-        .timeout(_sessionSettleTimeout);
+    final user =
+        await ref.read(authProvider.future).timeout(_sessionSettleTimeout);
     return user != null;
   } catch (_) {
     return ref.read(authProvider).valueOrNull != null;
@@ -350,10 +364,12 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
 
   // Avaliação do torneio: o payload leva `url: /torneios/{id}` para o app ANTIGO, que não tem o
   // formulário. Este build abre a avaliação direto — por isso o tipo vem antes da url.
-  if (type == 'tournament_review_request' || type == 'tournament_review_reminder') {
+  if (type == 'tournament_review_request' ||
+      type == 'tournament_review_reminder') {
     final reviewTournamentId = (data['tournamentId'] as String?)?.trim() ?? '';
     if (reviewTournamentId.isNotEmpty) {
-      return AppRoutes.tournamentReview.replaceAll(':tournamentId', reviewTournamentId);
+      return AppRoutes.tournamentReview
+          .replaceAll(':tournamentId', reviewTournamentId);
     }
   }
 
@@ -545,6 +561,12 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     if (linkId.isEmpty) return AppRoutes.arenaProfessionals;
     return AppRoutes.arenaProfessionalDetail
         .replaceAll(':linkId', Uri.encodeComponent(linkId));
+  }
+
+  // Lembrete do contrato de mensalista: abre Meu contrato, não a página da
+  // arena do `url` (que fica para o app antigo) — por isso antes do `url`.
+  if (isArenaContractNotificationType(type)) {
+    return arenaContractNotificationRoute(data);
   }
 
   // Planos de horário da arena (assinatura, cobrança, atraso, pausa, oferta

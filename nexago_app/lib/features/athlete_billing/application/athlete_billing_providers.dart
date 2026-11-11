@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/time/nexago_event_timezone.dart';
+import '../../arena_contract/application/arena_contract_providers.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../../athlete/domain/agenda/athlete_agenda_providers.dart';
 import '../../athlete_training/application/athlete_training_providers.dart';
@@ -46,7 +47,8 @@ final athleteOpenChargesProvider =
   final subs = ref.watch(athleteBillingSubscriptionsProvider);
   final bookings = ref.watch(myBookingsStreamProvider);
   final tournaments = ref.watch(myTournamentsPageStateProvider);
-  final loading = [classes, centers, subs, bookings, tournaments]
+  final contracts = ref.watch(athleteArenaContractsProvider);
+  final loading = [classes, centers, subs, bookings, tournaments, contracts]
       .any((a) => a.isLoading && !a.hasValue);
   if (loading) return null;
   final now = ref.watch(athleteBillingClockProvider)();
@@ -59,6 +61,7 @@ final athleteOpenChargesProvider =
     subscriptions: subs.valueOrNull ?? const [],
     bookings: bookings.valueOrNull ?? const [],
     enrollments: tournaments.valueOrNull?.enrollments ?? const [],
+    arenaContracts: contracts.valueOrNull ?? const [],
   );
 });
 
@@ -75,7 +78,9 @@ final athleteRecurringChargesProvider =
   final plans = ref.watch(athleteTrainingPlansProvider);
   final centers = ref.watch(athleteTrainingCentersProvider);
   final subs = ref.watch(athleteBillingSubscriptionsProvider);
-  if ([plans, centers, subs].any((a) => a.isLoading && !a.hasValue)) {
+  final contracts = ref.watch(athleteArenaContractsProvider);
+  if ([plans, centers, subs, contracts]
+      .any((a) => a.isLoading && !a.hasValue)) {
     return null;
   }
   return buildRecurringCharges(
@@ -83,6 +88,7 @@ final athleteRecurringChargesProvider =
     plans: plans.valueOrNull,
     centers: centers.valueOrNull ?? const [],
     subscriptions: subs.valueOrNull ?? const [],
+    arenaContracts: contracts.valueOrNull ?? const [],
   );
 });
 
@@ -109,5 +115,6 @@ void refreshAthleteBilling(WidgetRef ref) {
   ref.invalidate(athleteTrainingCentersDataProvider);
   ref.invalidate(athleteTrainingPlansProvider);
   ref.invalidate(myScheduleSubscriptionsProvider);
+  ref.invalidate(myArenaContractsProvider);
   ref.invalidate(myTournamentRegistrationsProvider);
 }

@@ -180,6 +180,7 @@ import '../../features/athlete/presentation/athlete_waitlist_page.dart';
 import '../../features/athlete/presentation/booking_details_by_id_page.dart';
 import '../../features/athlete_billing/presentation/athlete_billing_routes.dart';
 import '../../features/payment_card/presentation/payment_card_routes.dart';
+import '../../features/arena_contract/presentation/my_arena_contract_page.dart';
 import '../../features/schedule_plans/presentation/schedule_plans_routes.dart';
 import '../../features/weather/presentation/weather_credits_page.dart';
 import '../../features/squad/presentation/squad_benefits_page.dart';
@@ -3509,6 +3510,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       // Planos de horário da arena (A1 · A2 · A3) — `/planos-horario/...`
       // e `/meus-planos-horario` (destino dos pushes dos planos).
       ...schedulePlansRoutes(),
+      GoRoute(
+        path: AppRoutes.myArenaContract,
+        name: AppRouteNames.myArenaContract,
+        builder: (context, state) => MyArenaContractPage(
+          contractId: state.uri.queryParameters['id']?.trim(),
+        ),
+      ),
       // Cobranças do atleta (menu da conta, Início e Treinos).
       ...athleteBillingRoutes(),
       ...paymentCardRoutes(),

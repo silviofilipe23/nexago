@@ -93,7 +93,7 @@ atleta do app; assinantes dos Planos de horário já têm os lembretes da cobran
 | Mensalidade vencendo | 3 dias antes e no dia | vence em dd/mm / vence hoje |
 | Mensalidade atrasada | +1 e +7 dias da parcela mais antiga | está em aberto desde dd/mm |
 | Contrato terminando | 15 e 3 dias antes (só sem renovação automática) | fale com a arena para renovar |
-| Sentimos sua falta | 14+ dias sem jogar, uma vez por sumiço | seu horário continua garantido |
+| Sentimos sua falta | 14+ dias sem jogar, uma vez por sumiço | suas horas estão te esperando |
 | Resumo do dia | dono e gestores ativos, se houver algo na fila | vencem, atrasaram, sumiram, prontos pra plano |
 
 - Um push por dia por contrato: o mais urgente (atraso > vence hoje > renovação > vence em breve > sumiço).
@@ -122,6 +122,26 @@ O formato tem versão (`CACHE_VERSION`): mudou o que vai no cache, sobe a versã
 - **Funil 90 dias**: jogaram avulso → frequentes → receberam oferta → viraram mensalista.
 - **Meta do mês**: novos mensalistas no mês (`arenas/{id}/crmSettings/main.monthlyGoal`, padrão 5).
 
+## Meu contrato (app do atleta)
+
+O mensalista vê o próprio contrato no app: plano, valor, vencimento, período, próxima mensalidade,
+parcelas (as 2 últimas pagas, as em aberto e as próximas), pagamentos e o banco de horas da semana
+(o que já reservou até domingo, de 8 semanas). Em atraso, o valor em aberto vai pro topo; com o link
+de pagamento aberto pela arena, "Pagar · Pix ou cartão" abre a fatura (baixa automática). Sem link,
+pagar na arena, com "Falar com a arena" (WhatsApp da arena com a mensagem pronta).
+Layout no canvas nexaGO, página App do Atleta, seção "Meu contrato".
+
+- Rota `/meu-contrato?id=<contrato>`; entradas: **Sua conta → Meu contrato** (só com contrato) e
+  **Cobranças** (tipo "Mensalidade": o atraso todo, ou a próxima quando vence em até 10 dias; o contrato
+  também em Planos e assinaturas).
+- O atleta vê: contratos não cancelados em vigor (ativo/vencendo, não substituídos pela renovação) e
+  qualquer um com dívida. Nunca vê a anotação interna, o motivo de cancelamento nem quem registrou.
+- **Push**: os lembretes (`arena_crm_*`, menos o resumo do gestor) levam `contractId`; o app novo abre
+  Meu contrato pelo tipo. O `url` continua `/arena/{id}` porque o app antigo da loja só lê `url`.
+- **Espelho** `arenaCrmMembers/{uid}` (`contractIds` não cancelados), mantido pelo gatilho
+  `onArenaCrmContractWrittenSyncMember`: o app lê esse doc (uma leitura) para decidir se mostra o menu e
+  se chama a callable. Contratos anteriores ao gatilho: `functions/scripts/backfill-arena-crm-members.js`.
+
 ## Backend
 
 `functions/src/arena-crm-model.ts` (puro, testado) e `functions/src/arena-crm.ts`:
@@ -130,9 +150,10 @@ O formato tem versão (`CACHE_VERSION`): mudou o que vai no cache, sobe a versã
 - `getArenaCrmCustomer({arenaId, customerKey})` — contratos, pagamentos, contatos e reservas.
 - `updateArenaCrm({arenaId, op, ...})` — `saveContract`, `cancelContract`, `renewContract`,
   `registerPayment`, `logContact`, `saveSettings` (área `agenda`, escrita).
+- `getMyArenaContracts()` (`arena-crm-athlete.ts`) — os contratos do próprio atleta (Meu contrato).
 
-Rules negam o cliente em `arenaCrmContracts` (e `payments`), `arenaCrmContacts`, `arenaCrmReminders`, `arenaCrmPaymentLinks` e `arenaCrmCache` (com `shards`).
-Índices: `arenaCrmContacts (arenaId, at)` e `arenaCrmReminders (arenaId, sentAt)`.
+Rules negam o cliente em `arenaCrmContracts` (e `payments`), `arenaCrmContacts`, `arenaCrmReminders`, `arenaCrmPaymentLinks` e `arenaCrmCache` (com `shards`); `arenaCrmMembers/{uid}` só o dono lê.
+Índices: `arenaCrmContacts (arenaId, at)`, `arenaCrmReminders (arenaId, sentAt)` e `arenaBookings (arenaId, athleteId, date)`.
 
-Deploy: índices → functions (3 callables + `sendArenaCrmReminders` + `asaasWebhook`) → rules → portal da arena.
+Deploy: índices → functions (4 callables + `sendArenaCrmReminders` + `onArenaCrmContractWrittenSyncMember` + `asaasWebhook`) → rules → backfill do espelho → portal da arena → app (build da loja).
 O `asaasWebhook` roteia vários produtos: só deployar de uma árvore em dia com a main.

@@ -2440,6 +2440,24 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "arenaBookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "arenaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "athleteId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [

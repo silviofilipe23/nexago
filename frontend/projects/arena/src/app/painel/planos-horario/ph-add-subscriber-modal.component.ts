@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { todayKeyLocal } from '../aulas/class.model';
+import { bookingAllocationFromArena } from '../courts/booking-allocation';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFunctions } from '../data/functions';
 import { AthleteSearchFieldComponent } from '../recurring/athlete-search-field.component';
@@ -29,7 +30,13 @@ import { SchedulePlansStore } from './schedule-plans.store';
   template: `
     <ar-modal size="lg" (close)="close.emit()">
       <p class="modal-title">Adicionar assinante</p>
-      <p class="modal-sub">A quadra é escolhida pelo sistema: a primeira do plano livre em todos os dias escolhidos.</p>
+      <p class="modal-sub">
+        @if (capacityMode()) {
+          A arena define a quadra: o sistema segura uma quadra da distribuição livre em todos os dias escolhidos.
+        } @else {
+          A quadra é escolhida pelo sistema: a primeira do plano livre em todos os dias escolhidos.
+        }
+      </p>
       @if (error(); as err) {
         <div class="error-banner">{{ err }}</div>
       }
@@ -99,7 +106,9 @@ import { SchedulePlansStore } from './schedule-plans.store';
           <div class="field-label spaced">Ciclo</div>
           <div class="chip-row">
             @for (c of cycles(); track c.id) {
-              <button type="button" class="sm-chip" [class.active]="cycle() === c.id" (click)="cycle.set(c.id)">{{ c.label }} · {{ brl(c.value) }}/mês</button>
+              <button type="button" class="sm-chip" [class.active]="cycle() === c.id" (click)="cycle.set(c.id)">
+                {{ c.label }} · {{ c.id === 'annual' ? brl(c.value * 12) + '/ano à vista' : brl(c.value) + '/mês' }}
+              </button>
             }
           </div>
 
@@ -147,6 +156,7 @@ export class PhAddSubscriberModalComponent {
   protected readonly formLabel = PAYMENT_FORM_LABEL;
   protected readonly today = todayKeyLocal();
   protected readonly arenaId = computed(() => this.arenaContext.arenaId());
+  protected readonly capacityMode = computed(() => bookingAllocationFromArena(this.arenaContext.arenaDocData()).mode === 'capacity');
   protected readonly onlineBilling = computed(() => this.store.settings().onlineBillingEnabled);
 
   protected readonly mode = signal<'athlete' | 'free'>('athlete');
@@ -226,7 +236,7 @@ export class PhAddSubscriberModalComponent {
       });
       const skipped = res.skippedDates?.length ?? 0;
       this.result.set(
-        `Assinatura criada na ${res.courtName}.` +
+        (this.capacityMode() ? 'Assinatura criada.' : `Assinatura criada na ${res.courtName}.`) +
           (skipped ? ` ${skipped} data${skipped === 1 ? '' : 's'} já tinha${skipped === 1 ? '' : 'm'} reserva avulsa e ficou${skipped === 1 ? '' : 'ram'} de fora.` : ''),
       );
     } catch (err) {

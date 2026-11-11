@@ -9,6 +9,7 @@
 
 import {HttpsError} from "firebase-functions/v2/https";
 import {addDaysToDateKey, isValidDateKey, toMinutes} from "./arena-recurring-booking";
+import {monthLabelPt} from "./arena-class-billing";
 
 /** Subcoleções de `arenas/{arenaId}`. */
 export const SCHEDULE_PLANS = "schedulePlans";
@@ -345,6 +346,39 @@ export function cycleMonthlyPrice(plan: Pick<SchedulePlanData, "monthlyPriceReai
   return round2(plan.monthlyPriceReais * (1 - pct / 100));
 }
 
+/**
+ * Mensalidades pagas de uma vez no ciclo: o anual cobra as 12 à vista (na assinatura e a cada
+ * renovação); mensal e trimestral, mês a mês.
+ */
+export function prepaidMonthsOf(cycle: ScheduleCycle): number {
+  return cycle === "annual" ? 12 : 1;
+}
+
+/** `prepaidMonths` da assinatura; ausente = 1 (as anuais antigas seguem mês a mês). */
+export function subscriptionPrepaidMonths(sub: Record<string, unknown>): number {
+  const n = Number(sub["prepaidMonths"] ?? 1);
+  return Number.isInteger(n) && n > 1 ? n : 1;
+}
+
+/** `AAAA-MM` + `months`. */
+export function addMonthsToMonthKey(monthKey: string, months: number): string {
+  return addMonthsToDateKey(`${monthKey}-01`, months).slice(0, 7);
+}
+
+/** Último mês que a mensalidade cobre: `coversThrough` (anual à vista) ou o próprio período. */
+export function chargeCoversThrough(charge: Record<string, unknown>): string {
+  const period = str(charge["period"]);
+  const through = str(charge["coversThrough"]);
+  return through && through > period ? through : period;
+}
+
+/** "nov/2026" ou, no anual à vista, "nov/2026 a out/2027". */
+export function chargePeriodLabel(charge: Record<string, unknown>): string {
+  const period = str(charge["period"]);
+  const through = chargeCoversThrough(charge);
+  return through === period ? monthLabelPt(period) : `${monthLabelPt(period)} a ${monthLabelPt(through)}`;
+}
+
 export function isCycleEnabled(plan: Pick<SchedulePlanData, "cycles">, cycle: ScheduleCycle): boolean {
   return plan.cycles[cycle].enabled;
 }
@@ -514,7 +548,10 @@ export function parsePlanRulesInput(raw: unknown): SchedulePlanRules {
 }
 
 /** Valida o plano vindo do portal. `courtNames` é resolvido pelo chamador. Lança `invalid-argument`. */
-export function validateSchedulePlanInput(raw: Record<string, unknown>): Omit<SchedulePlanData, "courtNames"> {
+export function validateSchedulePlanInput(
+  raw: Record<string, unknown>,
+  opts: {courtsOptional?: boolean} = {},
+): Omit<SchedulePlanData, "courtNames"> {
   const name = str(raw["name"]);
   if (!name || name.length > 60) throw new HttpsError("invalid-argument", "Informe o nome do plano (até 60 caracteres).");
   const description = str(raw["description"]).slice(0, 500) || null;
@@ -535,7 +572,7 @@ export function validateSchedulePlanInput(raw: Record<string, unknown>): Omit<Sc
     throw new HttpsError("invalid-argument", "O plano precisa de janelas em dias suficientes para as vezes por semana.");
   }
   const courtIds = Array.isArray(raw["courtIds"]) ? (raw["courtIds"] as unknown[]).map(str).filter(Boolean) : [];
-  if (courtIds.length === 0 || courtIds.length > 30 || new Set(courtIds).size !== courtIds.length) {
+  if ((courtIds.length === 0 && !opts.courtsOptional) || courtIds.length > 30 || new Set(courtIds).size !== courtIds.length) {
     throw new HttpsError("invalid-argument", "Escolha as quadras do plano.");
   }
   const capacity = intInRange(raw["capacity"], NaN, 1, 500, "Vagas: de 1 a 500.");

@@ -42,9 +42,11 @@ import {
   type SchedulePlanRules,
 } from "./arena-schedule-plan-constants";
 import {
+  arenaDefinesCourt,
   busyBlocksOnDate,
   loadSubscriptionOrThrow,
   notifyScheduleSafe,
+  planCourtsOf,
   planRef,
   readArenaOccupancy,
   requireScheduleManager,
@@ -397,7 +399,10 @@ async function loadUsableCredit(db: Firestore, uid: string, creditId: string, da
   if (!planSnap.exists) throw new HttpsError("not-found", "Plano não encontrado.");
   const plan = parseSchedulePlan(planSnap.data() as Data);
   const durationMinutes = Number(((sub["planSnapshot"] ?? {}) as Data)["durationMinutes"] ?? plan.durationMinutes);
-  return {credit, sub, plan, durationMinutes};
+  const arenaRef = db.collection("arenas").doc(str(sub["arenaId"]));
+  const [arenaSnap, courtsSnap] = await Promise.all([arenaRef.get(), arenaRef.collection("courts").get()]);
+  const courts = planCourtsOf(arenaSnap.data(), plan, courtsSnap.docs.map((d) => ({id: d.id, data: d.data() as Data})));
+  return {credit, sub, plan, durationMinutes, courts, definesCourt: arenaDefinesCourt(arenaSnap.data())};
 }
 
 export async function getMakeupOptionsCore(
@@ -408,7 +413,7 @@ export async function getMakeupOptionsCore(
   todayKey: string,
   nowMs: number,
 ): Promise<{options: Array<{courtId: string; courtName: string; startTime: string; endTime: string}>}> {
-  const {sub, plan, durationMinutes} = await loadUsableCredit(db, uid, creditId, date, todayKey);
+  const {sub, plan, durationMinutes, courts, definesCourt} = await loadUsableCredit(db, uid, creditId, date, todayKey);
   const arenaId = str(sub["arenaId"]);
   const weekday = isoWeekdayOfDateKey(date);
   const starts = candidateStartTimes(plan.windows, weekday, durationMinutes)
@@ -419,8 +424,10 @@ export async function getMakeupOptionsCore(
   const options: Array<{courtId: string; courtName: string; startTime: string; endTime: string}> = [];
   for (const startTime of starts) {
     const endTime = addMinutesToTime(startTime, durationMinutes);
-    for (let i = 0; i < plan.courtIds.length; i++) {
-      const courtId = plan.courtIds[i]!;
+    for (let i = 0; i < courts.courtIds.length; i++) {
+      // Arena que define a quadra: uma opção por horário (a 1ª quadra livre; o atleta não escolhe).
+      if (definesCourt && options.some((o) => o.startTime === startTime)) break;
+      const courtId = courts.courtIds[i]!;
       if (!isCourtFree(busy, courtId, [weekday], toMinutes(startTime), endMinutes(endTime))) continue;
       const refs = lockRefsForOccurrence(db, {arenaId, courtId, startTime, endTime}, date).map((l) => l.ref);
       let free = true;
@@ -432,7 +439,7 @@ export async function getMakeupOptionsCore(
         }
         if (lockCache.get(ref.path)) free = false;
       }
-      if (free) options.push({courtId, courtName: plan.courtNames[i] || "Quadra", startTime, endTime});
+      if (free) options.push({courtId, courtName: courts.courtNames[i] || "Quadra", startTime, endTime});
     }
   }
   return {options};
@@ -445,9 +452,9 @@ export async function useMakeupCore(
   todayKey: string,
   nowMs: number,
 ): Promise<{bookingId: string}> {
-  const {credit, sub, plan, durationMinutes} = await loadUsableCredit(db, uid, input.creditId, input.date, todayKey);
+  const {credit, sub, plan, durationMinutes, courts} = await loadUsableCredit(db, uid, input.creditId, input.date, todayKey);
   const arenaId = str(sub["arenaId"]);
-  const courtIdx = plan.courtIds.indexOf(input.courtId);
+  const courtIdx = courts.courtIds.indexOf(input.courtId);
   if (courtIdx < 0) throw new HttpsError("invalid-argument", "Escolha uma quadra do plano.");
   const weekday = isoWeekdayOfDateKey(input.date);
   if (!startFitsWindows(plan.windows, weekday, input.startTime, durationMinutes)) {
@@ -455,7 +462,7 @@ export async function useMakeupCore(
   }
   if (occurrenceStartMs(input.date, input.startTime) <= nowMs) throw new HttpsError("invalid-argument", "Esse horário já passou.");
   const endTime = addMinutesToTime(input.startTime, durationMinutes);
-  const courtName = plan.courtNames[courtIdx] || "Quadra";
+  const courtName = courts.courtNames[courtIdx] || "Quadra";
   const occ = {arenaId, courtId: input.courtId, startTime: input.startTime, endTime};
   if (await hasBlockedSlotOverlap(db, occ, input.date)) {
     throw new HttpsError("failed-precondition", "Esse horário está bloqueado pela arena.");

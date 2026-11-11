@@ -53,14 +53,14 @@ describe("1ª mensalidade proporcional e rateio", () => {
   it("proporcional às ocorrências que sobram no mês, vence no 1º jogo", () => {
     // Novembro/2026: segundas 2, 9, 16, 23, 30. Assinando terça 03 → sobram 4 de 5.
     assert.deepEqual(planFirstCharge(300, [1], "2026-11-03", 5), {
-      period: "2026-11", totalReais: 240, dueDate: "2026-11-09", billedThrough: "2026-11",
+      period: "2026-11", totalReais: 240, dueDate: "2026-11-09", billedThrough: "2026-11", months: 1,
     });
   });
 
   it("sem ocorrência no mês, a 1ª é o mês seguinte cheio no vencimento", () => {
     // 30/11 é segunda; nenhuma terça sobra em novembro.
     assert.deepEqual(planFirstCharge(300, [2], "2026-11-30", 5), {
-      period: "2026-12", totalReais: 300, dueDate: "2026-12-05", billedThrough: "2026-12",
+      period: "2026-12", totalReais: 300, dueDate: "2026-12-05", billedThrough: "2026-12", months: 1,
     });
   });
 

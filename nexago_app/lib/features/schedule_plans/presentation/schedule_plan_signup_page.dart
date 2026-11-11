@@ -270,6 +270,7 @@ class _SchedulePlanSignupPageState
     required double? firstChargeReais,
     required CardFeeTerms terms,
     required String consentText,
+    bool annual = false,
   }) async {
     if (firstChargeReais == null || firstChargeReais <= 0) return null;
     final quote = registrationMethodQuote(
@@ -279,7 +280,8 @@ class _SchedulePlanSignupPageState
     final ok = await showScheduleAutopayConsentSheet(
       context,
       consentText: consentText,
-      detail: '1ª mensalidade agora: ${formatBRL(quote.cardTotalCents / 100)} '
+      detail: '${annual ? 'Anual agora' : '1ª mensalidade agora'}: '
+          '${formatBRL(quote.cardTotalCents / 100)} '
           '(${formatBRL(quote.pixCents / 100)} + taxa do cartão '
           '${formatBRL(quote.cardFeeCents / 100)})',
     );
@@ -296,6 +298,13 @@ class _SchedulePlanSignupPageState
         ? [for (final m in _members) m.uid]
         : const <String>[];
     final wantsAutopay = _wantsAutopay(plan);
+    final annual = scheduleCyclePrepaidMonths(cycle) > 1;
+    // Arena que define a quadra: a mensagem não fala de quadra.
+    final definesCourt = ref
+            .read(schedulePlanAvailabilityProvider(_key))
+            .valueOrNull
+            ?.arenaDefinesCourt ??
+        false;
     try {
       SavedPaymentCard? card;
       String? consentText;
@@ -338,11 +347,14 @@ class _SchedulePlanSignupPageState
             paymentMethod: method,
             memberAthleteIds: memberIds,
           );
-          final court =
-              result.courtName.isEmpty ? '' : ' na ${result.courtName}';
+          final court = result.courtName.isEmpty || definesCourt
+              ? ''
+              : ' na ${result.courtName}';
           final first = result.firstChargeReais;
           message = first != null && first > 0
-              ? 'Plano assinado$court! 1ª mensalidade: ${formatBRL(first)}.'
+              ? 'Plano assinado$court! '
+                  '${result.firstChargeMonths > 1 ? 'Anual' : '1ª mensalidade'}: '
+                  '${formatBRL(first)}.'
               : 'Plano assinado$court! Seu horário é seu toda semana.';
         case _Mode.offer:
           created = await repo.acceptOffer(
@@ -358,7 +370,7 @@ class _SchedulePlanSignupPageState
             weekdays: [..._days]..sort(),
             startTime: _time!,
           );
-          message = court.isEmpty
+          message = court.isEmpty || definesCourt
               ? 'Horário trocado.'
               : 'Horário trocado. Agora na $court.';
       }
@@ -382,6 +394,7 @@ class _SchedulePlanSignupPageState
           firstChargeReais: created.firstChargeReais,
           terms: terms,
           consentText: consentText,
+          annual: created.firstChargeMonths > 1,
         );
         if (!mounted) return;
         if (authorized == null) {
@@ -427,7 +440,8 @@ class _SchedulePlanSignupPageState
         context,
         errorMessage ??
             (pay
-                ? 'Horário reservado por 30 min. Pague a 1ª mensalidade para '
+                ? 'Horário reservado por 30 min. Pague '
+                    '${annual ? 'o anual' : 'a 1ª mensalidade'} para '
                     'confirmar o plano.'
                 : autopayDone
                     ? 'Plano assinado! Débito automático ligado.'
@@ -511,6 +525,10 @@ class _SchedulePlanSignupPageState
               ..._offerSection(a, offer)
             else
               ..._slotSection(a),
+            if (a.arenaDefinesCourt) ...[
+              const SizedBox(height: 12),
+              _definesCourtNote(),
+            ],
             if (_mode != _Mode.change) ...[
               const SizedBox(height: 18),
               const ScheduleKicker('Ciclo'),
@@ -543,7 +561,9 @@ class _SchedulePlanSignupPageState
                       ? null
                       : (v) => setState(() => _autopayOptIn = v ?? false),
                   title: Text(
-                    'Debitar todo mês neste cartão',
+                    scheduleCyclePrepaidMonths(_cycleOption(a.plan).cycle) > 1
+                        ? 'Debitar a renovação anual neste cartão'
+                        : 'Debitar todo mês neste cartão',
                     style: TextStyle(fontSize: 13, color: colors.onSurface),
                   ),
                 ),
@@ -625,6 +645,7 @@ class _SchedulePlanSignupPageState
           _TimeRow(
             time: t,
             primeCapReached: a.primeCapReached,
+            arenaDefinesCourt: a.arenaDefinesCourt,
             selected: t.startTime == _time,
             canJoinWaitlist: complete && _mode == _Mode.subscribe,
             joining: _joiningTime == t.startTime,
@@ -704,6 +725,34 @@ class _SchedulePlanSignupPageState
     ];
   }
 
+  /// Arena que define a quadra: o horário é fixo, a quadra muda a cada jogo.
+  Widget _definesCourtNote() {
+    final colors = context.themeColors;
+    return Container(
+      key: const Key('schedule-arena-defines-court'),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.brand.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.30)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.grid_view_rounded, size: 18, color: colors.brandText),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Seu horário é fixo toda semana. A arena define a quadra a cada '
+              'jogo.',
+              style: TextStyle(fontSize: 12.5, color: colors.onSurface),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Ciclo, pagamento, rateio ──────────────────────────────────────────
 
   Widget _cycleChips(SchedulePlan plan) {
@@ -717,10 +766,15 @@ class _SchedulePlanSignupPageState
             child: ScheduleChoiceChip(
               key: ValueKey('schedule-cycle-${options[i].cycle.key}'),
               label: options[i].cycle.label,
-              sub: '${scheduleMoney(scheduleCycleMonthlyPrice(
-                plan.monthlyPriceReais,
-                options[i],
-              ).roundToDouble())}/mês',
+              sub: scheduleCyclePrepaidMonths(options[i].cycle) > 1
+                  ? '${scheduleMoney((scheduleCycleMonthlyPrice(
+                        plan.monthlyPriceReais,
+                        options[i],
+                      ) * 12).roundToDouble())}/ano'
+                  : '${scheduleMoney(scheduleCycleMonthlyPrice(
+                      plan.monthlyPriceReais,
+                      options[i],
+                    ).roundToDouble())}/mês',
               selected: options[i].cycle == current,
               onTap: () => setState(() => _cycle = options[i].cycle),
             ),
@@ -738,11 +792,17 @@ class _SchedulePlanSignupPageState
       SchedulePlanCycle.annual => 12,
     };
     if (months == 0) return const [];
+    final upfront = scheduleCyclePrepaidMonths(option.cycle) > 1;
     return [
       const SizedBox(height: 8),
       Text(
-        '${option.discountPercent.round()}% de desconto com compromisso de '
-        '$months meses, pago mês a mês.',
+        upfront
+            ? 'Anual à vista: as 12 mensalidades pagas agora, com '
+                '${option.discountPercent.round()}% de desconto. A 1ª é '
+                'proporcional aos jogos que sobram no mês.'
+            : '${option.discountPercent.round()}% de desconto com compromisso '
+                'de $months meses, pago mês a mês.',
+        key: const Key('schedule-cycle-note'),
         style: TextStyle(
           fontSize: 11.5,
           color: context.themeColors.onSurfaceMuted,
@@ -935,7 +995,15 @@ class _SchedulePlanSignupPageState
       plan.monthlyPriceReais,
       _cycleOption(plan),
     );
-    final share = scheduleSharePerPlayer(monthly, players);
+    final upfront = scheduleCyclePrepaidMonths(_cycleOption(plan).cycle) > 1;
+    final weekdays =
+        _mode == _Mode.offer ? (offer?.weekdays ?? const <int>[]) : _days;
+    final total = !upfront
+        ? monthly
+        : weekdays.isEmpty
+            ? monthly * 12
+            : scheduleAnnualUpfrontReais(monthly, weekdays, DateTime.now());
+    final share = scheduleSharePerPlayer(total, players);
     final ready = _pendingPayment() == null &&
         (_mode == _Mode.offer ? offer != null : _readyForSlots(a));
     return NexaBottomActionBar(
@@ -953,7 +1021,12 @@ class _SchedulePlanSignupPageState
             ),
           ),
           Text(
-            players > 1 ? 'sua parte · por mês' : 'por mês',
+            upfront
+                ? (players > 1
+                    ? 'sua parte · 12 meses à vista'
+                    : '12 meses · à vista')
+                : (players > 1 ? 'sua parte · por mês' : 'por mês'),
+            key: const Key('schedule-signup-share-sub'),
             style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
           ),
         ],
@@ -987,6 +1060,7 @@ class _TimeRow extends StatelessWidget {
   const _TimeRow({
     required this.time,
     required this.primeCapReached,
+    this.arenaDefinesCourt = false,
     required this.selected,
     required this.canJoinWaitlist,
     required this.joining,
@@ -996,6 +1070,9 @@ class _TimeRow extends StatelessWidget {
 
   final ScheduleCombinedTime time;
   final bool primeCapReached;
+
+  /// A arena define a quadra: "livre" em vez de "3 quadras".
+  final bool arenaDefinesCourt;
   final bool selected;
   final bool canJoinWaitlist;
   final bool joining;
@@ -1008,7 +1085,9 @@ class _TimeRow extends StatelessWidget {
     final bookable = time.bookable(primeCapReached: primeCapReached);
     final primeFull = time.prime && primeCapReached && time.freeCourts > 0;
     final status = bookable
-        ? scheduleFreeCourtsLabel(time.freeCourts)
+        ? (arenaDefinesCourt
+            ? scheduleFreeSpotLabel(time.freeCourts)
+            : scheduleFreeCourtsLabel(time.freeCourts))
         : primeFull
             ? 'Nobre no limite de planos · fila ${time.waitlistCount}'
             : 'Lista de espera · ${time.waitlistCount}';

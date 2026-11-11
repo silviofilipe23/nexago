@@ -43,6 +43,9 @@ import {
   PENDING_PAYMENT_BLOCK_MESSAGE,
   PENDING_PAYMENT_STATUS,
   SIGNUP_PAYMENT_WINDOW_MS,
+  addMonthsToDateKey,
+  addMonthsToMonthKey,
+  chargeCoversThrough,
   commitmentEndsOn,
   cycleMonthlyPrice,
   daysBetween,
@@ -56,10 +59,13 @@ import {
   lastDayOfMonth,
   parseSchedulePlan,
   pickCourt,
+  prepaidMonthsOf,
   primeCapacityMinutes,
   primeMinutesOfSlots,
+  round2,
   scheduleChargeId,
   splitCents,
+  subscriptionPrepaidMonths,
   str,
   validateChosenSlots,
   type ParsedSchedulePlan,
@@ -74,6 +80,7 @@ import {
   loadScheduleSettings,
   loadSubscriptionOrThrow,
   notifyScheduleSafe,
+  planCourtsOf,
   planRef,
   planSeriesPrimeMinutes,
   readArenaOccupancy,
@@ -114,6 +121,8 @@ export interface PlannedFirstCharge {
   totalReais: number;
   dueDate: string;
   billedThrough: string;
+  /** Mensalidades cobertas (anual à vista = 12; senão 1). */
+  months: number;
 }
 
 /** Primeira data do dia da semana escolhido a partir de `fromKey` (inclusive). */
@@ -134,14 +143,27 @@ export function planFirstCharge(
   weekdays: readonly number[],
   startDate: string,
   dueDay: number,
+  prepaidMonths = 1,
 ): PlannedFirstCharge {
   const month = monthKeyOf(startDate);
   const pro = proratedAmount(monthlyPriceReais, weekdays, startDate);
-  if (pro.amountReais > 0) {
-    return {period: month, totalReais: pro.amountReais, dueDate: firstOccurrenceOnOrAfter(weekdays, startDate), billedThrough: month};
-  }
-  const next = nextMonthKey(month);
-  return {period: next, totalReais: monthlyPriceReais, dueDate: dueDateFor(next, dueDay), billedThrough: next};
+  const single: PlannedFirstCharge = pro.amountReais > 0 ?
+    {period: month, totalReais: pro.amountReais, dueDate: firstOccurrenceOnOrAfter(weekdays, startDate), billedThrough: month, months: 1} :
+    {period: nextMonthKey(month), totalReais: monthlyPriceReais, dueDate: dueDateFor(nextMonthKey(month), dueDay),
+      billedThrough: nextMonthKey(month), months: 1};
+  if (prepaidMonths <= 1) return single;
+  // Anual à vista: a 1ª (proporcional, como no mensal) e as 11 seguintes cheias, numa cobrança só.
+  return {
+    ...single,
+    totalReais: round2(single.totalReais + monthlyPriceReais * (prepaidMonths - 1)),
+    billedThrough: addMonthsToMonthKey(single.period, prepaidMonths - 1),
+    months: prepaidMonths,
+  };
+}
+
+/** Campos da mensalidade que cobre vários meses (anual à vista); vazio na de um mês. */
+export function chargeCoverFields(period: string, months: number): Data {
+  return months > 1 ? {months, coversThrough: addMonthsToMonthKey(period, months - 1)} : {};
 }
 
 /** Uma mensalidade por pagador (rateio em centavos, resto no titular). Id `{assinatura}_{AAAA-MM}_{k}`. */
@@ -151,6 +173,7 @@ export function buildPayerCharges(
   kind: ChargeKind,
   totalReais: number,
   dueDate: string,
+  months = 1,
 ): Array<{id: string; data: Data}> {
   const members = sub.members.length > 0 ? sub.members :
     [{athleteId: sub.holderAthleteId, name: sub.holderName, photoUrl: null, shareReais: totalReais, role: "holder" as const}];
@@ -163,6 +186,7 @@ export function buildPayerCharges(
       planName: sub.planName,
       holderName: sub.holderName,
       period,
+      ...chargeCoverFields(period, months),
       kind,
       payerIndex: k,
       payerName: m.name,
@@ -356,7 +380,10 @@ export interface CreateSubscriptionResult {
   subscriptionId: string;
   courtName: string;
   skippedDates: string[];
-  firstCharge: {chargeId: string; period: string; kind: "first"; amountReais: number; totalReais: number; dueDate: string};
+  firstCharge: {
+    chargeId: string; period: string; months: number; coversThrough: string; kind: "first";
+    amountReais: number; totalReais: number; dueDate: string;
+  };
   /** `pending_payment`: o atleta paga a 1ª até [paymentDeadline] ou o horário é liberado. */
   status: "active" | typeof PENDING_PAYMENT_STATUS;
   /** ISO; só com `pending_payment`. */
@@ -448,7 +475,8 @@ export async function createSubscriptionCore(
   const shares = splitCents(monthlyPriceReais, membersBase.length);
   const members: SubscriptionMember[] = membersBase.map((m, i) => ({...m, shareReais: shares[i] ?? 0}));
   const dueDay = effectiveDueDay(plan.billing.dueDay, startDate);
-  const first = planFirstCharge(monthlyPriceReais, weekdays, startDate, dueDay);
+  const prepaidMonths = prepaidMonthsOf(cycle);
+  const first = planFirstCharge(monthlyPriceReais, weekdays, startDate, dueDay, prepaidMonths);
   const arenaName = arenaNameOf(arena);
   const startMin = toMinutes(startTime);
   const endMin = endMinutes(endTime);
@@ -503,7 +531,7 @@ export async function createSubscriptionCore(
       throw new HttpsError("resource-exhausted", "Este plano está lotado. Entre na lista de espera.");
     }
     const picked = pickCourt({
-      courtIds: fresh.courtIds, courtNames: fresh.courtNames, weekdays, startMin, endMin,
+      ...planCourtsOf(arena, fresh, occ.courts), weekdays, startMin, endMin,
       busy: busyBlocksOf(occ, {fromDate: startDate, nowMs, excludeEntryId: entryId}),
       preferredCourtId: req.preferredCourtId,
     });
@@ -556,7 +584,11 @@ export async function createSubscriptionCore(
       slots: subSlots,
       cycle,
       monthlyPriceReais,
-      commitmentEndsOn: commitmentEndsOn(cycle, startDate),
+      ...(prepaidMonths > 1 ? {prepaidMonths} : {}),
+      // Anual à vista: a fidelidade é o que já foi pago (sem 13ª mensalidade na saída).
+      commitmentEndsOn: prepaidMonths > 1 ?
+        firstDayOfMonth(nextMonthKey(first.billedThrough)) :
+        commitmentEndsOn(cycle, startDate),
       paymentMethod,
       billingMode: "manual",
       dueDay,
@@ -580,7 +612,7 @@ export async function createSubscriptionCore(
       cancelReason: null,
     });
     const owner = {id: subRef.id, arenaId: req.arenaId, planName: fresh.name, holderName: req.holder.name, holderAthleteId: req.holder.athleteId, members};
-    for (const c of buildPayerCharges(owner, first.period, "first", first.totalReais, first.dueDate)) {
+    for (const c of buildPayerCharges(owner, first.period, "first", first.totalReais, first.dueDate, first.months)) {
       tx.set(db.collection(ARENA_SCHEDULE_CHARGES).doc(c.id), c.data);
     }
     tx.set(pRef, {
@@ -620,6 +652,8 @@ export async function createSubscriptionCore(
     firstCharge: {
       chargeId: scheduleChargeId(subRef.id, first.period, 0),
       period: first.period,
+      months: first.months,
+      coversThrough: first.billedThrough,
       kind: "first",
       amountReais: holderShare,
       totalReais: first.totalReais,
@@ -783,7 +817,7 @@ export async function changeSubscriptionSlotsCore(
   const {weekdays, startTime, endTime} = validateChosenSlots(
     {windows: plan.windows, timesPerWeek, durationMinutes}, rawWeekdays, rawStartTime,
   );
-  const settings = await loadScheduleSettings(db, arenaId);
+  const [settings, arena] = await Promise.all([loadScheduleSettings(db, arenaId), loadArenaOrThrow(db, arenaId)]);
   const oldSeriesIds = seriesIdsOf(data);
   const newSeriesRefs = weekdays.map(() => db.collection(ARENA_RECURRING_BOOKINGS).doc());
   const startMin = toMinutes(startTime);
@@ -803,7 +837,7 @@ export async function changeSubscriptionSlotsCore(
     const occ = await readArenaOccupancy(db, arenaId, (q) => tx.get(q));
     if (subSnap.data()?.["status"] !== "active") throw new HttpsError("failed-precondition", "Só dá para trocar o horário de um plano ativo.");
     const picked = pickCourt({
-      courtIds: plan.courtIds, courtNames: plan.courtNames, weekdays, startMin, endMin,
+      ...planCourtsOf(arena, plan, occ.courts), weekdays, startMin, endMin,
       busy: busyBlocksOf(occ, {fromDate: todayKey, nowMs, excludeSeriesIds: oldSeriesIds}),
     });
     if (!picked) throw new HttpsError("resource-exhausted", "Nenhuma quadra do plano está livre em todos os dias escolhidos nesse horário.");
@@ -902,18 +936,30 @@ export async function pauseSubscriptionCore(
         "Os dias de pausa deste ano já foram usados.");
     }
     const months = fullyPausedMonths(todayKey, until);
-    const charges = months.length > 0 ?
-      await tx.get(db.collection(ARENA_SCHEDULE_CHARGES).where("subscriptionId", "==", subscriptionId)) :
-      null;
     let billedThrough = typeof sub["billedThrough"] === "string" ? sub["billedThrough"] : null;
-    for (const c of charges?.docs ?? []) {
-      if (c.data()["status"] === "open" && months.includes(String(c.data()["period"]))) {
-        tx.set(c.ref, {status: "canceled", canceledAt: FieldValue.serverTimestamp(), cancelReason: "paused"}, {merge: true});
+    const prepaidShift: Data = {};
+    if (subscriptionPrepaidMonths(sub) > 1) {
+      // Anual à vista: o mês inteiro pausado já foi pago — empurra o "pago até" e a fidelidade.
+      // Nada é cancelado (a cobrança do ano é uma só).
+      const covered = billedThrough ? months.filter((m) => m <= billedThrough!).length : 0;
+      if (covered > 0 && billedThrough) {
+        billedThrough = addMonthsToMonthKey(billedThrough, covered);
+        const commitment = typeof sub["commitmentEndsOn"] === "string" ? sub["commitmentEndsOn"] : null;
+        if (commitment) prepaidShift["commitmentEndsOn"] = addMonthsToDateKey(commitment, covered);
       }
-    }
-    // Mês inteiro pausado sai do faturado: a volta gera o proporcional dela.
-    if (months.length > 0 && billedThrough && billedThrough >= months[0]!) {
-      billedThrough = monthKeyOf(addDaysToDateKey(firstDayOfMonth(months[0]!), -1));
+    } else {
+      const charges = months.length > 0 ?
+        await tx.get(db.collection(ARENA_SCHEDULE_CHARGES).where("subscriptionId", "==", subscriptionId)) :
+        null;
+      for (const c of charges?.docs ?? []) {
+        if (c.data()["status"] === "open" && months.includes(String(c.data()["period"]))) {
+          tx.set(c.ref, {status: "canceled", canceledAt: FieldValue.serverTimestamp(), cancelReason: "paused"}, {merge: true});
+        }
+      }
+      // Mês inteiro pausado sai do faturado: a volta gera o proporcional dela.
+      if (months.length > 0 && billedThrough && billedThrough >= months[0]!) {
+        billedThrough = monthKeyOf(addDaysToDateKey(firstDayOfMonth(months[0]!), -1));
+      }
     }
     for (const seriesId of seriesIdsOf(sub)) {
       tx.set(db.collection(ARENA_RECURRING_BOOKINGS).doc(seriesId), {status: "paused", pausedAt: FieldValue.serverTimestamp()}, {merge: true});
@@ -924,6 +970,7 @@ export async function pauseSubscriptionCore(
       pausedAt: FieldValue.serverTimestamp(),
       pauseDaysUsed: {year: todayKey.slice(0, 4), days: used + days},
       billedThrough,
+      ...prepaidShift,
       ...pendingRelease(seriesIdsOf(sub), "schedule_subscription_paused"),
       updatedAt: FieldValue.serverTimestamp(),
     }, {merge: true});
@@ -1197,7 +1244,7 @@ export async function cancelMySubscriptionCore(
       throw new HttpsError("failed-precondition", `Seu plano já termina em ${formatDateBr(sub["endsOn"])}.`);
     }
     const charges = await tx.get(db.collection(ARENA_SCHEDULE_CHARGES).where("subscriptionId", "==", subscriptionId));
-    const paid = charges.docs.filter((c) => c.data()["status"] === "paid").map((c) => String(c.data()["period"]));
+    const paid = charges.docs.filter((c) => c.data()["status"] === "paid").map((c) => chargeCoversThrough(c.data()));
     const commitment = typeof sub["commitmentEndsOn"] === "string" ? sub["commitmentEndsOn"] : null;
     const exit = athleteExitDate(todayKey, paid, commitment);
     markFutureExit(tx, db, ref, sub, charges.docs, exit, {

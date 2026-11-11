@@ -29,6 +29,7 @@ import {
   autopayOf,
   parseScheduleSettings,
   str,
+  chargePeriodLabel,
 } from "./arena-schedule-plan-constants";
 import {
   notifyScheduleSafe,
@@ -41,7 +42,6 @@ import {scheduleAutopayFlagOn} from "./arena-schedule-autopay";
 import {defaultAutopayDeps, recoverScheduleAutopay, type AutopayDeps} from "./arena-schedule-autopay-charge";
 import {activatePendingSubscriptionCore, expirePendingSubscriptionCore} from "./arena-schedule-subscriptions";
 import {chargeAsaasMirror, type ClassAsaasState} from "./arena-class-asaas-model";
-import {monthLabelPt} from "./arena-class-billing";
 import {asaasArenaSecrets, getAsaasEnvTag} from "./asaas-client";
 import {
   cardFeePreviewFields,
@@ -197,7 +197,7 @@ export function scheduleAsaasGroupData(
   charge: Data,
   opts: {customerAthleteId: string | null; arenaName?: string; silentLink?: boolean},
 ): Data {
-  const label = monthLabelPt(str(charge["period"]));
+  const label = chargePeriodLabel(charge);
   const description = [`Plano ${str(charge["planName"]) || "de horário"}`, label, opts.arenaName ?? ""]
     .filter(Boolean).join(" · ").slice(0, 480);
   return {

@@ -376,7 +376,7 @@ export class PhSubscriberDetailComponent {
   protected readonly visibleCharges = computed(() => {
     const period = this.today.slice(0, 7);
     return this.charges()
-      .filter((c) => c.status === 'open' || (c.status === 'paid' && c.period === period))
+      .filter((c) => c.status === 'open' || (c.status === 'paid' && c.period <= period && (c.coversThrough ?? c.period) >= period))
       .sort((a, b) => a.period.localeCompare(b.period) || a.payerIndex - b.payerIndex);
   });
   protected readonly nextDue = computed(() => this.visibleCharges().filter((c) => c.status === 'open').map((c) => c.dueDate).sort()[0] ?? null);
@@ -401,6 +401,9 @@ export class PhSubscriberDetailComponent {
   }
 
   protected periodLabel(c: ScheduleCharge): string {
+    if (c.coversThrough && c.coversThrough > c.period) {
+      return `Anual à vista · ${monthYear(c.period)} a ${monthYear(c.coversThrough)} · vence ${shortDate(c.dueDate)}`;
+    }
     const kind = c.kind === 'first' ? '1ª mensalidade' : c.kind === 'resume' ? 'Volta da pausa' : 'Mensalidade';
     return `${kind} · ${monthYear(c.period)} · vence ${shortDate(c.dueDate)}`;
   }

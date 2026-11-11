@@ -243,3 +243,10 @@ Trava (`arenaSlotLocks`): `floating: true` enquanto a reserva estiver `unassigne
   - **Manutenção**: o trigger `onArenaCourtMaintenanceRelocateFloating` roda quando a quadra
     passa a `maintenance`. Ele leva as provisórias dela, de hoje em diante, para outra quadra
     livre. Sem quadra livre, ficam e o log avisa.
+- **Planos de horário na arena que define a quadra**: o plano não escolhe quadra. O editor do
+  portal troca as quadras por "A arena define a quadra" e salva `courtIds: []`; o servidor usa as
+  quadras da distribuição (ativas e fora de manutenção, na ordem gravada — `planCourtsOf`) na
+  disponibilidade, na assinatura, na troca de horário, na oferta da fila e na reposição (uma opção
+  por horário). Por dentro a série continua numa quadra, então o horário fixo desconta da
+  capacidade. O app não mostra quadra (horários "livre"/"última vaga", Meu plano "quadra na
+  chegada", reposição sem quadra).

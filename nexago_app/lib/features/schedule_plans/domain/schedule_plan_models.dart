@@ -425,6 +425,7 @@ class SchedulePlanAvailability {
     this.primeCapReached = false,
     this.days = const [],
     this.onlineBilling = false,
+    this.arenaDefinesCourt = false,
   });
 
   final SchedulePlan plan;
@@ -434,6 +435,10 @@ class SchedulePlanAvailability {
   /// A arena cobra online (`scheduleSettings/rules.onlineBillingEnabled`):
   /// Pix/cartão viram link mensal. Backend antigo não manda → `false`.
   final bool onlineBilling;
+
+  /// A arena define a quadra (reservas por capacidade): o atleta assina o
+  /// horário e não vê quadra. Backend antigo não manda → `false`.
+  final bool arenaDefinesCourt;
 
   factory SchedulePlanAvailability.fromMap(
     Map<String, dynamic> m, {
@@ -450,6 +455,7 @@ class SchedulePlanAvailability {
       primeCapReached: spBool(m['primeCapReached']),
       days: days,
       onlineBilling: spBool(m['onlineBilling']),
+      arenaDefinesCourt: spBool(m['arenaDefinesCourt']),
     );
   }
 }
@@ -605,6 +611,7 @@ class ScheduleCharge {
     this.subscriptionId = '',
     this.cancelReason,
     this.period = '',
+    this.coversThrough,
     this.amountReais = 0,
     this.dueDate,
     this.status = 'open',
@@ -627,6 +634,15 @@ class ScheduleCharge {
   /// `payment_expired`: o prazo de 30 min da assinatura venceu sem pagamento.
   final String? cancelReason;
   final String period;
+
+  /// Último mês coberto (`AAAA-MM`): o anual à vista cobre 12 numa cobrança.
+  /// `null` = só [period].
+  final String? coversThrough;
+
+  /// Cobre mais de um mês (anual à vista).
+  bool get coversManyMonths =>
+      coversThrough != null && coversThrough!.compareTo(period) > 0;
+
   final double amountReais;
   final DateTime? dueDate;
 
@@ -670,6 +686,7 @@ class ScheduleCharge {
       subscriptionId: spStr(m['subscriptionId']),
       cancelReason: spStrOrNull(m['cancelReason']),
       period: spStr(m['period']),
+      coversThrough: spStrOrNull(m['coversThrough']),
       amountReais: spDouble(m['amountReais']),
       dueDate: spDate(m['dueDate']),
       status: spStr(m['status'], 'open'),
@@ -817,11 +834,17 @@ class ScheduleSubscription {
     this.credits = const [],
     this.charges = const [],
     this.autopay = const {},
+    this.prepaidMonths = 1,
   });
 
   final String id;
   final String arenaId;
   final String arenaName;
+
+  /// Mensalidades pagas de uma vez (anual à vista = 12; antigas e mensal = 1).
+  final int prepaidMonths;
+
+  bool get paysUpfront => prepaidMonths > 1;
   final String planId;
   final String planName;
   final int timesPerWeek;
@@ -894,6 +917,7 @@ class ScheduleSubscription {
           SchedulePlanCycle.monthly,
       monthlyPriceReais: spDouble(m['monthlyPriceReais']),
       commitmentEndsOn: spDate(m['commitmentEndsOn']),
+      prepaidMonths: spInt(m['prepaidMonths'], 1),
       paymentMethod:
           schedulePaymentMethodFromKey(spStrOrNull(m['paymentMethod'])) ??
               SchedulePaymentMethod.onsite,
@@ -1046,12 +1070,16 @@ class ScheduleSubscribeResult {
     this.firstChargeId,
     this.firstChargeReais,
     this.firstChargeDueDate,
+    this.firstChargeMonths = 1,
     this.pendingPayment = false,
     this.paymentDeadline,
   });
 
   final String subscriptionId;
   final String courtName;
+
+  /// Mensalidades na 1ª cobrança (anual à vista = 12).
+  final int firstChargeMonths;
 
   /// Assinou com Pix/cartão: só vira assinante pagando até [paymentDeadline].
   final bool pendingPayment;
@@ -1075,6 +1103,7 @@ class ScheduleSubscribeResult {
           ? first.toDouble()
           : spDoubleOrNull(firstMap['amountReais']),
       firstChargeDueDate: spDate(firstMap['dueDate']),
+      firstChargeMonths: spInt(firstMap['months'], 1),
       pendingPayment: spStr(m['status']) == 'pending_payment',
       paymentDeadline: spDateTime(m['paymentDeadline']),
     );

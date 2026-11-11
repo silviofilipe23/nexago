@@ -13,7 +13,7 @@ import {getFirestore, FieldValue, type Firestore, type Transaction} from "fireba
 import * as logger from "firebase-functions/logger";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {ARENA_RECURRING_BOOKINGS, addDaysToDateKey, isValidDateKey} from "./arena-recurring-booking";
-import {dueDateFor, monthLabelPt, monthsToBill} from "./arena-class-billing";
+import {dueDateFor, monthsToBill} from "./arena-class-billing";
 import {monthKeyOf} from "./arena-class-ledger";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {
@@ -23,9 +23,13 @@ import {
   AUTOPAY_WINDOW_STATES,
   LIVE_SUBSCRIPTION_STATUSES,
   SCHEDULE_PAYMENT_METHODS,
+  addMonthsToMonthKey,
   autopayOf,
+  chargePeriodLabel,
   daysBetween,
+  round2,
   str,
+  subscriptionPrepaidMonths,
   type AutopayState,
 } from "./arena-schedule-plan-constants";
 import {notifyScheduleSafe, requireScheduleManager, requireUid, rethrowSchedule} from "./arena-schedule-plans";
@@ -227,6 +231,13 @@ export interface DailyResult {
   released: number;
 }
 
+/** Meses de `from` a `to` (`AAAA-MM`), contando os dois. */
+export function monthsBetweenInclusive(from: string, to: string): number {
+  const [fy, fm] = from.split("-").map(Number);
+  const [ty, tm] = to.split("-").map(Number);
+  return Math.max(1, ((ty ?? 0) - (fy ?? 0)) * 12 + ((tm ?? 1) - (fm ?? 1)) + 1);
+}
+
 /** Último mês a faturar de quem tem saída marcada (o mês do último dia de jogo). */
 function lastBillableMonth(sub: Data): string | null {
   const endsOn = typeof sub["endsOn"] === "string" ? sub["endsOn"] : null;
@@ -240,10 +251,18 @@ export async function generateMonthlyChargesFor(db: Firestore, subId: string, su
     typeof sub["billedThrough"] === "string" ? sub["billedThrough"] : null,
     str(sub["startDate"]) || todayKey, dueDay, todayKey,
   ).filter((m) => !lastMonth || m <= lastMonth);
+  const monthly = Number(sub["monthlyPriceReais"] ?? 0);
+  const prepaid = subscriptionPrepaidMonths(sub);
   let created = 0;
+  let through = "";
   for (const month of months) {
+    if (month <= through) continue;
+    // Anual à vista: a renovação cobre os próximos 12 meses numa cobrança só (até a saída marcada).
+    const blockEnd = prepaid > 1 ? addMonthsToMonthKey(month, prepaid - 1) : month;
+    through = lastMonth && blockEnd > lastMonth ? lastMonth : blockEnd;
+    const count = monthsBetweenInclusive(month, through);
     const planned = buildPayerCharges(
-      subChargeOwner(subId, sub), month, "monthly", Number(sub["monthlyPriceReais"] ?? 0), dueDateFor(month, dueDay),
+      subChargeOwner(subId, sub), month, "monthly", round2(monthly * count), dueDateFor(month, dueDay), count,
     );
     const batch = db.batch();
     for (const c of planned) {
@@ -252,7 +271,7 @@ export async function generateMonthlyChargesFor(db: Firestore, subId: string, su
       batch.set(ref, c.data);
       created += 1;
     }
-    batch.set(db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).doc(subId), {billedThrough: month}, {merge: true});
+    batch.set(db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).doc(subId), {billedThrough: through}, {merge: true});
     await batch.commit();
   }
   return created;
@@ -339,7 +358,7 @@ export async function runScheduleSubscriptionsDaily(db: Firestore, todayKey: str
       await doc.ref.set({remindersSent: [...REMINDER_OFFSETS.filter((o) => o <= reminder)]}, {merge: true});
       await notifyScheduleSafe(str(charge["payerAthleteId"]), {
         title: late === 0 ? "Mensalidade vence hoje" : `Mensalidade atrasada há ${late} dia(s)`,
-        body: `${str(charge["planName"])} · ${monthLabelPt(str(charge["period"]))} · ` +
+        body: `${str(charge["planName"])} · ${chargePeriodLabel(charge)} · ` +
           `R$ ${Number(charge["amountReais"] ?? 0).toFixed(2).replace(".", ",")}. ` +
           (invoiceUrl ? "Toque para pagar com Pix ou cartão." : "Acerte com a arena."),
         type: "schedule_plan_charge_reminder",

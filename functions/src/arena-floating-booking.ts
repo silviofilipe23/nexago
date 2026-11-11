@@ -86,9 +86,11 @@ export function floatingCandidateCourts(
   excludeCourtIds: ReadonlyArray<string>,
 ): Array<{id: string; name: string}> {
   const allocation = arenaData?.["bookingAllocation"] as DocumentData | undefined;
-  const configured = Array.isArray(allocation?.["courtIds"]) ?
+  const listed = Array.isArray(allocation?.["courtIds"]) ?
     (allocation!["courtIds"] as unknown[]).map(str).filter(Boolean) :
-    null;
+    [];
+  // Lista vazia = sem configuração (todas as quadras).
+  const configured = listed.length > 0 ? listed : null;
   const byId = new Map(courts.map((c) => [c.id, c.data]));
   const ordered = configured ?
     configured.filter((id) => byId.has(id)) :

@@ -14,6 +14,8 @@ import {dayKeyFromEventDate} from "./event-timezone";
 import {ARENA_RECURRING_BOOKINGS, toMinutes} from "./arena-recurring-booking";
 import {ARENA_CLASSES} from "./arena-class-constants";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {readBookingAllocation} from "./arena-booking-allocation";
+import {floatingCandidateCourts} from "./arena-floating-booking";
 import {assertArenaCanBillOnline} from "./arena-class-billing";
 import {
   ARENA_SCHEDULE_SUBSCRIPTIONS,
@@ -180,6 +182,28 @@ export interface ArenaOccupancy {
   classes: FirebaseFirestore.QueryDocumentSnapshot[];
   offers: FirebaseFirestore.QueryDocumentSnapshot[];
   activeCourts: number;
+  /** Quadras da arena (todas; `planCourtsOf` filtra). */
+  courts: Array<{id: string; data: Data}>;
+}
+
+/** A arena define a quadra (`bookingAllocation.mode == "capacity"`): o plano não tem quadra própria. */
+export function arenaDefinesCourt(arena: Data | undefined): boolean {
+  return readBookingAllocation(arena).mode === "capacity";
+}
+
+/**
+ * Quadras onde o plano pode cair. Arena que define a quadra: as da distribuição (ativas e fora de
+ * manutenção, na ordem gravada) — o plano não guarda quadra e o servidor escolhe, como na reserva.
+ * Senão, as escolhidas no plano.
+ */
+export function planCourtsOf(
+  arena: Data | undefined,
+  plan: {courtIds: readonly string[]; courtNames: readonly string[]},
+  courts: ReadonlyArray<{id: string; data: Data}>,
+): {courtIds: string[]; courtNames: string[]} {
+  if (!arenaDefinesCourt(arena)) return {courtIds: [...plan.courtIds], courtNames: [...plan.courtNames]};
+  const picked = floatingCandidateCourts(arena, courts.filter((c) => isCourtActive(c.data)), null, []);
+  return {courtIds: picked.map((c) => c.id), courtNames: picked.map((c) => c.name)};
 }
 
 /**
@@ -200,6 +224,7 @@ export async function readArenaOccupancy(db: Firestore, arenaId: string, get?: Q
     classes: classes.docs,
     offers: offers.docs,
     activeCourts: courts.docs.filter((d) => isCourtActive(d.data() as Data)).length,
+    courts: courts.docs.map((d) => ({id: d.id, data: d.data() as Data})),
   };
 }
 
@@ -306,7 +331,10 @@ export async function upsertSchedulePlanCore(
 ): Promise<{planId: string}> {
   const arenaId = str(input["arenaId"]);
   const arena = await requireScheduleManager(db, arenaId, uid);
-  const plan = validateSchedulePlanInput(input);
+  // Arena que define a quadra: o plano não escolhe quadra (usa a distribuição).
+  const definesCourt = arenaDefinesCourt(arena);
+  const plan = validateSchedulePlanInput(input, {courtsOptional: definesCourt});
+  if (definesCourt) plan.courtIds = [];
   // Arquivar não exige plano Pro (a arena que caiu de plano ainda arruma o catálogo).
   if (plan.status !== "archived") requireScheduleEntitlement(arena, nowMs, "manager");
 
@@ -393,6 +421,7 @@ export async function getPlanAvailabilityCore(
     db.collection(ARENA_SCHEDULE_WAITLIST).where("planId", "==", planId).where("status", "==", "waiting").get(),
   ]);
   const busy = busyBlocksOf(occ, {fromDate: todayKey, nowMs});
+  const courts = planCourtsOf(arena, plan, occ.courts);
   const capacityMinutes = primeCapacityMinutes(settings.primeWindows, occ.activeCourts);
   const usedMinutes = planSeriesPrimeMinutes(occ, settings.primeWindows);
   const primeCapReached = capacityMinutes > 0 &&
@@ -407,7 +436,7 @@ export async function getPlanAvailabilityCore(
       return {
         startTime,
         endTime: fmtMinutes(endMin),
-        freeCourts: countFreeCourts(plan.courtIds, busy, weekday, startMin, endMin),
+        freeCourts: countFreeCourts(courts.courtIds, busy, weekday, startMin, endMin),
         waitlistCount: waiting.docs.filter((d) => str(d.data()["startTime"]) === startTime &&
           Array.isArray(d.data()["weekdays"]) && (d.data()["weekdays"] as unknown[]).map(Number).includes(weekday)).length,
         prime: primeOverlapMinutes(settings.primeWindows, weekday, startMin, endMin) > 0,
@@ -423,6 +452,8 @@ export async function getPlanAvailabilityCore(
     days,
     // Pix/cartão viram "link mensal" quando ligada; senão "combine com a arena".
     onlineBilling: scheduleOnlineBillingOn(settings, arena),
+    // O app não mostra quadra (a arena define a cada jogo).
+    arenaDefinesCourt: arenaDefinesCourt(arena),
   };
 }
 

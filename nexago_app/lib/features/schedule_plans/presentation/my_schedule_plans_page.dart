@@ -18,6 +18,7 @@ import '../../arena/domain/aulas/arena_class_logic.dart'
     show arenaClassInitials;
 import '../../arena/presentation/aulas/widgets/arena_class_atoms.dart'
     show ArenaClassAvatar;
+import '../../arenas/domain/arenas_providers.dart';
 import '../../payment_card/application/payment_card_providers.dart';
 import '../application/schedule_plans_providers.dart';
 import '../domain/schedule_plan_logic.dart';
@@ -94,7 +95,16 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
     if (options.isEmpty) return;
     final occurrence = options.length == 1
         ? options.first
-        : await pickScheduleOccurrence(context, options);
+        : await pickScheduleOccurrence(
+            context,
+            options,
+            showCourt: !(ref
+                    .read(arenaByIdProvider(sub.arenaId))
+                    .valueOrNull
+                    ?.bookingAllocation
+                    .isCapacity ??
+                false),
+          );
     if (occurrence == null || !mounted) return;
     final rules = sub.rules;
     final late = scheduleIsLateNotice(
@@ -135,6 +145,12 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
         credits: credits,
         validityDays: sub.rules.makeupValidityDays,
         now: _now,
+        arenaDefinesCourt: ref
+                .read(arenaByIdProvider(sub.arenaId))
+                .valueOrNull
+                ?.bookingAllocation
+                .isCapacity ??
+            false,
       ),
     );
     if (message == null || !mounted) return;
@@ -400,7 +416,16 @@ class _MySchedulePlansPageState extends ConsumerState<MySchedulePlansPage> {
     final months = byMonth.keys.toList()..sort();
     return [
       if (banner != null) ...[banner, const SizedBox(height: 12)],
-      ScheduleHeroCard(subscription: sub, now: now),
+      ScheduleHeroCard(
+        subscription: sub,
+        now: now,
+        arenaDefinesCourt: ref
+                .watch(arenaByIdProvider(sub.arenaId))
+                .valueOrNull
+                ?.bookingAllocation
+                .isCapacity ??
+            false,
+      ),
       for (final key in months) ...[
         const SizedBox(height: 16),
         Row(
@@ -652,10 +677,15 @@ class ScheduleHeroCard extends StatelessWidget {
     super.key,
     required this.subscription,
     required this.now,
+    this.arenaDefinesCourt = false,
   });
 
   final ScheduleSubscription subscription;
   final DateTime now;
+
+  /// A arena define a quadra a cada jogo: no lugar da quadra, "quadra na
+  /// chegada".
+  final bool arenaDefinesCourt;
 
   @override
   Widget build(BuildContext context) {
@@ -732,7 +762,10 @@ class ScheduleHeroCard extends StatelessWidget {
                 TextSpan(
                   text: [
                     if (sub.arenaName.isNotEmpty) '',
-                    if (court.isNotEmpty) court,
+                    if (arenaDefinesCourt)
+                      'quadra na chegada'
+                    else if (court.isNotEmpty)
+                      court,
                     sub.planName,
                   ].join(' · '),
                 ),
@@ -1040,19 +1073,29 @@ class ScheduleChargeCard extends StatelessWidget {
     final charge = scheduleNextOpenCharge(sub.charges, uid);
     final split = sub.members.length > 1;
     final overdue = charge == null ? 0 : scheduleOverdueDays(charge, now);
+    final lastPaid =
+        charge == null ? scheduleLastPaidCharge(sub.charges, uid) : null;
+    // Anual à vista: a cobrança cobre 12 meses; sem nada aberto, "pago até".
+    final cover = charge == null ? null : scheduleChargeCoverLabel(charge);
+    final paidCover = lastPaid?.coversManyMonths == true ? lastPaid : null;
     final kicker = charge?.dueDate != null
-        ? 'Próxima cobrança · ${scheduleDayMonth(charge!.dueDate!)}'
-        : sub.dueDay > 0
-            ? 'Mensalidade · todo dia ${sub.dueDay}'
-            : 'Mensalidade';
-    final amount = charge?.amountReais ?? scheduleMyShare(sub, uid);
+        ? cover != null
+            ? 'Anual · $cover · vence ${scheduleDayMonth(charge!.dueDate!)}'
+            : 'Próxima cobrança · ${scheduleDayMonth(charge!.dueDate!)}'
+        : paidCover != null
+            ? 'Anual pago até '
+                '${scheduleMonthShortLabel(paidCover.coversThrough!)}'
+            : sub.dueDay > 0
+                ? 'Mensalidade · todo dia ${sub.dueDay}'
+                : 'Mensalidade';
+    final amount = charge?.amountReais ??
+        paidCover?.amountReais ??
+        scheduleMyShare(sub, uid);
     final pay = onPay;
     final payable =
         charge != null && pay != null && scheduleCanPayOnline(charge)
             ? charge
             : null;
-    final lastPaid =
-        charge == null ? scheduleLastPaidCharge(sub.charges, uid) : null;
     final paidLabel =
         lastPaid == null ? null : schedulePaidOnlineLabel(lastPaid);
     final paying = payable != null && payingChargeId == payable.id;
@@ -1104,7 +1147,11 @@ class ScheduleChargeCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              split ? 'sua parte' : 'por mês',
+              split
+                  ? 'sua parte'
+                  : (cover != null || paidCover != null)
+                      ? '12 meses'
+                      : 'por mês',
               style: TextStyle(fontSize: 12, color: colors.onSurfaceMuted),
             ),
             const SizedBox(height: 4),

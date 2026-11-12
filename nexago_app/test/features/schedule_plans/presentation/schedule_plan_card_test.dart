@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/notifications/notification_navigation.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
@@ -54,6 +55,9 @@ void main() {
     expect(find.text('2x por semana · 1h · Seg–Sex, 18h–23h'), findsOneWidget);
     // 70 × 1 × 2 × 52/12 = 606,67 → −26%.
     expect(find.text('−26%'), findsOneWidget);
+    // 606,67 − 450 = 156,67 por mês.
+    expect(find.text('Economia de ${formatBRL(156.67)} por mês vs avulso'),
+        findsOneWidget);
     expect(find.text('/mês'), findsOneWidget);
     expect(find.text('16 vagas'), findsOneWidget);
   });
@@ -103,5 +107,12 @@ void main() {
         '/meus-planos-horario',
       );
     });
+  });
+
+  testWidgets('sem avulso de referência: nem porcentagem nem economia',
+      (tester) async {
+    await pumpCard(tester, plan(reference: null));
+    expect(find.textContaining('Economia de'), findsNothing);
+    expect(find.text('−26%'), findsNothing);
   });
 }

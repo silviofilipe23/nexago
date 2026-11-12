@@ -51,6 +51,14 @@ class ArenaTrainingPlan {
     this.billingMode = 'manual',
     this.slots = const [],
     this.makeupCredits = 0,
+    this.cycle = 'monthly',
+    this.commitmentEndsOn,
+    this.cancelNoticeDays = 30,
+    this.cancelPenaltyLabel = '',
+    this.endsOn,
+    this.penaltyReais,
+    this.penaltyStatus,
+    this.canCancel = false,
   });
 
   factory ArenaTrainingPlan.fromMap(Map<String, Object?> m) {
@@ -78,8 +86,36 @@ class ArenaTrainingPlan {
             ]
           : const [],
       makeupCredits: _int(m['makeupCredits']) ?? 0,
+      cycle: _str(m['cycle'], 'monthly'),
+      commitmentEndsOn: _strOrNull(m['commitmentEndsOn']),
+      cancelNoticeDays: _int(m['cancelNoticeDays']) ?? 30,
+      cancelPenaltyLabel: _str(m['cancelPenaltyLabel']),
+      endsOn: _strOrNull(m['endsOn']),
+      penaltyReais: _double(m['penaltyReais']),
+      penaltyStatus: _strOrNull(m['penaltyStatus']),
+      canCancel: m['canCancel'] == true,
     );
   }
+
+  /// `monthly`, `quarterly`, `semiannual`, `annual`.
+  final String cycle;
+
+  /// Fim da fidelidade (`YYYY-MM-DD`).
+  final String? commitmentEndsOn;
+
+  /// Regras de cancelamento do contrato.
+  final int cancelNoticeDays;
+  final String cancelPenaltyLabel;
+
+  /// Cancelamento agendado: última aula e a multa (`open`, `paid`, `waived`, `none`).
+  final String? endsOn;
+  final double? penaltyReais;
+  final String? penaltyStatus;
+
+  /// O aluno pode cancelar pelo app.
+  final bool canCancel;
+
+  bool get cancellationScheduled => endsOn != null;
 
   final String enrollmentId;
   final String arenaId;

@@ -30,7 +30,11 @@ class ClassSignupPaymentView extends ConsumerStatefulWidget {
     required this.onPaid,
     required this.onExpired,
     this.pollEvery = const Duration(seconds: 4),
+    this.kind = 'signup',
   });
+
+  /// `signup` (1ª cobrança, vaga segurada) ou `penalty` (multa do cancelamento).
+  final String kind;
 
   final ClassPendingPayment pending;
 
@@ -80,6 +84,7 @@ class _ClassSignupPaymentViewState extends ConsumerState<ClassSignupPaymentView>
       final p = await ref.read(classAgreementsRepositoryProvider).enrollmentPayment(
             enrollmentId: widget.pending.enrollmentId,
             method: _method,
+            kind: widget.kind,
           );
       if (!mounted) return;
       setState(() => _payment = p);
@@ -123,14 +128,22 @@ class _ClassSignupPaymentViewState extends ConsumerState<ClassSignupPaymentView>
       key: const Key('class-signup-payment'),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
       children: [
-        const ScheduleBanner(
-          icon: Icons.verified_rounded,
-          tone: AppColors.win,
-          title: 'Contrato assinado',
-          message: 'Pague a 1ª cobrança para confirmar a matrícula.',
-        ),
+        if (widget.kind == 'penalty')
+          const ScheduleBanner(
+            icon: Icons.event_available_rounded,
+            tone: AppColors.win,
+            title: 'Cancelamento registrado',
+            message: 'Pague a multa por Pix ou cartão. Dá para pagar depois em Cobranças.',
+          )
+        else
+          const ScheduleBanner(
+            icon: Icons.verified_rounded,
+            tone: AppColors.win,
+            title: 'Contrato assinado',
+            message: 'Pague a 1ª cobrança para confirmar a matrícula.',
+          ),
         const SizedBox(height: 12),
-        if (until != null)
+        if (until != null && widget.kind != 'penalty')
           Container(
             key: const Key('class-signup-pay-timer'),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -165,7 +178,7 @@ class _ClassSignupPaymentViewState extends ConsumerState<ClassSignupPaymentView>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const ScheduleKicker('1ª cobrança'),
+                    ScheduleKicker(widget.kind == 'penalty' ? 'Multa' : '1ª cobrança'),
                     if ((p?.description ?? '').isNotEmpty) ...[
                       const SizedBox(height: 3),
                       Text(
@@ -239,8 +252,10 @@ class _ClassSignupPaymentViewState extends ConsumerState<ClassSignupPaymentView>
           ),
         const SizedBox(height: 14),
         Text(
-          'Assim que o pagamento cair, a matrícula é confirmada aqui mesmo. '
-          'Depois, as mensalidades saem sozinhas todo mês.',
+          widget.kind == 'penalty'
+              ? 'Assim que o pagamento cair, a multa aparece como paga.'
+              : 'Assim que o pagamento cair, a matrícula é confirmada aqui mesmo. '
+                  'Depois, as mensalidades saem sozinhas todo mês.',
           textAlign: TextAlign.center,
           style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted, height: 1.45),
         ),

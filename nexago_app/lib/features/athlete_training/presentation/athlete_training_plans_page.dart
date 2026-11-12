@@ -383,7 +383,7 @@ class _ArenaPlanCard extends StatelessWidget {
     final className = p.slots.isEmpty ? '' : p.slots.first.className;
     final credits = p.credits;
     final left = p.creditsLeft;
-    return _PlanCard(
+    final card = _PlanCard(
       key: Key('training-plan-arena-${p.enrollmentId}'),
       color: AppColors.brand,
       payer: 'Cobrado pela ${p.arenaName}',
@@ -423,6 +423,40 @@ class _ArenaPlanCard extends StatelessWidget {
                   ? '1 disponível'
                   : '${p.makeupCredits} disponíveis',
           p.makeupCredits > 0 ? ProfessorLinksStyle.blue : null,
+        ),
+        if (p.commitmentEndsOn != null && !p.cancellationScheduled)
+          ('Fidelidade', 'até ${trainingPlanShortDate(p.commitmentEndsOn!)}', null),
+        if (p.cancellationScheduled)
+          ('Última aula', trainingPlanShortDate(p.endsOn!), AppColors.live),
+        if (p.cancellationScheduled && (p.penaltyReais ?? 0) > 0)
+          (
+            'Multa',
+            '${formatBRL(p.penaltyReais!)} · ${switch (p.penaltyStatus) {
+              'paid' => 'paga',
+              'waived' => 'isentada pela arena',
+              _ => 'em aberto',
+            }}',
+            p.penaltyStatus == 'open' ? AppColors.pending : null,
+          ),
+      ],
+    );
+    if (!p.canCancel) return card;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        card,
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            key: Key('training-plan-cancel-${p.enrollmentId}'),
+            style: TextButton.styleFrom(foregroundColor: AppColors.live),
+            icon: const Icon(Icons.close_rounded, size: 18),
+            label: const Text('Cancelar plano'),
+            onPressed: () => context.pushNamed(
+              AppRouteNames.classCancel,
+              pathParameters: {'enrollmentId': p.enrollmentId},
+            ),
+          ),
         ),
       ],
     );

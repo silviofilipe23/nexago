@@ -60,7 +60,7 @@ export function filterStudentRows(rows: readonly StudentRow[], filter: StudentFi
   const needle = term.trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   return rows.filter((r) => {
     const status = r.enrollment.status;
-    const live = status === 'active' || status === 'paused';
+    const live = status === 'active' || status === 'paused' || status === 'pending_payment';
     const ok =
       filter === 'todos' ? live :
       filter === 'atraso' ? live && r.state === 'late' :

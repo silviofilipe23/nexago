@@ -237,6 +237,15 @@ class FakeClassAgreementsRepository implements ClassAgreementsRepository {
 
   bool signupOpen = true;
 
+  /// `pendingPayment` devolvido pela assinatura (pagar ao assinar); null = ativa.
+  Map<String, Object?>? enrollPendingPayment;
+
+  /// Respostas da tela de pagamento, em ordem (a última se repete).
+  List<Map<String, Object?>> paymentResponses = const [
+    {'state': 'preparing'},
+  ];
+  final paymentCalls = <Map<String, Object?>>[];
+
   final calls = <String>[];
   final previewCalls = <Map<String, Object?>>[];
   Map<String, Object?>? lastEnroll;
@@ -326,7 +335,18 @@ class FakeClassAgreementsRepository implements ClassAgreementsRepository {
         },
       ],
       'signedAt': '2026-11-12T15:00:00Z',
+      'pendingPayment': enrollPendingPayment,
     });
+  }
+
+  @override
+  Future<ClassEnrollmentPayment> enrollmentPayment({
+    required String enrollmentId,
+    required String method,
+  }) async {
+    paymentCalls.add({'enrollmentId': enrollmentId, 'method': method});
+    final i = (paymentCalls.length - 1).clamp(0, paymentResponses.length - 1);
+    return ClassEnrollmentPayment.fromMap(paymentResponses[i]);
   }
 
   @override

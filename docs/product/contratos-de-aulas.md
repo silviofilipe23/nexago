@@ -37,8 +37,15 @@ Ecossistema (`Prof-app-01…03`, y≈96200) e Arena (`Arena-portal-01…03`, y�
   `commitmentEndsOn`, `paymentForm`, `dueDay` e o valor do ciclo em `plan.priceReais`.
 - Contrato: `{{plano.ciclo}}` ("trimestral, com fidelidade de 3 meses e pagamento mensal"), `{{plano.preco}}`
   com o desconto e `{{contrato.fidelidade}}` (fim da fidelidade).
-- Ainda não copiado dos Planos de horário: pagar ao assinar com a vaga segurada por 30 min, desconto no Pix,
-  débito automático no cartão e cancelamento pelo próprio aluno. Cancelar (pela arena) não devolve o que foi
+- **Pagar ao assinar** (como nos Planos de horário): com Pix/cartão pelo app, assinar cria a matrícula em
+  `pending_payment` com a vaga segurada por 30 min (`pendingPaymentUntil`) e leva à tela de pagamento (Pix com QR
+  no app ou checkout do cartão — `getMyClassEnrollmentPayment`). Pago → `onArenaClassChargePaidActivateEnrollment`
+  ativa; sem pagamento até o prazo + 5 min → `expireArenaClassPendingEnrollments` (a cada 5 min) cancela matrícula,
+  cobranças, fatura e contrato e devolve a vaga (pagamento atrasado cai no estorno automático do webhook). Um plano
+  sem pagar por vez. 1ª cobrança abaixo de R$ 5 (mínimo do Asaas) ou "na arena" = matrícula ativa na hora.
+- **Recorrência**: depois de ativa, as mensalidades saem sozinhas pelo agendador (link Pix/cartão + aviso todo mês;
+  anual renova os 12 meses de uma vez). Débito automático no cartão quando a tokenização do Asaas for liberada.
+- Ainda não copiado dos Planos de horário: desconto no Pix, débito automático no cartão e cancelamento pelo aluno. Cancelar (pela arena) não devolve o que foi
   pago à vista.
 - Substitui o `cyclePrices` (valor por mês absoluto, #1205), que deixou de ser lido.
 - App da arena (Flutter) ainda matricula só no mensal (não manda `cycle`).

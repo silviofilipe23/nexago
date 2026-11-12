@@ -119,6 +119,18 @@ class ClassAgreementsRepository {
         'Não foi possível assinar o contrato.',
       ));
 
+  /// Pagamento da matrícula que espera o 1º pagamento (Pix com QR ou link do
+  /// cartão). Chamado de novo enquanto a fatura é criada e até cair.
+  Future<ClassEnrollmentPayment> enrollmentPayment({
+    required String enrollmentId,
+    required String method,
+  }) async =>
+      ClassEnrollmentPayment.fromMap(await _call(
+        'getMyClassEnrollmentPayment',
+        {'enrollmentId': enrollmentId, 'method': method},
+        'Não foi possível abrir o pagamento.',
+      ));
+
   Future<List<ClassAgreement>> myAgreements() async => parseAgreements(
         await _call('getMyArenaAgreements', const {},
             'Não foi possível abrir os seus contratos.'),

@@ -253,22 +253,56 @@ describe("contratos de aulas — perfil público", () => {
   });
 });
 
-describe("contratos de aulas — ciclo de pagamento", () => {
-  it("anual: opções no app, contrato com o ciclo e matrícula anual", async () => {
+describe("contratos de aulas — modelo dos Planos de horário", () => {
+  it("anual com desconto, vencimento escolhido e Pix: opções, contrato e matrícula", async () => {
     const {fake, db} = makeDb();
-    seed(fake);
-    fake.seedDoc("arenas/arena1/classPlans/m2", {...doc(fake, "arenas/arena1/classPlans/m2"), cyclePrices: {annual: 220}});
+    seed(fake, {onlineBillingEnabled: true});
+    fake.seedDoc("users/u1", {fullName: "Marina Lopes", phoneNumber: "+5562999990000", cpf: "52998224725"});
+    fake.seedDoc("arenas/arena1/classPlans/m2", {
+      ...doc(fake, "arenas/arena1/classPlans/m2"),
+      cycles: {monthly: {enabled: true}, annual: {enabled: true, discountPercent: 15}},
+      billing: {methods: ["pix", "onsite"], dueDayOptions: [5, 15, 25]},
+    });
     const options = await signupOptionsCore(db, "u1", "arena1");
-    assert.deepEqual(options.plans.find((p) => p.planId === "m2")!.cycles.map((c) => c.cycle), ["monthly", "annual"]);
-    const input = {...thiago2x, cycle: "annual"};
+    const m2 = options.plans.find((p) => p.planId === "m2")!;
+    assert.deepEqual(m2.cycles.map((c) => [c.cycle, c.monthlyPriceReais]), [["monthly", 260], ["annual", 221]]);
+    assert.deepEqual(m2.billing, {methods: ["pix", "onsite"], dueDayOptions: [5, 15, 25], dueDay: 5});
+    const input = {...thiago2x, cycle: "annual", dueDay: 15, paymentForm: "pix"};
     const p = await previewSelfEnrollmentCore(db, ME, input, TODAY);
     assert.equal(p.cycle, "annual");
-    assert.match(p.agreement.body, /R\$ 220,00 por mês, pagos a cada 12 meses \(R\$ 2\.640,00 por ano\)/);
-    assert.ok(p.agreement.essentials.some((r) => r.label === "Pagamento" && r.value === "Anual"));
+    assert.equal(p.dueDay, 15);
+    assert.equal(p.paymentForm, "pix");
+    assert.match(p.agreement.body, /plano anual, pago à vista, com fidelidade de 12 meses/);
+    assert.match(p.agreement.body, /R\$ 221,00 por mês, pagos à vista \(R\$ 2\.652,00 por 12 meses\) \(15% de desconto do plano anual\)/);
+    assert.match(p.agreement.body, /dia 15, por Pix pelo app nexaGO/);
+    assert.match(p.agreement.body, /até 19\/10\/2027/);
     const out = await enrollMeCore(db, ME, {...input, agreed: true, sha256: p.agreement.sha256}, EV, NOW);
-    assert.equal(doc(fake, `arenaClassEnrollments/${out.enrollmentId}`)["cycle"], "annual");
-    assert.equal(doc(fake, `arenaAgreements/${out.agreementId}`)["cycle"], "annual");
-    // Trocar o ciclo depois da prévia muda o texto: a assinatura não vale.
-    await assert.rejects(enrollMeCore(db, ME, {arenaId: "arena1", planId: "m1", slots: [{classId: "cR", weekday: 6}], cycle: "annual", agreed: true, sha256: p.agreement.sha256}, EV, NOW), /anual|mudou/);
+    const e = doc(fake, `arenaClassEnrollments/${out.enrollmentId}`);
+    assert.equal(e["cycle"], "annual");
+    assert.equal(e["dueDay"], 15);
+    assert.equal(e["paymentForm"], "pix");
+    assert.equal(e["billingMode"], "asaas");
+    assert.equal(e["commitmentEndsOn"], "2027-10-19");
+  });
+
+  it("recusa forma fora do plano e vencimento fora das opções; na arena vira cobrança manual", async () => {
+    const {fake, db} = makeDb();
+    seed(fake, {onlineBillingEnabled: true});
+    fake.seedDoc("arenas/arena1/classPlans/m2", {
+      ...doc(fake, "arenas/arena1/classPlans/m2"),
+      billing: {methods: ["pix", "onsite"], dueDayOptions: [5, 15, 25]},
+    });
+    await assert.rejects(previewSelfEnrollmentCore(db, ME, {...thiago2x, paymentForm: "card"}, TODAY), /forma de pagamento/);
+    await assert.rejects(previewSelfEnrollmentCore(db, ME, {...thiago2x, dueDay: 10}, TODAY), /Vencimento/);
+    const p = await previewSelfEnrollmentCore(db, ME, {...thiago2x, paymentForm: "onsite"}, TODAY);
+    assert.equal(p.online, false);
+    assert.match(p.agreement.body, /pagamento direto na arena/);
+  });
+
+  it("arena sem cobrança online: só na arena aparece", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    const options = await signupOptionsCore(db, "u1", "arena1");
+    assert.deepEqual(options.plans.find((p) => p.planId === "m2")!.billing.methods, ["onsite"]);
   });
 });

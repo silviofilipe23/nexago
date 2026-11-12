@@ -30,19 +30,26 @@ import {
   CLASS_PLANS,
   CLASS_STUDENTS,
   CLASS_TEACHERS,
+  type ClassPaymentForm,
 } from "./arena-class-constants";
 import {classRulesRef, parseClassRules, studentAttendsWeekday} from "./arena-class-ledger";
 import {athleteAccountPhone, parseArenaClass, requireClassEntitlement, requireClassManager, str} from "./arena-class";
 import {
+  DEFAULT_PLAN_BILLING,
   createEnrollmentCore,
   firstCharges,
   parseCycle,
-  parseCyclePrices,
+  commitmentEndsOn,
+  parsePaymentForm,
   parsePlan,
+  parsePlanBilling,
+  parsePlanCycles,
+  resolveDueDay,
   planCycleOptions,
   planEnrollment,
   studentAgreementId,
   type EnrollmentPlan,
+  type PlanBilling,
   type EnrollmentRequest,
 } from "./arena-class-billing";
 import {
@@ -196,7 +203,9 @@ export async function signupOptionsCore(db: Firestore, uid: string, arenaId: str
       teacherIds: withClasses,
       anyTeacher: declared.length === 0,
       /** Ciclos de pagamento (só mensal): mensal sempre, os longos que a arena precificou. */
-      cycles: planCycleOptions({...plan, cyclePrices: parseCyclePrices(data["cyclePrices"])}),
+      cycles: planCycleOptions({...plan, cycles: parsePlanCycles(data["cycles"])}),
+      /** Cobrança do plano (como no Plano de horário): formas que dá para usar agora e vencimento. */
+      billing: signupBilling(parsePlanBilling(data["billing"]), rules),
       mine: myPlanIds.has(d.id),
     };
   }).filter((p) => p.teacherIds.length > 0);
@@ -259,8 +268,29 @@ interface SelfEnrollmentDraft {
   arena: Data;
 }
 
-/** Pedido do próprio atleta: valores da tabela, vencimento das Regras, online se a arena cobra online. */
-export function selfEnrollmentRequest(input: Data, rules: {defaultDueDay: number; onlineBillingEnabled: boolean}): EnrollmentRequest {
+/** Formas que o atleta pode escolher: Pix/cartão só com a cobrança online da arena ligada. */
+export function availableForms(billing: PlanBilling, onlineBillingEnabled: boolean): ClassPaymentForm[] {
+  const forms = billing.methods.filter((m) => m === "onsite" || onlineBillingEnabled);
+  return forms.length > 0 ? forms : ["onsite"];
+}
+
+function signupBilling(billing: PlanBilling, rules: {defaultDueDay: number; onlineBillingEnabled: boolean}) {
+  return {
+    methods: availableForms(billing, rules.onlineBillingEnabled),
+    dueDayOptions: billing.dueDayOptions,
+    dueDay: billing.dueDayOptions[0] ?? billing.dueDay ?? rules.defaultDueDay,
+  };
+}
+
+/**
+ * Pedido do próprio atleta: valores da tabela, sem dispensa de taxa; vencimento e forma de pagamento
+ * do plano (como no Plano de horário). Pix/cartão = cobrança online; na arena = manual.
+ */
+export function selfEnrollmentRequest(
+  input: Data,
+  rules: {defaultDueDay: number; onlineBillingEnabled: boolean},
+  billing: PlanBilling = DEFAULT_PLAN_BILLING,
+): EnrollmentRequest {
   const arenaId = str(input["arenaId"]);
   const planId = str(input["planId"]);
   if (!arenaId || !planId) throw new HttpsError("invalid-argument", "Arena e plano são obrigatórios.");
@@ -280,16 +310,24 @@ export function selfEnrollmentRequest(input: Data, rules: {defaultDueDay: number
   if (slots.length === 0 || slots.length > 7) throw new HttpsError("invalid-argument", "Escolha de 1 a 7 horários.");
   const cpfDigits = normalizeCpfCnpj(typeof input["cpfCnpj"] === "string" ? input["cpfCnpj"] : undefined);
   if (cpfDigits && !isValidCpfCnpj(cpfDigits)) throw new HttpsError("invalid-argument", "CPF inválido.");
+  const forms = availableForms(billing, rules.onlineBillingEnabled);
+  const asked = parsePaymentForm(input["paymentForm"]);
+  // App antigo não manda a forma: Pix se der, senão na arena.
+  const paymentForm = asked ?? (forms.includes("pix") ? "pix" : forms[0]!);
+  if (!forms.includes(paymentForm)) {
+    throw new HttpsError("failed-precondition", "Esta forma de pagamento não está disponível neste plano.");
+  }
   return {
     arenaId, planId, slots,
-    dueDay: rules.defaultDueDay,
+    dueDay: resolveDueDay(billing, input["dueDay"], rules.defaultDueDay),
     paymentMethod: "pix",
     waiveFee: false,
     waitlistClassId: null,
     waitlistEntryId: null,
-    billingMode: rules.onlineBillingEnabled ? "asaas" : "manual",
+    billingMode: paymentForm === "onsite" ? "manual" : "asaas",
     cpfCnpj: cpfDigits || null,
     cycle: parseCycle(input["cycle"]),
+    paymentForm,
   };
 }
 
@@ -297,12 +335,14 @@ async function buildSelfEnrollmentDraft(db: Firestore, auth: {uid: string; email
   const arenaId = str(input["arenaId"]);
   if (!arenaId) throw new HttpsError("invalid-argument", "Arena é obrigatória.");
   const rules = parseClassRules((await classRulesRef(db, arenaId).get()).data());
-  const req = selfEnrollmentRequest(input, rules);
-  const planSnap = await db.collection("arenas").doc(arenaId).collection(CLASS_PLANS).doc(req.planId).get();
+  const planId = str(input["planId"]);
+  if (!planId) throw new HttpsError("invalid-argument", "Arena e plano são obrigatórios.");
+  const planSnap = await db.collection("arenas").doc(arenaId).collection(CLASS_PLANS).doc(planId).get();
   const planData = (planSnap.data() ?? {}) as Data;
   if (!planSnap.exists || !isSignupPlan(planData)) {
     throw new HttpsError("failed-precondition", "Este plano não está disponível para contratar pelo app.");
   }
+  const req = selfEnrollmentRequest(input, rules, parsePlanBilling(planData["billing"]));
   const planned = await planEnrollment(db, (ref) => (ref as {get: () => Promise<unknown>}).get(), req, auth.uid);
   const declared = parsePlanTeacherIds(planData["teacherIds"]);
   if (declared.length > 0 && planned.slots.some((s) => !declared.includes(s.teacherId))) {
@@ -329,7 +369,11 @@ async function buildSelfEnrollmentDraft(db: Firestore, auth: {uid: string; email
     slots: planned.slots.map((s) => ({weekday: s.weekday, startTime: s.startTime, teacherName: teacherNames.get(s.teacherId) ?? "Professor"})),
     dueDay: req.dueDay,
     online,
+    paymentForm: req.paymentForm,
     cycle: planned.cycle,
+    cycleDiscountPercent: planCycleOptions({...parsePlan(planData), cycles: parsePlanCycles(planData["cycles"])})
+      .find((o) => o.cycle === planned.cycle)?.discountPercent ?? 0,
+    commitmentEndsOn: commitmentEndsOn(planned.cycle, todayKey),
     rules: planned.rules,
     startKey: todayKey,
     endKey: studentTermEnd(planned.plan, todayKey, expiresOn),
@@ -357,10 +401,12 @@ export async function previewSelfEnrollmentCore(db: Firestore, auth: {uid: strin
     charges: d.charges,
     totalReais: Math.round(d.charges.reduce((sum, c) => sum + c.amountReais, 0) * 100) / 100,
     cycle: d.planned.cycle,
+    dueDay: d.req.dueDay,
+    paymentForm: d.req.paymentForm,
+    commitmentEndsOn: d.ctx.commitmentEndsOn ?? null,
     online: d.req.billingMode === "asaas",
     /** Online sem CPF salvo: o app pede o CPF antes de assinar. */
     needsCpf: d.req.billingMode === "asaas" && !d.ctx.student.cpf,
-    dueDay: d.req.dueDay,
     startDate: todayKey,
     endDate: d.ctx.endKey,
   };

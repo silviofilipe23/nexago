@@ -9,8 +9,12 @@ import {
   monthsToBill,
   parseEnrollmentRequest,
   proratedAmount,
-  cycleStarts,
+  commitmentEndsOn,
+  parsePlanBilling,
+  parsePlanCycles,
   planCycleOptions,
+  resolveDueDay,
+  validatePlanBilling,
   runMonthlyBilling,
   setEnrollmentStatusCore,
   validatePlanCycles,
@@ -56,7 +60,7 @@ function request(overrides: Partial<EnrollmentRequest> = {}): EnrollmentRequest 
   return {
     arenaId: "arena1", planId: "m2", slots: [{classId: "cB", weekday: 2}, {classId: "cB", weekday: 4}],
     dueDay: 5, paymentMethod: "pix", waiveFee: false, waitlistClassId: null, waitlistEntryId: null,
-    billingMode: "manual", cpfCnpj: null, cycle: "monthly",
+    billingMode: "manual", cpfCnpj: null, cycle: "monthly", paymentForm: null,
     ...overrides,
   };
 }
@@ -346,48 +350,78 @@ describe("reposição e pacote na chamada", () => {
   });
 });
 
-describe("billing — ciclos do plano mensal", () => {
-  it("opções: mensal sempre; os longos só com valor; valida o que vem do portal", () => {
-    const opts = planCycleOptions({kind: "monthly", priceReais: 320, cyclePrices: {quarterly: 300, annual: 270}});
-    assert.deepEqual(opts.map((o) => [o.cycle, o.months, o.monthlyPriceReais, o.totalReais]), [
-      ["monthly", 1, 320, 320], ["quarterly", 3, 300, 900], ["annual", 12, 270, 3240],
+describe("billing — ciclos no modelo dos Planos de horário", () => {
+  it("opções: desconto sobre o mensal; anual à vista; valida o que vem do portal", () => {
+    const cycles = parsePlanCycles({
+      monthly: {enabled: true}, quarterly: {enabled: true, discountPercent: 10},
+      semiannual: {enabled: false, discountPercent: 12}, annual: {enabled: true, discountPercent: 15},
+    });
+    const opts = planCycleOptions({kind: "monthly", priceReais: 260, cycles});
+    assert.deepEqual(opts.map((o) => [o.cycle, o.months, o.prepaidMonths, o.monthlyPriceReais, o.totalReais]), [
+      ["monthly", 1, 1, 260, 260], ["quarterly", 3, 1, 234, 234], ["annual", 12, 12, 221, 2652],
     ]);
     assert.deepEqual(planCycleOptions({kind: "package", priceReais: 360}), []);
+    // Plano antigo (sem `cycles`): só mensal.
+    assert.deepEqual(planCycleOptions({kind: "monthly", priceReais: 260}).map((o) => o.cycle), ["monthly"]);
     assert.deepEqual(validatePlanCycles({}, "monthly"), {});
-    assert.deepEqual(validatePlanCycles({cyclePrices: {semiannual: 290, quarterly: null}}, "monthly"), {cyclePrices: {semiannual: 290}});
-    assert.deepEqual(validatePlanCycles({cyclePrices: {annual: 200}}, "package"), {cyclePrices: {}});
-    assert.throws(() => validatePlanCycles({cyclePrices: {annual: -1}}, "monthly"), HttpsError);
-    assert.deepEqual(cycleStarts(["2026-11", "2026-12", "2027-01", "2027-02"], 3), ["2026-11", "2027-02"]);
+    assert.throws(() => validatePlanCycles({cycles: {quarterly: {enabled: true, discountPercent: 60}}}, "monthly"), HttpsError);
+    assert.throws(() => validatePlanCycles({cycles: {monthly: {enabled: false}}}, "monthly"), /ao menos um ciclo/);
+    assert.equal(commitmentEndsOn("semiannual", "2026-10-19"), "2027-04-19");
+    assert.equal(commitmentEndsOn("monthly", "2026-10-19"), null);
   });
 
-  it("trimestral: 1ª cobrança = proporcional + 2 meses; renova 10 dias antes do vencimento do próximo ciclo", async () => {
+  it("cobrança do plano: formas e vencimento à escolha", () => {
+    assert.deepEqual(parsePlanBilling(undefined), {methods: ["pix", "card", "onsite"], dueDay: null, dueDayOptions: []});
+    const b = validatePlanBilling({billing: {methods: ["pix", "onsite"], dueDayOptions: [25, 5, 15]}}).billing!;
+    assert.deepEqual(b, {methods: ["pix", "onsite"], dueDay: null, dueDayOptions: [5, 15, 25]});
+    assert.equal(resolveDueDay(b, 15, 10), 15);
+    assert.equal(resolveDueDay(b, undefined, 10), 5);
+    assert.throws(() => resolveDueDay(b, 20, 10), /Vencimento/);
+    assert.equal(resolveDueDay({methods: ["pix"], dueDay: 8, dueDayOptions: []}, 20, 10), 8);
+    assert.throws(() => validatePlanBilling({billing: {methods: []}}), /forma de pagamento/);
+  });
+
+  it("trimestral: fidelidade de 3 meses, cobrado mês a mês com desconto", async () => {
     const {fake, db} = makeDb();
     seedArena(fake);
     fake.seedDoc("arenas/arena1/classPlans/m2", {
       name: "Mensal 2x/semana", kind: "monthly", priceReais: 320, classesPerWeek: 2, makeupsPerMonth: 1, status: "active",
-      cyclePrices: {quarterly: 300},
+      cycles: {monthly: {enabled: true}, quarterly: {enabled: true, discountPercent: 10}},
     });
     const {enrollmentId} = await createEnrollmentCore(db, request({waiveFee: true, cycle: "quarterly"}), athlete("u1", "Marina"), "gestor", TODAY);
     const e = fake.store.get(`arenaClassEnrollments/${enrollmentId}`)!;
     assert.equal(e["cycle"], "quarterly");
-    assert.equal(e["cycleMonths"], 3);
-    assert.equal((e["plan"] as Record<string, unknown>)["priceReais"], 300);
-    assert.equal(e["billedThrough"], "2026-12");
-    const first = fake.store.get(`arenaClassCharges/${enrollmentId}_2026-10`)!;
-    // Out: 4 de 9 aulas de 300 = 133,33 + nov + dez (600).
-    assert.equal(first["amountReais"], 733.33);
-    // Nada até 10 dias antes de 05/01; aí o ciclo jan–mar inteiro.
-    assert.equal((await runMonthlyBilling(db, "2026-12-20")).charges, 0);
-    await runMonthlyBilling(db, "2026-12-27");
-    const next = fake.store.get(`arenaClassCharges/${enrollmentId}_2027-01`)!;
-    assert.equal(next["amountReais"], 900);
-    assert.equal(next["dueDate"], "2027-01-05");
-    assert.match(String(next["description"]), /trimestral jan\/2027 a mar\/2027/);
-    assert.equal(fake.store.get(`arenaClassEnrollments/${enrollmentId}`)!["billedThrough"], "2027-03");
-    assert.equal((await runMonthlyBilling(db, "2027-01-20")).charges, 0);
+    assert.equal(e["prepaidMonths"], 1);
+    assert.equal(e["commitmentEndsOn"], "2027-01-19");
+    assert.equal((e["plan"] as Record<string, unknown>)["priceReais"], 288);
+    assert.equal(e["billedThrough"], "2026-10");
+    // Out: 4 de 9 aulas de 288.
+    assert.equal(fake.store.get(`arenaClassCharges/${enrollmentId}_2026-10`)!["amountReais"], 128);
+    await runMonthlyBilling(db, "2026-10-26");
+    assert.equal(fake.store.get(`arenaClassCharges/${enrollmentId}_2026-11`)!["amountReais"], 288);
   });
 
-  it("ciclo que o plano não oferece é recusado; cliente antigo (sem ciclo) segue mensal", async () => {
+  it("anual à vista: 1ª = proporcional + 11 meses; renova 12 meses de uma vez", async () => {
+    const {fake, db} = makeDb();
+    seedArena(fake);
+    fake.seedDoc("arenas/arena1/classPlans/m2", {
+      name: "Mensal 2x/semana", kind: "monthly", priceReais: 300, classesPerWeek: 2, makeupsPerMonth: 1, status: "active",
+      cycles: {monthly: {enabled: true}, annual: {enabled: true, discountPercent: 20}},
+    });
+    const {enrollmentId} = await createEnrollmentCore(db, request({waiveFee: true, cycle: "annual"}), athlete("u1", "Marina"), "gestor", TODAY);
+    const e = fake.store.get(`arenaClassEnrollments/${enrollmentId}`)!;
+    assert.equal(e["prepaidMonths"], 12);
+    assert.equal(e["billedThrough"], "2027-09");
+    // 240/mês: out 4 de 9 = 106,67 + 11 × 240.
+    assert.equal(fake.store.get(`arenaClassCharges/${enrollmentId}_2026-10`)!["amountReais"], 2746.67);
+    assert.equal((await runMonthlyBilling(db, "2027-09-20")).charges, 0);
+    await runMonthlyBilling(db, "2027-09-26");
+    const next = fake.store.get(`arenaClassCharges/${enrollmentId}_2027-10`)!;
+    assert.equal(next["amountReais"], 2880);
+    assert.match(String(next["description"]), /anual à vista out\/2027 a set\/2028/);
+  });
+
+  it("ciclo desligado é recusado; cliente antigo (sem ciclo) segue mensal", async () => {
     const {fake, db} = makeDb();
     seedArena(fake);
     await assert.rejects(createEnrollmentCore(db, request({cycle: "annual"}), athlete("u1", "Marina"), "gestor", TODAY), /anual/);

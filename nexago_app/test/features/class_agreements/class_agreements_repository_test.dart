@@ -51,6 +51,7 @@ void main() {
         {'classId': 'c1', 'weekday': 1},
         {'classId': 'c2', 'weekday': 2},
       ],
+      'cycle': 'monthly',
     });
 
     await repo.preview(
@@ -96,6 +97,7 @@ void main() {
         {'classId': 'c1', 'weekday': 1},
         {'classId': 'c2', 'weekday': 2},
       ],
+      'cycle': 'monthly',
       'agreed': true,
       'sha256': sha,
       'readSeconds': 42,

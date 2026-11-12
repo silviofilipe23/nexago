@@ -262,12 +262,14 @@ class FakeClassAgreementsRepository implements ClassAgreementsRepository {
     required String arenaId,
     required String planId,
     required List<ClassSlotChoice> slots,
+    String cycle = 'monthly',
     String? cpf,
   }) async {
     calls.add('preview $planId');
     previewCalls.add({
       'arenaId': arenaId,
       'planId': planId,
+      'cycle': cycle,
       'slots': [for (final s in slots) s.key],
       'cpf': cpf,
     });
@@ -284,11 +286,13 @@ class FakeClassAgreementsRepository implements ClassAgreementsRepository {
     required int readSeconds,
     required String platform,
     required String appVersion,
+    String cycle = 'monthly',
     String? cpf,
   }) async {
     calls.add('enroll $planId');
     lastEnroll = {
       'arenaId': arenaId,
+      'cycle': cycle,
       'planId': planId,
       'slots': [for (final s in slots) s.key],
       'sha256': sha256,

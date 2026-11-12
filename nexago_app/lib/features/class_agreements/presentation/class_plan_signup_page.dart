@@ -52,6 +52,9 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
   bool _anyTeacher = false;
   List<ClassSlotChoice> _slots = const [];
 
+  /// Ciclo de pagamento escolhido (mensal por padrão).
+  String _cycle = 'monthly';
+
   ClassEnrollmentPreview? _preview;
   Object? _previewError;
   bool _loadingPreview = false;
@@ -98,6 +101,10 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
     }
   }
 
+  /// O ciclo que vai para o servidor: o escolhido, se o plano oferece.
+  String _cycleOf(ClassSignupPlan plan) =>
+      cycleOptionOf(plan, _cycle)?.cycle ?? 'monthly';
+
   // ── navegação entre passos ─────────────────────────────────────────────
 
   void _goTo(_Step step) {
@@ -126,6 +133,7 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
         _slots = const [];
         _teacherId = null;
         _anyTeacher = false;
+        _cycle = 'monthly';
       }
       _planId = plan.planId;
     });
@@ -156,6 +164,7 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
             arenaId: widget.arenaId,
             planId: plan.planId,
             slots: _slots,
+            cycle: _cycleOf(plan),
           );
       if (!mounted) return;
       setState(() {
@@ -196,6 +205,7 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
             readSeconds: _reading.elapsed.inSeconds,
             platform: ref.read(contractSignPlatformProvider),
             appVersion: appVersion,
+            cycle: _cycleOf(plan),
             cpf: preview.needsCpf ? _cpf : null,
           );
       if (!mounted) return;
@@ -309,10 +319,14 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
     switch (_step) {
       case _Step.plan:
         if (plan == null) return null;
+        final option = cycleOptionOf(plan, _cycle);
+        final longCycle = option != null && option.months > 1;
         return NexaBottomActionBar(
           leading: _PriceLeading(
-            price: formatBRL(plan.priceReais),
-            caption: '${planPriceSuffix(plan)} · ${plan.name}',
+            price: formatBRL(longCycle ? option.totalReais : plan.priceReais),
+            caption: longCycle
+                ? '${cyclePeriodSuffix(option.cycle)} · ${formatBRL(option.monthlyPriceReais)}/mês'
+                : '${planPriceSuffix(plan)} · ${plan.name}',
           ),
           action: SchedulePrimaryButton(
             key: const Key('class-signup-next-plan'),
@@ -402,6 +416,14 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
             onTap: () => _pickPlan(options, plan),
             child: _PlanCardBody(plan: plan, options: options),
           ),
+          if (plan.planId == _planId && plan.hasLongCycles) ...[
+            const SizedBox(height: 10),
+            _CyclePicker(
+              plan: plan,
+              selected: _cycleOf(plan),
+              onPick: (c) => setState(() => _cycle = c),
+            ),
+          ],
           const SizedBox(height: 10),
         ],
         if (options.enrollmentFeeReais > 0)
@@ -994,6 +1016,56 @@ class _PlanCardBody extends StatelessWidget {
             ],
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// "Como pagar": mensal, trimestral, semestral, anual (os que a arena oferece).
+class _CyclePicker extends StatelessWidget {
+  const _CyclePicker({required this.plan, required this.selected, required this.onPick});
+
+  final ClassSignupPlan plan;
+  final String selected;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const Key('class-cycle-picker'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const ScheduleKicker('Como pagar'),
+        const SizedBox(height: 8),
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: 2.6,
+          children: [
+            for (final c in plan.cycles)
+              ScheduleChoiceChip(
+                key: Key('class-cycle-${c.cycle}'),
+                label: cycleDiscountPercent(plan, c) > 0
+                    ? '${cycleLabel(c.cycle)} · −${cycleDiscountPercent(plan, c)}%'
+                    : cycleLabel(c.cycle),
+                sub: c.months == 1
+                    ? '${formatBRL(c.monthlyPriceReais)}/mês'
+                    : '${formatBRL(c.monthlyPriceReais)}/mês · ${formatBRL(c.totalReais)}',
+                selected: c.cycle == selected,
+                onTap: () => onPick(c.cycle),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          selected == 'monthly'
+              ? 'Paga todo mês. O 1º mês é proporcional às aulas que faltam.'
+              : 'Paga o ciclo inteiro de uma vez (o 1º mês é proporcional) e renova no mesmo ciclo.',
+          style: AppTypography.bodyS.copyWith(color: context.themeColors.onSurfaceMuted),
+        ),
       ],
     );
   }

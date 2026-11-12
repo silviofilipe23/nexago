@@ -350,6 +350,12 @@ export function renderAgreement(template: AgreementTemplate, values: Record<stri
 /** Prévia para a tela: "18 nov 2026". */
 export const shortDateKey = shortDate;
 
+/** Plano mostrado no app: só os marcados "Contratar pelo app" e de matrícula. */
+export function isSignupPlan(data: Data): boolean {
+  return data["availableInApp"] === true && data["status"] !== "archived" &&
+    (data["kind"] === "monthly" || data["kind"] === "package");
+}
+
 /** Ids de professores do plano: `classTeachers` da arena, sem repetir, até o limite. */
 export function parsePlanTeacherIds(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];

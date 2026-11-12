@@ -24,7 +24,7 @@ import {
   signMyAgreementCore,
   signupOptionsCore,
 } from "./arena-agreements";
-import {setEnrollmentStatusCore, validatePlanAppFields} from "./arena-class-billing";
+import {setEnrollmentStatusCore, syncClassSignupFlag, validatePlanAppFields} from "./arena-class-billing";
 import {DEFAULT_CLASS_RULES} from "./arena-class-constants";
 
 type Data = Record<string, unknown>;
@@ -238,5 +238,17 @@ describe("contratos de aulas — professor e arena", () => {
     assert.deepEqual(await validatePlanAppFields(db, "arena1", {}), {});
     assert.deepEqual(await validatePlanAppFields(db, "arena1", {teacherIds: ["t1", "t1", "t2"], availableInApp: true}), {teacherIds: ["t1", "t2"], availableInApp: true});
     await assert.rejects(validatePlanAppFields(db, "arena1", {teacherIds: ["tX"]}), /não encontrado/);
+  });
+});
+
+describe("contratos de aulas — perfil público", () => {
+  it("classSignupOpen acompanha os planos do app", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    assert.equal(await syncClassSignupFlag(db, "arena1"), true);
+    assert.equal(doc(fake, "arenas/arena1")["classSignupOpen"], true);
+    fake.seedDoc("arenas/arena1/classPlans/m2", {...doc(fake, "arenas/arena1/classPlans/m2"), status: "archived"});
+    fake.seedDoc("arenas/arena1/classPlans/m1", {...doc(fake, "arenas/arena1/classPlans/m1"), availableInApp: false});
+    assert.equal(await syncClassSignupFlag(db, "arena1"), false);
   });
 });

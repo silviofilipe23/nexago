@@ -61,7 +61,7 @@ import {
   type UpsertClassStudentInput,
 } from "./arena-class";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
-import {ARENA_AGREEMENTS, parsePlanTeacherIds} from "./arena-agreements-model";
+import {ARENA_AGREEMENTS, isSignupPlan, parsePlanTeacherIds} from "./arena-agreements-model";
 
 const MONTH_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -209,6 +209,7 @@ export const upsertArenaClassPlan = onCall({region: CLIENT_FACING_REGIONS}, asyn
       ...plan, ...appFields, arenaId, status: "active", createdByUid: uid,
       createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
     });
+    await syncClassSignupFlag(db, arenaId);
     return {planId: ref.id};
   }
   const ref = col.doc(planId);
@@ -219,8 +220,20 @@ export const upsertArenaClassPlan = onCall({region: CLIENT_FACING_REGIONS}, asyn
   }
   // Matrículas guardam o plano da época: mudar o valor vale para as novas.
   await ref.set({...plan, ...appFields, status, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+  await syncClassSignupFlag(db, arenaId);
   return {planId};
 });
+
+/**
+ * `arenas/{id}.classSignupOpen`: o perfil público da arena no app mostra "Planos de aula" só com
+ * plano marcado "Contratar pelo app" (os planos em si são fechados nas rules).
+ */
+export async function syncClassSignupFlag(db: Firestore, arenaId: string): Promise<boolean> {
+  const snap = await db.collection("arenas").doc(arenaId).collection(CLASS_PLANS).where("availableInApp", "==", true).get();
+  const open = snap.docs.some((d) => isSignupPlan(d.data() as Record<string, unknown>));
+  await db.collection("arenas").doc(arenaId).set({classSignupOpen: open}, {merge: true});
+  return open;
+}
 
 /**
  * `teacherIds` (professores de `classTeachers` que dão aula no plano; vazio = qualquer turma) e

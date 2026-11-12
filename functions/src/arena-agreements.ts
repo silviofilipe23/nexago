@@ -51,6 +51,7 @@ import {
   MAX_TEMPLATE_TITLE,
   agreementNumber,
   arenaPartyOf,
+  isSignupPlan,
   maskIp,
   parseAudience,
   parsePlanTeacherIds,
@@ -89,11 +90,6 @@ function iso(v: unknown): string | null {
   return v instanceof Timestamp ? v.toDate().toISOString() : null;
 }
 
-/** Plano mostrado no app: só os marcados "Contratar pelo app" e de matrícula. */
-export function isSignupPlan(data: Data): boolean {
-  return data["availableInApp"] === true && data["status"] !== "archived" &&
-    (data["kind"] === "monthly" || data["kind"] === "package");
-}
 
 async function loadArenaParty(db: Firestore, arenaId: string): Promise<{arena: Data; party: ArenaParty}> {
   const arenaRef = db.collection("arenas").doc(arenaId);

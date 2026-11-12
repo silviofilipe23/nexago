@@ -20,6 +20,7 @@ import {loadMyClassCredits} from "./arena-class-athlete-actions";
 import {requireUid, str} from "./arena-class";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {parseCancellationPolicy, penaltyClause} from "./arena-class-cancellation-model";
 
 const MAX_ENROLLMENTS = 20;
 const MAX_PROFESSOR_LINKS = 20;
@@ -59,6 +60,18 @@ export interface MyArenaPlan {
   slots: MyArenaPlanSlot[];
   /** Créditos de reposição livres nesta arena. */
   makeupCredits: number;
+  /** Ciclo (`monthly`, `quarterly`, `semiannual`, `annual`) e fim da fidelidade. */
+  cycle: string;
+  commitmentEndsOn: string | null;
+  /** Regras de cancelamento da matrícula (as do contrato): dias de aviso e a multa em texto. */
+  cancelNoticeDays: number;
+  cancelPenaltyLabel: string;
+  /** Cancelamento agendado: última aula e a multa (`open`, `paid`, `waived`, `none`). */
+  endsOn: string | null;
+  penaltyReais: number | null;
+  penaltyStatus: string | null;
+  /** Cancelou pelo app? (o app só oferece cancelar o que tem contrato/regra; recepção cancela o resto) */
+  canCancel: boolean;
 }
 
 export interface MyProfessorPlan {
@@ -179,8 +192,25 @@ async function loadArenaPlans(db: Firestore, uid: string, todayKey: string): Pro
       billingMode: str(data["billingMode"]) || "manual",
       slots,
       makeupCredits: credits.filter((c) => c.arenaId === arenaId).length,
+      ...cancellationFields(data),
     };
   }).sort((a, b) => a.arenaName.localeCompare(b.arenaName, "pt-BR") || a.planName.localeCompare(b.planName, "pt-BR"));
+}
+
+function cancellationFields(data: Record<string, unknown>) {
+  const policy = parseCancellationPolicy(data["cancellationPolicy"]);
+  const req = recordOf(data["cancelRequest"]);
+  const endsOn = str(data["endsOn"]) || null;
+  return {
+    cycle: str(data["cycle"]) || "monthly",
+    commitmentEndsOn: str(data["commitmentEndsOn"]) || null,
+    cancelNoticeDays: policy.noticeDays,
+    cancelPenaltyLabel: penaltyClause(policy),
+    endsOn,
+    penaltyReais: endsOn ? num(req["penaltyReais"]) : null,
+    penaltyStatus: endsOn ? str(req["penaltyStatus"]) || "none" : null,
+    canCancel: endsOn == null && data["status"] === "active" && typeof data["athleteId"] === "string",
+  };
 }
 
 async function loadProfessorPlans(db: Firestore, uid: string): Promise<MyProfessorPlan[]> {

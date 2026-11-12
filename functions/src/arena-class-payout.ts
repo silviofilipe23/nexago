@@ -178,7 +178,8 @@ const AVULSA_LABEL_PT: Record<ArenaClassType, string> = {
 
 /** A matrícula da cobrança é taxa de matrícula? (id `{matrícula}_fee`, ver `firstCharges`). */
 export function isEnrollmentFeeCharge(charge: Pick<PayoutChargeInfo, "id" | "enrollmentId">): boolean {
-  return charge.id === `${charge.enrollmentId}_fee`;
+  // A multa de cancelamento (`{matrícula}_penalty`) também fica com a arena, fora do repasse.
+  return charge.id === `${charge.enrollmentId}_fee` || charge.id === `${charge.enrollmentId}_penalty`;
 }
 
 export function payoutLineAmount(

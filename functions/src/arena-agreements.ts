@@ -396,6 +396,7 @@ async function buildSelfEnrollmentDraft(db: Firestore, auth: {uid: string; email
     cycleDiscountPercent: planCycleOptions({...parsePlan(planData), cycles: parsePlanCycles(planData["cycles"])})
       .find((o) => o.cycle === planned.cycle)?.discountPercent ?? 0,
     commitmentEndsOn: commitmentEndsOn(planned.cycle, todayKey),
+    cancellation: planned.cancellation,
     rules: planned.rules,
     startKey: todayKey,
     endKey: studentTermEnd(planned.plan, todayKey, expiresOn),

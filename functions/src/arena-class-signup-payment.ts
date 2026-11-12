@@ -22,6 +22,7 @@ import {ARENA_CLASS_ASAAS_PAYMENTS, ARENA_CLASS_CHARGES, ARENA_CLASS_ENROLLMENTS
 import {firstGroupId} from "./arena-class-asaas-model";
 import {requestGroupVoid, setEnrollmentStatusCore, studentAgreementId} from "./arena-class-billing";
 import {ARENA_AGREEMENTS} from "./arena-agreements-model";
+import {penaltyChargeId} from "./arena-class-cancellation-model";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {requireUid, str} from "./arena-class";
 
@@ -83,7 +84,10 @@ export async function enrollmentPaymentCore(db: Firestore, uid: string, input: D
   const e = snap.data();
   if (!e || e["athleteId"] !== uid) throw new HttpsError("not-found", "Matrícula não encontrada.");
   const status = str(e["status"]);
-  const group = (await db.collection(ARENA_CLASS_ASAAS_PAYMENTS).doc(firstGroupId(enrollmentId)).get()).data() ?? {};
+  // `kind: penalty` = a multa do cancelamento (mesma tela, outro grupo do Asaas).
+  const penalty = input["kind"] === "penalty";
+  const groupId = penalty ? penaltyChargeId(enrollmentId) : firstGroupId(enrollmentId);
+  const group = (await db.collection(ARENA_CLASS_ASAAS_PAYMENTS).doc(groupId).get()).data() ?? {};
   const base = {
     enrollmentId,
     planName: str((e["plan"] as Data | undefined)?.["name"]) || "Plano",
@@ -92,8 +96,17 @@ export async function enrollmentPaymentCore(db: Firestore, uid: string, input: D
     pendingPaymentUntil: millis(e["pendingPaymentUntil"]) != null ? new Date(millis(e["pendingPaymentUntil"])!).toISOString() : null,
     method,
   };
-  if (status === "active") return {...base, state: "paid" as EnrollmentPaymentState};
-  if (status !== PENDING_PAYMENT_STATUS) return {...base, state: "expired" as EnrollmentPaymentState};
+  if (penalty) {
+    const charge = (await db.collection(ARENA_CLASS_CHARGES).doc(groupId).get()).data();
+    if (!charge) throw new HttpsError("not-found", "Multa não encontrada.");
+    base.amountReais = Number(charge["amountReais"] ?? base.amountReais);
+    base.description = str(charge["description"]) || base.description;
+    if (charge["status"] === "paid") return {...base, state: "paid" as EnrollmentPaymentState};
+    if (charge["status"] !== "open") return {...base, state: "expired" as EnrollmentPaymentState};
+  } else {
+    if (status === "active") return {...base, state: "paid" as EnrollmentPaymentState};
+    if (status !== PENDING_PAYMENT_STATUS) return {...base, state: "expired" as EnrollmentPaymentState};
+  }
   const groupState = str(group["state"]);
   if (groupState === "paid") return {...base, state: "paid" as EnrollmentPaymentState};
   if (groupState === "failed" || groupState === "void" || groupState === "voiding") {
@@ -143,12 +156,27 @@ export async function activatePaidEnrollmentCore(db: Firestore, enrollmentId: st
   });
 }
 
+/** Multa do cancelamento paga: a gaveta da arena e o app mostram "Paga". */
+export async function markPenaltyPaid(db: Firestore, enrollmentId: string): Promise<void> {
+  const ref = db.collection(ARENA_CLASS_ENROLLMENTS).doc(enrollmentId);
+  await db.runTransaction(async (tx) => {
+    const e = (await tx.get(ref)).data();
+    const req = e?.["cancelRequest"];
+    if (req == null || typeof req !== "object") return;
+    tx.set(ref, {cancelRequest: {...(req as Data), penaltyStatus: "paid"}, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+  });
+}
+
 export const onArenaClassChargePaidActivateEnrollment = onDocumentUpdated(`${ARENA_CLASS_CHARGES}/{chargeId}`, async (event) => {
   const before = event.data?.before.data();
   const after = event.data?.after.data();
   if (!after || before?.["status"] === "paid" || after["status"] !== "paid") return;
   const enrollmentId = str(after["enrollmentId"]);
   if (!enrollmentId) return;
+  if (event.params.chargeId === penaltyChargeId(enrollmentId)) {
+    await markPenaltyPaid(getFirestore(), enrollmentId);
+    return;
+  }
   const activated = await activatePaidEnrollmentCore(getFirestore(), enrollmentId);
   if (activated) logger.info("matrícula paga e ativada", {enrollmentId, chargeId: event.params.chargeId});
 });

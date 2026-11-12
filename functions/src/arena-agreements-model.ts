@@ -12,6 +12,7 @@
  */
 import {contractSha256, fillContractBody, maskIp, sameDocument, shortDate, termEnd} from "./training-center-contracts-model";
 import {CYCLE_LABEL_PT, CYCLE_MONTHS, PREPAID_MONTHS, type ClassPaymentForm, type ClassPlanCycle} from "./arena-class-constants";
+import {DEFAULT_CANCELLATION_POLICY, noticeClause, penaltyClause, type CancellationPolicy} from "./arena-class-cancellation-model";
 
 export {contractSha256, fillContractBody, maskIp, sameDocument};
 
@@ -73,6 +74,8 @@ export const AGREEMENT_VARIABLES: Record<AgreementAudience, AgreementVariable[]>
     {key: "cobranca.forma", group: "Cobrança", label: "Forma de pagamento"},
     {key: "politica.reposicao", group: "Cobrança", label: "Reposição"},
     {key: "contrato.fidelidade", group: "Vigência", label: "Fim da fidelidade"},
+    {key: "cancelamento.aviso", group: "Cancelamento", label: "Aviso prévio"},
+    {key: "cancelamento.multa", group: "Cancelamento", label: "Multa (quebra de fidelidade)"},
     ...TERM_VARS,
   ],
   professor: [
@@ -93,7 +96,7 @@ export const DEFAULT_TEMPLATES: Record<AgreementAudience, {title: string; body: 
       "2. OBJETO. A ARENA presta ao ALUNO aulas do plano {{plano.nome}} ({{plano.regra}}), nos horários {{aulas.horarios}}, com {{aulas.professor}} ou substituto indicado pela ARENA.",
       "3. VALOR E PAGAMENTO. O ALUNO contrata o plano {{plano.ciclo}} e paga {{plano.preco}}, com vencimento no dia {{cobranca.dia}}, por {{cobranca.forma}}. O primeiro mês é proporcional às aulas restantes. Com fidelidade (até {{contrato.fidelidade}}), sair antes não devolve o que foi pago à vista nem dispensa as mensalidades até o fim da fidelidade.",
       "4. FALTAS E REPOSIÇÃO. {{politica.reposicao}} Aula cancelada pela ARENA (chuva, manutenção) gera crédito de reposição.",
-      "5. VIGÊNCIA E CANCELAMENTO. Este contrato vale de {{contrato.inicio}} a {{contrato.fim}}. Qualquer parte pode encerrá-lo com 30 dias de aviso; mensalidades vencidas continuam devidas.",
+      "5. VIGÊNCIA E CANCELAMENTO. Este contrato vale de {{contrato.inicio}} a {{contrato.fim}}. O ALUNO pode cancelar pelo app com {{cancelamento.aviso}}, seguindo com as aulas e as mensalidades até o fim do aviso. Se sair antes do fim da fidelidade ({{contrato.fidelidade}}), paga {{cancelamento.multa}}. O plano anual pago à vista encerra no fim do período pago, sem reembolso. Mensalidades vencidas continuam devidas.",
       "6. USO DO ESPAÇO. O ALUNO segue as regras de convivência e segurança da ARENA e responde por danos que causar.",
       "7. ASSINATURA. O ALUNO assina eletronicamente pelo app nexaGO em {{contrato.data}}, com registro de data, hora, aparelho e da impressão digital (hash) deste texto.",
     ].join("\n\n"),
@@ -295,6 +298,8 @@ export interface StudentAgreementContext {
   commitmentEndsOn?: string | null;
   /** Forma escolhida no app; ausente = pelo `online`. */
   paymentForm?: ClassPaymentForm | null;
+  /** Regras de cancelamento do plano (ausente = padrão). */
+  cancellation?: CancellationPolicy;
   rules: {makeupNoticeHours: number; makeupValidityDays: number; excusedGeneratesCredit: boolean};
   startKey: string;
   endKey: string;
@@ -327,6 +332,8 @@ export function studentValues(ctx: StudentAgreementContext): Record<string, stri
     "plano.preco": planPriceLabel(ctx.plan, ctx.cycle ?? "monthly", ctx.cycleDiscountPercent ?? 0),
     "plano.ciclo": cycleClause(ctx),
     "contrato.fidelidade": ctx.commitmentEndsOn ? brDateKey(ctx.commitmentEndsOn) : "sem fidelidade",
+    "cancelamento.aviso": noticeClause(ctx.cancellation ?? DEFAULT_CANCELLATION_POLICY),
+    "cancelamento.multa": penaltyClause(ctx.cancellation ?? DEFAULT_CANCELLATION_POLICY),
     "plano.regra": planRuleLabel(ctx.plan),
     "aulas.horarios": slotsLabel(ctx.slots),
     "aulas.professor": namesLabel(ctx.slots.map((s) => s.teacherName)),

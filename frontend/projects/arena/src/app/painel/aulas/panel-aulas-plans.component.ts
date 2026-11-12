@@ -9,6 +9,9 @@ import { PillComponent } from '../ui/pill.component';
 import { ToggleComponent } from '../ui/toggle.component';
 import { AulasPageComponent } from './aulas-ui';
 import {
+  CYCLE_LABEL,
+  CYCLE_MONTHS,
+  LONG_CYCLES,
   PLAN_GROUP_LABEL,
   PLAN_KIND_LABEL,
   brl,
@@ -17,6 +20,7 @@ import {
   planPriceUnit,
   type ClassPlan,
   type Enrollment,
+  type LongCycle,
   type PlanKind,
 } from './billing.model';
 import { fetchEnrollments, fetchPlans, upsertPlan } from './billing-repository';
@@ -36,11 +40,16 @@ interface PlanDraft {
   status: 'active' | 'archived';
   teacherIds: string[];
   availableInApp: boolean;
+  /** Valor por mês digitado de cada ciclo longo; vazio = não oferecido. */
+  cycles: Record<LongCycle, string>;
 }
+
+const NO_CYCLES: Record<LongCycle, string> = { quarterly: '', semiannual: '', annual: '' };
 
 const EMPTY: PlanDraft = {
   planId: null, name: '', kind: 'monthly', price: '', classesPerWeek: 2, makeupsPerMonth: 2,
   credits: 8, validityDays: 60, description: '', status: 'active', teacherIds: [], availableInApp: false,
+  cycles: { ...NO_CYCLES },
 };
 
 /** 13 · Planos e pacotes — mensalidades (aulas/semana), pacotes de créditos e avulsas. Mudar o
@@ -133,6 +142,17 @@ const EMPTY: PlanDraft = {
                   <button type="button" aria-label="Mais" (click)="patch({ makeupsPerMonth: Math.min(10, d.makeupsPerMonth + 1) })">+</button>
                 </div>
                 <p class="hint">Faltas justificadas viram crédito até esse limite no mês.</p>
+                <div class="field-label spaced">Ciclos de pagamento</div>
+                <p class="hint first">Valor por mês em cada ciclo. O aluno paga o ciclo inteiro de uma vez (o 1º mês é proporcional) e renova no mesmo ciclo. Em branco = não oferecido.</p>
+                <div class="cycles">
+                  @for (c of longCycles; track c) {
+                    <div class="cycle">
+                      <div class="cycle-head">{{ cycleLabel[c] }} <span>{{ cycleMonths[c] }} meses</span></div>
+                      <input class="input-box" type="text" inputmode="decimal" placeholder="—" [attr.aria-label]="'Valor por mês no ' + cycleLabel[c].toLowerCase()" [value]="d.cycles[c]" (input)="patchCycle(c, $any($event.target).value)" />
+                      <div class="cycle-sub">{{ cycleSummary(d, c) }}</div>
+                    </div>
+                  }
+                </div>
               } @else if (d.kind === 'package') {
                 <div class="field-label spaced">Validade (dias)</div>
                 <input class="input-box" type="number" min="1" max="365" [value]="d.validityDays" (input)="patch({ validityDays: +$any($event.target).value })" />
@@ -199,6 +219,11 @@ const EMPTY: PlanDraft = {
     .plan-foot span:first-child { flex: 1; }
     .first { margin-top: 0; }
     .grow { flex: 1; }
+    .cycles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+    .cycle { display: flex; flex-direction: column; gap: 6px; }
+    .cycle-head { font-size: 12.5px; font-weight: 700; color: var(--nx-text); }
+    .cycle-head span { font-family: var(--nx-font-mono); font-size: 10px; font-weight: 500; color: var(--nx-text-dim); margin-left: 4px; }
+    .cycle-sub { font-family: var(--nx-font-mono); font-size: 10.5px; color: var(--nx-text-dim); min-height: 14px; }
     .teachers { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     .teacher { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--nx-line); background: var(--nx-surface-0); color: var(--nx-text-mute); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
     .teacher.on { border-color: var(--nx-orange-500); color: var(--nx-text); background: rgba(255, 106, 26, 0.08); }
@@ -220,6 +245,9 @@ export class PanelAulasPlansComponent {
   protected readonly unit = planPriceUnit;
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda') || !this.arenaContext.hasCapability('aulas'));
 
+  protected readonly longCycles = LONG_CYCLES;
+  protected readonly cycleLabel = CYCLE_LABEL;
+  protected readonly cycleMonths = CYCLE_MONTHS;
   protected readonly plans = signal<ClassPlan[]>([]);
   private readonly teachers = signal<ClassTeacher[]>([]);
   protected readonly activeTeachers = computed(() => this.teachers().filter((t) => t.status === 'active'));
@@ -241,7 +269,13 @@ export class PanelAulasPlansComponent {
     const d = this.draft();
     if (!d || d.name.trim().length < 2) return false;
     const price = parsePrice(d.price);
-    return Number.isFinite(price) && (d.kind === 'single' ? price >= 0 : price > 0);
+    const cyclesOk = d.kind !== 'monthly' || LONG_CYCLES.every((c) => {
+      const raw = d.cycles[c].trim();
+      if (!raw) return true;
+      const v = parsePrice(raw);
+      return Number.isFinite(v) && v > 0;
+    });
+    return cyclesOk && Number.isFinite(price) && (d.kind === 'single' ? price >= 0 : price > 0);
   });
 
   constructor() {
@@ -293,12 +327,41 @@ export class PanelAulasPlansComponent {
       classesPerWeek: p.classesPerWeek ?? 2, makeupsPerMonth: p.makeupsPerMonth ?? 0,
       credits: p.credits ?? 8, validityDays: p.validityDays ?? 60, description: p.description ?? '', status: p.status,
       teacherIds: [...p.teacherIds], availableInApp: p.availableInApp,
+      cycles: {
+        quarterly: p.cyclePrices.quarterly != null ? String(p.cyclePrices.quarterly).replace('.', ',') : '',
+        semiannual: p.cyclePrices.semiannual != null ? String(p.cyclePrices.semiannual).replace('.', ',') : '',
+        annual: p.cyclePrices.annual != null ? String(p.cyclePrices.annual).replace('.', ',') : '',
+      },
     });
   }
 
   protected patch(change: Partial<PlanDraft>): void {
     const d = this.draft();
     if (d) this.draft.set({ ...d, ...change });
+  }
+
+  protected patchCycle(cycle: LongCycle, value: string): void {
+    const d = this.draft();
+    if (d) this.draft.set({ ...d, cycles: { ...d.cycles, [cycle]: value } });
+  }
+
+  /** "R$ 720 por ciclo · −8%" do valor digitado (vazio = não oferecido). */
+  protected cycleSummary(d: PlanDraft, cycle: LongCycle): string {
+    if (!d.cycles[cycle].trim()) return 'não oferecido';
+    const monthly = parsePrice(d.cycles[cycle]);
+    if (!Number.isFinite(monthly) || monthly <= 0) return 'valor inválido';
+    const base = parsePrice(d.price);
+    const off = Number.isFinite(base) && base > 0 && monthly < base ? Math.round((1 - monthly / base) * 100) : 0;
+    return `${brl(monthly * CYCLE_MONTHS[cycle])} por ciclo${off > 0 ? ` · −${off}%` : ''}`;
+  }
+
+  private cyclePrices(d: PlanDraft): Partial<Record<LongCycle, number>> {
+    const out: Partial<Record<LongCycle, number>> = {};
+    for (const c of LONG_CYCLES) {
+      const v = parsePrice(d.cycles[c]);
+      if (d.cycles[c].trim() && Number.isFinite(v) && v > 0) out[c] = v;
+    }
+    return out;
   }
 
   protected toggleTeacher(teacherId: string): void {
@@ -338,6 +401,7 @@ export class PanelAulasPlansComponent {
         description: d.description.trim() || null,
         status,
         teacherIds: d.kind === 'single' ? [] : d.teacherIds,
+        cyclePrices: d.kind === 'monthly' ? this.cyclePrices(d) : {},
         availableInApp: d.kind !== 'single' && d.availableInApp,
       });
       this.draft.set(null);

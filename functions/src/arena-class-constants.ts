@@ -48,6 +48,17 @@ export const CLASS_WAITLIST = "classWaitlist";
 export const PLAN_KINDS = ["monthly", "package", "single"] as const;
 export type ClassPlanKind = typeof PLAN_KINDS[number];
 
+/**
+ * Ciclo de pagamento do plano mensal: o aluno paga 1, 3, 6 ou 12 meses de uma vez (uma cobrança
+ * por ciclo). O valor por mês de cada ciclo é da arena (`classPlans.cyclePrices`); mensal = `priceReais`.
+ */
+export const PLAN_CYCLES = ["monthly", "quarterly", "semiannual", "annual"] as const;
+export type ClassPlanCycle = typeof PLAN_CYCLES[number];
+export const CYCLE_MONTHS: Record<ClassPlanCycle, number> = {monthly: 1, quarterly: 3, semiannual: 6, annual: 12};
+export const CYCLE_LABEL_PT: Record<ClassPlanCycle, string> = {
+  monthly: "Mensal", quarterly: "Trimestral", semiannual: "Semestral", annual: "Anual",
+};
+
 export const PAYMENT_METHODS = ["pix", "cash", "card_machine", "transfer"] as const;
 export type ClassPaymentMethod = typeof PAYMENT_METHODS[number];
 

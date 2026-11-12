@@ -15,7 +15,10 @@ import {
   DEFAULT_RULES,
   PAYMENT_METHODS,
   PAYMENT_METHOD_LABEL,
+  CYCLE_LABEL,
   PLAN_GROUP_LABEL,
+  planCycles,
+  type PlanCycle,
   brl,
   formatPhoneBR,
   planDetail,
@@ -271,7 +274,7 @@ export function cpfDigitsOk(raw: string): boolean {
                           <div class="field-label">{{ groupLabel[g] }}</div>
                           <div class="plan-grid">
                             @for (p of plansOf(g); track p.id) {
-                              <button type="button" class="pick" [class.on]="planId() === p.id" (click)="planId.set(p.id)">
+                              <button type="button" class="pick" [class.on]="planId() === p.id" (click)="pickPlan(p.id)">
                                 <div class="p-title">{{ p.name }}</div>
                                 <div class="p-price">{{ brl(p.priceReais) }}<span> {{ unit(p.kind) }}</span></div>
                                 <div class="sub">{{ detail(p) }}</div>
@@ -326,6 +329,18 @@ export function cpfDigitsOk(raw: string): boolean {
               }
               @case (4) {
                 <ar-panel-card title="Pagamento" [kicker]="billingMode() === 'asaas' ? 'Online pelo Asaas' : 'Recebido direto pela arena'">
+                  @if (cycles().length > 1) {
+                    <div class="field-label">Ciclo de pagamento</div>
+                    <div class="method-grid">
+                      @for (c of cycles(); track c.cycle) {
+                        <button type="button" class="pick" [class.on]="cycle() === c.cycle" (click)="setCycle(c.cycle)">
+                          <div class="p-title">{{ cycleLabel[c.cycle] }}{{ c.discountPercent > 0 ? ' · −' + c.discountPercent + '%' : '' }}</div>
+                          <div class="sub">{{ brl(c.monthlyPriceReais) }}/mês{{ c.months > 1 ? ' · ' + brl(c.totalReais) + ' por ciclo' : '' }}</div>
+                        </button>
+                      }
+                    </div>
+                    <p class="hint">{{ cycle() === 'monthly' ? 'Cobra todo mês.' : 'Cobra o ciclo inteiro de uma vez (o 1º mês proporcional) e renova no mesmo ciclo.' }}</p>
+                  }
                   @if (rules().onlineBillingEnabled) {
                     <div class="mode-grid">
                       <button type="button" class="pick" [class.on]="billingMode() === 'asaas'" (click)="setBillingMode('asaas')">
@@ -537,6 +552,9 @@ export class PanelAulaEnrollmentComponent {
   protected readonly selected = signal<ReadonlySet<string>>(new Set());
   protected readonly method = signal<PaymentMethod>('pix');
   protected readonly billingMode = signal<'manual' | 'asaas'>('manual');
+  /** Ciclo de pagamento do plano mensal. */
+  protected readonly cycle = signal<PlanCycle>('monthly');
+  protected readonly cycleLabel = CYCLE_LABEL;
   protected readonly cpf = signal('');
   protected readonly copied = signal(false);
   private readonly doneCharges = signal<Charge[]>([]);
@@ -552,6 +570,10 @@ export class PanelAulaEnrollmentComponent {
   protected readonly done = signal<Done | null>(null);
 
   protected readonly plan = computed(() => this.plans().find((p) => p.id === this.planId()) ?? null);
+  protected readonly cycles = computed(() => {
+    const p = this.plan();
+    return p ? planCycles(p) : [];
+  });
   /** Id do aluno nas turmas: o uid do atleta ou o id do contato já cadastrado. */
   private readonly studentKey = computed(() => {
     const p = this.prefill();
@@ -813,6 +835,7 @@ export class PanelAulaEnrollmentComponent {
       paymentMethod: this.method(),
       waiveFee: this.waiveFee(),
       billingMode: this.billingMode(),
+      cycle: plan.kind === 'monthly' && this.cycles().some((c) => c.cycle === this.cycle()) ? this.cycle() : 'monthly',
       ...(this.billingMode() === 'asaas' && this.cpf().trim() ? { cpfCnpj: this.cpf().replace(/\D/g, '') } : {}),
       ...student,
       ...(p?.source === 'waitlist' && this.classIdParam
@@ -884,6 +907,16 @@ export class PanelAulaEnrollmentComponent {
   private watchDoneCharges(arenaId: string, studentId: string): void {
     this.unsubDone?.();
     this.unsubDone = watchStudentCharges(arenaFirestore(), arenaId, studentId, (list) => this.doneCharges.set(list));
+  }
+
+  protected pickPlan(planId: string): void {
+    if (this.planId() !== planId) this.cycle.set('monthly');
+    this.planId.set(planId);
+  }
+
+  protected setCycle(cycle: PlanCycle): void {
+    this.cycle.set(cycle);
+    void this.refreshPreview();
   }
 
   protected setBillingMode(mode: 'manual' | 'asaas'): void {

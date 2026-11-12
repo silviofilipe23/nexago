@@ -54,7 +54,7 @@ function request(overrides: Partial<EnrollmentRequest> = {}): EnrollmentRequest 
   return {
     arenaId: "arena1", planId: "m2", slots: [{classId: "cB", weekday: 2}, {classId: "cB", weekday: 4}],
     dueDay: 5, paymentMethod: "pix", waiveFee: false, waitlistClassId: null, waitlistEntryId: null,
-    billingMode: "asaas", cpfCnpj: CPF,
+    billingMode: "asaas", cpfCnpj: CPF, cycle: "monthly",
     ...overrides,
   };
 }

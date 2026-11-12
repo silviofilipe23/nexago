@@ -83,6 +83,7 @@ void main() {
       expect(repo.previewCalls.single, {
         'arenaId': 'arena-sul',
         'planId': 'mensal-2x',
+        'cycle': 'monthly',
         'slots': ['c1:1', 'c2:2'],
         'cpf': null,
       });

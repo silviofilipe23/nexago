@@ -23,6 +23,65 @@ DateTime? _dt(Object? v) => v is String ? DateTime.tryParse(v) : null;
 
 // ── opções de contratação ───────────────────────────────────────────────
 
+/// Ciclo de pagamento do plano mensal: paga 1, 3, 6 ou 12 meses de uma vez.
+class ClassPlanCycleOption {
+  const ClassPlanCycleOption({
+    required this.cycle,
+    required this.months,
+    required this.monthlyPriceReais,
+    required this.totalReais,
+  });
+
+  factory ClassPlanCycleOption.fromMap(Map<String, dynamic> m) =>
+      ClassPlanCycleOption(
+        cycle: _s(m['cycle']).isEmpty ? 'monthly' : _s(m['cycle']),
+        months: _i(m['months']) ?? 1,
+        monthlyPriceReais: _d(m['monthlyPriceReais']),
+        totalReais: _d(m['totalReais']),
+      );
+
+  /// `monthly`, `quarterly`, `semiannual` ou `annual`.
+  final String cycle;
+  final int months;
+  final double monthlyPriceReais;
+
+  /// O ciclo inteiro (sem o proporcional do 1º mês).
+  final double totalReais;
+}
+
+/// "Mensal", "Trimestral", "Semestral", "Anual".
+String cycleLabel(String cycle) => switch (cycle) {
+      'quarterly' => 'Trimestral',
+      'semiannual' => 'Semestral',
+      'annual' => 'Anual',
+      _ => 'Mensal',
+    };
+
+/// "/trimestre" etc. para o total do ciclo.
+String cyclePeriodSuffix(String cycle) => switch (cycle) {
+      'quarterly' => 'por trimestre',
+      'semiannual' => 'por semestre',
+      'annual' => 'por ano',
+      _ => 'por mês',
+    };
+
+/// Desconto do ciclo sobre o mensal, em % inteiro (0 sem desconto).
+int cycleDiscountPercent(ClassSignupPlan plan, ClassPlanCycleOption option) {
+  if (plan.priceReais <= 0 || option.monthlyPriceReais >= plan.priceReais) {
+    return 0;
+  }
+  return ((1 - option.monthlyPriceReais / plan.priceReais) * 100).round();
+}
+
+/// O ciclo escolhido, ou o mensal (padrão) se o plano não tem o pedido.
+ClassPlanCycleOption? cycleOptionOf(ClassSignupPlan plan, String? cycle) {
+  if (plan.cycles.isEmpty) return null;
+  for (final c in plan.cycles) {
+    if (c.cycle == cycle) return c;
+  }
+  return plan.cycles.first;
+}
+
 class ClassSignupPlan {
   const ClassSignupPlan({
     required this.planId,
@@ -37,6 +96,7 @@ class ClassSignupPlan {
     this.teacherIds = const [],
     this.anyTeacher = false,
     this.mine = false,
+    this.cycles = const [],
   });
 
   factory ClassSignupPlan.fromMap(Map<String, dynamic> m) => ClassSignupPlan(
@@ -54,6 +114,7 @@ class ClassSignupPlan {
             : const [],
         anyTeacher: m['anyTeacher'] == true,
         mine: m['mine'] == true,
+        cycles: _maps(m['cycles']).map(ClassPlanCycleOption.fromMap).toList(),
       );
 
   final String planId;
@@ -76,6 +137,12 @@ class ClassSignupPlan {
 
   /// O atleta já tem matrícula ativa neste plano.
   final bool mine;
+
+  /// Ciclos de pagamento (só mensal; vazio em pacote ou servidor antigo).
+  final List<ClassPlanCycleOption> cycles;
+
+  /// Tem ciclo além do mensal para escolher.
+  bool get hasLongCycles => cycles.length > 1;
 
   bool get isMonthly => kind == 'monthly';
 }
@@ -401,6 +468,7 @@ class ClassEnrollmentPreview {
     this.totalReais = 0,
     this.online = false,
     this.needsCpf = false,
+    this.cycle = 'monthly',
     this.startDate = '',
     this.endDate = '',
   });
@@ -417,6 +485,7 @@ class ClassEnrollmentPreview {
       totalReais: _d(m['totalReais']),
       online: m['online'] == true,
       needsCpf: m['needsCpf'] == true,
+      cycle: _s(m['cycle']).isEmpty ? 'monthly' : _s(m['cycle']),
       startDate: _s(m['startDate']),
       endDate: _s(m['endDate']),
     );
@@ -435,6 +504,9 @@ class ClassEnrollmentPreview {
 
   /// Online sem CPF salvo: pedir antes de assinar.
   final bool needsCpf;
+
+  /// Ciclo de pagamento da matrícula.
+  final String cycle;
   final String startDate;
   final String endDate;
 }

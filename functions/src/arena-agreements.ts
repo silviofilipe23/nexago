@@ -36,7 +36,10 @@ import {athleteAccountPhone, parseArenaClass, requireClassEntitlement, requireCl
 import {
   createEnrollmentCore,
   firstCharges,
+  parseCycle,
+  parseCyclePrices,
   parsePlan,
+  planCycleOptions,
   planEnrollment,
   studentAgreementId,
   type EnrollmentPlan,
@@ -192,6 +195,8 @@ export async function signupOptionsCore(db: Firestore, uid: string, arenaId: str
       description: plan.description,
       teacherIds: withClasses,
       anyTeacher: declared.length === 0,
+      /** Ciclos de pagamento (só mensal): mensal sempre, os longos que a arena precificou. */
+      cycles: planCycleOptions({...plan, cyclePrices: parseCyclePrices(data["cyclePrices"])}),
       mine: myPlanIds.has(d.id),
     };
   }).filter((p) => p.teacherIds.length > 0);
@@ -284,6 +289,7 @@ export function selfEnrollmentRequest(input: Data, rules: {defaultDueDay: number
     waitlistEntryId: null,
     billingMode: rules.onlineBillingEnabled ? "asaas" : "manual",
     cpfCnpj: cpfDigits || null,
+    cycle: parseCycle(input["cycle"]),
   };
 }
 
@@ -323,12 +329,13 @@ async function buildSelfEnrollmentDraft(db: Firestore, auth: {uid: string; email
     slots: planned.slots.map((s) => ({weekday: s.weekday, startTime: s.startTime, teacherName: teacherNames.get(s.teacherId) ?? "Professor"})),
     dueDay: req.dueDay,
     online,
+    cycle: planned.cycle,
     rules: planned.rules,
     startKey: todayKey,
     endKey: studentTermEnd(planned.plan, todayKey, expiresOn),
   };
   const rendered = renderAgreement(template, studentValues(ctx));
-  const {charges} = firstCharges("preview", planned.plan, planned.slots.map((s) => s.weekday), todayKey, planned.rules, false);
+  const {charges} = firstCharges("preview", planned.plan, planned.slots.map((s) => s.weekday), todayKey, planned.rules, false, planned.cycle);
   return {
     req, planned, ctx, template, rendered,
     charges: charges.map(({description, amountReais, dueDate}) => ({description, amountReais, dueDate})),
@@ -349,6 +356,7 @@ export async function previewSelfEnrollmentCore(db: Firestore, auth: {uid: strin
     },
     charges: d.charges,
     totalReais: Math.round(d.charges.reduce((sum, c) => sum + c.amountReais, 0) * 100) / 100,
+    cycle: d.planned.cycle,
     online: d.req.billingMode === "asaas",
     /** Online sem CPF salvo: o app pede o CPF antes de assinar. */
     needsCpf: d.req.billingMode === "asaas" && !d.ctx.student.cpf,
@@ -415,7 +423,7 @@ export async function enrollMeCore(
     photoUrl: d.student.photoUrl,
   }, auth.uid, todayKey, "athlete", (tx: Transaction, enrollmentId: string, planned: EnrollmentPlan) => {
     // O que foi assinado tem que ser o que virou matrícula (preço e horários lidos na transação).
-    if (planned.plan.priceReais !== d.planned.plan.priceReais ||
+    if (planned.plan.priceReais !== d.planned.plan.priceReais || planned.cycle !== d.planned.cycle ||
       planned.slots.map((s) => `${s.classId}:${s.weekday}:${s.startTime}`).join("|") !==
       d.planned.slots.map((s) => `${s.classId}:${s.weekday}:${s.startTime}`).join("|")) {
       throw new HttpsError("failed-precondition", "O plano mudou agora há pouco. Revise e assine de novo.");
@@ -438,6 +446,7 @@ export async function enrollMeCore(
       enrollmentId,
       planId: d.req.planId,
       planName: d.planned.plan.name,
+      cycle: d.planned.cycle,
       teacherIds: [...new Set(d.planned.slots.map((s) => s.teacherId))],
       slots: d.planned.slots.map((s) => ({classId: s.classId, weekday: s.weekday, startTime: s.startTime, className: s.className})),
       startDate: todayKey,

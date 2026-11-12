@@ -142,6 +142,8 @@ export interface PlanInput {
   /** Contratos de aulas: professores do plano e "Contratar pelo app". */
   teacherIds?: string[];
   availableInApp?: boolean;
+  /** Valor por mês de trimestral/semestral/anual; ciclo ausente = não oferecido. */
+  cyclePrices?: Partial<Record<'quarterly' | 'semiannual' | 'annual', number>>;
 }
 
 export function upsertPlan(functions: Functions, input: PlanInput): Promise<{ planId: string }> {
@@ -169,6 +171,8 @@ export interface EnrollmentInput {
   billingMode?: 'manual' | 'asaas';
   /** CPF do pagador (só dígitos ou formatado) — fica no servidor, fora do cadastro do atleta. */
   cpfCnpj?: string;
+  /** Ciclo de pagamento do plano mensal (ausente = mensal). */
+  cycle?: 'monthly' | 'quarterly' | 'semiannual' | 'annual';
 }
 
 export interface EnrollmentPreview {

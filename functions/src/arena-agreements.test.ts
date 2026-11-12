@@ -252,3 +252,23 @@ describe("contratos de aulas — perfil público", () => {
     assert.equal(await syncClassSignupFlag(db, "arena1"), false);
   });
 });
+
+describe("contratos de aulas — ciclo de pagamento", () => {
+  it("anual: opções no app, contrato com o ciclo e matrícula anual", async () => {
+    const {fake, db} = makeDb();
+    seed(fake);
+    fake.seedDoc("arenas/arena1/classPlans/m2", {...doc(fake, "arenas/arena1/classPlans/m2"), cyclePrices: {annual: 220}});
+    const options = await signupOptionsCore(db, "u1", "arena1");
+    assert.deepEqual(options.plans.find((p) => p.planId === "m2")!.cycles.map((c) => c.cycle), ["monthly", "annual"]);
+    const input = {...thiago2x, cycle: "annual"};
+    const p = await previewSelfEnrollmentCore(db, ME, input, TODAY);
+    assert.equal(p.cycle, "annual");
+    assert.match(p.agreement.body, /R\$ 220,00 por mês, pagos a cada 12 meses \(R\$ 2\.640,00 por ano\)/);
+    assert.ok(p.agreement.essentials.some((r) => r.label === "Pagamento" && r.value === "Anual"));
+    const out = await enrollMeCore(db, ME, {...input, agreed: true, sha256: p.agreement.sha256}, EV, NOW);
+    assert.equal(doc(fake, `arenaClassEnrollments/${out.enrollmentId}`)["cycle"], "annual");
+    assert.equal(doc(fake, `arenaAgreements/${out.agreementId}`)["cycle"], "annual");
+    // Trocar o ciclo depois da prévia muda o texto: a assinatura não vale.
+    await assert.rejects(enrollMeCore(db, ME, {arenaId: "arena1", planId: "m1", slots: [{classId: "cR", weekday: 6}], cycle: "annual", agreed: true, sha256: p.agreement.sha256}, EV, NOW), /anual|mudou/);
+  });
+});

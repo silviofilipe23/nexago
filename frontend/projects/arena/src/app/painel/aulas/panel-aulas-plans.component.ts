@@ -1,378 +1,141 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
-import { arenaFunctions } from '../data/functions';
 import { IconComponent } from '../ui/icon.component';
-import { PanelCardComponent } from '../ui/panel-card.component';
 import { PillComponent } from '../ui/pill.component';
-import { ToggleComponent } from '../ui/toggle.component';
 import { AulasPageComponent } from './aulas-ui';
-import {
-  ATHLETE_DUE_DAY_CHOICES,
-  CLASS_PAYMENT_FORMS,
-  CLASS_PAYMENT_FORM_LABEL,
-  DEFAULT_PLAN_BILLING,
-  DEFAULT_PLAN_CYCLES,
-  DEFAULT_RULES,
-  MAX_CYCLE_DISCOUNT_PERCENT,
-  PLAN_CYCLES,
-  PLAN_GROUP_LABEL,
-  PLAN_KIND_LABEL,
-  brl,
-  cycleMonthlyPrice,
-  parsePrice,
-  planDetail,
-  planPriceUnit,
-  type ClassPaymentForm,
-  type ClassPlan,
-  type ClassRules,
-  type Enrollment,
-  type LongCycle,
-  type PlanBilling,
-  type PlanCycle,
-  type PlanCycles,
-  type PlanKind,
-} from './billing.model';
-import { fetchEnrollments, fetchPlans, fetchRules, upsertPlan } from './billing-repository';
+import { PLAN_GROUP_LABEL, brl, type ClassPlan, type Enrollment, type PlanKind } from './billing.model';
+import { fetchEnrollments, fetchPlans } from './billing-repository';
 import type { ClassTeacher } from './class.model';
 import { fetchTeachers } from './classes-repository';
+import { planActivity, planCardView, plansStats, type PlanCardView } from './plan-card.model';
 
-interface PlanDraft {
-  planId: string | null;
-  name: string;
-  kind: PlanKind;
-  price: string;
-  classesPerWeek: number;
-  makeupsPerMonth: number;
-  credits: number;
-  validityDays: number;
-  description: string;
-  status: 'active' | 'archived';
-  teacherIds: string[];
-  availableInApp: boolean;
-  /** Ciclos do plano mensal (desconto sobre o mensal). */
-  cycles: PlanCycles;
-  /** Formas aceitas e vencimento (só plano mensal). */
-  billing: PlanBilling;
-}
-
-function cloneCycles(c: PlanCycles): PlanCycles {
-  return { monthly: { ...c.monthly }, quarterly: { ...c.quarterly }, semiannual: { ...c.semiannual }, annual: { ...c.annual } };
-}
-
-function cloneBilling(b: PlanBilling): PlanBilling {
-  return { methods: [...b.methods], dueDay: b.dueDay, dueDayOptions: [...b.dueDayOptions] };
-}
-
-const EMPTY: PlanDraft = {
-  planId: null, name: '', kind: 'monthly', price: '', classesPerWeek: 2, makeupsPerMonth: 2,
-  credits: 8, validityDays: 60, description: '', status: 'active', teacherIds: [], availableInApp: false,
-  cycles: cloneCycles(DEFAULT_PLAN_CYCLES), billing: cloneBilling(DEFAULT_PLAN_BILLING),
-};
-
-/** Vencimento fixo — os dias do Plano de horário; `null` = o das Regras de aulas. */
-const DUE_DAYS: readonly number[] = [1, 5, 10, 15];
-
-/** Ciclos com desconto, na linguagem do editor dos Planos de horário. */
-const DISCOUNT_CYCLES: ReadonlyArray<{ id: LongCycle; label: string; sub: string }> = [
-  { id: 'quarterly', label: 'Trimestral', sub: '3 meses · paga mês a mês' },
-  { id: 'semiannual', label: 'Semestral', sub: '6 meses · paga mês a mês' },
-  { id: 'annual', label: 'Anual', sub: '12 meses · à vista (1ª proporcional)' },
-];
-
-function discountOk(n: number): boolean {
-  return Number.isInteger(n) && n >= 0 && n <= MAX_CYCLE_DISCOUNT_PERCENT;
-}
-
-/** 13 · Planos e pacotes — mensalidades (aulas/semana), pacotes de créditos e avulsas. Mudar o
- *  valor vale para matrículas novas; as atuais guardam o valor de quando matricularam. */
+/** 13 · Planos de aula — no padrão dos Planos de horário: números do mês no topo e um card por plano
+ *  (nome, regra, selo No app / Só recepção / Arquivado, preço, ciclos e cobrança, alunos e receita).
+ *  O card abre o editor em página própria (`/painel/aulas/planos/:planId`). */
 @Component({
   selector: 'ar-panel-aulas-plans',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AulasPageComponent, PanelCardComponent, PillComponent, IconComponent, ToggleComponent],
+  imports: [AulasPageComponent, PillComponent, IconComponent, RouterLink],
   styleUrl: './aulas-form.scss',
   template: `
     <ar-aulas-page title="Aulas" subtitle="Mensalidades, pacotes de créditos e aulas avulsas" tab="planos" [empty]="!loading() && plans().length === 0">
-      <button page-actions type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="readOnly()" (click)="openNew()">
-        <ar-icon name="plus" [size]="14" />
-        Criar plano
-      </button>
+      <a page-actions class="ar-mini-btn ar-mini-btn-primary" data-testid="aula-plan-new" [class.disabled]="readOnly()" [routerLink]="readOnly() ? null : '/painel/aulas/planos/novo'">
+        <ar-icon name="plus" [size]="14" /> Novo plano
+      </a>
 
       @if (loading()) {
         <p class="state-text">Carregando planos…</p>
       } @else if (loadError(); as err) {
         <p class="state-text">{{ err }}</p>
       } @else {
-        <div class="layout">
-          <div class="groups">
-            @for (g of groups; track g) {
-              <section>
-                <div class="kicker">{{ groupLabel[g] }}</div>
-                <div class="grid">
-                  @for (p of plansOf(g); track p.id) {
-                    <div class="plan" [class.selected]="draft()?.planId === p.id" [class.archived]="p.status === 'archived'">
-                      <div class="plan-name">{{ p.name }}</div>
-                      <div class="plan-price">{{ p.priceReais > 0 ? brl(p.priceReais) : 'Grátis' }}<span>{{ unit(p.kind) }}</span></div>
-                      <div class="plan-detail">{{ detail(p) }}</div>
-                      <div class="plan-foot">
-                        <span>{{ activeCount(p.id) }} aluno{{ activeCount(p.id) === 1 ? '' : 's' }} ativo{{ activeCount(p.id) === 1 ? '' : 's' }}</span>
-                        @if (p.status === 'archived') {
-                          <ar-pill tone="dim">Arquivado</ar-pill>
-                        } @else if (p.availableInApp) {
-                          <ar-pill tone="green">No app</ar-pill>
-                        }
-                        <button type="button" class="ar-ghost-btn" [disabled]="readOnly()" (click)="openEdit(p)">Editar</button>
-                      </div>
-                    </div>
-                  } @empty {
-                    <p class="hint first">Nenhum plano {{ groupLabel[g].toLowerCase() }}.</p>
-                  }
-                </div>
-              </section>
-            }
-          </div>
-
-          <ar-panel-card [title]="draft()?.planId ? 'Editar plano' : 'Novo plano'" [kicker]="draft()?.name || 'Plano'">
-            @if (draft(); as d) {
-              @if (saveError(); as err) {
-                <div class="error-banner">{{ err }}</div>
-              }
-              <div class="field-label">Nome</div>
-              <input class="input-box" type="text" maxlength="60" placeholder="Ex.: Mensal 2x/semana" [value]="d.name" (input)="patch({ name: $any($event.target).value })" />
-              <div class="field-label spaced">Tipo</div>
-              <div class="chip-row">
-                @for (k of groups; track k) {
-                  <button type="button" class="ar-chip" [class.active]="d.kind === k" [disabled]="d.planId != null" (click)="patch({ kind: k })">{{ kindLabel[k] }}</button>
-                }
-              </div>
-              <div class="row-2">
-                <div>
-                  <div class="field-label spaced">Valor (R$){{ unit(d.kind) }}</div>
-                  <input class="input-box" type="text" inputmode="decimal" placeholder="320,00" [value]="d.price" (input)="patch({ price: $any($event.target).value })" />
-                </div>
-                @if (d.kind === 'monthly') {
-                  <div>
-                    <div class="field-label spaced">Aulas por semana</div>
-                    <div class="stepper">
-                      <span>{{ d.classesPerWeek }}x</span>
-                      <button type="button" aria-label="Menos" (click)="patch({ classesPerWeek: Math.max(1, d.classesPerWeek - 1) })">–</button>
-                      <button type="button" aria-label="Mais" (click)="patch({ classesPerWeek: Math.min(7, d.classesPerWeek + 1) })">+</button>
-                    </div>
-                  </div>
-                } @else if (d.kind === 'package') {
-                  <div>
-                    <div class="field-label spaced">Créditos (aulas)</div>
-                    <input class="input-box" type="number" min="1" max="100" [value]="d.credits" (input)="patch({ credits: +$any($event.target).value })" />
-                  </div>
-                }
-              </div>
-              @if (d.kind === 'monthly') {
-                <div class="field-label spaced">Reposições por mês</div>
-                <div class="stepper">
-                  <span>{{ d.makeupsPerMonth }}</span>
-                  <button type="button" aria-label="Menos" (click)="patch({ makeupsPerMonth: Math.max(0, d.makeupsPerMonth - 1) })">–</button>
-                  <button type="button" aria-label="Mais" (click)="patch({ makeupsPerMonth: Math.min(10, d.makeupsPerMonth + 1) })">+</button>
-                </div>
-                <p class="hint">Faltas justificadas viram crédito até esse limite no mês.</p>
-                <div class="section">
-                  <div class="section-title">Preço e ciclo</div>
-                  <div class="cycle">
-                    <div><div class="cycle-name" [class.off]="!d.cycles.monthly.enabled">Mensal</div><div class="cycle-sub">Sem fidelidade</div></div>
-                    <span class="cycle-val">{{ brl(priceValue()) }}<small>/mês</small></span>
-                    <ar-toggle [checked]="d.cycles.monthly.enabled" label="Mensal" (changed)="setCycle('monthly', $event)" />
-                  </div>
-                  @for (c of discountCycles; track c.id) {
-                    <div class="cycle">
-                      <div>
-                        <div class="cycle-name" [class.off]="!d.cycles[c.id].enabled">
-                          {{ c.label }}
-                          <span class="disc">−<input type="number" min="0" [max]="maxDiscount" [attr.aria-label]="'Desconto ' + c.label" [value]="d.cycles[c.id].discountPercent" (input)="setDiscount(c.id, +$any($event.target).value)" />%</span>
-                        </div>
-                        <div class="cycle-sub">{{ c.sub }}</div>
-                      </div>
-                      @if (c.id === 'annual') {
-                        <span class="cycle-val">{{ brl(cycleValue(d.cycles[c.id].discountPercent) * 12) }}<small>/ano</small></span>
-                      } @else {
-                        <span class="cycle-val">{{ brl(cycleValue(d.cycles[c.id].discountPercent)) }}<small>/mês</small></span>
-                      }
-                      <ar-toggle [checked]="d.cycles[c.id].enabled" [label]="c.label" (changed)="setCycle(c.id, $event)" />
-                    </div>
-                  }
-                  @if (cycleError(); as err) {
-                    <p class="hint warn">{{ err }}</p>
-                  } @else {
-                    <p class="hint">Trimestral e semestral têm fidelidade e são cobrados mês a mês com desconto; o anual é cobrado de uma vez.</p>
-                  }
-                </div>
-                <div class="section">
-                  <div class="section-title">Cobrança</div>
-                  <div class="field-label">Formas</div>
-                  <div class="chip-row">
-                    @for (f of forms; track f) {
-                      <button type="button" class="ar-chip" [class.active]="d.billing.methods.includes(f)" [attr.aria-pressed]="d.billing.methods.includes(f)" (click)="toggleForm(f)">{{ formLabel[f] }}</button>
-                    }
-                  </div>
-                  @if (d.billing.methods.length === 0) {
-                    <p class="hint warn">Escolha ao menos uma forma de pagamento.</p>
-                  } @else if (!rules().onlineBillingEnabled && (d.billing.methods.includes('pix') || d.billing.methods.includes('card'))) {
-                    <p class="hint">Para cobrar pelo app, ligue a cobrança online nas Regras de aulas.</p>
-                  }
-                  <div class="field-label spaced">Vencimento</div>
-                  <div class="chip-row">
-                    <button type="button" class="ar-chip" [class.active]="d.billing.dueDayOptions.length === 0 && d.billing.dueDay == null"
-                      (click)="setDueDay(null)">Das Regras (dia {{ rules().defaultDueDay }})</button>
-                    @for (n of dueDays; track n) {
-                      <button type="button" class="ar-chip" [class.active]="d.billing.dueDayOptions.length === 0 && d.billing.dueDay === n"
-                        (click)="setDueDay(n)">Dia {{ n }}</button>
-                    }
-                    <button type="button" class="ar-chip" [class.active]="d.billing.dueDayOptions.length > 0"
-                      (click)="letAthleteChooseDueDay()">Atleta escolhe: {{ athleteDueDaysLabel }}</button>
-                  </div>
-                  @if (d.billing.dueDayOptions.length > 0) {
-                    <p class="hint">Ao contratar, o atleta escolhe o dia {{ athleteDueDaysLabel }}. As mensalidades vencem sempre nesse dia.</p>
-                  }
-                </div>
-              } @else if (d.kind === 'package') {
-                <div class="field-label spaced">Validade (dias)</div>
-                <input class="input-box" type="number" min="1" max="365" [value]="d.validityDays" (input)="patch({ validityDays: +$any($event.target).value })" />
-                <p class="hint">Cada aula com presença (ou falta sem aviso) consome 1 crédito.</p>
-              } @else {
-                <p class="hint">Plano avulso fica no catálogo; a matrícula usa mensalidades e pacotes.</p>
-              }
-              <div class="field-label spaced">Descrição (opcional)</div>
-              <input class="input-box" type="text" maxlength="120" [value]="d.description" (input)="patch({ description: $any($event.target).value })" />
-              @if (d.kind !== 'single') {
-                <div class="field-label spaced">Professores do plano</div>
-                <p class="hint first">O aluno escolhe entre eles ao contratar e vê só os horários das turmas de quem escolheu. Nenhum marcado = qualquer turma da arena.</p>
-                <div class="teachers">
-                  @for (t of activeTeachers(); track t.id) {
-                    <button type="button" class="teacher" [class.on]="d.teacherIds.includes(t.id)" [attr.aria-pressed]="d.teacherIds.includes(t.id)" (click)="toggleTeacher(t.id)">
-                      <span class="dot" [style.background]="t.color"></span>
-                      <span class="t-name">{{ t.name }}</span>
-                      @if (d.teacherIds.includes(t.id)) {
-                        <ar-icon name="check" [size]="13" />
-                      }
-                    </button>
-                  } @empty {
-                    <p class="hint first">Cadastre professores na aba Professores.</p>
-                  }
-                </div>
-                <div class="app-toggle">
-                  <ar-toggle label="Contratar pelo app" [checked]="d.availableInApp" (changed)="patch({ availableInApp: $event })" />
-                  <p class="hint first">O plano aparece no perfil da arena: o atleta escolhe professor e dias e assina o contrato (aba Contratos). Desligado, só a recepção matricula.</p>
-                </div>
-              }
-              @if (d.planId) {
-                <p class="hint">Mudar o valor vale para matrículas novas — quem já está matriculado mantém o valor de quando entrou.</p>
-              }
-              <div class="modal-actions">
-                @if (d.planId) {
-                  <button type="button" class="ar-mini-btn" [disabled]="saving()" (click)="toggleArchive()">{{ d.status === 'archived' ? 'Reativar' : 'Arquivar' }}</button>
-                  <span class="grow"></span>
-                }
-                <button type="button" class="ar-mini-btn" [disabled]="saving()" (click)="draft.set(null)">Cancelar</button>
-                <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="saving() || !canSave()" (click)="save()">{{ saving() ? 'Salvando…' : 'Salvar' }}</button>
-              </div>
-            } @else {
-              <p class="hint first">Escolha um plano para editar ou crie um novo.</p>
-            }
-          </ar-panel-card>
+        <div class="stats">
+          <div class="stat"><span class="k">Planos à venda</span><b>{{ stats().onSale }}</b><small>{{ stats().inApp }} no app · {{ stats().onSale - stats().inApp }} só na recepção</small></div>
+          <div class="stat"><span class="k">Alunos ativos</span><b>{{ stats().students }}</b><small>em {{ stats().plansWithStudents }} plano{{ stats().plansWithStudents === 1 ? '' : 's' }}</small></div>
+          <div class="stat"><span class="k">Receita recorrente</span><b>{{ brl(stats().monthlyReais) }}</b><small>por mês, mensais ativos</small></div>
+          <div class="stat"><span class="k">Com ciclos longos</span><b>{{ stats().withCycles }}</b><small>trimestral, semestral ou anual</small></div>
         </div>
+
+        @for (g of groups; track g) {
+          @if (cardsOf(g).length > 0) {
+            <section class="group">
+              <div class="kicker">{{ groupLabel[g] }}</div>
+              <div class="cards">
+                @for (c of cardsOf(g); track c.plan.id) {
+                  <a class="plan" [class.archived]="c.plan.status === 'archived'" [routerLink]="['/painel/aulas/planos', c.plan.id]" [attr.data-testid]="'aula-plan-card-' + c.plan.id">
+                    <div class="plan-head">
+                      <div class="plan-titles">
+                        <div class="plan-name">{{ c.plan.name }}</div>
+                        <div class="plan-sub">{{ c.sub }}</div>
+                      </div>
+                      <ar-pill [tone]="c.pill.tone">{{ c.pill.label }}</ar-pill>
+                    </div>
+                    <div class="price-row">
+                      <span class="price">{{ c.price }}</span>
+                      <span class="per">{{ c.unit }}</span>
+                      @if (c.offer) {
+                        <span class="off">{{ c.offer }}</span>
+                      }
+                    </div>
+                    <div class="chip-row">
+                      @for (t of c.chips; track $index) {
+                        <span class="sm-chip" [title]="t">{{ t }}</span>
+                      }
+                    </div>
+                    <div class="plan-foot">
+                      <span><b>{{ c.students }}</b> aluno{{ c.students === 1 ? '' : 's' }} ativo{{ c.students === 1 ? '' : 's' }}</span>
+                      <span class="mono">{{ c.revenue }}</span>
+                    </div>
+                  </a>
+                }
+              </div>
+            </section>
+          }
+        }
+        @if (plans().length === 0) {
+          <div class="plan empty">
+            <div class="plan-name">Nenhum plano ainda</div>
+            <p class="hint">Crie o primeiro plano: mensalidade com aulas por semana (e ciclos com desconto), pacote de créditos ou aula avulsa.</p>
+          </div>
+        }
       }
     </ar-aulas-page>
   `,
   styles: `
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
-    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
-    .groups { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-    .kicker { font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-text-dim); margin-bottom: 10px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
-    .plan { padding: 16px; border-radius: var(--nx-r-4); background: var(--nx-surface-0); border: 1px solid var(--nx-line); display: flex; flex-direction: column; gap: 6px; }
-    .plan.selected { border-color: rgba(255, 106, 26, 0.5); }
-    .plan.archived { opacity: 0.55; }
-    .plan-name { font-family: var(--nx-font-display); font-weight: 700; font-size: 14px; color: var(--nx-text); }
-    .plan-price { font-family: var(--nx-font-display); font-weight: 800; font-size: 22px; color: var(--nx-orange-500); }
-    .plan-price span { font-family: var(--nx-font-mono); font-size: 10.5px; font-weight: 500; color: var(--nx-text-dim); margin-left: 3px; }
-    .plan-detail { font-family: var(--nx-font-mono); font-size: 10.5px; color: var(--nx-text-dim); }
-    .plan-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--nx-line); font-size: 12px; color: var(--nx-text-mute); }
-    .plan-foot span:first-child { flex: 1; }
-    .first { margin-top: 0; }
-    .grow { flex: 1; }
-    .section { margin-top: 14px; padding: 12px 14px; border-radius: var(--nx-r-3, 12px); border: 1px solid var(--nx-line); background: var(--nx-surface-0); }
-    .section-title { font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-text-dim); margin-bottom: 8px; }
-    .cycle { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--nx-line); }
-    .cycle-name { font-family: var(--nx-font-display); font-weight: 700; font-size: 13px; color: var(--nx-text); }
-    .cycle-name.off { color: var(--nx-text-mute); }
-    .cycle-sub { font-size: 11px; color: var(--nx-text-dim); margin-top: 2px; }
-    .disc { font-family: var(--nx-font-mono); font-size: 10px; font-weight: 700; color: var(--nx-win); margin-left: 8px; }
-    .disc input { width: 34px; background: transparent; border: none; border-bottom: 1px dashed rgba(43, 209, 126, 0.5); color: inherit; font: inherit; text-align: right; padding: 0; }
-    .cycle-val { font-family: var(--nx-font-mono); font-weight: 700; font-size: 13px; color: var(--nx-text); white-space: nowrap; }
-    .cycle-val small { font-weight: 500; font-size: 10.5px; color: var(--nx-text-dim); }
-    .hint.warn { color: var(--nx-live); }
-    .teachers { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-    .teacher { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--nx-line); background: var(--nx-surface-0); color: var(--nx-text-mute); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
-    .teacher.on { border-color: var(--nx-orange-500); color: var(--nx-text); background: rgba(255, 106, 26, 0.08); }
-    .teacher .dot { width: 8px; height: 8px; border-radius: 50%; }
-    .app-toggle { margin-top: 14px; padding: 12px 14px; border-radius: var(--nx-r-3, 12px); border: 1px solid var(--nx-line); background: var(--nx-surface-0); }
-    @media (max-width: 1180px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat { padding: 16px 18px; border-radius: var(--nx-r-4); background: var(--nx-surface-0); border: 1px solid var(--nx-line); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .stat b { font-family: var(--nx-font-display); font-size: 24px; color: var(--nx-text); }
+    .stat small { font-size: 12px; color: var(--nx-text-mute); }
+    .k, .kicker { font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-text-dim); }
+    .group { margin-bottom: 20px; }
+    .kicker { margin-bottom: 10px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .plan { padding: 16px; border-radius: var(--nx-r-4); background: var(--nx-surface-0); border: 1px solid var(--nx-line); display: flex; flex-direction: column; gap: 12px; text-decoration: none; color: inherit; min-width: 0; }
+    a.plan:hover { border-color: rgba(255, 106, 26, 0.45); }
+    .plan.archived { opacity: 0.55; border-style: dashed; }
+    .plan.empty { max-width: 420px; }
+    .plan-head { display: flex; align-items: flex-start; gap: 10px; }
+    .plan-titles { flex: 1; min-width: 0; }
+    .plan-name { font-family: var(--nx-font-display); font-weight: 700; font-size: 15.5px; color: var(--nx-text); overflow-wrap: anywhere; }
+    .plan-sub { font-family: var(--nx-font-mono); font-size: 10.5px; color: var(--nx-text-dim); margin-top: 4px; text-transform: uppercase; }
+    .price-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+    .price { font-family: var(--nx-font-mono); font-weight: 800; font-size: 24px; letter-spacing: -0.02em; color: var(--nx-text); }
+    .per { font-size: 12px; color: var(--nx-text-dim); }
+    .off { font-family: var(--nx-font-mono); font-size: 10.5px; font-weight: 700; color: var(--nx-win); }
+    .sm-chip { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; height: 24px; line-height: 22px; padding: 0 10px; border-radius: 99px; font-family: var(--nx-font-display); font-weight: 600; font-size: 11.5px; background: var(--nx-surface-1); border: 1px solid var(--nx-line); color: var(--nx-text-mute); white-space: nowrap; box-sizing: border-box; }
+    .plan-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--nx-line); display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--nx-text-mute); }
+    .plan-foot b, .mono { font-family: var(--nx-font-mono); color: var(--nx-text); font-weight: 700; }
+    .hint { font-size: 12px; color: var(--nx-text-dim); margin: 0; }
+    @media (max-width: 1180px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { .stats { grid-template-columns: minmax(0, 1fr); } }
   `,
 })
 export class PanelAulasPlansComponent {
   private readonly arenaContext = inject(ArenaContextService);
   private readonly access = inject(ArenaAccessService);
 
-  protected readonly Math = Math;
   protected readonly groups: readonly PlanKind[] = ['monthly', 'package', 'single'];
   protected readonly groupLabel = PLAN_GROUP_LABEL;
-  protected readonly kindLabel = PLAN_KIND_LABEL;
   protected readonly brl = brl;
-  protected readonly detail = planDetail;
-  protected readonly unit = planPriceUnit;
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda') || !this.arenaContext.hasCapability('aulas'));
 
-  protected readonly discountCycles = DISCOUNT_CYCLES;
-  protected readonly maxDiscount = MAX_CYCLE_DISCOUNT_PERCENT;
-  protected readonly forms = CLASS_PAYMENT_FORMS;
-  protected readonly formLabel = CLASS_PAYMENT_FORM_LABEL;
-  protected readonly dueDays = DUE_DAYS;
-  protected readonly athleteDueDaysLabel = `${ATHLETE_DUE_DAY_CHOICES.slice(0, -1).join(', ')} ou ${ATHLETE_DUE_DAY_CHOICES.at(-1)}`;
-  protected readonly rules = signal<ClassRules>(DEFAULT_RULES);
   protected readonly plans = signal<ClassPlan[]>([]);
-  private readonly teachers = signal<ClassTeacher[]>([]);
-  protected readonly activeTeachers = computed(() => this.teachers().filter((t) => t.status === 'active'));
   private readonly enrollments = signal<Enrollment[]>([]);
+  private readonly teachers = signal<ClassTeacher[]>([]);
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
-  protected readonly draft = signal<PlanDraft | null>(null);
-  protected readonly saving = signal(false);
-  protected readonly saveError = signal<string | null>(null);
 
-  private readonly activeByPlan = computed(() => {
-    const out = new Map<string, number>();
-    for (const e of this.enrollments()) {
-      if (e.status === 'active') out.set(e.plan.planId, (out.get(e.plan.planId) ?? 0) + 1);
-    }
-    return out;
-  });
-  /** Mensal digitado (0 enquanto vazio ou inválido) — base dos valores de cada ciclo. */
-  protected readonly priceValue = computed(() => {
-    const v = parsePrice(this.draft()?.price ?? '');
-    return Number.isFinite(v) && v > 0 ? v : 0;
-  });
-  protected readonly cycleError = computed(() => {
-    const d = this.draft();
-    if (!d || d.kind !== 'monthly') return null;
-    if (!PLAN_CYCLES.some((c) => d.cycles[c].enabled)) return 'Ligue ao menos um ciclo.';
-    if (!PLAN_CYCLES.every((c) => discountOk(d.cycles[c].discountPercent))) return `Desconto de 0% a ${MAX_CYCLE_DISCOUNT_PERCENT}%.`;
-    return null;
-  });
-  protected readonly canSave = computed(() => {
-    const d = this.draft();
-    if (!d || d.name.trim().length < 2) return false;
-    const price = parsePrice(d.price);
-    const monthlyOk = d.kind !== 'monthly' || (this.cycleError() == null && d.billing.methods.length > 0);
-    return monthlyOk && Number.isFinite(price) && (d.kind === 'single' ? price >= 0 : price > 0);
+  protected readonly stats = computed(() => plansStats(this.plans(), this.enrollments()));
+  private readonly cards = computed<PlanCardView[]>(() => {
+    const activity = planActivity(this.enrollments());
+    const live = new Set(this.teachers().filter((t) => t.status === 'active').map((t) => t.id));
+    return [...this.plans()]
+      // Arquivados no fim de cada grupo.
+      .sort((a, b) => Number(a.status === 'archived') - Number(b.status === 'archived') || a.priceReais - b.priceReais)
+      .map((p) => planCardView(p, activity.get(p.id), p.teacherIds.filter((id) => live.has(id)).length));
   });
 
   constructor() {
@@ -387,14 +150,12 @@ export class PanelAulasPlansComponent {
     this.loadError.set(null);
     try {
       const db = arenaFirestore();
-      const [plans, enrollments, teachers, rules] = await Promise.all([
+      const [plans, enrollments, teachers] = await Promise.all([
         fetchPlans(db, arenaId),
         fetchEnrollments(db, arenaId),
         fetchTeachers(db, arenaId).catch(() => [] as ClassTeacher[]),
-        fetchRules(db, arenaId).catch(() => DEFAULT_RULES),
       ]);
       this.plans.set(plans);
-      this.rules.set(rules);
       this.enrollments.set(enrollments);
       this.teachers.set(teachers);
     } catch {
@@ -404,119 +165,7 @@ export class PanelAulasPlansComponent {
     }
   }
 
-  protected plansOf(kind: PlanKind): ClassPlan[] {
-    return this.plans().filter((p) => p.kind === kind);
-  }
-
-  protected activeCount(planId: string): number {
-    return this.activeByPlan().get(planId) ?? 0;
-  }
-
-  protected openNew(): void {
-    if (this.readOnly()) return;
-    this.saveError.set(null);
-    this.draft.set({ ...EMPTY, cycles: cloneCycles(EMPTY.cycles), billing: cloneBilling(EMPTY.billing) });
-  }
-
-  protected openEdit(p: ClassPlan): void {
-    if (this.readOnly()) return;
-    this.saveError.set(null);
-    this.draft.set({
-      planId: p.id, name: p.name, kind: p.kind, price: String(p.priceReais).replace('.', ','),
-      classesPerWeek: p.classesPerWeek ?? 2, makeupsPerMonth: p.makeupsPerMonth ?? 0,
-      credits: p.credits ?? 8, validityDays: p.validityDays ?? 60, description: p.description ?? '', status: p.status,
-      teacherIds: [...p.teacherIds], availableInApp: p.availableInApp,
-      cycles: cloneCycles(p.cycles), billing: cloneBilling(p.billing),
-    });
-  }
-
-  protected patch(change: Partial<PlanDraft>): void {
-    const d = this.draft();
-    if (d) this.draft.set({ ...d, ...change });
-  }
-
-  protected setCycle(id: PlanCycle, enabled: boolean): void {
-    const d = this.draft();
-    if (d) this.draft.set({ ...d, cycles: { ...d.cycles, [id]: { ...d.cycles[id], enabled } } });
-  }
-
-  protected setDiscount(id: LongCycle, discountPercent: number): void {
-    const d = this.draft();
-    if (d) this.draft.set({ ...d, cycles: { ...d.cycles, [id]: { ...d.cycles[id], discountPercent: Number.isFinite(discountPercent) ? discountPercent : 0 } } });
-  }
-
-  protected cycleValue(discountPercent: number): number {
-    return cycleMonthlyPrice(this.priceValue(), discountOk(discountPercent) ? discountPercent : 0);
-  }
-
-  protected toggleForm(f: ClassPaymentForm): void {
-    const d = this.draft();
-    if (!d) return;
-    const methods = d.billing.methods.includes(f)
-      ? d.billing.methods.filter((m) => m !== f)
-      : CLASS_PAYMENT_FORMS.filter((m) => m === f || d.billing.methods.includes(m));
-    this.draft.set({ ...d, billing: { ...d.billing, methods } });
-  }
-
-  /** Vencimento fixo (`null` = o das Regras de aulas). */
-  protected setDueDay(dueDay: number | null): void {
-    const d = this.draft();
-    if (d) this.draft.set({ ...d, billing: { ...d.billing, dueDay, dueDayOptions: [] } });
-  }
-
-  /** Vencimento à escolha do atleta (5, 15 ou 25); quem não escolhe fica com o 1º. */
-  protected letAthleteChooseDueDay(): void {
-    const d = this.draft();
-    if (d) this.draft.set({ ...d, billing: { ...d.billing, dueDay: ATHLETE_DUE_DAY_CHOICES[0] ?? 5, dueDayOptions: [...ATHLETE_DUE_DAY_CHOICES] } });
-  }
-
-  protected toggleTeacher(teacherId: string): void {
-    const d = this.draft();
-    if (!d) return;
-    const teacherIds = d.teacherIds.includes(teacherId)
-      ? d.teacherIds.filter((id) => id !== teacherId)
-      : [...d.teacherIds, teacherId];
-    this.draft.set({ ...d, teacherIds });
-  }
-
-  protected save(): Promise<void> {
-    return this.persist(this.draft()?.status ?? 'active');
-  }
-
-  protected toggleArchive(): Promise<void> {
-    return this.persist(this.draft()?.status === 'archived' ? 'active' : 'archived');
-  }
-
-  private async persist(status: 'active' | 'archived'): Promise<void> {
-    const d = this.draft();
-    const arenaId = this.arenaContext.arenaId();
-    if (!d || !arenaId || this.readOnly()) return;
-    this.saving.set(true);
-    this.saveError.set(null);
-    try {
-      await upsertPlan(arenaFunctions(), {
-        arenaId,
-        planId: d.planId ?? undefined,
-        name: d.name.trim(),
-        kind: d.kind,
-        priceReais: parsePrice(d.price),
-        classesPerWeek: d.kind === 'monthly' ? d.classesPerWeek : null,
-        makeupsPerMonth: d.kind === 'monthly' ? d.makeupsPerMonth : null,
-        credits: d.kind === 'package' ? d.credits : null,
-        validityDays: d.kind === 'package' ? d.validityDays : null,
-        description: d.description.trim() || null,
-        status,
-        teacherIds: d.kind === 'single' ? [] : d.teacherIds,
-        cycles: d.kind === 'monthly' ? d.cycles : cloneCycles(DEFAULT_PLAN_CYCLES),
-        ...(d.kind === 'monthly' ? { billing: d.billing } : {}),
-        availableInApp: d.kind !== 'single' && d.availableInApp,
-      });
-      this.draft.set(null);
-      await this.load(arenaId);
-    } catch (err) {
-      this.saveError.set(err instanceof Error ? err.message : 'Não foi possível salvar o plano.');
-    } finally {
-      this.saving.set(false);
-    }
+  protected cardsOf(kind: PlanKind): PlanCardView[] {
+    return this.cards().filter((c) => c.plan.kind === kind);
   }
 }

@@ -167,6 +167,27 @@ describe('Agenda → Por horário', () => {
     expect(host(f).querySelector('.banner.error')?.textContent).toContain('já tem reserva com quadra definida');
   });
 
+  it('quadro: troca em andamento mostra o loader e trava o quadro', () => {
+    const f = setup();
+    host(f).querySelectorAll<HTMLButtonElement>('.hour')[1]!.click();
+    f.detectChanges();
+    expect(host(f).querySelector('[data-testid="board-lock"]')).toBeNull();
+
+    (f.componentInstance as unknown as { moving: WritableSignal<string | null> }).moving.set('Movendo Enzo Ribeiro para a Quadra 3…');
+    f.detectChanges();
+    const wrap = host(f).querySelector<HTMLElement>('.board-wrap')!;
+    expect(wrap.classList).toContain('locked');
+    expect(wrap.getAttribute('aria-busy')).toBe('true');
+    expect(host(f).querySelector('[data-testid="board-lock"]')?.textContent).toContain('Movendo Enzo Ribeiro para a Quadra 3');
+    expect(Array.from(host(f).querySelectorAll('.chipbk')).map((c) => c.getAttribute('draggable'))).toEqual(['false', 'false']);
+
+    // Arrastar outra reserva enquanto salva não começa nem solta.
+    const tiles = host(f).querySelectorAll<HTMLElement>('.tile');
+    const start = new DragEvent('dragstart', { dataTransfer: new DataTransfer(), cancelable: true });
+    tiles[0]!.querySelector<HTMLElement>('.chipbk')!.dispatchEvent(start);
+    expect(start.defaultPrevented).toBeTrue();
+  });
+
   it('cargo só de leitura não vê ações nem arrasta', () => {
     const f = setup(false);
     host(f).querySelectorAll<HTMLButtonElement>('.hour')[1]!.click();

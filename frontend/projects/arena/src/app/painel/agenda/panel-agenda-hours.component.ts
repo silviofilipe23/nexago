@@ -198,37 +198,44 @@ type HoursTab = 'Lista' | 'Quadro';
                       Arraste uma reserva para outra quadra. Se a quadra de destino tiver uma reserva provisória, as duas trocam de lugar.
                     }
                   </p>
-                  <div class="board">
-                    @for (t of board(); track t.court.id) {
-                      <div
-                        class="tile"
-                        [class.blocked]="t.state === 'blocked' || t.state === 'maintenance' || t.state === 'closed'"
-                        [class.drop]="dropTarget() === t.court.id"
-                        (dragover)="onDragOver($event, t)"
-                        (dragleave)="dropTarget.set(null)"
-                        (drop)="onDrop($event, t)"
-                      >
-                        <div class="tile-h">{{ t.court.name }}</div>
-                        @if (t.booking; as b) {
-                          <div
-                            class="chipbk"
-                            [class.ok]="b.allocationStatus !== 'unassigned'"
-                            [class.dragging]="dragging()?.id === b.id"
-                            [attr.draggable]="!readOnly() && !busy(b.id)"
-                            (dragstart)="onDragStart($event, b)"
-                            (dragend)="onDragEnd()"
-                            role="link"
-                            tabindex="0"
-                            [attr.aria-label]="'Abrir reserva de ' + customer(b)"
-                            (click)="openDetail(b)"
-                            (keydown.enter)="openDetail(b)"
-                          >
-                            <span class="chip-n">{{ customer(b) }}</span>
-                            <small>{{ busy(b.id) ? 'Salvando…' : b.allocationStatus === 'unassigned' ? 'Provisória' : 'Definida' }}</small>
-                          </div>
-                        } @else {
-                          <span class="free">{{ tileLabel(t) }}</span>
-                        }
+                  <div class="board-wrap" [class.locked]="moving() !== null" [attr.aria-busy]="moving() !== null">
+                    <div class="board">
+                      @for (t of board(); track t.court.id) {
+                        <div
+                          class="tile"
+                          [class.blocked]="t.state === 'blocked' || t.state === 'maintenance' || t.state === 'closed'"
+                          [class.drop]="dropTarget() === t.court.id"
+                          (dragover)="onDragOver($event, t)"
+                          (dragleave)="dropTarget.set(null)"
+                          (drop)="onDrop($event, t)"
+                        >
+                          <div class="tile-h">{{ t.court.name }}</div>
+                          @if (t.booking; as b) {
+                            <div
+                              class="chipbk"
+                              [class.ok]="b.allocationStatus !== 'unassigned'"
+                              [class.dragging]="dragging()?.id === b.id"
+                              [attr.draggable]="!readOnly() && !busy(b.id) && moving() === null"
+                              (dragstart)="onDragStart($event, b)"
+                              (dragend)="onDragEnd()"
+                              role="link"
+                              tabindex="0"
+                              [attr.aria-label]="'Abrir reserva de ' + customer(b)"
+                              (click)="openDetail(b)"
+                              (keydown.enter)="openDetail(b)"
+                            >
+                              <span class="chip-n">{{ customer(b) }}</span>
+                              <small>{{ busy(b.id) ? 'Salvando…' : b.allocationStatus === 'unassigned' ? 'Provisória' : 'Definida' }}</small>
+                            </div>
+                          } @else {
+                            <span class="free">{{ tileLabel(t) }}</span>
+                          }
+                        </div>
+                      }
+                    </div>
+                    @if (moving(); as text) {
+                      <div class="board-lock" role="status" aria-live="polite" data-testid="board-lock">
+                        <span class="lock-pill"><span class="ar-spinner" aria-hidden="true"></span>{{ text }}</span>
                       </div>
                     }
                   </div>
@@ -368,6 +375,11 @@ type HoursTab = 'Lista' | 'Quadro';
 
     .hint { font-size: 12.5px; color: var(--nx-text-mute); margin: 10px 0 0; }
     .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
+    .board-wrap { position: relative; }
+    .board-wrap.locked .board { pointer-events: none; opacity: 0.5; transition: opacity 0.15s; }
+    .board-lock { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; cursor: progress; }
+    .lock-pill { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--nx-text); padding: 10px 16px; border-radius: 999px; background: var(--nx-surface-0); border: 1px solid var(--nx-line-strong); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18); }
+    .lock-pill .ar-spinner { flex: none; border-color: var(--nx-line-strong); border-top-color: var(--nx-orange-500); }
     .tile { min-height: 96px; border-radius: var(--nx-r-3); background: var(--nx-surface-1); border: 1px solid var(--nx-line); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
     .tile.drop { border: 1px dashed var(--nx-orange-500); background: var(--nx-orange-tint); }
     .tile.blocked { background: repeating-linear-gradient(135deg, var(--nx-surface-1) 0 8px, var(--nx-surface-2) 8px 16px); opacity: 0.75; }
@@ -446,6 +458,9 @@ export class PanelAgendaHoursComponent {
 
   protected readonly dragging = signal<ArenaBooking | null>(null);
   protected readonly dropTarget = signal<string | null>(null);
+  /** Troca pelo quadro em andamento: o texto do loader. Enquanto não é nulo o quadro inteiro
+   *  fica travado (sem arrastar, soltar nem abrir chip) até o servidor responder. */
+  protected readonly moving = signal<string | null>(null);
 
   protected readonly dateKey = computed(() => dateKeyOf(this.selectedDate()));
   private readonly allocation = computed(() => bookingAllocationFromArena(this.arenaContext.arenaDocData()));
@@ -576,7 +591,7 @@ export class PanelAgendaHoursComponent {
   /** Chip do quadro: clique abre o detalhe. Depois de um arraste o navegador não dispara o
    *  clique, então arrastar continua só trocando a quadra. */
   protected openDetail(b: ArenaBooking): void {
-    if (this.busy(b.id)) return;
+    if (this.busy(b.id) || this.moving() !== null) return;
     void this.router.navigate(bookingDetailLink(b));
   }
 
@@ -737,7 +752,7 @@ export class PanelAgendaHoursComponent {
   // ── Quadro: arrastar ──────────────────────────────────────────────────────
 
   protected onDragStart(event: DragEvent, b: ArenaBooking): void {
-    if (this.readOnly() || this.busy(b.id)) {
+    if (this.readOnly() || this.busy(b.id) || this.moving() !== null) {
       event.preventDefault();
       return;
     }
@@ -753,7 +768,7 @@ export class PanelAgendaHoursComponent {
 
   protected onDragOver(event: DragEvent, tile: BoardTile): void {
     const b = this.dragging();
-    if (!b || tile.court.id === b.courtId || dropBlockReason(b, tile) !== null) return;
+    if (!b || this.moving() !== null || tile.court.id === b.courtId || dropBlockReason(b, tile) !== null) return;
     event.preventDefault();
     this.dropTarget.set(tile.court.id);
   }
@@ -762,17 +777,27 @@ export class PanelAgendaHoursComponent {
     event.preventDefault();
     const b = this.dragging();
     this.onDragEnd();
-    if (!b || tile.court.id === b.courtId) return;
+    if (!b || this.moving() !== null || tile.court.id === b.courtId) return;
     const reason = dropBlockReason(b, tile);
     if (reason) {
       this.flash(reason, true);
       return;
     }
-    await this.run(
-      b,
-      () => changeBookingCourt(arenaFunctions(), { bookingId: b.id, toCourtId: tile.court.id, reason: null }),
-      `${this.customer(b)} foi para a ${tile.court.name}.`,
+    const swapWith = tile.booking && tile.booking.id !== b.id ? tile.booking : null;
+    this.moving.set(
+      swapWith
+        ? `Trocando ${this.customer(b)} com ${this.customer(swapWith)}…`
+        : `Movendo ${this.customer(b)} para a ${tile.court.name}…`,
     );
+    try {
+      await this.run(
+        b,
+        () => changeBookingCourt(arenaFunctions(), { bookingId: b.id, toCourtId: tile.court.id, reason: null }),
+        `${this.customer(b)} foi para a ${tile.court.name}.`,
+      );
+    } finally {
+      this.moving.set(null);
+    }
   }
 
   private flash(text: string, error = false): void {

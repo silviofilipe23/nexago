@@ -470,6 +470,7 @@ export {
 } from "./arena-courts-count";
 
 export {finalizeLapsedArenaPlans} from "./arena-plan-sweeper";
+export {getArenaPlanOpenCharge, remindArenaPlanCharges} from "./arena-plan-charges";
 
 export {expirePendingTournamentRegistrations} from
   "./tournament-registration-hold-sweeper";

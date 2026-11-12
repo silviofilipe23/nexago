@@ -88,3 +88,23 @@ export async function fetchArenaSubscriptionBilling(db: Firestore, arenaId: stri
     activationFeePaidAt: data['activationFeePaidAt'],
   };
 }
+
+/** Mensalidade que a arena precisa pagar agora (espelha `functions/src/arena-plan-charges.ts`).
+ *  Pix/boleto: pendente ou vencida. Cartão: só quando recusou (pendente o Asaas cobra sozinho). */
+export interface ArenaPlanOpenCharge {
+  paymentId: string;
+  status: 'PENDING' | 'OVERDUE';
+  /** YYYY-MM-DD. */
+  dueDate: string;
+  valueCents: number;
+  billingType: string;
+  invoiceUrl: string | null;
+  qrCode: string | null;
+  qrCodeBase64: string | null;
+}
+
+export async function fetchArenaPlanOpenCharge(functions: Functions, arenaId: string): Promise<ArenaPlanOpenCharge | null> {
+  const call = httpsCallable<{ arenaId: string }, { charge: ArenaPlanOpenCharge | null }>(functions, 'getArenaPlanOpenCharge');
+  const result = await call({ arenaId });
+  return result.data.charge ?? null;
+}

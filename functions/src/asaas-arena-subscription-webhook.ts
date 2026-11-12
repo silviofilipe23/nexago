@@ -9,6 +9,7 @@ import {fetchAsaas} from "./asaas-client";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
 import {ARENA_SUBSCRIPTION_REF_PREFIX} from "./arena-booking-payment-constants";
 import {normalizeArenaPlanTier, type ArenaPlanTier} from "./arena-plans";
+import {planActiveUntilAfterPayment} from "./arena-plan-charges-model";
 
 const ACTIVE_STATUSES = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"]);
 const OVERDUE_STATUSES = new Set(["OVERDUE"]);
@@ -138,19 +139,35 @@ export async function processArenaSubscriptionAsaasNotification(
   const billingRef = db.doc(`arenas/${arenaId}/billing/subscription`);
 
   if (ACTIVE_STATUSES.has(status)) {
-    let activeUntil: Timestamp | null = dueDateToTimestamp(payment.dueDate);
-    if (subscriptionId) {
+    const billingData = (await billingRef.get()).data() ?? {};
+    const planCycle = billingData["cycle"] === "yearly" ? "yearly" : "monthly";
+    // Vencimento deste pagamento + 1 ciclo. O `nextDueDate` da assinatura só
+    // serve de reserva: quando o Asaas já gerou a cobrança seguinte, ele aponta
+    // um ciclo à frente e daria carência sem pagamento.
+    let activeUntil: Timestamp | null =
+      dueDateToTimestamp(planActiveUntilAfterPayment(payment.dueDate, planCycle) ?? undefined);
+    if (!activeUntil && subscriptionId) {
       try {
         const sub = await fetchAsaas<SubscriptionDetails>(
           `/v3/subscriptions/${encodeURIComponent(subscriptionId)}`,
         );
-        activeUntil = dueDateToTimestamp(sub.nextDueDate) ?? activeUntil;
+        activeUntil = dueDateToTimestamp(sub.nextDueDate);
       } catch {
-        // mantém o dueDate do pagamento
+        // sem vencimento conhecido
       }
     }
-    const billingData = (await billingRef.get()).data() ?? {};
-    const planCycle = billingData["cycle"] === "yearly" ? "yearly" : "monthly";
+    // Eventos fora de ordem (paga duas mensalidades seguidas) não encurtam a validade.
+    const arenaData = (await arenaRef.get()).data() ?? {};
+    const currentUntil = arenaData["planActiveUntil"];
+    if (
+      activeUntil &&
+      currentUntil instanceof Timestamp &&
+      arenaData["planTier"] === tier &&
+      arenaData["planCycle"] === planCycle &&
+      currentUntil.toMillis() > activeUntil.toMillis()
+    ) {
+      activeUntil = currentUntil;
+    }
 
     await arenaRef.set(
       {

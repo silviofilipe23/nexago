@@ -153,7 +153,7 @@ async function cancelPreviousAsaasSubscription(
   }
 }
 
-async function assertCallerManagesArena(
+export async function assertCallerManagesArena(
   arenaId: string,
   callerUid: string,
 ): Promise<{managerUid: string}> {

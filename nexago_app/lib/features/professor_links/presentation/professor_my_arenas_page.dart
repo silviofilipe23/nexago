@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../class_agreements/presentation/widgets/class_agreements_entry_points.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
@@ -133,6 +134,8 @@ class _LinksList extends StatelessWidget {
     final rows = professorLinkRows(links, now);
     final children = <Widget>[
       if (header != null) header!,
+      // Contrato enviado pela arena esperando assinatura (some sem nenhum).
+      const ProfessorPendingAgreementsCard(),
       for (final invite in invites)
         _InviteCard(
           link: invite,
@@ -141,6 +144,7 @@ class _LinksList extends StatelessWidget {
           onDecline: () => onDecline(invite),
         ),
       for (final link in rows) _ArenaRow(link: link, now: now),
+      if (rows.isNotEmpty) const ProfessorAgreementsLinkCard(),
       const ProfessorLinksNote(
         'Cada arena define o tipo de vínculo e as permissões só para ela. '
         'Suspensão ou encerramento numa arena não afeta as outras.',

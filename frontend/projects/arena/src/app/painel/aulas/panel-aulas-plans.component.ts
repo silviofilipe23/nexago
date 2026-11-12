@@ -6,6 +6,7 @@ import { arenaFunctions } from '../data/functions';
 import { IconComponent } from '../ui/icon.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PillComponent } from '../ui/pill.component';
+import { ToggleComponent } from '../ui/toggle.component';
 import { AulasPageComponent } from './aulas-ui';
 import {
   PLAN_GROUP_LABEL,
@@ -19,6 +20,8 @@ import {
   type PlanKind,
 } from './billing.model';
 import { fetchEnrollments, fetchPlans, upsertPlan } from './billing-repository';
+import type { ClassTeacher } from './class.model';
+import { fetchTeachers } from './classes-repository';
 
 interface PlanDraft {
   planId: string | null;
@@ -31,11 +34,13 @@ interface PlanDraft {
   validityDays: number;
   description: string;
   status: 'active' | 'archived';
+  teacherIds: string[];
+  availableInApp: boolean;
 }
 
 const EMPTY: PlanDraft = {
   planId: null, name: '', kind: 'monthly', price: '', classesPerWeek: 2, makeupsPerMonth: 2,
-  credits: 8, validityDays: 60, description: '', status: 'active',
+  credits: 8, validityDays: 60, description: '', status: 'active', teacherIds: [], availableInApp: false,
 };
 
 /** 13 · Planos e pacotes — mensalidades (aulas/semana), pacotes de créditos e avulsas. Mudar o
@@ -43,7 +48,7 @@ const EMPTY: PlanDraft = {
 @Component({
   selector: 'ar-panel-aulas-plans',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AulasPageComponent, PanelCardComponent, PillComponent, IconComponent],
+  imports: [AulasPageComponent, PanelCardComponent, PillComponent, IconComponent, ToggleComponent],
   styleUrl: './aulas-form.scss',
   template: `
     <ar-aulas-page title="Aulas" subtitle="Mensalidades, pacotes de créditos e aulas avulsas" tab="planos" [empty]="!loading() && plans().length === 0">
@@ -72,6 +77,8 @@ const EMPTY: PlanDraft = {
                         <span>{{ activeCount(p.id) }} aluno{{ activeCount(p.id) === 1 ? '' : 's' }} ativo{{ activeCount(p.id) === 1 ? '' : 's' }}</span>
                         @if (p.status === 'archived') {
                           <ar-pill tone="dim">Arquivado</ar-pill>
+                        } @else if (p.availableInApp) {
+                          <ar-pill tone="green">No app</ar-pill>
                         }
                         <button type="button" class="ar-ghost-btn" [disabled]="readOnly()" (click)="openEdit(p)">Editar</button>
                       </div>
@@ -135,6 +142,27 @@ const EMPTY: PlanDraft = {
               }
               <div class="field-label spaced">Descrição (opcional)</div>
               <input class="input-box" type="text" maxlength="120" [value]="d.description" (input)="patch({ description: $any($event.target).value })" />
+              @if (d.kind !== 'single') {
+                <div class="field-label spaced">Professores do plano</div>
+                <p class="hint first">O aluno escolhe entre eles ao contratar e vê só os horários das turmas de quem escolheu. Nenhum marcado = qualquer turma da arena.</p>
+                <div class="teachers">
+                  @for (t of activeTeachers(); track t.id) {
+                    <button type="button" class="teacher" [class.on]="d.teacherIds.includes(t.id)" [attr.aria-pressed]="d.teacherIds.includes(t.id)" (click)="toggleTeacher(t.id)">
+                      <span class="dot" [style.background]="t.color"></span>
+                      <span class="t-name">{{ t.name }}</span>
+                      @if (d.teacherIds.includes(t.id)) {
+                        <ar-icon name="check" [size]="13" />
+                      }
+                    </button>
+                  } @empty {
+                    <p class="hint first">Cadastre professores na aba Professores.</p>
+                  }
+                </div>
+                <div class="app-toggle">
+                  <ar-toggle label="Contratar pelo app" [checked]="d.availableInApp" (changed)="patch({ availableInApp: $event })" />
+                  <p class="hint first">O plano aparece no perfil da arena: o atleta escolhe professor e dias e assina o contrato (aba Contratos). Desligado, só a recepção matricula.</p>
+                </div>
+              }
               @if (d.planId) {
                 <p class="hint">Mudar o valor vale para matrículas novas — quem já está matriculado mantém o valor de quando entrou.</p>
               }
@@ -171,6 +199,11 @@ const EMPTY: PlanDraft = {
     .plan-foot span:first-child { flex: 1; }
     .first { margin-top: 0; }
     .grow { flex: 1; }
+    .teachers { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .teacher { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--nx-line); background: var(--nx-surface-0); color: var(--nx-text-mute); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+    .teacher.on { border-color: var(--nx-orange-500); color: var(--nx-text); background: rgba(255, 106, 26, 0.08); }
+    .teacher .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .app-toggle { margin-top: 14px; padding: 12px 14px; border-radius: var(--nx-r-3, 12px); border: 1px solid var(--nx-line); background: var(--nx-surface-0); }
     @media (max-width: 1180px) { .layout { grid-template-columns: minmax(0, 1fr); } }
   `,
 })
@@ -188,6 +221,8 @@ export class PanelAulasPlansComponent {
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda') || !this.arenaContext.hasCapability('aulas'));
 
   protected readonly plans = signal<ClassPlan[]>([]);
+  private readonly teachers = signal<ClassTeacher[]>([]);
+  protected readonly activeTeachers = computed(() => this.teachers().filter((t) => t.status === 'active'));
   private readonly enrollments = signal<Enrollment[]>([]);
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
@@ -221,9 +256,14 @@ export class PanelAulasPlansComponent {
     this.loadError.set(null);
     try {
       const db = arenaFirestore();
-      const [plans, enrollments] = await Promise.all([fetchPlans(db, arenaId), fetchEnrollments(db, arenaId)]);
+      const [plans, enrollments, teachers] = await Promise.all([
+        fetchPlans(db, arenaId),
+        fetchEnrollments(db, arenaId),
+        fetchTeachers(db, arenaId).catch(() => [] as ClassTeacher[]),
+      ]);
       this.plans.set(plans);
       this.enrollments.set(enrollments);
+      this.teachers.set(teachers);
     } catch {
       this.loadError.set('Não foi possível carregar os planos.');
     } finally {
@@ -252,12 +292,22 @@ export class PanelAulasPlansComponent {
       planId: p.id, name: p.name, kind: p.kind, price: String(p.priceReais).replace('.', ','),
       classesPerWeek: p.classesPerWeek ?? 2, makeupsPerMonth: p.makeupsPerMonth ?? 0,
       credits: p.credits ?? 8, validityDays: p.validityDays ?? 60, description: p.description ?? '', status: p.status,
+      teacherIds: [...p.teacherIds], availableInApp: p.availableInApp,
     });
   }
 
   protected patch(change: Partial<PlanDraft>): void {
     const d = this.draft();
     if (d) this.draft.set({ ...d, ...change });
+  }
+
+  protected toggleTeacher(teacherId: string): void {
+    const d = this.draft();
+    if (!d) return;
+    const teacherIds = d.teacherIds.includes(teacherId)
+      ? d.teacherIds.filter((id) => id !== teacherId)
+      : [...d.teacherIds, teacherId];
+    this.draft.set({ ...d, teacherIds });
   }
 
   protected save(): Promise<void> {
@@ -287,6 +337,8 @@ export class PanelAulasPlansComponent {
         validityDays: d.kind === 'package' ? d.validityDays : null,
         description: d.description.trim() || null,
         status,
+        teacherIds: d.kind === 'single' ? [] : d.teacherIds,
+        availableInApp: d.kind !== 'single' && d.availableInApp,
       });
       this.draft.set(null);
       await this.load(arenaId);

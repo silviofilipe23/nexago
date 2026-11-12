@@ -545,6 +545,21 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   // reativação, encerramento e permissões abrem o vínculo. O payload vem SEM
   // `url` e sem `arenaId` de propósito — o app antigo cairia na agenda do
   // GESTOR pelo ramo genérico de arena lá embaixo; este build resolve pelo tipo.
+  // Contrato de professor enviado pela arena (`arena-agreements.ts`): abre o
+  // contrato para ler e assinar. Sem `url`/`arenaId` no payload de propósito.
+  if (type == 'professor_agreement_pending') {
+    final agreementId = (data['agreementId'] as String?)?.trim() ?? '';
+    if (agreementId.isEmpty) return AppRoutes.classAgreements;
+    return AppRoutes.classAgreement
+        .replaceAll(':agreementId', Uri.encodeComponent(agreementId));
+  }
+
+  // Lado da arena: professor assinou. O app não tem a lista da arena (é do
+  // portal); abre os profissionais, não a agenda do ramo genérico de arena.
+  if (type == 'arena_agreement_signed') {
+    return AppRoutes.arenaProfessionals;
+  }
+
   if (type.startsWith('professor_link_')) {
     final linkId = (data['linkId'] as String?)?.trim() ?? '';
     if (linkId.isEmpty) return AppRoutes.professorArenas;

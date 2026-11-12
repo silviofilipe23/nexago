@@ -154,6 +154,20 @@ class AthleteTrainingPlansPage extends ConsumerWidget {
                 _CenterPlanCard(center: c, enrollment: e),
                 const SizedBox(height: 10),
               ],
+              // Contratos assinados ao contratar plano de aula pela arena.
+              TrainingTilesBlock(
+                children: [
+                  TrainingListTile(
+                    key: const Key('training-plans-class-agreements'),
+                    icon: Icons.description_outlined,
+                    title: 'Contratos de aulas',
+                    subtitle: 'Os contratos que você assinou com as arenas',
+                    onTap: () =>
+                        context.pushNamed(AppRouteNames.classAgreements),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
               if (payments.isNotEmpty) ...[
                 const TrainingSectionTitle('Últimos pagamentos'),
                 ProfessorLinksCard(

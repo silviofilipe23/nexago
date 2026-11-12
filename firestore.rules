@@ -1295,6 +1295,14 @@ service cloud.firestore {
       allow read: if request.auth != null && (arenaCanRead(arenaId, 'agenda') || isSuperAdmin());
       allow create, update, delete: if false;
     }
+    // Contratos de aulas (aluno e professor): modelos e contratos assinados só pelas functions
+    // (`arena-agreements.ts`), que recortam a leitura por quem pede (texto, CPF, IP da assinatura).
+    match /arenas/{arenaId}/agreementTemplates/{audience} {
+      allow read, write: if false;
+    }
+    match /arenaAgreements/{agreementId} {
+      allow read, write: if false;
+    }
     // Planos de horário: catálogo (o atleta lê os publicados) e regras da arena (nobre, fila).
     // Escrita só pelas functions (`arena-schedule-plans.ts`).
     match /arenas/{arenaId}/schedulePlans/{planId} {

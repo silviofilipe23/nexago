@@ -753,6 +753,21 @@ AthleteNotificationPresentation _basePresentation(
     // Vínculo professor ↔ arena: o push não manda `url`; o destino sai do tipo
     // (o vínculo pelo `linkId`), igual ao toque no push. O tom segue o status
     // do protótipo: azul convite, verde ativo, vermelho suspenso.
+    // Contrato de professor enviado pela arena: o push não manda `url`; abre o
+    // contrato para ler e assinar (mesmo destino do toque no push).
+    case 'professor_agreement_pending':
+      return AthleteNotificationPresentation(
+        icon: Icons.draw_outlined,
+        iconColor: AppColors.brand,
+        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Ler e assinar',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: resolveNotificationRoute({...data, 'type': type}),
+      );
     case 'professor_link_invite':
     case 'professor_link_approved':
     case 'professor_link_reactivated':

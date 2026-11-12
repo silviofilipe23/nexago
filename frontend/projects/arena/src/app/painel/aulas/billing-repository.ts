@@ -139,6 +139,9 @@ export interface PlanInput {
   validityDays?: number | null;
   description?: string | null;
   status?: 'active' | 'archived';
+  /** Contratos de aulas: professores do plano e "Contratar pelo app". */
+  teacherIds?: string[];
+  availableInApp?: boolean;
 }
 
 export function upsertPlan(functions: Functions, input: PlanInput): Promise<{ planId: string }> {

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../layout/nexa_native_liquid_glass.dart';
+import '../../features/class_agreements/presentation/class_agreements_pages.dart';
+import '../../features/class_agreements/presentation/class_plan_signup_page.dart';
 import '../../features/arenas/presentation/arena_booking_confirm_page.dart';
 import '../../features/arenas/presentation/arena_booking_pix_page.dart';
 import '../../features/arenas/domain/arena_booking_pix_args.dart';
@@ -3511,6 +3513,28 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       // Planos de horário da arena (A1 · A2 · A3) — `/planos-horario/...`
       // e `/meus-planos-horario` (destino dos pushes dos planos).
       ...schedulePlansRoutes(),
+      // Contratos de aulas: contratar plano + assinar (atleta) e os contratos
+      // do atleta e do professor. Fora de `/athlete/`: abrem em qualquer papel.
+      GoRoute(
+        path: AppRoutes.classPlanSignup,
+        name: AppRouteNames.classPlanSignup,
+        builder: (context, state) => ClassPlanSignupPage(
+          arenaId: state.pathParameters['arenaId']?.trim() ?? '',
+          planId: state.uri.queryParameters['plano']?.trim(),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.classAgreements,
+        name: AppRouteNames.classAgreements,
+        builder: (context, state) => const ClassAgreementsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.classAgreement,
+        name: AppRouteNames.classAgreement,
+        builder: (context, state) => ClassAgreementPage(
+          agreementId: state.pathParameters['agreementId']?.trim() ?? '',
+        ),
+      ),
       GoRoute(
         path: AppRoutes.myArenaContract,
         name: AppRouteNames.myArenaContract,

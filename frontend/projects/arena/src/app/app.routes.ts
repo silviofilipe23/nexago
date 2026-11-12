@@ -324,6 +324,13 @@ export const routes: Routes = [
       import('./painel/aulas/panel-aulas-plans.component').then((m) => m.PanelAulasPlansComponent),
   },
   {
+    path: 'painel/aulas/contratos',
+    title: 'Contratos de aulas — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-contracts.component').then((m) => m.PanelAulasContractsComponent),
+  },
+  {
     path: 'painel/aulas/avaliacoes',
     title: 'Avaliações de aulas — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],

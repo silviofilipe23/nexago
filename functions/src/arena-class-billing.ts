@@ -26,6 +26,7 @@ import {
   ARENA_CLASS_ENROLLMENTS,
   CLASS_PLANS,
   CLASS_STUDENTS,
+  CLASS_TEACHERS,
   CLASS_WAITLIST,
   DEFAULT_CLASS_RULES,
   PAYMENT_METHODS,
@@ -60,6 +61,7 @@ import {
   type UpsertClassStudentInput,
 } from "./arena-class";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {ARENA_AGREEMENTS, isSignupPlan, parsePlanTeacherIds} from "./arena-agreements-model";
 
 const MONTH_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -197,14 +199,17 @@ export const upsertArenaClassPlan = onCall({region: CLIENT_FACING_REGIONS}, asyn
   const plan = validatePlanInput(input);
   const db = getFirestore();
   const arenaData = await requireClassManager(db, arenaId, uid);
+  // Contratos de aulas: professores do plano e "Contratar pelo app". Portal antigo não manda — fica como estava.
+  const appFields = await validatePlanAppFields(db, arenaId, input);
   const col = db.collection("arenas").doc(arenaId).collection(CLASS_PLANS);
   if (planId == null) {
     requireClassEntitlement(arenaData);
     const ref = col.doc();
     await ref.set({
-      ...plan, arenaId, status: "active", createdByUid: uid,
+      ...plan, ...appFields, arenaId, status: "active", createdByUid: uid,
       createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
     });
+    await syncClassSignupFlag(db, arenaId);
     return {planId: ref.id};
   }
   const ref = col.doc(planId);
@@ -214,9 +219,45 @@ export const upsertArenaClassPlan = onCall({region: CLIENT_FACING_REGIONS}, asyn
     throw new HttpsError("failed-precondition", "O tipo do plano não muda — crie outro plano.");
   }
   // Matrículas guardam o plano da época: mudar o valor vale para as novas.
-  await ref.set({...plan, status, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+  await ref.set({...plan, ...appFields, status, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+  await syncClassSignupFlag(db, arenaId);
   return {planId};
 });
+
+/**
+ * `arenas/{id}.classSignupOpen`: o perfil público da arena no app mostra "Planos de aula" só com
+ * plano marcado "Contratar pelo app" (os planos em si são fechados nas rules).
+ */
+export async function syncClassSignupFlag(db: Firestore, arenaId: string): Promise<boolean> {
+  const snap = await db.collection("arenas").doc(arenaId).collection(CLASS_PLANS).where("availableInApp", "==", true).get();
+  const open = snap.docs.some((d) => isSignupPlan(d.data() as Record<string, unknown>));
+  await db.collection("arenas").doc(arenaId).set({classSignupOpen: open}, {merge: true});
+  return open;
+}
+
+/**
+ * `teacherIds` (professores de `classTeachers` que dão aula no plano; vazio = qualquer turma) e
+ * `availableInApp` (o atleta contrata e assina pelo app). Só entra o que veio no pedido.
+ */
+export async function validatePlanAppFields(
+  db: Firestore,
+  arenaId: string,
+  input: Record<string, unknown>,
+): Promise<{teacherIds?: string[]; availableInApp?: boolean}> {
+  const out: {teacherIds?: string[]; availableInApp?: boolean} = {};
+  if (input["availableInApp"] !== undefined) out.availableInApp = input["availableInApp"] === true;
+  if (input["teacherIds"] !== undefined) {
+    if (!Array.isArray(input["teacherIds"])) throw new HttpsError("invalid-argument", "Professores do plano inválidos.");
+    const ids = parsePlanTeacherIds(input["teacherIds"]);
+    if (ids.length > 0) {
+      const col = db.collection("arenas").doc(arenaId).collection(CLASS_TEACHERS);
+      const snaps = await db.getAll(...ids.map((id) => col.doc(id)));
+      if (snaps.some((s) => !s.exists)) throw new HttpsError("not-found", "Professor não encontrado nesta arena.");
+    }
+    out.teacherIds = ids;
+  }
+  return out;
+}
 
 export const saveArenaClassRules = onCall({region: CLIENT_FACING_REGIONS}, async (request) => {
   const uid = requireUid(request.auth);
@@ -426,7 +467,7 @@ export function firstCharges(
   return {charges, billedThrough};
 }
 
-interface EnrollmentPlan {
+export interface EnrollmentPlan {
   plan: ClassPlanData;
   rules: ClassRules;
   classes: Map<string, {data: Record<string, unknown>; name: string; startTime: string; teacherId: string}>;
@@ -438,7 +479,7 @@ interface EnrollmentPlan {
  * matrícula (dentro dela: `get` é o `tx.get`). Vaga: alunos ativos da turma que fazem aquele dia,
  * sem contar o próprio aluno, precisam caber na capacidade.
  */
-async function planEnrollment(
+export async function planEnrollment(
   db: Firestore,
   get: <T>(ref: T) => Promise<unknown>,
   req: EnrollmentRequest,
@@ -551,7 +592,9 @@ export async function createEnrollmentCore(
   student: {athleteId: string | null; name: string; phone: string | null; photoUrl: string | null; studentId?: string | null},
   actorUid: string,
   todayKey: string,
-  actorRole: "staff" | "teacher" = "staff",
+  actorRole: "staff" | "teacher" | "athlete" = "staff",
+  /** Escritas extras na MESMA transação (ex.: o contrato assinado pelo app). Roda depois das leituras. */
+  onWrite?: (tx: Transaction, enrollmentId: string, planned: EnrollmentPlan) => void,
 ): Promise<CreateEnrollmentResult> {
   const enrollmentRef = db.collection(ARENA_CLASS_ENROLLMENTS).doc();
   const studentId = student.athleteId ?? student.studentId ?? db.collection(ARENA_CLASS_ENROLLMENTS).doc().id;
@@ -653,6 +696,7 @@ export async function createEnrollmentCore(
     if (waitlistRef && waitlistSnap?.exists) {
       tx.set(waitlistRef, {status: "enrolled", enrollmentId: enrollmentRef.id, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
     }
+    onWrite?.(tx, enrollmentRef.id, planned);
     return {enrollmentId: enrollmentRef.id, studentId, chargeIds: charges.map((c) => c.id), asaasGroupId: groupId};
   });
 }
@@ -752,6 +796,10 @@ export async function setEnrollmentStatusCore(
     const openCharges = status === "canceled" ?
       await tx.get(db.collection(ARENA_CLASS_CHARGES).where("enrollmentId", "==", enrollmentId)) :
       null;
+    // Contrato assinado pelo app (id determinístico): matrícula cancelada encerra o contrato.
+    const agreementSnap = status === "canceled" ?
+      await tx.get(db.collection(ARENA_AGREEMENTS).doc(studentAgreementId(enrollmentId))) :
+      null;
     const plan = parsePlan((data["plan"] ?? {}) as Record<string, unknown>);
     const billedThrough = typeof data["billedThrough"] === "string" ? data["billedThrough"] : null;
     const resumeMonth = monthKeyOf(todayKey);
@@ -824,6 +872,9 @@ export async function setEnrollmentStatusCore(
           athleteId: typeof data["athleteId"] === "string" ? data["athleteId"] : null, name: String(data["name"] ?? ""),
         }, [resumeCharge]));
       }
+    }
+    if (agreementSnap?.exists && agreementSnap.data()?.["status"] === "signed") {
+      tx.set(agreementSnap.ref, {status: "ended", endedAt: FieldValue.serverTimestamp(), endReason: "enrollment_canceled"}, {merge: true});
     }
     tx.set(ref, {
       status,
@@ -1051,3 +1102,8 @@ export const generateArenaClassMonthlyCharges = onSchedule({
   const result = await runMonthlyBilling(getFirestore(), dayKeyFromEventDate(new Date()));
   logger.info("generateArenaClassMonthlyCharges", result);
 });
+
+/** Contrato do aluno que virou esta matrícula (um por matrícula). */
+export function studentAgreementId(enrollmentId: string): string {
+  return `enr_${enrollmentId}`;
+}

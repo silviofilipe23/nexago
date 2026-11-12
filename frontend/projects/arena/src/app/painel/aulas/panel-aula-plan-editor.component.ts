@@ -4,6 +4,7 @@ import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { arenaFunctions } from '../data/functions';
+import { AvatarComponent } from '../ui/avatar.component';
 import { IconComponent } from '../ui/icon.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { ToggleComponent } from '../ui/toggle.component';
@@ -35,7 +36,9 @@ import {
 } from './billing.model';
 import { fetchEnrollments, fetchPlans, fetchRules, upsertPlan } from './billing-repository';
 import type { ClassTeacher } from './class.model';
-import { fetchTeachers } from './classes-repository';
+import { fetchClasses, fetchTeachers } from './classes-repository';
+import { fetchAgreements } from './agreements-repository';
+import { STATUS_LABEL, type AgreementStatus } from './agreements.model';
 import { planActivity } from './plan-card.model';
 
 interface PlanDraft {
@@ -102,7 +105,7 @@ function discountOk(n: number): boolean {
 @Component({
   selector: 'ar-panel-aula-plan-editor',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AulasPageComponent, PanelCardComponent, IconComponent, ToggleComponent, RouterLink],
+  imports: [AulasPageComponent, PanelCardComponent, IconComponent, ToggleComponent, AvatarComponent, RouterLink],
   styleUrl: './aulas-form.scss',
   template: `
     <ar-aulas-page [title]="title()" [subtitle]="planId ? 'Aulas · Planos · Editar plano' : 'Aulas · Planos · Novo plano'">
@@ -190,18 +193,34 @@ function discountOk(n: number): boolean {
               <ar-panel-card title="Professores e app" kicker="Quem dá aula · onde vende">
                 <p class="hint first">O aluno escolhe entre eles ao contratar e vê só os horários das turmas de quem escolheu. Nenhum marcado = qualquer turma da arena.</p>
                 <div class="teachers">
-                  @for (t of activeTeachers(); track t.id) {
-                    <button type="button" class="teacher" [class.on]="d().teacherIds.includes(t.id)" [attr.aria-pressed]="d().teacherIds.includes(t.id)" (click)="toggleTeacher(t.id)">
-                      <span class="dot" [style.background]="t.color"></span>
-                      <span>{{ t.name }}</span>
-                      @if (d().teacherIds.includes(t.id)) {
-                        <ar-icon name="check" [size]="13" />
-                      }
+                  @for (t of teacherRows(); track t.id) {
+                    <button type="button" class="teacher" [class.on]="t.selected" [attr.aria-pressed]="t.selected" [attr.data-testid]="'aula-plan-teacher-' + t.id" (click)="toggleTeacher(t.id)">
+                      <span class="t-avatar" [style.--ring]="t.color">
+                        <ar-avatar [name]="t.name" [photoUrl]="t.photoUrl" [size]="40" />
+                      </span>
+                      <span class="t-body">
+                        <span class="t-name">{{ t.name }}</span>
+                        <span class="t-sub">
+                          {{ t.classes === 0 ? 'Sem turma ativa' : t.classes + (t.classes === 1 ? ' turma' : ' turmas') }}
+                          @if (t.specialty) {
+                            · {{ t.specialty }}
+                          }
+                        </span>
+                        <span class="t-contract" [class]="'t-contract tone-' + t.contractTone">{{ t.contractLabel }}</span>
+                      </span>
+                      <span class="t-check" aria-hidden="true">
+                        @if (t.selected) {
+                          <ar-icon name="check" [size]="12" />
+                        }
+                      </span>
                     </button>
                   } @empty {
                     <p class="hint first">Cadastre professores na aba Professores.</p>
                   }
                 </div>
+                @if (d().teacherIds.length > 0) {
+                  <p class="hint">{{ d().teacherIds.length }} de {{ teacherRows().length }} professores no plano.</p>
+                }
                 <div class="app-toggle">
                   <ar-toggle label="Contratar pelo app" [checked]="d().availableInApp" (changed)="patch({ availableInApp: $event })" />
                   <p class="hint first">Aparece no perfil da arena: o aluno escolhe professor, dias e ciclo e assina o contrato (aba Contratos). Desligado, só a recepção matricula.</p>
@@ -328,10 +347,22 @@ function discountOk(n: number): boolean {
     .cycle-val { font-family: var(--nx-font-mono); font-weight: 700; font-size: 13px; color: var(--nx-text); white-space: nowrap; }
     .cycle-val small { font-weight: 500; font-size: 10.5px; color: var(--nx-text-dim); }
     .hint.warn { color: var(--nx-live); }
-    .teachers { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-    .teacher { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--nx-line); background: var(--nx-surface-0); color: var(--nx-text-mute); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
-    .teacher.on { border-color: var(--nx-orange-500); color: var(--nx-text); background: rgba(255, 106, 26, 0.08); }
-    .teacher .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .teachers { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 12px; }
+    .teacher { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--nx-r-4, 14px); border: 1px solid var(--nx-line); background: var(--nx-surface-0); color: var(--nx-text); font: inherit; text-align: left; cursor: pointer; transition: border-color 120ms, background 120ms; }
+    .teacher:hover { border-color: var(--nx-line-strong, rgba(255, 255, 255, 0.2)); }
+    .teacher.on { border-color: var(--nx-orange-500); background: rgba(255, 106, 26, 0.07); }
+    .teacher:focus-visible { outline: 2px solid var(--nx-orange-500); outline-offset: 2px; }
+    .t-avatar { flex: none; border-radius: 50%; padding: 2px; box-shadow: 0 0 0 2px var(--ring, var(--nx-line)); }
+    .teacher:not(.on) .t-avatar { box-shadow: 0 0 0 2px var(--nx-line); }
+    .t-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .t-name { font-family: var(--nx-font-display); font-weight: 700; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .t-sub { font-size: 11.5px; color: var(--nx-text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .t-contract { align-self: flex-start; font-family: var(--nx-font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 7px; border-radius: 99px; border: 1px solid; }
+    .tone-green { color: var(--nx-win); border-color: color-mix(in srgb, var(--nx-win) 45%, transparent); background: color-mix(in srgb, var(--nx-win) 8%, transparent); }
+    .tone-yellow { color: #F4C543; border-color: rgba(244, 197, 67, 0.45); background: rgba(244, 197, 67, 0.08); }
+    .tone-dim { color: var(--nx-text-dim); border-color: var(--nx-line); }
+    .t-check { flex: none; width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--nx-line-strong, rgba(255, 255, 255, 0.25)); display: grid; place-items: center; color: #0a0a0a; }
+    .teacher.on .t-check { background: var(--nx-orange-500); border-color: var(--nx-orange-500); }
     .app-toggle { margin-top: 14px; padding: 12px 14px; border-radius: var(--nx-r-3, 12px); border: 1px solid var(--nx-line); background: var(--nx-surface-0); }
     .preview { padding: 14px; border-radius: var(--nx-r-4); background: var(--nx-surface-1); border: 1px solid var(--nx-line); display: flex; flex-direction: column; gap: 10px; }
     .pv-head { display: flex; justify-content: space-between; gap: 10px; }
@@ -373,6 +404,26 @@ export class PanelAulaPlanEditorComponent {
   protected readonly rules = signal<ClassRules>(DEFAULT_RULES);
   private readonly teachers = signal<ClassTeacher[]>([]);
   protected readonly activeTeachers = computed(() => this.teachers().filter((t) => t.status === 'active'));
+  /** Turmas ativas por professor e situação do contrato (aba Contratos), para o card de cada um. */
+  private readonly classCount = signal<Map<string, number>>(new Map());
+  private readonly contractStatus = signal<Map<string, AgreementStatus | null>>(new Map());
+  protected readonly teacherRows = computed(() => {
+    const selected = new Set(this.d().teacherIds);
+    return this.activeTeachers().map((t) => {
+      const status = this.contractStatus().get(t.id) ?? null;
+      return {
+        id: t.id,
+        name: t.name,
+        photoUrl: t.photoUrl,
+        color: t.color,
+        specialty: t.specialty,
+        classes: this.classCount().get(t.id) ?? 0,
+        selected: selected.has(t.id),
+        contractLabel: status === 'signed' ? 'Contrato assinado' : status === 'pending' ? 'Contrato pendente' : status ? STATUS_LABEL[status] : 'Sem contrato',
+        contractTone: status === 'signed' ? 'green' : status === 'pending' ? 'yellow' : 'dim',
+      };
+    });
+  });
   protected readonly activity = signal<{ students: number; monthlyReais: number }>({ students: 0, monthlyReais: 0 });
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
@@ -429,12 +480,21 @@ export class PanelAulaPlanEditorComponent {
     this.loadError.set(null);
     try {
       const db = arenaFirestore();
-      const [plans, enrollments, teachers, rules] = await Promise.all([
+      const [plans, enrollments, teachers, rules, classes, agreements] = await Promise.all([
         fetchPlans(db, arenaId),
         this.planId ? fetchEnrollments(db, arenaId).catch(() => []) : Promise.resolve([]),
         fetchTeachers(db, arenaId).catch(() => [] as ClassTeacher[]),
         fetchRules(db, arenaId).catch(() => DEFAULT_RULES),
+        fetchClasses(db, arenaId).catch(() => []),
+        // Só enfeita o card do professor: sem acesso ou callable fora do ar, segue sem a situação.
+        fetchAgreements(arenaFunctions(), arenaId).catch(() => null),
       ]);
+      const counts = new Map<string, number>();
+      for (const c of classes) {
+        if (c.status === 'active' && c.type === 'turma') counts.set(c.teacherId, (counts.get(c.teacherId) ?? 0) + 1);
+      }
+      this.classCount.set(counts);
+      this.contractStatus.set(new Map((agreements?.teachers ?? []).map((t) => [t.teacherId, t.agreementStatus])));
       this.teachers.set(teachers);
       this.rules.set(rules);
       if (this.planId) {

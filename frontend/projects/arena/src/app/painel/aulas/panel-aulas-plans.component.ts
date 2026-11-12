@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
+import { AvatarComponent } from '../ui/avatar.component';
 import { IconComponent } from '../ui/icon.component';
 import { PillComponent } from '../ui/pill.component';
 import { AulasPageComponent } from './aulas-ui';
@@ -18,7 +19,7 @@ import { planActivity, planCardView, plansStats, type PlanCardView } from './pla
 @Component({
   selector: 'ar-panel-aulas-plans',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AulasPageComponent, PillComponent, IconComponent, RouterLink],
+  imports: [AulasPageComponent, PillComponent, IconComponent, AvatarComponent, RouterLink],
   styleUrl: './aulas-form.scss',
   template: `
     <ar-aulas-page title="Aulas" subtitle="Mensalidades, pacotes de créditos e aulas avulsas" tab="planos" [empty]="!loading() && plans().length === 0">
@@ -64,6 +65,23 @@ import { planActivity, planCardView, plansStats, type PlanCardView } from './pla
                         <span class="sm-chip" [title]="t">{{ t }}</span>
                       }
                     </div>
+                    @if (c.teachersLabel) {
+                      <div class="plan-teachers">
+                        @if (c.teachers.length > 0) {
+                          <span class="stack" aria-hidden="true">
+                            @for (t of c.teachers; track t.id) {
+                              <ar-avatar [name]="t.name" [photoUrl]="t.photoUrl" [size]="28" />
+                            }
+                            @if (c.moreTeachers > 0) {
+                              <span class="more">+{{ c.moreTeachers }}</span>
+                            }
+                          </span>
+                        } @else {
+                          <span class="any" aria-hidden="true"><ar-icon name="users" [size]="14" /></span>
+                        }
+                        <span class="t-label">{{ c.teachersLabel }}</span>
+                      </div>
+                    }
                     <div class="plan-foot">
                       <span><b>{{ c.students }}</b> aluno{{ c.students === 1 ? '' : 's' }} ativo{{ c.students === 1 ? '' : 's' }}</span>
                       <span class="mono">{{ c.revenue }}</span>
@@ -106,6 +124,13 @@ import { planActivity, planCardView, plansStats, type PlanCardView } from './pla
     .per { font-size: 12px; color: var(--nx-text-dim); }
     .off { font-family: var(--nx-font-mono); font-size: 10.5px; font-weight: 700; color: var(--nx-win); }
     .sm-chip { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; height: 24px; line-height: 22px; padding: 0 10px; border-radius: 99px; font-family: var(--nx-font-display); font-weight: 600; font-size: 11.5px; background: var(--nx-surface-1); border: 1px solid var(--nx-line); color: var(--nx-text-mute); white-space: nowrap; box-sizing: border-box; }
+    .plan-teachers { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .stack { display: inline-flex; align-items: center; }
+    .stack > * { margin-left: -8px; box-shadow: 0 0 0 2px var(--nx-surface-0); border-radius: 50%; }
+    .stack > *:first-child { margin-left: 0; }
+    .more { width: 28px; height: 28px; display: inline-grid; place-items: center; background: var(--nx-surface-2, #1B1B1F); font-family: var(--nx-font-mono); font-size: 10px; font-weight: 700; color: var(--nx-text-mute); }
+    .any { width: 28px; height: 28px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--nx-surface-1); border: 1px solid var(--nx-line); color: var(--nx-text-mute); }
+    .t-label { font-size: 12px; font-weight: 600; color: var(--nx-text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .plan-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--nx-line); display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--nx-text-mute); }
     .plan-foot b, .mono { font-family: var(--nx-font-mono); color: var(--nx-text); font-weight: 700; }
     .hint { font-size: 12px; color: var(--nx-text-dim); margin: 0; }
@@ -131,11 +156,13 @@ export class PanelAulasPlansComponent {
   protected readonly stats = computed(() => plansStats(this.plans(), this.enrollments()));
   private readonly cards = computed<PlanCardView[]>(() => {
     const activity = planActivity(this.enrollments());
-    const live = new Set(this.teachers().filter((t) => t.status === 'active').map((t) => t.id));
+    const live = this.teachers()
+      .filter((t) => t.status === 'active')
+      .map((t) => ({ id: t.id, name: t.name, photoUrl: t.photoUrl }));
     return [...this.plans()]
       // Arquivados no fim de cada grupo.
       .sort((a, b) => Number(a.status === 'archived') - Number(b.status === 'archived') || a.priceReais - b.priceReais)
-      .map((p) => planCardView(p, activity.get(p.id), p.teacherIds.filter((id) => live.has(id)).length));
+      .map((p) => planCardView(p, activity.get(p.id), live));
   });
 
   constructor() {

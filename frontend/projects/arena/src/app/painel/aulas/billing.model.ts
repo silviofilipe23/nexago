@@ -32,6 +32,10 @@ export interface ClassPlan {
   validityDays: number | null;
   description: string | null;
   status: 'active' | 'archived';
+  /** Professores (`classTeachers`) que dão aula no plano; vazio = qualquer turma. */
+  teacherIds: string[];
+  /** O atleta contrata e assina o contrato pelo app. */
+  availableInApp: boolean;
 }
 
 export interface ClassRules {
@@ -76,7 +80,7 @@ export interface Enrollment {
   phone: string | null;
   /** Foto do atleta NexaGO no momento da matrícula. */
   photoUrl: string | null;
-  plan: Omit<ClassPlan, 'id' | 'status'> & { planId: string };
+  plan: Omit<ClassPlan, 'id' | 'status' | 'teacherIds' | 'availableInApp'> & { planId: string };
   slots: EnrollmentSlot[];
   status: EnrollmentStatus;
   dueDay: number;
@@ -341,6 +345,10 @@ export function planFromDoc(doc: Snap): ClassPlan {
     validityDays: optNum(d['validityDays']),
     description: optStr(d['description']),
     status: d['status'] === 'archived' ? 'archived' : 'active',
+    teacherIds: Array.isArray(d['teacherIds'])
+      ? (d['teacherIds'] as unknown[]).filter((v): v is string => typeof v === 'string' && v.length > 0)
+      : [],
+    availableInApp: d['availableInApp'] === true,
   };
 }
 

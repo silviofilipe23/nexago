@@ -8,7 +8,7 @@ import { unreadBadge } from '../profissionais/arena-professor-channel.model';
 import { AulasChatService } from './aulas-chat.service';
 import { CLASS_TYPE_LABEL, teacherInitials, type ClassType } from './class.model';
 
-export type AulasTab = 'visao' | 'agenda' | 'turmas' | 'alunos' | 'mensagens' | 'planos' | 'professores' | 'avaliacoes' | 'regras' | 'vitrine';
+export type AulasTab = 'visao' | 'agenda' | 'turmas' | 'alunos' | 'mensagens' | 'planos' | 'contratos' | 'professores' | 'avaliacoes' | 'regras' | 'vitrine';
 
 const TABS: ReadonlyArray<{ id: AulasTab; label: string; route: string }> = [
   { id: 'visao', label: 'Visão geral', route: '/painel/aulas' },
@@ -17,6 +17,7 @@ const TABS: ReadonlyArray<{ id: AulasTab; label: string; route: string }> = [
   { id: 'alunos', label: 'Alunos', route: '/painel/aulas/alunos' },
   { id: 'mensagens', label: 'Mensagens', route: '/painel/aulas/mensagens' },
   { id: 'planos', label: 'Planos', route: '/painel/aulas/planos' },
+  { id: 'contratos', label: 'Contratos', route: '/painel/aulas/contratos' },
   { id: 'professores', label: 'Professores', route: '/painel/aulas/professores' },
   { id: 'avaliacoes', label: 'Avaliações', route: '/painel/aulas/avaliacoes' },
   { id: 'regras', label: 'Regras', route: '/painel/aulas/regras' },

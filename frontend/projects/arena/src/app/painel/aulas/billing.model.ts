@@ -6,7 +6,8 @@ import { WEEKDAY_SHORT, addDaysKey } from './class.model';
 
 export type PlanKind = 'monthly' | 'package' | 'single';
 export type PaymentMethod = 'pix' | 'cash' | 'card_machine' | 'transfer';
-export type EnrollmentStatus = 'active' | 'paused' | 'canceled' | 'ended';
+/** `pending_payment` = contratado pelo app com Pix/cartão, esperando o 1º pagamento (vaga segurada 30 min). */
+export type EnrollmentStatus = 'active' | 'paused' | 'canceled' | 'ended' | 'pending_payment';
 export type ChargeStatus = 'open' | 'paid' | 'canceled';
 /** `asaas` = mensalidade cobrada online (fatura Asaas: PIX ou cartão). */
 export type BillingMode = 'manual' | 'asaas';
@@ -333,13 +334,14 @@ export function chargeState(charge: Pick<Charge, 'status' | 'dueDate'>, todayKey
   return 'upcoming';
 }
 
-export type StudentPayState = 'ok' | 'today' | 'late' | 'paused';
+export type StudentPayState = 'ok' | 'today' | 'late' | 'paused' | 'awaiting';
 
 export const PAY_STATE_LABEL: Record<StudentPayState, string> = {
   ok: 'Em dia',
   today: 'Vence hoje',
   late: 'Atrasado',
   paused: 'Pausado',
+  awaiting: 'Aguardando pagamento',
 };
 
 export const PAY_STATE_TONE: Record<StudentPayState, 'green' | 'yellow' | 'red' | 'dim'> = {
@@ -347,11 +349,13 @@ export const PAY_STATE_TONE: Record<StudentPayState, 'green' | 'yellow' | 'red' 
   today: 'yellow',
   late: 'red',
   paused: 'dim',
+  awaiting: 'yellow',
 };
 
 /** Situação do aluno pelas cobranças abertas da matrícula. */
 export function studentPayState(enrollment: Pick<Enrollment, 'status'>, openCharges: readonly Pick<Charge, 'status' | 'dueDate'>[], todayKey: string): StudentPayState {
   if (enrollment.status === 'paused') return 'paused';
+  if (enrollment.status === 'pending_payment') return 'awaiting';
   const states = openCharges.map((c) => chargeState(c, todayKey));
   if (states.includes('overdue')) return 'late';
   if (states.includes('due_today')) return 'today';
@@ -522,7 +526,7 @@ export function enrollmentFromDoc(doc: Snap): Enrollment {
       startTime: str(s['startTime']),
       teacherId: str(s['teacherId']),
     })),
-    status: oneOf(d['status'], ['active', 'paused', 'canceled', 'ended'] as const, 'active'),
+    status: oneOf(d['status'], ['active', 'paused', 'canceled', 'ended', 'pending_payment'] as const, 'active'),
     dueDay: optNum(d['dueDay']) ?? 5,
     paymentMethod: oneOf(d['paymentMethod'], PAYMENT_METHODS, 'pix'),
     billingMode: d['billingMode'] === 'asaas' ? 'asaas' : 'manual',

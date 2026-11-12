@@ -207,6 +207,12 @@ export {
   sendArenaProfessorAgreement,
   cancelArenaAgreement,
 } from "./arena-agreements";
+// Plano de aula pelo app: pagar ao assinar (vaga segurada 30 min), ativa no pagamento, expira sem.
+export {
+  getMyClassEnrollmentPayment,
+  onArenaClassChargePaidActivateEnrollment,
+  expireArenaClassPendingEnrollments,
+} from "./arena-class-signup-payment";
 export {
   addArenaClassExtra,
   removeArenaClassExtra,

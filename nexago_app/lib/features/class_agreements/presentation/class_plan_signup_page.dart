@@ -26,6 +26,7 @@ import '../../schedule_plans/presentation/widgets/schedule_plan_ui.dart';
 import '../application/class_agreements_providers.dart';
 import '../domain/class_agreements.dart';
 import '../infrastructure/class_agreements_repository.dart';
+import 'class_signup_payment_view.dart';
 
 /// Contratar plano de aulas pelo app (canvas "Contratos de aulas", 01–06):
 /// plano → professor → dias → contrato (ler até o fim) → assinar = matrícula.
@@ -43,7 +44,7 @@ class ClassPlanSignupPage extends ConsumerStatefulWidget {
       _ClassPlanSignupPageState();
 }
 
-enum _Step { plan, teacher, days, contract, done }
+enum _Step { plan, teacher, days, contract, pay, done }
 
 class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
   _Step _step = _Step.plan;
@@ -71,6 +72,12 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
 
   bool _signing = false;
   ClassEnrollmentResult? _result;
+
+  /// Pagar ao assinar (Pix/cartão): a matrícula espera o 1º pagamento.
+  ClassPendingPayment? _pending;
+
+  /// Matrícula confirmada pelo pagamento no app (a tela final fala da recorrência).
+  bool _paidOnline = false;
 
   static const _endSlack = 24.0;
 
@@ -136,6 +143,7 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
     final plan = options.plan(_planId);
     switch (_step) {
       case _Step.plan:
+      case _Step.pay:
       case _Step.done:
         popOrGo(context, AppRoutes.arenaDetail.replaceFirst(':arenaId', widget.arenaId));
       case _Step.teacher:
@@ -242,7 +250,8 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
       setState(() {
         _result = result;
         _signing = false;
-        _step = _Step.done;
+        _pending = result.pendingPayment;
+        _step = result.pendingPayment != null ? _Step.pay : _Step.done;
       });
     } catch (e) {
       if (!mounted) return;
@@ -292,7 +301,8 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
   Widget _scaffold(ClassSignupOptions options) {
     final plan = options.plan(_planId);
     // O plano saiu do app enquanto a tela estava aberta: volta para a lista.
-    if (plan == null && _step != _Step.plan) {
+    // (Pagar e confirmado seguem: dá para chegar neles pelo aviso, sem plano.)
+    if (plan == null && _step != _Step.plan && _step != _Step.pay && _step != _Step.done) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _step = _Step.plan);
       });
@@ -307,10 +317,11 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
           _anyTeacher || teacher == null ? (plan?.name ?? '') : 'com ${teacher.name}',
         ),
       _Step.contract => ('Contrato', options.arenaName),
+      _Step.pay => ('Pagamento', _pending?.planName.isNotEmpty == true ? _pending!.planName : (plan?.name ?? options.arenaName)),
       _Step.done => ('', ''),
     };
     return PopScope(
-      canPop: _step == _Step.plan || _step == _Step.done,
+      canPop: _step == _Step.plan || _step == _Step.pay || _step == _Step.done,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _back(options);
       },
@@ -333,7 +344,16 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
             _Step.teacher => _teacherStep(options, plan!),
             _Step.days => _daysStep(options, plan!),
             _Step.contract => _contractStep(options, plan!),
-            _Step.done => _doneStep(options, plan!),
+            _Step.pay => ClassSignupPaymentView(
+                pending: _pending!,
+                methods: plan?.billing.methods ?? const ['pix', 'card'],
+                onPaid: () => setState(() {
+                  _paidOnline = true;
+                  _step = _Step.done;
+                }),
+                onExpired: () => _paymentExpired(),
+              ),
+            _Step.done => _doneStep(options, plan),
           },
         ),
         bottomNavigationBar: _bottomBar(options, plan),
@@ -403,9 +423,32 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
             onPressed: _reachedEnd && cpfOk ? () => _sign(plan!) : null,
           ),
         );
+      case _Step.pay:
       case _Step.done:
         return null;
     }
+  }
+
+  void _paymentExpired() {
+    if (!mounted) return;
+    ref.invalidate(classSignupOptionsProvider(widget.arenaId));
+    showAppSnackBar(
+      context,
+      'O prazo para pagar acabou e a vaga voltou para a turma. Você pode contratar de novo.',
+    );
+    setState(() {
+      _pending = null;
+      _result = null;
+      _slots = const [];
+      _step = _Step.plan;
+    });
+  }
+
+  void _resumePayment(ClassPendingPayment pending) {
+    setState(() {
+      _pending = pending;
+      _step = _Step.pay;
+    });
   }
 
   // ── 01 · planos ─────────────────────────────────────────────────────────
@@ -426,6 +469,22 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
       children: [
         const _Steps(current: 1),
         const SizedBox(height: 14),
+        if (options.pendingPayment case final pending?) ...[
+          ScheduleBanner(
+            key: const Key('class-signup-pending'),
+            icon: Icons.timer_outlined,
+            tone: AppColors.pending,
+            title: 'Pague o plano ${pending.planName.isEmpty ? 'contratado' : pending.planName}',
+            message: 'Ele está esperando o pagamento e segura a sua vaga por pouco tempo. '
+                'Um plano sem pagar por vez.',
+            action: SchedulePrimaryButton(
+              key: const Key('class-signup-pending-pay'),
+              label: 'Pagar agora',
+              onPressed: () => _resumePayment(pending),
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
         if (options.activePlanCount > 0) ...[
           ScheduleBanner(
             icon: Icons.check_circle_outline_rounded,
@@ -761,9 +820,10 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
 
   // ── 06 · matrícula feita ────────────────────────────────────────────────
 
-  Widget _doneStep(ClassSignupOptions options, ClassSignupPlan plan) {
+  Widget _doneStep(ClassSignupOptions options, ClassSignupPlan? plan) {
     final colors = context.themeColors;
-    final result = _result!;
+    final result = _result ??
+        const ClassEnrollmentResult(enrollmentId: '', agreementId: '', online: true);
     final firstSlot = _slots.isEmpty
         ? null
         : ([..._slots]..sort((a, b) => a.weekday.compareTo(b.weekday))).first;
@@ -790,7 +850,7 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
         ),
         const SizedBox(height: 26),
         Text(
-          'Matrícula feita!',
+          _paidOnline ? 'Matrícula confirmada!' : 'Matrícula feita!',
           textAlign: TextAlign.center,
           style: AppTypography.soraRegular(
             fontSize: 23,
@@ -800,7 +860,9 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
         ),
         const SizedBox(height: 6),
         Text(
-          'Contrato de ${plan.name} assinado. Uma cópia ficou em Contratos.',
+          _paidOnline
+              ? 'Pagamento recebido. O contrato${plan == null ? '' : ' de ${plan.name}'} ficou em Contratos.'
+              : 'Contrato de ${plan?.name ?? 'aulas'} assinado. Uma cópia ficou em Contratos.',
           textAlign: TextAlign.center,
           style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted, height: 1.45),
         ),
@@ -829,7 +891,14 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
             ),
           ),
         const SizedBox(height: 10),
-        if (firstCharge != null)
+        if (_paidOnline && plan != null)
+          _RecurrenceCard(
+            plan: plan,
+            option: cycleOptionOf(plan, _cycleOf(plan)),
+            dueDay: _dueDayOf(plan) ?? plan.billing.dueDay,
+            form: _formOf(plan),
+          )
+        else if (firstCharge != null && !_paidOnline)
           ScheduleBanner(
             icon: result.online ? Icons.pix_rounded : Icons.storefront_outlined,
             tone: AppColors.brand,
@@ -857,6 +926,71 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
         TextButton(
           onPressed: () => _back(options),
           child: const Text('Concluir'),
+        ),
+      ],
+    );
+  }
+}
+
+/// 06b · Como fica todo mês depois de confirmada (recorrência do plano).
+class _RecurrenceCard extends StatelessWidget {
+  const _RecurrenceCard({required this.plan, required this.option, required this.dueDay, required this.form});
+
+  final ClassSignupPlan plan;
+  final ClassPlanCycleOption? option;
+  final int dueDay;
+  final String form;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final o = option;
+    Widget line(IconData icon, String text) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 18, color: colors.brandText),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(text, style: AppTypography.bodyS.copyWith(color: colors.onSurface, height: 1.45)),
+              ),
+            ],
+          ),
+        );
+    final price = o?.monthlyPriceReais ?? plan.priceReais;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ScheduleCard(
+          key: const Key('class-signup-recurrence'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const ScheduleKicker('Como fica todo mês'),
+              const SizedBox(height: 10),
+              if (!plan.isMonthly)
+                line(Icons.check_circle_outline_rounded, 'Pacote pago. Os créditos valem até o fim da validade.')
+              else if (o != null && o.isPrepaid)
+                line(Icons.event_repeat_rounded,
+                    'Os ${o.prepaidMonths} meses já estão pagos. A renovação sai sozinha no fim do período, de uma vez.')
+              else
+                line(Icons.event_repeat_rounded,
+                    'Todo dia $dueDay, a mensalidade de ${formatBRL(price)}${o != null && o.discountPercent > 0 ? ' (${cycleLabel(o.cycle).toLowerCase()}, −${o.discountPercent}%)' : ''} sai sozinha.'),
+              if (plan.isMonthly)
+                line(Icons.notifications_active_outlined,
+                    'Você recebe o aviso no app com o ${paymentFormLabel(form) == 'Cartão' ? 'cartão' : 'Pix'} pronto para pagar.'),
+              if (o != null && o.months > 1 && !o.isPrepaid)
+                line(Icons.verified_user_outlined, 'Fidelidade de ${o.months} meses. Depois segue mês a mês.'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        const ScheduleBanner(
+          icon: Icons.credit_card_rounded,
+          tone: _infoBlue,
+          title: 'Débito automático no cartão em breve',
+          message: 'Aí a mensalidade é cobrada sem você precisar abrir o app.',
         ),
       ],
     );

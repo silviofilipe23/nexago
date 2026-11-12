@@ -310,10 +310,12 @@ class ClassSignupOptions {
     this.teachers = const [],
     this.classes = const [],
     this.activePlanCount = 0,
+    this.pendingPayment,
   });
 
   factory ClassSignupOptions.fromMap(Map<String, dynamic> m) {
     final arena = spMap(m['arena']);
+    final pending = m['pendingEnrollment'] is Map ? spMap(m['pendingEnrollment']) : null;
     return ClassSignupOptions(
       arenaId: _s(arena['arenaId']),
       arenaName: _s(arena['name']).isEmpty ? 'Arena' : _s(arena['name']),
@@ -326,8 +328,19 @@ class ClassSignupOptions {
       teachers: _maps(m['teachers']).map(ClassSignupTeacher.fromMap).toList(),
       classes: _maps(m['classes']).map(ClassSignupClass.fromMap).toList(),
       activePlanCount: _i(m['activePlanCount']) ?? 0,
+      pendingPayment: pending == null || _s(pending['enrollmentId']).isEmpty
+          ? null
+          : ClassPendingPayment(
+              enrollmentId: _s(pending['enrollmentId']),
+              until: _dt(pending['until']),
+              paymentForm: _s(pending['paymentForm']) == 'card' ? 'card' : 'pix',
+              planName: _s(pending['planName']),
+            ),
     );
   }
+
+  /// Plano contratado pelo app esperando o 1º pagamento (qualquer arena).
+  final ClassPendingPayment? pendingPayment;
 
   final String arenaId;
   final String arenaName;
@@ -598,6 +611,25 @@ class ClassEnrollmentPreview {
   final String endDate;
 }
 
+/// Pagar ao assinar: a vaga fica segurada até [until].
+class ClassPendingPayment {
+  const ClassPendingPayment({
+    required this.enrollmentId,
+    this.until,
+    this.amountReais = 0,
+    this.paymentForm = 'pix',
+    this.planName = '',
+  });
+
+  final String enrollmentId;
+  final DateTime? until;
+  final double amountReais;
+
+  /// `pix` ou `card`.
+  final String paymentForm;
+  final String planName;
+}
+
 class ClassEnrollmentResult {
   const ClassEnrollmentResult({
     required this.enrollmentId,
@@ -605,22 +637,88 @@ class ClassEnrollmentResult {
     this.online = false,
     this.charges = const [],
     this.signedAt,
+    this.pendingPayment,
   });
 
-  factory ClassEnrollmentResult.fromMap(Map<String, dynamic> m) =>
-      ClassEnrollmentResult(
-        enrollmentId: _s(m['enrollmentId']),
-        agreementId: _s(m['agreementId']),
-        online: m['online'] == true,
-        charges: _charges(m['charges']),
-        signedAt: _dt(m['signedAt']),
-      );
+  factory ClassEnrollmentResult.fromMap(Map<String, dynamic> m) {
+    final enrollmentId = _s(m['enrollmentId']);
+    final p = m['pendingPayment'] is Map ? spMap(m['pendingPayment']) : null;
+    return ClassEnrollmentResult(
+      enrollmentId: enrollmentId,
+      agreementId: _s(m['agreementId']),
+      online: m['online'] == true,
+      charges: _charges(m['charges']),
+      signedAt: _dt(m['signedAt']),
+      pendingPayment: p == null
+          ? null
+          : ClassPendingPayment(
+              enrollmentId: enrollmentId,
+              until: _dt(p['until']),
+              amountReais: _d(p['amountReais']),
+              paymentForm: _s(p['paymentForm']) == 'card' ? 'card' : 'pix',
+            ),
+    );
+  }
+
+  /// Pix/cartão pelo app: pagar agora para confirmar; `null` = já ativa.
+  final ClassPendingPayment? pendingPayment;
 
   final String enrollmentId;
   final String agreementId;
   final bool online;
   final List<ClassCharge> charges;
   final DateTime? signedAt;
+}
+
+/// Tela de pagamento: `preparing` (fatura sendo criada), `ready`, `paid`,
+/// `expired` (prazo acabou, vaga devolvida) ou `failed`.
+class ClassEnrollmentPayment {
+  const ClassEnrollmentPayment({
+    required this.state,
+    this.amountReais = 0,
+    this.description = '',
+    this.until,
+    this.pixCode,
+    this.pixImageBase64,
+    this.invoiceUrl,
+    this.planName = '',
+  });
+
+  factory ClassEnrollmentPayment.fromMap(Map<String, dynamic> m) {
+    final pix = m['pix'] is Map ? spMap(m['pix']) : const <String, dynamic>{};
+    return ClassEnrollmentPayment(
+      state: _s(m['state']).isEmpty ? 'preparing' : _s(m['state']),
+      amountReais: _d(m['amountReais']),
+      description: _s(m['description']),
+      until: _dt(m['pendingPaymentUntil']),
+      pixCode: _sn(pix['qrCode']),
+      pixImageBase64: _sn(pix['qrCodeBase64']),
+      invoiceUrl: _sn(m['invoiceUrl']),
+      planName: _s(m['planName']),
+    );
+  }
+
+  final String state;
+  final double amountReais;
+  final String description;
+  final DateTime? until;
+  final String? pixCode;
+  final String? pixImageBase64;
+  final String? invoiceUrl;
+  final String planName;
+
+  bool get isPaid => state == 'paid';
+  bool get isOver => state == 'expired' || state == 'failed';
+}
+
+/// "28:41" até o fim do prazo (zero quando passou).
+String countdownLabel(DateTime? until, DateTime now) {
+  if (until == null) return '';
+  final left = until.difference(now);
+  if (left.isNegative) return '00:00';
+  final m = left.inMinutes;
+  final s = left.inSeconds % 60;
+  return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
 }
 
 // ── contratos ───────────────────────────────────────────────────────────

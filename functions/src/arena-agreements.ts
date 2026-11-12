@@ -25,6 +25,13 @@ import {resolveAthleteDisplay} from "./arena-club-join";
 import {isValidCpfCnpj, normalizeCpfCnpj} from "./asaas-customer";
 import {clientIp} from "./training-center-contracts-model";
 import {
+  MIN_SIGNUP_ONLINE_REAIS,
+  PENDING_PAYMENT_STATUS,
+  SIGNUP_PAYMENT_WINDOW_MS,
+  myOpenPendingEnrollment,
+  pendingBlockMessage,
+} from "./arena-class-signup-payment";
+import {
   ARENA_CLASSES,
   ARENA_CLASS_ENROLLMENTS,
   CLASS_PLANS,
@@ -146,7 +153,7 @@ export interface SignupClass {
   enrolled: boolean;
 }
 
-export async function signupOptionsCore(db: Firestore, uid: string, arenaId: string) {
+export async function signupOptionsCore(db: Firestore, uid: string, arenaId: string, nowMs: number = Date.now()) {
   if (!arenaId) throw new HttpsError("invalid-argument", "Arena é obrigatória.");
   const arenaRef = db.collection("arenas").doc(arenaId);
   const [arenaSnap, planSnap, teacherSnap, classSnap, rulesSnap, mineSnap] = await Promise.all([
@@ -245,6 +252,21 @@ export async function signupOptionsCore(db: Firestore, uid: string, arenaId: str
     teachers: teachers.filter((t) => usedTeachers.has(t.teacherId)),
     classes,
     activePlanCount: myEnrollments.length,
+    /** Plano contratado pelo app esperando o 1º pagamento (qualquer arena): o app leva para pagar. */
+    pendingEnrollment: await pendingSummary(db, uid, nowMs),
+  };
+}
+
+async function pendingSummary(db: Firestore, uid: string, nowMs: number) {
+  const p = await myOpenPendingEnrollment(db, uid, nowMs);
+  if (!p) return null;
+  const until = p.data["pendingPaymentUntil"];
+  return {
+    enrollmentId: p.id,
+    arenaId: str(p.data["arenaId"]),
+    planName: str(rec(p.data["plan"])["name"]) || "Plano",
+    until: until instanceof Timestamp ? until.toDate().toISOString() : null,
+    paymentForm: str(p.data["paymentForm"]) || "pix",
   };
 }
 
@@ -458,9 +480,20 @@ export async function enrollMeCore(
     throw new HttpsError("failed-precondition", "Informe seu CPF para pagar pelo app.");
   }
   requireClassEntitlement(d.arena);
+  // Um plano sem pagar por vez (como nos Planos de horário).
+  const pending = await myOpenPendingEnrollment(db, auth.uid, now.getTime());
+  if (pending) {
+    throw new HttpsError("failed-precondition", pendingBlockMessage(str(rec(pending.data["plan"])["name"]) || "anterior"),
+      {pendingEnrollmentId: pending.id});
+  }
   const readSeconds = readSecondsOf(input["readSeconds"]);
   const signedAt = Timestamp.fromDate(now);
   const essentials = studentEssentials(d.ctx);
+  // Pix/cartão pelo app: paga ao assinar, com a vaga segurada (abaixo do mínimo do Asaas, entra ativa).
+  const firstTotal = Math.round(d.charges.reduce((sum, c) => sum + c.amountReais, 0) * 100) / 100;
+  const holdUntil = d.req.billingMode === "asaas" && firstTotal >= MIN_SIGNUP_ONLINE_REAIS ?
+    Timestamp.fromMillis(now.getTime() + SIGNUP_PAYMENT_WINDOW_MS) :
+    null;
 
   const result = await createEnrollmentCore(db, d.req, {
     athleteId: auth.uid,
@@ -503,14 +536,26 @@ export async function enrollMeCore(
       createdAt: signedAt,
       updatedAt: signedAt,
     });
+    if (holdUntil) {
+      tx.set(db.collection(ARENA_CLASS_ENROLLMENTS).doc(enrollmentId), {
+        status: PENDING_PAYMENT_STATUS,
+        pendingPaymentUntil: holdUntil,
+      }, {merge: true});
+    }
   });
-  logger.info("enrollMeInArenaClassPlan", {arenaId: d.req.arenaId, uid: auth.uid, ...result});
+  logger.info("enrollMeInArenaClassPlan", {arenaId: d.req.arenaId, uid: auth.uid, pending: holdUntil != null, ...result});
   return {
     ...result,
     agreementId: studentAgreementId(result.enrollmentId),
     online: d.req.billingMode === "asaas",
     charges: d.charges,
     signedAt: now.toISOString(),
+    /** Pagar agora para confirmar (Pix/cartão no app); `null` = matrícula já ativa (na arena). */
+    pendingPayment: holdUntil ? {
+      until: holdUntil.toDate().toISOString(),
+      amountReais: firstTotal,
+      paymentForm: d.req.paymentForm,
+    } : null,
   };
 }
 

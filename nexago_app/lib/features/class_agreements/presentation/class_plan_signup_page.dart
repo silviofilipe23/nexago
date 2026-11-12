@@ -255,6 +255,13 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
 
   Widget _scaffold(ClassSignupOptions options) {
     final plan = options.plan(_planId);
+    // O plano saiu do app enquanto a tela estava aberta: volta para a lista.
+    if (plan == null && _step != _Step.plan) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _step = _Step.plan);
+      });
+      return const Scaffold(body: SizedBox.shrink());
+    }
     final teacher = options.teacher(_teacherId);
     final (title, subtitle) = switch (_step) {
       _Step.plan => ('Planos de aula', options.arenaName),

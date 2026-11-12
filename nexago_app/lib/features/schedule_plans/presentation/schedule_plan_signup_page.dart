@@ -64,6 +64,7 @@ class _SchedulePlanSignupPageState
   String? _time;
   SchedulePlanCycle? _cycle;
   SchedulePaymentMethod? _method;
+  int? _dueDay;
   bool _split = false;
   final List<AppUserProfile> _members = [];
   bool _saving = false;
@@ -94,6 +95,14 @@ class _SchedulePlanSignupPageState
     return m != null && plan.billingMethods.contains(m)
         ? m
         : plan.billingMethods.first;
+  }
+
+  /// Vencimento escolhido (plano com opções); `null` = o do plano.
+  int? _dueDayOf(SchedulePlan plan) {
+    final options = plan.dueDayOptions;
+    if (options.isEmpty) return null;
+    final d = _dueDay;
+    return d != null && options.contains(d) ? d : options.first;
   }
 
   int _players(SchedulePlan plan) =>
@@ -346,6 +355,7 @@ class _SchedulePlanSignupPageState
             cycle: cycle,
             paymentMethod: method,
             memberAthleteIds: memberIds,
+            dueDay: _dueDayOf(plan),
           );
           final court = result.courtName.isEmpty || definesCourt
               ? ''
@@ -364,6 +374,7 @@ class _SchedulePlanSignupPageState
             cycle: cycle,
             paymentMethod: method,
             memberAthleteIds: memberIds,
+            dueDay: _dueDayOf(plan),
           );
           message = 'Vaga aceita! O horário agora é seu toda semana.';
         case _Mode.change:
@@ -539,6 +550,22 @@ class _SchedulePlanSignupPageState
               const SizedBox(height: 8),
               _cycleChips(a.plan),
               ..._cycleNote(a.plan),
+              if (a.plan.dueDayOptions.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                const ScheduleKicker('Vencimento'),
+                const SizedBox(height: 8),
+                _dueDayChips(a.plan),
+                const SizedBox(height: 8),
+                Text(
+                  'As mensalidades vencem todo dia ${_dueDayOf(a.plan)}. '
+                  'A 1ª, proporcional, vence no 1º jogo.',
+                  key: const Key('schedule-due-day-note'),
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
+                ),
+              ],
               const SizedBox(height: 18),
               const ScheduleKicker('Pagamento'),
               const SizedBox(height: 8),
@@ -885,6 +912,26 @@ class _SchedulePlanSignupPageState
         ),
       ),
     ];
+  }
+
+  Widget _dueDayChips(SchedulePlan plan) {
+    final options = plan.dueDayOptions;
+    final current = _dueDayOf(plan);
+    return Row(
+      children: [
+        for (var i = 0; i < options.length; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Expanded(
+            child: ScheduleChoiceChip(
+              key: ValueKey('schedule-due-day-${options[i]}'),
+              label: 'Dia ${options[i]}',
+              selected: options[i] == current,
+              onTap: () => setState(() => _dueDay = options[i]),
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   Widget _methodChips(SchedulePlan plan, {required bool onlineBilling}) {

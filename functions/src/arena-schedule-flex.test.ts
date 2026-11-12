@@ -9,7 +9,9 @@ import {
 } from "./arena-schedule-flex";
 import {billingWeekdaysOf, isFlexibleSubscription, planFirstCharge, planWindowWeekdays} from "./arena-schedule-subscriptions";
 import {
+  chosenDueDay,
   clampPixDiscount,
+  parseDueDayOptions,
   parseSchedulePlan,
   pixDiscountedReais,
   validateSchedulePlanInput,
@@ -216,5 +218,28 @@ describe("desconto no Pix do plano", () => {
     assert.equal(validateSchedulePlanInput({...base, billing: {methods: ["card", "onsite"], pixDiscountPercent: 10}})
       .billing.pixDiscountPercent, 0);
     assert.equal(parseSchedulePlan({billing: {pixDiscountPercent: 15}}).billing.pixDiscountPercent, 15);
+  });
+});
+
+describe("vencimento escolhido pelo assinante", () => {
+  it("opções: até 4 dias 1..28, ordenadas; uma só não é escolha", () => {
+    assert.deepEqual(parseDueDayOptions([25, 5, 15]), [5, 15, 25]);
+    assert.deepEqual(parseDueDayOptions([10]), []);
+    assert.deepEqual(parseDueDayOptions(undefined), []);
+    assert.throws(() => parseDueDayOptions([5, 31]), /entre 1 e 28/);
+  });
+
+  it("plano com opções: padrão é a 1ª; sem opções vale o dueDay", () => {
+    const base = {
+      name: "Noite", status: "active", timesPerWeek: 1, durationMinutes: 60, capacity: 5, monthlyPriceReais: 200,
+      windows: [{weekday: 1, startTime: "18:00", endTime: "22:00"}], courtIds: ["c1"],
+    };
+    const plan = validateSchedulePlanInput({...base, billing: {dueDay: 10, dueDayOptions: [15, 5, 25]}});
+    assert.deepEqual(plan.billing.dueDayOptions, [5, 15, 25]);
+    assert.equal(plan.billing.dueDay, 5);
+    assert.equal(chosenDueDay(plan.billing, 25), 25);
+    assert.equal(chosenDueDay(plan.billing, undefined), 5);
+    assert.throws(() => chosenDueDay(plan.billing, 10), /dia 5, 15, 25/);
+    assert.equal(chosenDueDay({dueDay: 10, dueDayOptions: []}, 25), 10, "sem opções, ignora o pedido");
   });
 });

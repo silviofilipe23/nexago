@@ -46,6 +46,7 @@ import {
   addMonthsToDateKey,
   addMonthsToMonthKey,
   chargeCoversThrough,
+  chosenDueDay,
   commitmentEndsOn,
   cycleMonthlyPrice,
   daysBetween,
@@ -395,6 +396,8 @@ export interface CreateSubscriptionRequest {
   strictCourt: boolean;
   cycle: unknown;
   paymentMethod: unknown;
+  /** Vencimento escolhido (plano com opções de vencimento); ausente = o do plano. */
+  dueDay?: unknown;
   startDate: string;
   source: "arena" | "athlete" | "waitlist";
   createdByUid: string;
@@ -504,7 +507,7 @@ export async function createSubscriptionCore(
   const monthlyPriceReais = cycleMonthlyPrice(plan, cycle);
   const shares = splitCents(monthlyPriceReais, membersBase.length);
   const members: SubscriptionMember[] = membersBase.map((m, i) => ({...m, shareReais: shares[i] ?? 0}));
-  const dueDay = effectiveDueDay(plan.billing.dueDay, startDate);
+  const dueDay = effectiveDueDay(chosenDueDay(plan.billing, req.dueDay), startDate);
   const prepaidMonths = prepaidMonthsOf(cycle);
   const first = planFirstCharge(monthlyPriceReais, weekdays, startDate, dueDay, prepaidMonths);
   const arenaName = arenaNameOf(arena);
@@ -1382,6 +1385,7 @@ export const createArenaScheduleSubscription = onCall({region: CLIENT_FACING_REG
       weekdays: input["weekdays"], startTime: input["startTime"], preferredCourtId: courtId, strictCourt: courtId != null,
       cycle: input["cycle"] ?? "monthly", paymentMethod: input["paymentMethod"] ?? "onsite",
       startDate: str(input["startDate"]) || todayKey, source: "arena", createdByUid: uid, audience: "manager",
+      dueDay: input["dueDay"],
       // Opcional: converte uma entrada da fila (esperando ou com oferta) nesta assinatura.
       waitlistEntryId: str(input["waitlistEntryId"]) || null,
     }, todayKey, Date.now());
@@ -1402,7 +1406,7 @@ export const subscribeArenaSchedulePlan = onCall({region: CLIENT_FACING_REGIONS,
       arenaId: str(input["arenaId"]), planId: str(input["planId"]), holder, memberAthleteIds: idList(input["memberAthleteIds"]),
       weekdays: input["weekdays"], startTime: input["startTime"], preferredCourtId: null, strictCourt: false,
       cycle: input["cycle"], paymentMethod: input["paymentMethod"], startDate: todayKey, source: "athlete",
-      createdByUid: uid, audience: "athlete",
+      createdByUid: uid, audience: "athlete", dueDay: input["dueDay"],
     }, todayKey, Date.now());
     return {
       subscriptionId: result.subscriptionId, courtName: result.courtName, firstCharge: result.firstCharge,

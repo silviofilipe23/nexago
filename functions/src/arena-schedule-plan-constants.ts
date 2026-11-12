@@ -128,6 +128,11 @@ export interface SchedulePlanData {
   billing: {
     methods: ScheduleBillingMethod[];
     dueDay: number;
+    /**
+     * Dias de vencimento que o assinante escolhe ao assinar (ex.: 5, 15, 25). Vazio = vale `dueDay`.
+     * Com opções, `dueDay` é a primeira (o padrão de quem não escolhe).
+     */
+    dueDayOptions: number[];
     overdueReleaseDays: number;
     /** Desconto (%) na mensalidade paga por Pix online. 0 = sem desconto. */
     pixDiscountPercent: number;
@@ -443,6 +448,40 @@ export function commitmentEndsOn(cycle: ScheduleCycle, startDate: string): strin
   return null;
 }
 
+/** Até 4 dias distintos de 1 a 28, em ordem. Uma opção só não é escolha: vira vazio. Lança `invalid-argument`. */
+export function parseDueDayOptions(raw: unknown): number[] {
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) throw new HttpsError("invalid-argument", "Dias de vencimento inválidos.");
+  const days = [...new Set((raw as unknown[]).map((d) => Number(d)))].sort((a, b) => a - b);
+  if (days.length > 4 || days.some((d) => !Number.isInteger(d) || d < 1 || d > 28)) {
+    throw new HttpsError("invalid-argument", "Dias de vencimento: até 4, entre 1 e 28.");
+  }
+  return days.length >= 2 ? days : [];
+}
+
+/** Leitura tolerante (doc gravado): o que não for válido vira "sem escolha". */
+export function readDueDayOptions(raw: unknown): number[] {
+  try {
+    return parseDueDayOptions(raw);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Vencimento da assinatura: o dia que o assinante escolheu (tem de estar entre as opções do plano) ou,
+ * sem escolha, o do plano. Lança `invalid-argument`.
+ */
+export function chosenDueDay(billing: Pick<SchedulePlanData["billing"], "dueDay" | "dueDayOptions">, raw: unknown): number {
+  const options = billing.dueDayOptions;
+  if (options.length === 0 || raw == null || raw === "") return billing.dueDay;
+  const day = Number(raw);
+  if (!options.includes(day)) {
+    throw new HttpsError("invalid-argument", `Escolha o vencimento: dia ${options.join(", ")}.`);
+  }
+  return day;
+}
+
 /** `dueDay` 0 = dia da assinatura, limitado a 28. */
 export function effectiveDueDay(dueDay: number, startDate: string): number {
   if (dueDay >= 1 && dueDay <= 28) return dueDay;
@@ -658,7 +697,9 @@ export function validateSchedulePlanInput(
   if (methods.length === 0 || methods.some((m) => !(BILLING_METHODS as readonly string[]).includes(m))) {
     throw new HttpsError("invalid-argument", "Formas de pagamento inválidas.");
   }
-  const dueDay = intInRange(billingRaw["dueDay"], 5, 0, 28, "Vencimento: dia 1 a 28 (ou 0 = dia da assinatura).");
+  const dueDayOptions = parseDueDayOptions(billingRaw["dueDayOptions"]);
+  const dueDay = dueDayOptions[0] ??
+    intInRange(billingRaw["dueDay"], 5, 0, 28, "Vencimento: dia 1 a 28 (ou 0 = dia da assinatura).");
   const overdueReleaseDays = num(billingRaw["overdueReleaseDays"], 3);
   const pixDiscountPercent = intInRange(billingRaw["pixDiscountPercent"], 0, 0, MAX_PIX_DISCOUNT_PERCENT,
     `Desconto no Pix: de 0 a ${MAX_PIX_DISCOUNT_PERCENT}%.`);
@@ -670,7 +711,7 @@ export function validateSchedulePlanInput(
     capacity, monthlyPriceReais, referenceHourlyReais, cycles,
     // Sem Pix entre as formas, o desconto não tem onde valer.
     billing: {
-      methods: methods as ScheduleBillingMethod[], dueDay, overdueReleaseDays,
+      methods: methods as ScheduleBillingMethod[], dueDay, dueDayOptions, overdueReleaseDays,
       pixDiscountPercent: methods.includes("pix_auto") ? pixDiscountPercent : 0,
     },
     rules: parsePlanRulesInput(raw["rules"]),
@@ -725,6 +766,7 @@ export function parseSchedulePlan(data: Record<string, unknown>): ParsedSchedule
         (billing["methods"] as unknown[]).map(String).filter((m) => (BILLING_METHODS as readonly string[]).includes(m)) as ScheduleBillingMethod[] :
         ["pix_auto", "card", "onsite"],
       dueDay: Number(billing["dueDay"] ?? 5),
+      dueDayOptions: readDueDayOptions(billing["dueDayOptions"]),
       overdueReleaseDays: Number(billing["overdueReleaseDays"] ?? 3) || 3,
       pixDiscountPercent: clampPixDiscount(billing["pixDiscountPercent"]),
     },

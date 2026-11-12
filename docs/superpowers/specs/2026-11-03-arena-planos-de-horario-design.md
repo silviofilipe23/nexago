@@ -324,3 +324,11 @@ seguintes cheias, com o desconto do anual. A mensalidade ganha `months: 12` e `c
 - Mensal e trimestral seguem mês a mês. Assinaturas anuais antigas (sem `prepaidMonths`) também.
 - Saída marcada pelo gestor no meio de um ano em aberto não reduz a cobrança aberta; o gestor
   cancela ou acerta a mensalidade no portal.
+
+## Vencimento à escolha do atleta (12/11/2026)
+
+`billing.dueDayOptions` (2 a 4 dias de 1 a 28; o portal oferece "Atleta escolhe: 5, 15 ou 25"). Com opções, `dueDay`
+é a 1ª (padrão de quem não escolhe). Assinar (`subscribeArenaSchedulePlan`, `acceptArenaScheduleWaitlistOffer`,
+`createArenaScheduleSubscription`) aceita `dueDay`, que precisa estar entre as opções (`invalid-argument` se não). A
+assinatura grava o escolhido em `dueDay` (e no `planSnapshot`), de onde saem as mensalidades seguintes. A 1ª,
+proporcional, continua vencendo no 1º jogo. Trocar o vencimento depois de assinar: fora desta etapa.

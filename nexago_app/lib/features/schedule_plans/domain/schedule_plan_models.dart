@@ -282,6 +282,7 @@ class SchedulePlan {
     ],
     this.billingMethods = const [SchedulePaymentMethod.onsite],
     this.dueDay = 5,
+    this.dueDayOptions = const [],
     this.pixDiscountPercent = 0,
     this.rules = const SchedulePlanRules(),
   });
@@ -308,6 +309,10 @@ class SchedulePlan {
   final List<SchedulePlanCycleOption> cycles;
   final List<SchedulePaymentMethod> billingMethods;
   final int dueDay;
+
+  /// Dias de vencimento que o atleta escolhe ao assinar (ex.: 5, 15, 25);
+  /// vazio = vale [dueDay].
+  final List<int> dueDayOptions;
 
   /// Desconto (%) na mensalidade paga por Pix online; 0 = sem desconto.
   final int pixDiscountPercent;
@@ -387,10 +392,18 @@ class SchedulePlan {
       billingMethods:
           methods.isEmpty ? const [SchedulePaymentMethod.onsite] : methods,
       dueDay: spInt(billing['dueDay'], 5),
+      dueDayOptions: _dueDayOptions(billing['dueDayOptions']),
       pixDiscountPercent: spInt(billing['pixDiscountPercent']).clamp(0, 50),
       rules: SchedulePlanRules.fromMap(spMap(m['rules'])),
     );
   }
+}
+
+/// Opções de vencimento gravadas: 2+ dias de 1 a 28, em ordem; senão vazio.
+List<int> _dueDayOptions(Object? raw) {
+  final days = (spIntList(raw).where((d) => d >= 1 && d <= 28).toSet().toList()
+    ..sort());
+  return days.length >= 2 ? days : const [];
 }
 
 // ── Disponibilidade (A2) ────────────────────────────────────────────────

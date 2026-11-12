@@ -136,4 +136,23 @@ void main() {
       expect(ScheduleCheckout.fromMap({'amountReais': 220}).pixReais, 220);
     });
   });
+
+  test('opções de vencimento: 2+ dias de 1 a 28, em ordem', () {
+    expect(
+      SchedulePlan.fromMap('p1', {
+        'billing': {
+          'dueDayOptions': [25, 5, 15],
+        },
+      }).dueDayOptions,
+      [5, 15, 25],
+    );
+    expect(
+      SchedulePlan.fromMap('p1', {
+        'billing': {
+          'dueDayOptions': [10],
+        },
+      }).dueDayOptions,
+      isEmpty,
+    );
+  });
 }

@@ -24,6 +24,7 @@ import {
   type BandId,
 } from './schedule-plan.logic';
 import {
+  ATHLETE_DUE_DAY_CHOICES,
   DEFAULT_PLAN_BILLING,
   DEFAULT_PLAN_CYCLES,
   DEFAULT_PLAN_RULES,
@@ -288,9 +289,15 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
                   <div class="field-label">Vencimento</div>
                   <div class="chip-row">
                     @for (o of dueDays; track o.value) {
-                      <button type="button" class="sm-chip" [class.active]="d().billing.dueDay === o.value" (click)="patchBilling({ dueDay: o.value })">{{ o.label }}</button>
+                      <button type="button" class="sm-chip" [class.active]="d().billing.dueDayOptions.length === 0 && d().billing.dueDay === o.value"
+                        (click)="patchBilling({ dueDay: o.value, dueDayOptions: [] })">{{ o.label }}</button>
                     }
+                    <button type="button" class="sm-chip" data-testid="ph-plan-due-choice" [class.active]="d().billing.dueDayOptions.length > 0"
+                      (click)="letAthleteChooseDueDay()">Atleta escolhe: {{ athleteDueDaysLabel }}</button>
                   </div>
+                  @if (d().billing.dueDayOptions.length > 0) {
+                    <p class="hint">Ao assinar, o atleta escolhe o dia {{ athleteDueDaysLabel }}. As mensalidades vencem sempre nesse dia; a 1ª, proporcional, vence no 1º jogo.</p>
+                  }
                 </div>
                 <div>
                   <div class="field-label">Se atrasar</div>
@@ -471,6 +478,8 @@ export class PanelPhPlanEditorComponent {
   protected readonly formLabel = PAYMENT_FORM_LABEL;
   protected readonly feeText = ONLINE_BILLING_FEE_TEXT;
   protected readonly dueDays = DUE_DAYS;
+  /** "5, 15 ou 25". */
+  protected readonly athleteDueDaysLabel = `${ATHLETE_DUE_DAY_CHOICES.slice(0, -1).join(', ')} ou ${ATHLETE_DUE_DAY_CHOICES.at(-1)}`;
   protected readonly releaseDays = [1, 3, 7] as const;
   protected readonly durations = [{ value: 60, label: '1h' }, { value: 90, label: '1h30' }, { value: 120, label: '2h' }];
   protected readonly discountCycles = [
@@ -681,6 +690,11 @@ export class PanelPhPlanEditorComponent {
 
   protected toggleCourt(id: string): void {
     this.d.update((d) => ({ ...d, courtIds: d.courtIds.includes(id) ? d.courtIds.filter((c) => c !== id) : [...d.courtIds, id] }));
+  }
+
+  /** Vencimento à escolha do atleta (5, 15 ou 25); o padrão de quem não escolhe é a 1ª opção. */
+  protected letAthleteChooseDueDay(): void {
+    this.patchBilling({ dueDay: ATHLETE_DUE_DAY_CHOICES[0] ?? 5, dueDayOptions: [...ATHLETE_DUE_DAY_CHOICES] });
   }
 
   protected toggleForm(f: SchedulePaymentForm): void {

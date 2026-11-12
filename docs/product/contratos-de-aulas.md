@@ -25,6 +25,20 @@ Ecossistema (`Prof-app-01…03`, y≈96200) e Arena (`Arena-portal-01…03`, y�
 - Reenviar o contrato do professor cancela o pendente; o assinado anterior vale até o novo ser assinado.
 - Matrícula cancelada encerra o contrato do aluno (`ended`).
 
+## Ciclos de pagamento (plano mensal)
+
+- Mensal sempre; trimestral (3), semestral (6) e anual (12) quando a arena preenche o valor por mês do ciclo
+  (`classPlans.cyclePrices`). Pacote e avulsa não têm ciclo.
+- O aluno (app) ou a recepção (portal) escolhe o ciclo; a matrícula guarda `cycle`/`cycleMonths` e o valor
+  por mês do ciclo em `plan.priceReais` (proporcional, renovação e contrato usam esse valor).
+- Uma cobrança por ciclo, paga adiantada: a 1ª = proporcional do mês + os meses seguintes do ciclo, vence
+  na matrícula; a renovação sai 10 dias antes do vencimento do 1º mês do próximo ciclo (mesmo agendador
+  das mensalidades, id `{matrícula}_{AAAA-MM}` do 1º mês).
+- Cancelar não devolve ciclo pago (só cancela o que ainda ia vencer). Reativar depois de pausa cobra o mês
+  da volta proporcional e segue no mesmo ciclo.
+- Repasse por % da receita conta a cobrança no mês em que foi paga (regime de caixa, como antes).
+- App da arena (Flutter) ainda matricula só no mensal (não manda `cycle`).
+
 ## Assinatura
 
 Assinatura eletrônica simples (mesmo critério dos contratos do CT): sessão autenticada + aceite explícito

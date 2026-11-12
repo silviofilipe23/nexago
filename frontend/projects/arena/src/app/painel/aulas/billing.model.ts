@@ -36,6 +36,53 @@ export interface ClassPlan {
   teacherIds: string[];
   /** O atleta contrata e assina o contrato pelo app. */
   availableInApp: boolean;
+  /** Valor por mês dos ciclos longos oferecidos (só plano mensal). */
+  cyclePrices: CyclePrices;
+}
+
+export type PlanCycle = 'monthly' | 'quarterly' | 'semiannual' | 'annual';
+export type LongCycle = Exclude<PlanCycle, 'monthly'>;
+export type CyclePrices = Partial<Record<LongCycle, number>>;
+export const LONG_CYCLES: readonly LongCycle[] = ['quarterly', 'semiannual', 'annual'];
+export const CYCLE_MONTHS: Record<PlanCycle, number> = { monthly: 1, quarterly: 3, semiannual: 6, annual: 12 };
+export const CYCLE_LABEL: Record<PlanCycle, string> = {
+  monthly: 'Mensal', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual',
+};
+
+export interface PlanCycleOption {
+  cycle: PlanCycle;
+  months: number;
+  monthlyPriceReais: number;
+  totalReais: number;
+  /** Desconto sobre o mensal, em % inteiro. */
+  discountPercent: number;
+}
+
+/** Ciclos que o plano oferece (mensal sempre; os longos com valor). Vazio fora do mensal. */
+export function planCycles(plan: Pick<ClassPlan, 'kind' | 'priceReais' | 'cyclePrices'>): PlanCycleOption[] {
+  if (plan.kind !== 'monthly') return [];
+  const out: PlanCycleOption[] = [];
+  for (const cycle of ['monthly', ...LONG_CYCLES] as PlanCycle[]) {
+    const monthly = cycle === 'monthly' ? plan.priceReais : plan.cyclePrices[cycle];
+    if (monthly == null || !(monthly > 0)) continue;
+    const months = CYCLE_MONTHS[cycle];
+    out.push({
+      cycle, months, monthlyPriceReais: monthly,
+      totalReais: Math.round(monthly * months * 100) / 100,
+      discountPercent: plan.priceReais > 0 && monthly < plan.priceReais ? Math.round((1 - monthly / plan.priceReais) * 100) : 0,
+    });
+  }
+  return out;
+}
+
+function parseCyclePrices(raw: unknown): CyclePrices {
+  const out: CyclePrices = {};
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const c of LONG_CYCLES) {
+    const v = (raw as Record<string, unknown>)[c];
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0) out[c] = v;
+  }
+  return out;
 }
 
 export interface ClassRules {
@@ -80,7 +127,7 @@ export interface Enrollment {
   phone: string | null;
   /** Foto do atleta NexaGO no momento da matrícula. */
   photoUrl: string | null;
-  plan: Omit<ClassPlan, 'id' | 'status' | 'teacherIds' | 'availableInApp'> & { planId: string };
+  plan: Omit<ClassPlan, 'id' | 'status' | 'teacherIds' | 'availableInApp' | 'cyclePrices'> & { planId: string };
   slots: EnrollmentSlot[];
   status: EnrollmentStatus;
   dueDay: number;
@@ -349,6 +396,7 @@ export function planFromDoc(doc: Snap): ClassPlan {
       ? (d['teacherIds'] as unknown[]).filter((v): v is string => typeof v === 'string' && v.length > 0)
       : [],
     availableInApp: d['availableInApp'] === true,
+    cyclePrices: parseCyclePrices(d['cyclePrices']),
   };
 }
 

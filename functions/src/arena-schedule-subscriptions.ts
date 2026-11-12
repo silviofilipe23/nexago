@@ -626,6 +626,8 @@ export async function createSubscriptionCore(
         firstDayOfMonth(nextMonthKey(first.billedThrough)) :
         commitmentEndsOn(cycle, startDate),
       paymentMethod,
+      // Desconto no Pix do plano: a fatura online do Pix sai com ele (o cheio fica no cartão).
+      pixDiscountPercent: fresh.billing.pixDiscountPercent,
       billingMode: "manual",
       dueDay,
       status: pending ? PENDING_PAYMENT_STATUS : "active",

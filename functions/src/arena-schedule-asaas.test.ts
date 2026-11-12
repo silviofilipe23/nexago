@@ -781,6 +781,65 @@ describe("planos de horário online — tela de pagamento (Pix no app)", () => {
   });
 });
 
+describe("planos de horário online — desconto no Pix", () => {
+  it("fatura só de Pix pelo valor com desconto; cartão à parte pelo valor do plano", async () => {
+    const {fake, db} = makeDb();
+    seedOnline(fake, {sub: {pixDiscountPercent: 10}});
+    const {groupId} = await decideScheduleChargeBilling(db, "c1");
+    const created: Array<{valueReais: number; billingType?: string}> = [];
+    const {deps, calls} = fakeDeps({createPayment: async (input) => {
+      created.push({valueReais: input.valueReais, billingType: input.billingType});
+      return {paymentId: `pay_${input.groupId}`, invoiceUrl: `https://asaas.test/i/${input.groupId}`, status: "PENDING"};
+    }});
+    await ensureScheduleAsaasPayment(db, groupId!, deps);
+    assert.deepEqual(created, [{valueReais: 270, billingType: "PIX"}]);
+    assert.equal(group(fake, groupId!)["amountReais"], 300, "o grupo guarda o valor do plano");
+    assert.equal(group(fake, groupId!)["pixAmountReais"], 270);
+    assert.equal(charge(fake)["amountReais"], 300, "a mensalidade segue cheia");
+
+    const pix = await getScheduleChargeCheckoutCore(db, "u1", "c1", undefined, "pix", deps);
+    assert.equal(pix.amountReais, 300);
+    assert.equal(pix.pixAmountReais, 270);
+    assert.equal(pix.pixDiscountPercent, 10);
+
+    // Sem taxa de cartão a fatura do grupo não serve (é só Pix): o cartão sai à parte, pelo cheio.
+    const cardCalls: number[] = [];
+    deps.cardFeeTerms = async () => ({anticipationPercent: 0, processingPercent: 0, fixedReais: 0});
+    deps.createCardPayment = async (input) => {
+      cardCalls.push(input.valueReais);
+      return {paymentId: `card_${input.groupId}`, invoiceUrl: `https://asaas.test/c/${input.groupId}`};
+    };
+    const card = await getScheduleChargeCheckoutCore(db, "u1", "c1", undefined, "card", deps);
+    assert.deepEqual(cardCalls, [300]);
+    assert.equal(card.invoiceUrl, `https://asaas.test/c/${groupId}`);
+    assert.equal(calls.created.length, 0, "o dublê de createPayment substituído não conta");
+  });
+
+  it("webhook do Pix com desconto: mensalidade paga e o caixa recebe o valor pago", async () => {
+    const {fake, db} = makeDb();
+    seedOnline(fake, {sub: {pixDiscountPercent: 10}});
+    const {groupId} = await openGroup(fake, db);
+    await processArenaScheduleAsaasNotification(db, `pay_${groupId}`, payment(groupId, {value: 270, netValue: 270}),
+      processedRef(db, `pay_${groupId}`), webhookDeps());
+    assert.equal(charge(fake)["status"], "paid");
+    assert.equal(charge(fake)["paidReais"], 270);
+  });
+
+  it("sem desconto: a fatura de sempre (Pix ou cartão), sem billingType", async () => {
+    const {fake, db} = makeDb();
+    seedOnline(fake);
+    const {groupId} = await decideScheduleChargeBilling(db, "c1");
+    const created: Array<{valueReais: number; billingType?: string}> = [];
+    const {deps} = fakeDeps({createPayment: async (input) => {
+      created.push({valueReais: input.valueReais, billingType: input.billingType});
+      return {paymentId: "p", invoiceUrl: "https://asaas.test/i", status: "PENDING"};
+    }});
+    await ensureScheduleAsaasPayment(db, groupId!, deps);
+    assert.deepEqual(created, [{valueReais: 300, billingType: undefined}]);
+    assert.equal(group(fake, groupId!)["pixAmountReais"], undefined);
+  });
+});
+
 describe("planos de horário online — cartão com as taxas por cima", () => {
   async function cardCheckout(fake: FakeFirestore, db: Firestore) {
     const {groupId, deps, calls} = await openGroup(fake, db);

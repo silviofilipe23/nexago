@@ -125,7 +125,13 @@ export interface SchedulePlanData {
     quarterly: {enabled: boolean; discountPercent: number};
     annual: {enabled: boolean; discountPercent: number};
   };
-  billing: {methods: ScheduleBillingMethod[]; dueDay: number; overdueReleaseDays: number};
+  billing: {
+    methods: ScheduleBillingMethod[];
+    dueDay: number;
+    overdueReleaseDays: number;
+    /** Desconto (%) na mensalidade paga por Pix online. 0 = sem desconto. */
+    pixDiscountPercent: number;
+  };
   rules: SchedulePlanRules;
 }
 
@@ -343,6 +349,27 @@ export function countFreeCourts(
 // ---------------------------------------------------------------------------
 // Dinheiro e datas
 // ---------------------------------------------------------------------------
+
+/** Teto do desconto no Pix do plano (%). */
+export const MAX_PIX_DISCOUNT_PERCENT = 50;
+
+/** Desconto no Pix lido de um doc (plano ou assinatura): inteiro 0..50, o resto vira 0. */
+export function clampPixDiscount(raw: unknown): number {
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) && n > 0 ? Math.min(n, MAX_PIX_DISCOUNT_PERCENT) : 0;
+}
+
+/**
+ * Valor da mensalidade no Pix com o desconto, em centavos arredondados. `null` = sem desconto (0%,
+ * ou o valor com desconto cairia abaixo do mínimo da cobrança online — aí vale o cheio).
+ */
+export function pixDiscountedReais(amountReais: number, percent: number): number | null {
+  const pct = clampPixDiscount(percent);
+  if (pct <= 0 || !(amountReais > 0)) return null;
+  const cents = Math.round(Math.round(amountReais * 100) * (100 - pct) / 100);
+  const value = cents / 100;
+  return value >= MIN_ONLINE_CHARGE_REAIS && value < amountReais ? value : null;
+}
 
 export function round2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -633,13 +660,19 @@ export function validateSchedulePlanInput(
   }
   const dueDay = intInRange(billingRaw["dueDay"], 5, 0, 28, "Vencimento: dia 1 a 28 (ou 0 = dia da assinatura).");
   const overdueReleaseDays = num(billingRaw["overdueReleaseDays"], 3);
+  const pixDiscountPercent = intInRange(billingRaw["pixDiscountPercent"], 0, 0, MAX_PIX_DISCOUNT_PERCENT,
+    `Desconto no Pix: de 0 a ${MAX_PIX_DISCOUNT_PERCENT}%.`);
   if (!(OVERDUE_RELEASE_DAYS as readonly number[]).includes(overdueReleaseDays)) {
     throw new HttpsError("invalid-argument", "Liberar o horário após 1, 3 ou 7 dias de atraso.");
   }
   return {
     name, description, status: status as SchedulePlanStatus, bookingMode, timesPerWeek, durationMinutes, windows, courtIds,
     capacity, monthlyPriceReais, referenceHourlyReais, cycles,
-    billing: {methods: methods as ScheduleBillingMethod[], dueDay, overdueReleaseDays},
+    // Sem Pix entre as formas, o desconto não tem onde valer.
+    billing: {
+      methods: methods as ScheduleBillingMethod[], dueDay, overdueReleaseDays,
+      pixDiscountPercent: methods.includes("pix_auto") ? pixDiscountPercent : 0,
+    },
     rules: parsePlanRulesInput(raw["rules"]),
   };
 }
@@ -693,6 +726,7 @@ export function parseSchedulePlan(data: Record<string, unknown>): ParsedSchedule
         ["pix_auto", "card", "onsite"],
       dueDay: Number(billing["dueDay"] ?? 5),
       overdueReleaseDays: Number(billing["overdueReleaseDays"] ?? 3) || 3,
+      pixDiscountPercent: clampPixDiscount(billing["pixDiscountPercent"]),
     },
     rules,
   };

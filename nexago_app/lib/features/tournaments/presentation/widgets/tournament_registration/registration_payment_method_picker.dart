@@ -21,6 +21,7 @@ class RegistrationPaymentMethodPicker extends StatelessWidget {
     required this.onChanged,
     this.methods = allRegistrationPaymentMethods,
     this.cardFeeReais = 0,
+    this.cardBaseReais,
     this.enabled = true,
   });
 
@@ -41,14 +42,20 @@ class RegistrationPaymentMethodPicker extends StatelessWidget {
   /// Taxas do cartão (processamento e antecipação) que ele soma por cima de
   /// [amountReais].
   final double cardFeeReais;
+
+  /// Base do cartão quando o Pix tem desconto (o cartão parte do valor cheio).
+  /// `null` = [amountReais] (Pix e cartão partem do mesmo valor).
+  final double? cardBaseReais;
   final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final single = methods.length == 1;
     final hasCardFee = cardFeeReais > 0;
-    final cardTotal = formatBRL(amountReais + cardFeeReais);
-    final showPixSavings = !single && hasCardFee;
+    final cardTotalReais = (cardBaseReais ?? amountReais) + cardFeeReais;
+    final cardTotal = formatBRL(cardTotalReais);
+    final pixSavings = ((cardTotalReais - amountReais) * 100).round() / 100;
+    final showPixSavings = !single && pixSavings > 0;
     final tiles = <Widget>[
       for (final method in methods)
         switch (method) {
@@ -60,7 +67,7 @@ class RegistrationPaymentMethodPicker extends StatelessWidget {
               subtitle: '${formatBRL(amountReais)} · pagar com seu banco',
               struckAmount: showPixSavings ? cardTotal : null,
               badge: showPixSavings
-                  ? '${formatBRL(cardFeeReais)} a menos que no cartão'
+                  ? '${formatBRL(pixSavings)} a menos que no cartão'
                   : null,
               badgeKey: pixSavingsKey,
               selected: value == RegistrationPaymentMethod.pix,

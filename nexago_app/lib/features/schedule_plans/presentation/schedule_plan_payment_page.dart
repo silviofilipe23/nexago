@@ -288,12 +288,18 @@ class _SchedulePlanPaymentPageState
       pixCents: (amount * 100).round(),
       cardFee: cardFee,
     );
-    final selectedTotal = quote.totalCents(_method) / 100;
     final sub = charge.subscriptionId.isEmpty
         ? null
         : ref
             .watch(scheduleSubscriptionDocProvider(charge.subscriptionId))
             .valueOrNull;
+    // Desconto no Pix do plano: o Pix sai por menos; o cartão parte do cheio.
+    final pixReais = checkout?.pixAmountReais ??
+        schedulePixPriceReais(amount, sub?.pixDiscountPercent ?? 0) ??
+        amount;
+    final selectedTotal = _method == RegistrationPaymentMethod.pix
+        ? pixReais
+        : quote.totalCents(_method) / 100;
     final pending = sub?.status == ScheduleSubscriptionStatus.pendingPayment;
     final savedCard =
         (ref.watch(scheduleCardAutopayEnabledProvider).valueOrNull ?? false)
@@ -312,7 +318,7 @@ class _SchedulePlanPaymentPageState
                   BookingPixExpiryCard(
                     key: const Key('schedule-payment-deadline'),
                     expiresAt: deadline,
-                    amountReais: amount,
+                    amountReais: pixReais,
                     statusLabel: 'horário reservado',
                   ),
                   const SizedBox(height: 8),
@@ -352,7 +358,8 @@ class _SchedulePlanPaymentPageState
                   ],
                   RegistrationPaymentMethodPicker(
                     value: _method,
-                    amountReais: amount,
+                    amountReais: pixReais,
+                    cardBaseReais: pixReais < amount ? amount : null,
                     cardFeeReais: quote.cardFeeCents / 100,
                     enabled: !_loading,
                     onChanged: (m) => setState(() {
@@ -382,6 +389,20 @@ class _SchedulePlanPaymentPageState
                     ),
                   ],
                 ] else if (live == RegistrationPaymentMethod.pix) ...[
+                  if (checkout.pixAmountReais != null) ...[
+                    Text(
+                      'Pix com ${checkout.pixDiscountPercent}% de desconto: '
+                      '${formatBRL(checkout.pixReais)}.',
+                      key: const Key('schedule-payment-pix-discount'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: context.themeColors.win,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   BookingPixQrCard(
                     base64: checkout.qrCodeBase64 ?? '',
                     payload: checkout.qrCode ?? '',

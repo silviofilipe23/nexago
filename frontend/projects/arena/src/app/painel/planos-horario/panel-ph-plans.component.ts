@@ -326,6 +326,7 @@ export class PanelPhPlansComponent {
           ...(plan.bookingMode === 'flexible' ? ['Horário livre', `até ${plan.timesPerWeek}x por semana`] : [`${plan.timesPerWeek}x por semana`]),
           durationLabel(plan.durationMinutes),
           ...this.courtsChips(plan),
+          ...(plan.billing.pixDiscountPercent > 0 ? [`−${plan.billing.pixDiscountPercent}% no Pix`] : []),
         ],
         subscribers: mine.length,
         revenue: mine.reduce((s, sub) => s + sub.monthlyPriceReais, 0),

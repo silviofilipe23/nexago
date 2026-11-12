@@ -29,6 +29,9 @@ class _FakeRepo implements SchedulePlansRepository {
 
   /// Taxas do cartão que o servidor devolve na cobrança de cartão.
   double cardFeeReais = 0;
+
+  /// Fatura com desconto no Pix: o valor do Pix.
+  double? pixAmountReais;
   final canceled = <String>[];
   final savedCardPays = <String>[];
   Object? savedCardError;
@@ -59,6 +62,8 @@ class _FakeRepo implements SchedulePlansRepository {
       qrCodeBase64: method == 'pix' ? '' : null,
       chargedReais: method == 'card' ? 90 + cardFeeReais : null,
       cardFeeReais: method == 'card' ? cardFeeReais : 0,
+      pixAmountReais: pixAmountReais,
+      pixDiscountPercent: pixAmountReais == null ? 0 : 10,
     );
   }
 
@@ -94,6 +99,7 @@ Future<_Harness> pumpPage(
   CardFeeTerms cardFee = CardFeeTerms.none,
   bool autopayFlag = false,
   SavedPaymentCard? savedCard,
+  int pixDiscountPercent = 0,
 }) async {
   // 430pt: a fonte de teste (glifo quadrado) é mais larga que a Sora e o
   // botão "Copiar Pix Copia & Cola" da reserva estoura em 390pt só no teste.
@@ -134,6 +140,7 @@ Future<_Harness> pumpPage(
     'arenaId': 'a1',
     'planId': 'p1',
     'status': pendingUntil == null ? 'active' : 'pending_payment',
+    'pixDiscountPercent': pixDiscountPercent,
     if (pendingUntil != null)
       'pendingPaymentUntil': pendingUntil.toUtc().toIso8601String(),
   }, id: 's1'));
@@ -239,6 +246,25 @@ void main() {
       find.text('Inclui ${formatBRL(4.52)} de taxas do cartão.'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('desconto no Pix: Pix por menos e o cartão no valor do plano',
+      (tester) async {
+    final h = await pumpPage(tester, pixDiscountPercent: 10);
+    h.repo.pixAmountReais = 81;
+    // R$ 90 com 10% no Pix = R$ 81; o cartão (sem taxa) fica em R$ 90.
+    expect(find.text('${formatBRL(9)} a menos que no cartão'), findsOneWidget);
+    expect(find.textContaining('${formatBRL(81)} · pagar com seu banco'),
+        findsOneWidget);
+    await typeCpf(tester);
+    expect(find.textContaining('81,00'), findsWidgets);
+    await tester.tap(find.text('Gerar PIX'));
+    await tester.pump();
+    await tester.pump();
+    expect(h.repo.calls.single.method, 'pix');
+    expect(find.byKey(const Key('schedule-payment-pix-discount')), findsOneWidget);
+    expect(find.text('Pix com 10% de desconto: ${formatBRL(81)}.'),
+        findsOneWidget);
   });
 
   testWidgets('mensalidade cancelada não oferece pagamento', (tester) async {

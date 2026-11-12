@@ -798,6 +798,63 @@ void main() {
       expect(find.byKey(const ValueKey('schedule-day-2')), findsOneWidget);
     });
 
+    testWidgets('desconto no Pix: chip e preço no Pix; cartão volta ao cheio',
+        (tester) async {
+      tester.view.physicalSize = const Size(1170, 2532);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final pixPlan = SchedulePlanAvailability.fromMap({
+        'plan': {
+          'name': 'Manhã livre',
+          'bookingMode': 'flexible',
+          'timesPerWeek': 2,
+          'monthlyPriceReais': 220,
+          'capacity': 10,
+          'windows': [
+            {'weekday': 1, 'startTime': '06:00', 'endTime': '12:00'},
+          ],
+          'cycles': {
+            'monthly': {'enabled': true},
+          },
+          'billing': {
+            'methods': ['pix_auto', 'card'],
+            'pixDiscountPercent': 10,
+          },
+        },
+        'days': const [],
+        'onlineBilling': true,
+      }, arenaId: 'a1', planId: 'p1');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            schedulePlansUidProvider.overrideWith((ref) => 'u1'),
+            schedulePlanAvailabilityProvider
+                .overrideWith((ref, key) async => pixPlan),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: const SchedulePlanSignupPage(arenaId: 'a1', planId: 'p1'),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Pix −10%'), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('schedule-signup-share'))).data,
+        formatBRL(198),
+      );
+      expect(find.text('por mês no Pix'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('schedule-method-card')));
+      await tester.pump();
+      expect(
+        tester.widget<Text>(find.byKey(const Key('schedule-signup-share'))).data,
+        formatBRL(220),
+      );
+      expect(find.text('por mês'), findsOneWidget);
+    });
+
     testWidgets('plano livre lotado não deixa assinar', (tester) async {
       tester.view.physicalSize = const Size(1170, 2532);
       tester.view.devicePixelRatio = 3;

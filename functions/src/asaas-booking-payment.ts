@@ -252,6 +252,8 @@ export async function createAsaasInvoiceCharge(params: {
   description: string;
   externalReference: string;
   idempotencyKey: string;
+  /** `PIX` = fatura só de Pix (preço com desconto no Pix); padrão `UNDEFINED` (Pix ou cartão). */
+  billingType?: "UNDEFINED" | "PIX";
 }): Promise<{paymentId: string; invoiceUrl: string; status: string}> {
   const today = todayBrazil();
   const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(params.dueDate) && params.dueDate > today ? params.dueDate : today;
@@ -259,7 +261,7 @@ export async function createAsaasInvoiceCharge(params: {
     method: "POST",
     body: {
       customer: params.customerId,
-      billingType: "UNDEFINED",
+      billingType: params.billingType ?? "UNDEFINED",
       value: params.valueReais,
       dueDate,
       description: params.description.slice(0, 500),

@@ -857,3 +857,21 @@ String schedulePlansEntryLine(SchedulePlansMix mix) => switch (mix) {
       SchedulePlansMix.fixed =>
         'Seu horário fixo toda semana, pagando por mês.',
     };
+
+// ── Desconto no Pix ─────────────────────────────────────────────────────
+
+/// Mínimo da cobrança online (igual ao servidor, `MIN_ONLINE_CHARGE_REAIS`).
+const double scheduleMinOnlineChargeReais = 5;
+
+/// Valor no Pix com o desconto do plano, como o servidor calcula
+/// (`pixDiscountedReais`): centavos arredondados; `null` sem desconto ou
+/// quando cairia abaixo do mínimo da cobrança online (aí vale o cheio).
+double? schedulePixPriceReais(double amountReais, int percent) {
+  final pct = percent.clamp(0, 50);
+  if (pct <= 0 || amountReais <= 0) return null;
+  final cents = ((amountReais * 100).round() * (100 - pct) / 100).round();
+  final value = cents / 100;
+  return value >= scheduleMinOnlineChargeReais && value < amountReais
+      ? value
+      : null;
+}

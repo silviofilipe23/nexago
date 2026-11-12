@@ -279,7 +279,9 @@ async function claimTokenCharge(
       const ref = groupsCol(db).doc();
       groupId = ref.id;
       groupData = {
-        ...scheduleAsaasGroupData(chargeId, charge, {customerAthleteId: payer, arenaName: str(sub["arenaName"])}),
+        ...scheduleAsaasGroupData(chargeId, charge, {
+          customerAthleteId: payer, arenaName: str(sub["arenaName"]), pixDiscountPercent: sub["pixDiscountPercent"],
+        }),
         state: "autopay",
       };
       tx.set(ref, groupData);

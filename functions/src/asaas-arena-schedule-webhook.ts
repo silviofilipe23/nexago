@@ -206,6 +206,8 @@ export async function processArenaScheduleAsaasNotification(
         paidVia: "asaas",
         onlineBillingType: billingType,
         asaasPaymentId: paymentId,
+        // O que entrou de fato (sem as taxas do cartão): menor que `amountReais` no Pix com desconto.
+        paidReais: gross,
         platformFeeReais,
         paidOn: todayKey,
         paidAt: FieldValue.serverTimestamp(),

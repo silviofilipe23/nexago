@@ -36,53 +36,130 @@ export interface ClassPlan {
   teacherIds: string[];
   /** O atleta contrata e assina o contrato pelo app. */
   availableInApp: boolean;
-  /** Valor por mês dos ciclos longos oferecidos (só plano mensal). */
-  cyclePrices: CyclePrices;
+  /** Ciclos do plano mensal: desconto sobre o mensal; ausente no doc = só o mensal. */
+  cycles: PlanCycles;
+  /** Formas aceitas e vencimento (fixo, das Regras ou à escolha do atleta). */
+  billing: PlanBilling;
 }
 
 export type PlanCycle = 'monthly' | 'quarterly' | 'semiannual' | 'annual';
 export type LongCycle = Exclude<PlanCycle, 'monthly'>;
-export type CyclePrices = Partial<Record<LongCycle, number>>;
+export const PLAN_CYCLES: readonly PlanCycle[] = ['monthly', 'quarterly', 'semiannual', 'annual'];
 export const LONG_CYCLES: readonly LongCycle[] = ['quarterly', 'semiannual', 'annual'];
+/** Fidelidade (meses de compromisso). */
 export const CYCLE_MONTHS: Record<PlanCycle, number> = { monthly: 1, quarterly: 3, semiannual: 6, annual: 12 };
+/** Meses pagos de uma vez: só o anual é à vista. */
+export const PREPAID_MONTHS: Record<PlanCycle, number> = { monthly: 1, quarterly: 1, semiannual: 1, annual: 12 };
+export const MAX_CYCLE_DISCOUNT_PERCENT = 50;
 export const CYCLE_LABEL: Record<PlanCycle, string> = {
   monthly: 'Mensal', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual',
 };
 
-export interface PlanCycleOption {
-  cycle: PlanCycle;
-  months: number;
-  monthlyPriceReais: number;
-  totalReais: number;
-  /** Desconto sobre o mensal, em % inteiro. */
+export interface PlanCycleConfig {
+  enabled: boolean;
+  /** Desconto sobre o mensal, 0–50 (sempre 0 no mensal). */
   discountPercent: number;
 }
+export type PlanCycles = Record<PlanCycle, PlanCycleConfig>;
 
-/** Ciclos que o plano oferece (mensal sempre; os longos com valor). Vazio fora do mensal. */
-export function planCycles(plan: Pick<ClassPlan, 'kind' | 'priceReais' | 'cyclePrices'>): PlanCycleOption[] {
+export const DEFAULT_PLAN_CYCLES: PlanCycles = {
+  monthly: { enabled: true, discountPercent: 0 },
+  quarterly: { enabled: false, discountPercent: 0 },
+  semiannual: { enabled: false, discountPercent: 0 },
+  annual: { enabled: false, discountPercent: 0 },
+};
+
+/** Formas que o plano aceita: Pix e cartão pelo app, ou na arena. */
+export type ClassPaymentForm = 'pix' | 'card' | 'onsite';
+export const CLASS_PAYMENT_FORMS: readonly ClassPaymentForm[] = ['pix', 'card', 'onsite'];
+export const CLASS_PAYMENT_FORM_LABEL: Record<ClassPaymentForm, string> = { pix: 'Pix', card: 'Cartão', onsite: 'Na arena' };
+
+export interface PlanBilling {
+  methods: ClassPaymentForm[];
+  /** Vencimento fixo; `null` = o das Regras de aulas. */
+  dueDay: number | null;
+  /** Dias que o atleta escolhe ao contratar (2 a 4). Vazio = vale `dueDay`. */
+  dueDayOptions: number[];
+}
+
+export const DEFAULT_PLAN_BILLING: PlanBilling = { methods: [...CLASS_PAYMENT_FORMS], dueDay: null, dueDayOptions: [] };
+/** "Atleta escolhe" — os mesmos dias do Plano de horário. */
+export const ATHLETE_DUE_DAY_CHOICES: readonly number[] = [5, 15, 25];
+
+export interface PlanCycleOption {
+  cycle: PlanCycle;
+  /** Fidelidade: 1 no mensal, 3/6/12 nos outros. */
+  months: number;
+  /** Meses pagos de uma vez: 12 no anual, 1 nos outros. */
+  prepaidMonths: number;
+  /** Desconto sobre o mensal, em % inteiro. */
+  discountPercent: number;
+  /** Valor por mês neste ciclo (mensal − desconto). */
+  monthlyPriceReais: number;
+  /** O que paga em cada cobrança cheia (anual: 12 meses). */
+  totalReais: number;
+}
+
+/** Valor por mês com o desconto do ciclo (2 casas) — espelha o servidor. */
+export function cycleMonthlyPrice(priceReais: number, discountPercent: number): number {
+  return round2(priceReais * (1 - discountPercent / 100));
+}
+
+/** Ciclos ligados do plano mensal (espelha `planCycleOptions` do backend). Vazio fora do mensal. */
+export function planCycles(plan: Pick<ClassPlan, 'kind' | 'priceReais'> & { cycles?: PlanCycles }): PlanCycleOption[] {
   if (plan.kind !== 'monthly') return [];
-  const out: PlanCycleOption[] = [];
-  for (const cycle of ['monthly', ...LONG_CYCLES] as PlanCycle[]) {
-    const monthly = cycle === 'monthly' ? plan.priceReais : plan.cyclePrices[cycle];
-    if (monthly == null || !(monthly > 0)) continue;
-    const months = CYCLE_MONTHS[cycle];
-    out.push({
-      cycle, months, monthlyPriceReais: monthly,
-      totalReais: Math.round(monthly * months * 100) / 100,
-      discountPercent: plan.priceReais > 0 && monthly < plan.priceReais ? Math.round((1 - monthly / plan.priceReais) * 100) : 0,
-    });
+  const cycles = plan.cycles ?? DEFAULT_PLAN_CYCLES;
+  return PLAN_CYCLES.filter((cycle) => cycles[cycle].enabled).map((cycle) => {
+    const discountPercent = cycle === 'monthly' ? 0 : cycles[cycle].discountPercent;
+    const monthlyPriceReais = cycleMonthlyPrice(plan.priceReais, discountPercent);
+    const prepaidMonths = PREPAID_MONTHS[cycle];
+    return {
+      cycle, months: CYCLE_MONTHS[cycle], prepaidMonths, discountPercent,
+      monthlyPriceReais, totalReais: round2(monthlyPriceReais * prepaidMonths),
+    };
+  });
+}
+
+function clampDiscount(raw: unknown): number {
+  const n = Math.round(Number(raw));
+  return Number.isFinite(n) ? Math.min(MAX_CYCLE_DISCOUNT_PERCENT, Math.max(0, n)) : 0;
+}
+
+export function parsePlanCycles(raw: unknown): PlanCycles {
+  const d = raw != null && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+  if (!d) return cloneCycles(DEFAULT_PLAN_CYCLES);
+  const out = {} as PlanCycles;
+  for (const cycle of PLAN_CYCLES) {
+    const c = (d[cycle] ?? {}) as Record<string, unknown>;
+    out[cycle] = {
+      enabled: cycle === 'monthly' ? c['enabled'] !== false : c['enabled'] === true,
+      discountPercent: cycle === 'monthly' ? 0 : clampDiscount(c['discountPercent']),
+    };
   }
   return out;
 }
 
-function parseCyclePrices(raw: unknown): CyclePrices {
-  const out: CyclePrices = {};
-  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return out;
-  for (const c of LONG_CYCLES) {
-    const v = (raw as Record<string, unknown>)[c];
-    if (typeof v === 'number' && Number.isFinite(v) && v > 0) out[c] = v;
-  }
-  return out;
+function cloneCycles(c: PlanCycles): PlanCycles {
+  return {
+    monthly: { ...c.monthly }, quarterly: { ...c.quarterly }, semiannual: { ...c.semiannual }, annual: { ...c.annual },
+  };
+}
+
+export function parsePlanBilling(raw: unknown): PlanBilling {
+  const d = raw != null && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+  if (!d) return { ...DEFAULT_PLAN_BILLING, methods: [...DEFAULT_PLAN_BILLING.methods] };
+  const methods = Array.isArray(d['methods'])
+    ? CLASS_PAYMENT_FORMS.filter((m) => (d['methods'] as unknown[]).includes(m))
+    : [...CLASS_PAYMENT_FORMS];
+  const dueDay = Number(d['dueDay']);
+  const options = Array.isArray(d['dueDayOptions'])
+    ? [...new Set((d['dueDayOptions'] as unknown[]).map(Number))].filter((n) => Number.isInteger(n) && n >= 1 && n <= 28).sort((a, b) => a - b)
+    : [];
+  return {
+    methods: methods.length > 0 ? methods : [...CLASS_PAYMENT_FORMS],
+    dueDay: d['dueDay'] != null && Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 28 ? dueDay : null,
+    dueDayOptions: options.length >= 2 ? options.slice(0, 4) : [],
+  };
 }
 
 export interface ClassRules {
@@ -127,7 +204,7 @@ export interface Enrollment {
   phone: string | null;
   /** Foto do atleta NexaGO no momento da matrícula. */
   photoUrl: string | null;
-  plan: Omit<ClassPlan, 'id' | 'status' | 'teacherIds' | 'availableInApp' | 'cyclePrices'> & { planId: string };
+  plan: Omit<ClassPlan, 'id' | 'status' | 'teacherIds' | 'availableInApp' | 'cycles' | 'billing'> & { planId: string };
   slots: EnrollmentSlot[];
   status: EnrollmentStatus;
   dueDay: number;
@@ -396,7 +473,8 @@ export function planFromDoc(doc: Snap): ClassPlan {
       ? (d['teacherIds'] as unknown[]).filter((v): v is string => typeof v === 'string' && v.length > 0)
       : [],
     availableInApp: d['availableInApp'] === true,
-    cyclePrices: parseCyclePrices(d['cyclePrices']),
+    cycles: parsePlanCycles(d['cycles']),
+    billing: parsePlanBilling(d['billing']),
   };
 }
 

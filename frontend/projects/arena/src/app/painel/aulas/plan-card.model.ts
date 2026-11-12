@@ -10,6 +10,16 @@ import {
   type Enrollment,
 } from './billing.model';
 
+/** Professor como o card mostra (pilha de avatares). */
+export interface CardTeacher {
+  id: string;
+  name: string;
+  photoUrl: string | null;
+}
+
+/** Até 4 avatares na pilha; o resto vira "+N". */
+export const CARD_AVATAR_MAX = 4;
+
 export interface PlanCardView {
   plan: ClassPlan;
   /** "2 AULAS/SEMANA · 3 PROFESSORES" (o card mostra em mono, caixa alta no CSS). */
@@ -23,6 +33,12 @@ export interface PlanCardView {
   students: number;
   /** Receita do mês dos alunos ativos (mensal) ou "à vista"/"—". */
   revenue: string;
+  /** Professores do plano para a pilha de avatares (vazio = qualquer professor). */
+  teachers: CardTeacher[];
+  /** Quantos não couberam na pilha. */
+  moreTeachers: number;
+  /** "Thiago Mendes" / "3 professores" / "Qualquer professor da arena". */
+  teachersLabel: string;
 }
 
 /** Alunos ativos e receita mensal por plano (valor de cada matrícula, que guarda o do ciclo). */
@@ -47,12 +63,20 @@ function dueLabel(plan: ClassPlan): string {
 export function planCardView(
   plan: ClassPlan,
   activity: { students: number; monthlyReais: number } | undefined,
-  teacherCount: number,
+  /** Professores ativos da arena (os do plano saem daqui, na ordem do plano). */
+  arenaTeachers: readonly CardTeacher[],
 ): PlanCardView {
-  const teachers = plan.kind === 'single' ? '' :
+  const byId = new Map(arenaTeachers.map((t) => [t.id, t]));
+  const planTeachers = plan.kind === 'single' ? [] :
+    plan.teacherIds.map((id) => byId.get(id)).filter((t): t is CardTeacher => t != null);
+  const teacherCount = planTeachers.length;
+  const teachersText = plan.kind === 'single' ? '' :
     plan.teacherIds.length === 0 ? 'qualquer professor' :
       `${teacherCount} professor${teacherCount === 1 ? '' : 'es'}`;
-  const sub = [planDetail(plan), teachers].filter(Boolean).join(' · ');
+  const sub = [planDetail(plan), teachersText].filter(Boolean).join(' · ');
+  const teachersLabel = plan.kind === 'single' ? '' :
+    plan.teacherIds.length === 0 ? 'Qualquer professor da arena' :
+      teacherCount === 1 ? planTeachers[0]!.name : `${teacherCount} professores`;
   const pill: PlanCardView['pill'] = plan.status === 'archived'
     ? { label: 'Arquivado', tone: 'dim' }
     : plan.availableInApp ? { label: 'No app', tone: 'green' } : { label: 'Só recepção', tone: 'blue' };
@@ -86,6 +110,9 @@ export function planCardView(
     chips: chips.filter(Boolean),
     students,
     revenue,
+    teachers: planTeachers.slice(0, CARD_AVATAR_MAX),
+    moreTeachers: Math.max(0, teacherCount - CARD_AVATAR_MAX),
+    teachersLabel,
   };
 }
 

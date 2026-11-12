@@ -489,6 +489,18 @@ abstract final class AppRoutes {
   /// contrato). Destino dos lembretes automáticos do contrato (`arena_crm_*`).
   static const String myArenaContract = '/meu-contrato';
 
+  /// Contratos de aulas: o atleta contrata um plano de aulas da arena (plano →
+  /// professor → dias → contrato) e assina pelo app. Fora de `/athlete/` de
+  /// propósito: abre em qualquer papel.
+  static const String classPlanSignup = '/aulas/contratar/:arenaId';
+
+  /// Contratos de aulas do atleta (aluno) e do professor, os dois juntos.
+  static const String classAgreements = '/contratos-aulas';
+
+  /// Um contrato: leitura, comprovante e (professor) assinatura. Destino do
+  /// push `professor_agreement_pending`.
+  static const String classAgreement = '/contratos-aulas/:agreementId';
+
   /// Cobranças do atleta: tudo que ele paga num lugar (aulas, horário fixo,
   /// reservas e inscrições). `?aba=recorrentes|historico`, `?tipo=aulas|…`.
   static const String athleteBilling = '/cobrancas';
@@ -1304,6 +1316,9 @@ abstract final class AppRouteNames {
   static const String mySchedulePlans = 'mySchedulePlans';
   static const String schedulePlanPayment = 'schedulePlanPayment';
   static const String myArenaContract = 'myArenaContract';
+  static const String classPlanSignup = 'classPlanSignup';
+  static const String classAgreements = 'classAgreements';
+  static const String classAgreement = 'classAgreement';
   static const String athleteBilling = 'athleteBilling';
   static const String savedPaymentCard = 'savedPaymentCard';
   static const String paymentCardNew = 'paymentCardNew';

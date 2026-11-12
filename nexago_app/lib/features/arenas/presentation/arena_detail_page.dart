@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../class_agreements/presentation/widgets/class_agreements_entry_points.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/location/user_location_providers.dart';
 import '../../../core/router/routes.dart';
@@ -333,6 +334,8 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                       // Horário fixo vendido como plano (só com plano publicado),
                       // logo abaixo das quadras: é a outra forma de reservar.
                       ArenaDetailSchedulePlansSection(arenaId: arena.id),
+                      // Plano de aulas para contratar e assinar pelo app.
+                      ArenaDetailClassPlansSection(arenaId: arena.id),
                       ArenaDetailClubSection(arenaId: arena.id),
                       // Vínculos ativos com "Aparecer no perfil da arena".
                       ArenaPublicProfessorsSection(arenaId: arena.id),

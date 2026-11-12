@@ -191,6 +191,22 @@ export {
   setArenaClassChargeStatus,
   generateArenaClassMonthlyCharges,
 } from "./arena-class-billing";
+// Contratos de aulas: atleta contrata plano e assina pelo app; professor assina o contrato da arena.
+export {
+  getArenaClassSignupOptions,
+  previewMyArenaClassEnrollment,
+  enrollMeInArenaClassPlan,
+  getMyArenaAgreements,
+  getMyArenaAgreement,
+  signMyArenaAgreement,
+  getArenaAgreementTemplates,
+  saveArenaAgreementTemplate,
+  listArenaAgreements,
+  getArenaAgreement,
+  previewArenaProfessorAgreement,
+  sendArenaProfessorAgreement,
+  cancelArenaAgreement,
+} from "./arena-agreements";
 export {
   addArenaClassExtra,
   removeArenaClassExtra,

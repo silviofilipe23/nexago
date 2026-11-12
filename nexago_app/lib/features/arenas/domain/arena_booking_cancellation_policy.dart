@@ -1,3 +1,5 @@
+import '../../../core/formatting/app_currency_format.dart';
+
 /// O que "Cancelar reserva" pode fazer agora no app do atleta. Regra única
 /// de Minhas reservas e de Detalhes da reserva (aberto pela Agenda).
 enum AthleteBookingCancellation {
@@ -38,8 +40,9 @@ class ArenaBookingCancellationPolicy {
     return now.isBefore(deadline);
   }
 
-  /// O atleta só cancela pelo app dentro do prazo grátis. Depois dele não há
-  /// retenção automática (o app não estorna nada), então o botão desliga.
+  /// O atleta só cancela pelo app dentro do prazo grátis, com estorno integral
+  /// feito pelo servidor (`cancelMyArenaBooking`). Depois dele não há retenção
+  /// automática, então o botão desliga e o acerto é com a arena.
   static AthleteBookingCancellation athleteCancellation({
     required DateTime? bookingStart,
     required DateTime now,
@@ -73,11 +76,19 @@ class ArenaBookingCancellationPolicy {
         '$lateCancellationRetentionPercent% do valor pago.';
   }
 
-  /// Texto da confirmação antes de cancelar: a política, sem prometer
-  /// estorno (o app só marca a reserva como cancelada).
+  /// Texto da confirmação antes de cancelar (só aparece dentro do prazo
+  /// grátis): o que foi pago pelo app volta inteiro, pelo mesmo meio.
   static String confirmCancellationMessage(String arenaName) =>
-      '${freeCancellationTitle()} do horário. '
+      '${freeCancellationTitle()} do horário: o valor pago pelo app volta '
+      'inteiro, pelo mesmo meio (Pix ou cartão). '
       '${freeCancellationSubtitle(arenaName)}';
+
+  /// Aviso depois do cancelamento, com o estorno feito pelo servidor.
+  static String canceledMessage(double refundedReais) {
+    if (refundedReais <= 0) return 'Reserva cancelada.';
+    return 'Reserva cancelada. Estorno de ${formatBRL(refundedReais)} a '
+        'caminho: no Pix cai em instantes; no cartão, aparece na fatura.';
+  }
 
   static String blockedCancellationMessage({String? arenaName}) {
     final retention = lateCancellationRetentionPercent;

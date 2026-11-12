@@ -260,7 +260,7 @@
             } @else if (canCancel()) {
               @if (confirmingCancel()) {
                 <div class="bd-cancel-confirm">
-                  <p>Cancelar essa reserva? Dependendo da antecedência, a arena pode reter parte do valor pago.</p>
+                  <p>Cancelar essa reserva? Até 6h antes do horário, o valor pago pelo app volta inteiro, pelo mesmo meio (Pix ou cartão). Depois disso, o cancelamento é com {{ b.arenaName }}.</p>
                   <div class="bd-cancel-confirm-actions">
                     <button type="button" class="bd-btn-ghost bd-btn-sm" [disabled]="canceling()" (click)="cancelCancelConfirmation()">Voltar</button>
                     <button type="button" class="bd-btn-danger bd-btn-sm" [disabled]="canceling()" (click)="confirmCancel()">

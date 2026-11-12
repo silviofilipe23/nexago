@@ -652,7 +652,18 @@ export const cancelPendingArenaBookingPayment = onCall({
     throw new HttpsError("invalid-argument", "bookingId é obrigatório");
   }
 
-  const db = getFirestore();
+  return cancelPendingArenaBookingPaymentCore(getFirestore(), callerUid, bookingId);
+});
+
+/**
+ * Miolo de [cancelPendingArenaBookingPayment]: também usado pelo `cancelMyArenaBooking`
+ * quando a reserva ainda espera o pagamento (nada pago, nada a estornar).
+ */
+export async function cancelPendingArenaBookingPaymentCore(
+  db: Firestore,
+  callerUid: string,
+  bookingId: string,
+): Promise<{bookingId: string; status: "cancelled"}> {
   const bookingRef = db.collection(ARENA_BOOKINGS).doc(bookingId);
   const bookingSnap = await bookingRef.get();
   if (!bookingSnap.exists) {
@@ -715,7 +726,7 @@ export const cancelPendingArenaBookingPayment = onCall({
   );
 
   return {bookingId, status: "cancelled"};
-});
+}
 
 /** Expira reservas não pagas (PIX ou cartão) e libera locks + documentos em arenaSlots. */
 export const expirePendingArenaBookingPayments = onSchedule(

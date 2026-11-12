@@ -209,14 +209,18 @@ class FakeProfessorAgendaRepository implements ProfessorAgendaRepository {
 class FakeBookingService extends BookingService {
   FakeBookingService() : super(_NoFirestore(), functions: _NoFunctions());
 
-  final canceled = <({String bookingId, String athleteId})>[];
+  final canceled = <({String bookingId, String athleteId, bool lateCancel})>[];
 
   @override
-  Future<void> cancelBooking({
+  Future<double> cancelBooking({
     required String bookingId,
     required String athleteId,
+    bool lateCancel = false,
   }) async {
-    canceled.add((bookingId: bookingId, athleteId: athleteId));
+    canceled.add(
+      (bookingId: bookingId, athleteId: athleteId, lateCancel: lateCancel),
+    );
+    return 0;
   }
 }
 

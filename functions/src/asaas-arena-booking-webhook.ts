@@ -297,6 +297,14 @@ export async function processArenaBookingAsaasNotification(
     // Cartão: estorno/chargeback depois do horário garantido é caso para uma
     // pessoa. PIX: o acervo sempre ignorou esse evento em silêncio (estorno
     // feito no painel do Asaas) — fica informativo para não virar ruído.
+    // Estorno pedido pelo cancelamento do atleta (`cancelMyArenaBooking`): a reserva e a
+    // carteira já foram acertadas lá — o evento é só o eco.
+    const bookingAfter = (await db.collection(ARENA_BOOKINGS).doc(bookingId).get()).data();
+    const refunds = (bookingAfter?.athleteCancelRefunds ?? {}) as Record<string, {status?: unknown} | undefined>;
+    if (refunds[paymentId]?.status === "done") {
+      logger.info(`Asaas arena booking ${bookingId}: ${status} de ${paymentId} veio do cancelamento do atleta`);
+      return;
+    }
     const log = billingType === "CREDIT_CARD" ? logger.error : logger.info;
     log(
       `Asaas arena booking ${bookingId}: pagamento ${paymentId} virou ${status} DEPOIS de ` +

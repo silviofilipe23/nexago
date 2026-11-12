@@ -5,7 +5,7 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { fetchArenaById, arenaListItemImageUrl, courtSportLabel, type ArenaListItem } from '@nexago/arena-discovery';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
-import { cancelBooking, fetchArenaBooking, watchArenaBooking, type ArenaBookingDoc } from '../../data/arena-bookings-repository';
+import { cancelBooking, canceledBookingNotice, fetchArenaBooking, watchArenaBooking, type ArenaBookingDoc } from '../../data/arena-bookings-repository';
 import { formatMemberHours } from '../../reservar/member-hours';
 import { REVIEW_ALREADY_SENT_MESSAGE } from '../../data/arena-reviews-repository';
 import { BOOKING_MAX_PLAYERS, type BookingInvite } from '../../data/booking-invite-model';
@@ -630,14 +630,13 @@ export class AthleteBookingDetailComponent {
   protected async confirmCancel(): Promise<void> {
     const uid = this.auth.user()?.uid;
     const b = this.booking();
-    const db = this.firestore;
-    if (!uid || !b || !db || this.canceling()) return;
+    if (!uid || !b || this.canceling()) return;
     this.canceling.set(true);
     try {
-      await cancelBooking(db, b.id, uid);
+      const refunded = await cancelBooking(athleteFunctions(), b.id);
       this.booking.set({ ...b, status: 'canceled' });
       this.confirmingCancel.set(false);
-      this.showNotice('Reserva cancelada.');
+      this.showNotice(canceledBookingNotice(refunded));
       void this.router.navigate(['/agenda']);
     } catch (err) {
       this.showNotice(err instanceof Error ? err.message : 'Não foi possível cancelar a reserva.');

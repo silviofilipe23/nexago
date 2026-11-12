@@ -45,7 +45,7 @@ void main() {
     return results;
   }
 
-  testWidgets('mostra a reserva e a política, sem falar em estorno',
+  testWidgets('mostra a reserva, a política e que o valor volta',
       (tester) async {
     await pumpOpener(tester,
         clock: () => start.subtract(const Duration(days: 1)));
@@ -55,12 +55,12 @@ void main() {
     expect(find.textContaining('18:00'), findsOneWidget);
     expect(
       find.text(
-        'Cancelamento grátis até 6h antes do horário. '
+        'Cancelamento grátis até 6h antes do horário: o valor pago pelo app '
+        'volta inteiro, pelo mesmo meio (Pix ou cartão). '
         'Depois disso, a Arena Sol retém 50% do valor pago.',
       ),
       findsOneWidget,
     );
-    expect(find.textContaining('estorn'), findsNothing);
   });
 
   testWidgets('"Manter reserva" devolve false', (tester) async {

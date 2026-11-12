@@ -449,8 +449,11 @@ void main() {
       expect(find.text('Sem multa'), findsOneWidget);
       await tap(tester, find.byKey(const Key('professor-cancel-reason-rain')));
       await tap(tester, find.byKey(const Key('professor-cancel-confirm')));
-      expect(bookings.canceled.single,
-          (bookingId: 'bk-amanha', athleteId: professorStudentsTestUid));
+      expect(bookings.canceled.single, (
+        bookingId: 'bk-amanha',
+        athleteId: professorStudentsTestUid,
+        lateCancel: false,
+      ));
       expect(actions.lessonCancelNotices.single,
           (bookingId: 'bk-amanha', reason: 'rain'));
       expect(find.text('Aula cancelada'), findsOneWidget);
@@ -489,6 +492,7 @@ void main() {
       expect(bookings.canceled, isEmpty);
       await tap(tester, find.byKey(const Key('professor-cancel-confirm')));
       expect(bookings.canceled.single.bookingId, 'bk-logo');
+      expect(bookings.canceled.single.lateCancel, isTrue);
       expect(actions.lessonCancelNotices.single.reason, 'other');
       expect(find.text('Fora do prazo · a arena retém 50%'), findsOneWidget);
     });

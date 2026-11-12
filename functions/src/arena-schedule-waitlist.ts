@@ -278,7 +278,7 @@ export async function acceptWaitlistOfferCore(
     memberAthleteIds: Array.isArray(input["memberAthleteIds"]) ? (input["memberAthleteIds"] as unknown[]).map(str).filter(Boolean) : [],
     weekdays: entry["weekdays"], startTime: entry["startTime"],
     preferredCourtId: str(offer["courtId"]) || null, strictCourt: false,
-    cycle: input["cycle"], paymentMethod: input["paymentMethod"], startDate: todayKey,
+    cycle: input["cycle"], paymentMethod: input["paymentMethod"], dueDay: input["dueDay"], startDate: todayKey,
     source: "waitlist", createdByUid: uid, audience: "athlete", waitlistEntryId: entryId,
   }, todayKey, nowMs);
   return {

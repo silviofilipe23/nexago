@@ -202,6 +202,8 @@ export interface CreateSubscriptionInput {
   cycle: ScheduleCycle;
   paymentMethod: SchedulePaymentForm;
   startDate?: string;
+  /** Plano com opções de vencimento: o dia escolhido. */
+  dueDay?: number;
 }
 
 export function createScheduleSubscription(

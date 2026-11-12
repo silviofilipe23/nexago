@@ -120,6 +120,15 @@ import { SchedulePlansStore } from './schedule-plans.store';
             }
           </div>
 
+          @if (p.billing.dueDayOptions.length > 0) {
+            <div class="field-label spaced">Vencimento</div>
+            <div class="chip-row" data-testid="ph-add-due-day">
+              @for (n of p.billing.dueDayOptions; track n) {
+                <button type="button" class="sm-chip" [class.active]="dueDay() === n" (click)="dueDay.set(n)">Dia {{ n }}</button>
+              }
+            </div>
+          }
+
           <div class="field-label spaced">Forma de cobrança</div>
           <div class="chip-row">
             @for (f of p.billing.methods; track f) {
@@ -177,6 +186,8 @@ export class PhAddSubscriberModalComponent {
   protected readonly startDate = signal(todayKeyLocal());
   protected readonly cycle = signal<ScheduleCycle>('monthly');
   protected readonly method = signal<SchedulePaymentForm>('onsite');
+  /** Plano com opções de vencimento: o dia escolhido (padrão a 1ª opção). */
+  protected readonly dueDay = signal<number | null>(null);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly result = signal<string | null>(null);
@@ -209,6 +220,7 @@ export class PhAddSubscriberModalComponent {
 
   protected pickPlan(p: SchedulePlan): void {
     this.planId.set(p.id);
+    this.dueDay.set(p.billing.dueDayOptions[0] ?? null);
     this.days.set([]);
     this.startTime.set(p.windows[0]?.startTime ?? '');
     this.cycle.set(p.cycles.monthly.enabled ? 'monthly' : p.cycles.quarterly.enabled ? 'quarterly' : 'annual');
@@ -242,6 +254,7 @@ export class PhAddSubscriberModalComponent {
         startTime: p.bookingMode === 'flexible' ? '' : this.startTime(),
         cycle: this.cycle(),
         paymentMethod: this.method(),
+        ...(p.billing.dueDayOptions.length > 0 && this.dueDay() != null ? { dueDay: this.dueDay()! } : {}),
         startDate: this.startDate(),
       });
       const skipped = res.skippedDates?.length ?? 0;

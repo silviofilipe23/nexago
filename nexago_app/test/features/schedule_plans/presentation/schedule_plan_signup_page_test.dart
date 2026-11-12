@@ -855,6 +855,83 @@ void main() {
       expect(find.text('por mês'), findsOneWidget);
     });
 
+    testWidgets('vencimento à escolha: dia 5, 15 ou 25 e manda o escolhido',
+        (tester) async {
+      tester.view.physicalSize = const Size(1170, 2532);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final repo = _SubscribeRepo(false);
+      final duePlan = SchedulePlanAvailability.fromMap({
+        'plan': {
+          'name': 'Manhã livre',
+          'bookingMode': 'flexible',
+          'timesPerWeek': 1,
+          'monthlyPriceReais': 200,
+          'capacity': 10,
+          'windows': [
+            {'weekday': 1, 'startTime': '06:00', 'endTime': '12:00'},
+          ],
+          'cycles': {
+            'monthly': {'enabled': true},
+          },
+          'billing': {
+            'methods': ['onsite'],
+            'dueDay': 5,
+            'dueDayOptions': [5, 15, 25],
+          },
+        },
+        'days': const [],
+      }, arenaId: 'a1', planId: 'p1');
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, __) =>
+                const SchedulePlanSignupPage(arenaId: 'a1', planId: 'p1'),
+          ),
+          GoRoute(
+            path: AppRoutes.mySchedulePlans,
+            builder: (_, __) => const Text(
+              'MEU PLANO',
+              textDirection: TextDirection.ltr,
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            schedulePlansUidProvider.overrideWith((ref) => 'u1'),
+            schedulePlanAvailabilityProvider
+                .overrideWith((ref, key) async => duePlan),
+            schedulePlansRepositoryProvider.overrideWithValue(repo),
+            myScheduleSubscriptionsProvider.overrideWith(
+              (ref) async => MyScheduleSubscriptions.fromMap(const {}),
+            ),
+          ],
+          child: MaterialApp.router(
+            theme: AppTheme.dark,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('VENCIMENTO'), findsOneWidget);
+      expect(find.text('Dia 5'), findsOneWidget);
+      expect(find.text('Dia 25'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('schedule-due-day-15')));
+      await tester.pump();
+      expect(find.textContaining('vencem todo dia 15'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('schedule-signup-submit')));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(repo.sentDueDay, 15);
+    });
+
     testWidgets('plano livre lotado não deixa assinar', (tester) async {
       tester.view.physicalSize = const Size(1170, 2532);
       tester.view.devicePixelRatio = 3;
@@ -924,6 +1001,7 @@ class _AutopayRepo implements SchedulePlansRepository {
     required SchedulePlanCycle cycle,
     required SchedulePaymentMethod paymentMethod,
     List<String> memberAthleteIds = const [],
+    int? dueDay,
   }) async {
     calls.add('subscribe');
     return ScheduleSubscribeResult.fromMap({
@@ -976,6 +1054,7 @@ class _SubscribeRepo implements SchedulePlansRepository {
   final bool pending;
   List<int>? sentWeekdays;
   String? sentStartTime;
+  int? sentDueDay;
 
   @override
   Future<ScheduleSubscribeResult> subscribe({
@@ -986,9 +1065,11 @@ class _SubscribeRepo implements SchedulePlansRepository {
     required SchedulePlanCycle cycle,
     required SchedulePaymentMethod paymentMethod,
     List<String> memberAthleteIds = const [],
+    int? dueDay,
   }) async {
     sentWeekdays = weekdays;
     sentStartTime = startTime;
+    sentDueDay = dueDay;
     return ScheduleSubscribeResult.fromMap({
       'subscriptionId': 's1',
       'courtName': 'Quadra 1',

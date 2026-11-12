@@ -160,10 +160,13 @@ class SchedulePlansRepository {
     required SchedulePlanCycle cycle,
     required SchedulePaymentMethod paymentMethod,
     List<String> memberAthleteIds = const [],
+    // Plano com opções de vencimento: o dia escolhido.
+    int? dueDay,
   }) async {
     final data = await _call(
       'subscribeArenaSchedulePlan',
       {
+        if (dueDay != null) 'dueDay': dueDay,
         'arenaId': arenaId,
         'planId': planId,
         if (weekdays.isNotEmpty) 'weekdays': weekdays,
@@ -182,10 +185,12 @@ class SchedulePlansRepository {
     required SchedulePlanCycle cycle,
     required SchedulePaymentMethod paymentMethod,
     List<String> memberAthleteIds = const [],
+    int? dueDay,
   }) async {
     final data = await _call(
       'acceptArenaScheduleWaitlistOffer',
       {
+        if (dueDay != null) 'dueDay': dueDay,
         'entryId': entryId,
         'cycle': cycle.key,
         'paymentMethod': paymentMethod.key,

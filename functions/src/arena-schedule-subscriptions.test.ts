@@ -18,7 +18,7 @@ import {
 import {getPlanAvailabilityCore} from "./arena-schedule-plans";
 import {nextMonthKey} from "./arena-class-billing";
 import {monthKeyOf} from "./arena-class-ledger";
-import {ARENA, MANAGER, docsIn, holder, makeDb, seedArena, today, weekdayIn} from "./arena-schedule.test-helper";
+import {ARENA, MANAGER, docsIn, holder, makeDb, planData, seedArena, today, weekdayIn} from "./arena-schedule.test-helper";
 
 async function rejects(p: Promise<unknown>, codeExpected: string, message?: RegExp): Promise<void> {
   await assert.rejects(p, (e: unknown) => {
@@ -81,6 +81,23 @@ describe("1ª mensalidade proporcional e rateio", () => {
 });
 
 describe("createSubscriptionCore", () => {
+  it("vencimento escolhido pelo assinante entre as opções do plano (5, 15, 25)", async () => {
+    const {fake, db} = makeDb();
+    seedArena(fake);
+    fake.seedDoc(`arenas/${ARENA}/schedulePlans/p1`, planData({
+      billing: {methods: ["pix_auto", "card", "onsite"], dueDay: 5, dueDayOptions: [5, 15, 25], overdueReleaseDays: 3},
+    }));
+    const result = await createSubscriptionCore(db, request({dueDay: 15}), today(), Date.now());
+    const sub = fake.store.get(`arenaScheduleSubscriptions/${result.subscriptionId}`)!;
+    assert.equal(sub["dueDay"], 15);
+    assert.equal((sub["planSnapshot"] as {dueDay: number}).dueDay, 15);
+    await rejects(createSubscriptionCore(db, request({holder: holder("u2"), dueDay: 10}), today(), Date.now()),
+      "invalid-argument", /dia 5, 15, 25/);
+    // Sem escolher: o padrão do plano (a 1ª opção).
+    const plain = await createSubscriptionCore(db, request({holder: holder("u3")}), today(), Date.now());
+    assert.equal(fake.store.get(`arenaScheduleSubscriptions/${plain.subscriptionId}`)!["dueDay"], 5);
+  });
+
   it("escolhe a 1ª quadra livre (série e turma sobrepostas), cria séries, mensalidade e ocupa a vaga", async () => {
     const {fake, db} = makeDb();
     seedArena(fake);

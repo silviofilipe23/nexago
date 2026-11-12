@@ -330,9 +330,10 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                         onOpenCourt: (courtId) => _openSlots(courtId: courtId),
                         onOpenSport: (sport) => _openSlots(sport: sport),
                       ),
-                      ArenaDetailClubSection(arenaId: arena.id),
-                      // Horário fixo vendido como plano (só com plano publicado).
+                      // Horário fixo vendido como plano (só com plano publicado),
+                      // logo abaixo das quadras: é a outra forma de reservar.
                       ArenaDetailSchedulePlansSection(arenaId: arena.id),
+                      ArenaDetailClubSection(arenaId: arena.id),
                       // Vínculos ativos com "Aparecer no perfil da arena".
                       ArenaPublicProfessorsSection(arenaId: arena.id),
                       SizedBox(height: 28),

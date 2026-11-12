@@ -1,11 +1,12 @@
-import { DEFAULT_PLAN_BILLING, DEFAULT_PLAN_CYCLES, type ClassPlan, type Enrollment } from './billing.model';
+import { DEFAULT_CANCELLATION_POLICY, DEFAULT_PLAN_BILLING, DEFAULT_PLAN_CYCLES, type ClassPlan, type Enrollment } from './billing.model';
 import { planActivity, planCardView, plansStats } from './plan-card.model';
 
 function plan(over: Partial<ClassPlan> = {}): ClassPlan {
   return {
     id: 'p1', name: 'Vôlei 2x', kind: 'monthly', priceReais: 260, classesPerWeek: 2, makeupsPerMonth: 1,
     credits: null, validityDays: null, description: null, status: 'active', teacherIds: ['t1', 't2'],
-    availableInApp: true, cycles: DEFAULT_PLAN_CYCLES, billing: DEFAULT_PLAN_BILLING, ...over,
+    availableInApp: true, cycles: DEFAULT_PLAN_CYCLES, billing: DEFAULT_PLAN_BILLING,
+    cancellation: DEFAULT_CANCELLATION_POLICY, ...over,
   };
 }
 

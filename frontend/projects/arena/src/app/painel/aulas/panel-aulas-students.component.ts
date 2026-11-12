@@ -133,6 +133,9 @@ const FILTERS: ReadonlyArray<{ id: StudentFilter; label: string }> = [
                     <span>
                       <span class="name">{{ r.enrollment.name }}</span>
                       <span class="sub">{{ r.enrollment.athleteId ? 'Conta NexaGO' : (r.enrollment.phone || 'Sem conta') }}</span>
+                      @if (leavingOn(r.enrollment); as on) {
+                        <span class="leaving">Saindo em {{ on }}</span>
+                      }
                     </span>
                   </span>
                   <span class="cell">{{ r.enrollment.plan.name }}</span>
@@ -180,6 +183,7 @@ const FILTERS: ReadonlyArray<{ id: StudentFilter; label: string }> = [
     .who > span:last-child { display: flex; flex-direction: column; min-width: 0; }
     .name { font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; color: var(--nx-text); }
     .sub { font-family: var(--nx-font-mono); font-size: 9.5px; color: var(--nx-text-dim); margin-top: 2px; }
+    .leaving { align-self: flex-start; margin-top: 4px; padding: 1px 7px; border-radius: 99px; border: 1px solid rgba(244, 197, 67, 0.4); font-family: var(--nx-font-mono); font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--nx-pending); }
     .cell { font-size: 12.5px; color: var(--nx-text-mute); }
     .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .mono { font-family: var(--nx-font-mono); font-size: 11.5px; font-weight: 700; color: var(--nx-text-mute); }
@@ -252,6 +256,12 @@ export class PanelAulasStudentsComponent {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** "Saindo em dd/mm" de quem pediu para sair (matrícula ainda em curso). */
+  protected leavingOn(e: Enrollment): string | null {
+    const live = e.status === 'active' || e.status === 'paused';
+    return live && e.endsOn ? shortDate(e.endsOn) : null;
   }
 
   protected classNames(e: Enrollment): string {

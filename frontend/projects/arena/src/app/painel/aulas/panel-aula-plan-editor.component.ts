@@ -14,6 +14,7 @@ import {
   CLASS_PAYMENT_FORMS,
   CLASS_PAYMENT_FORM_LABEL,
   CYCLE_LABEL,
+  DEFAULT_CANCELLATION_POLICY,
   DEFAULT_PLAN_BILLING,
   DEFAULT_PLAN_CYCLES,
   DEFAULT_RULES,
@@ -25,6 +26,7 @@ import {
   parsePrice,
   planCycles,
   planPriceUnit,
+  type CancellationPolicy,
   type ClassPaymentForm,
   type ClassPlan,
   type ClassRules,
@@ -57,6 +59,9 @@ interface PlanDraft {
   cycles: PlanCycles;
   /** Formas aceitas e vencimento (só plano mensal). */
   billing: PlanBilling;
+  /** Aviso prévio e multa (só plano mensal); o valor fixo fica como digitado em `penaltyFixed`. */
+  cancellation: CancellationPolicy;
+  penaltyFixed: string;
 }
 
 function cloneCycles(c: PlanCycles): PlanCycles {
@@ -67,11 +72,20 @@ function cloneBilling(b: PlanBilling): PlanBilling {
   return { methods: [...b.methods], dueDay: b.dueDay, dueDayOptions: [...b.dueDayOptions] };
 }
 
+function cloneCancellation(c: CancellationPolicy): CancellationPolicy {
+  return { noticeDays: c.noticeDays, penalty: { ...c.penalty } };
+}
+
+function fixedText(c: CancellationPolicy): string {
+  return c.penalty.kind === 'fixed' && c.penalty.amountReais ? String(c.penalty.amountReais).replace('.', ',') : '';
+}
+
 function emptyDraft(): PlanDraft {
   return {
     name: '', kind: 'monthly', price: '', classesPerWeek: 2, makeupsPerMonth: 2, credits: 8, validityDays: 60,
     description: '', status: 'active', teacherIds: [], availableInApp: false,
     cycles: cloneCycles(DEFAULT_PLAN_CYCLES), billing: cloneBilling(DEFAULT_PLAN_BILLING),
+    cancellation: cloneCancellation(DEFAULT_CANCELLATION_POLICY), penaltyFixed: '',
   };
 }
 
@@ -82,6 +96,7 @@ function draftOf(p: ClassPlan): PlanDraft {
     credits: p.credits ?? 8, validityDays: p.validityDays ?? 60, description: p.description ?? '', status: p.status,
     teacherIds: [...p.teacherIds], availableInApp: p.availableInApp,
     cycles: cloneCycles(p.cycles), billing: cloneBilling(p.billing),
+    cancellation: cloneCancellation(p.cancellation), penaltyFixed: fixedText(p.cancellation),
   };
 }
 
@@ -95,12 +110,17 @@ const DISCOUNT_CYCLES: ReadonlyArray<{ id: LongCycle; label: string; sub: string
   { id: 'annual', label: 'Anual', sub: '12 meses · à vista (1ª proporcional)' },
 ];
 
+/** Chips do card "Cancelamento e multa". */
+const NOTICE_OPTIONS: readonly number[] = [0, 15, 30];
+const PENALTY_PERCENTS: readonly number[] = [30, 50, 100];
+
 function discountOk(n: number): boolean {
   return Number.isInteger(n) && n >= 0 && n <= MAX_CYCLE_DISCOUNT_PERCENT;
 }
 
 /** Editar plano de aula em página própria (`/painel/aulas/planos/novo` e `/:planId`) — mesmo desenho
- *  do editor dos Planos de horário: Plano · Professores e app · Preço e ciclo · Cobrança, e ao lado
+ *  do editor dos Planos de horário: Plano · Professores e app · Preço e ciclo · Cobrança ·
+ *  Cancelamento e multa, e ao lado
  *  como o aluno vê. Mudar o valor vale para matrículas novas. */
 @Component({
   selector: 'ar-panel-aula-plan-editor',
@@ -292,6 +312,37 @@ function discountOk(n: number): boolean {
                   <p class="hint">Ao contratar, o atleta escolhe o dia {{ athleteDueDaysLabel }}. As mensalidades vencem sempre nesse dia.</p>
                 }
               </ar-panel-card>
+
+              <ar-panel-card title="Cancelamento e multa" kicker="Vai no contrato">
+                <div class="field-label">Aviso prévio</div>
+                <div class="chip-row">
+                  @for (n of noticeOptions; track n) {
+                    <button type="button" class="ar-chip" [class.active]="d().cancellation.noticeDays === n" [attr.aria-pressed]="d().cancellation.noticeDays === n" (click)="setNotice(n)">{{ n === 0 ? 'Sem aviso' : n + ' dias' }}</button>
+                  }
+                  @if (!noticeOptions.includes(d().cancellation.noticeDays)) {
+                    <span class="ar-chip active">{{ d().cancellation.noticeDays }} dias</span>
+                  }
+                </div>
+                <div class="field-label spaced">Multa por sair antes da fidelidade</div>
+                <div class="chip-row">
+                  <button type="button" class="ar-chip" [class.active]="d().cancellation.penalty.kind === 'none'" (click)="setPenaltyNone()">Sem multa</button>
+                  @for (pct of penaltyPercents; track pct) {
+                    <button type="button" class="ar-chip" [class.active]="isPercent(pct)" (click)="setPenaltyPercent(pct)">{{ pct }}%</button>
+                  }
+                  @if (d().cancellation.penalty.kind === 'percent' && !penaltyPercents.includes(d().cancellation.penalty.percent ?? 0)) {
+                    <span class="ar-chip active">{{ d().cancellation.penalty.percent }}%</span>
+                  }
+                  <button type="button" class="ar-chip" [class.active]="d().cancellation.penalty.kind === 'fixed'" (click)="setPenaltyFixed()">Valor fixo</button>
+                </div>
+                @if (d().cancellation.penalty.kind === 'fixed') {
+                  <div class="field-label spaced">Valor da multa (R$)</div>
+                  <input class="input-box" type="text" inputmode="decimal" placeholder="200,00" aria-label="Valor da multa" [value]="d().penaltyFixed" (input)="patch({ penaltyFixed: $any($event.target).value })" />
+                }
+                @if (penaltyError(); as err) {
+                  <p class="hint warn">{{ err }}</p>
+                }
+                <p class="hint">Das mensalidades que faltariam depois do aviso, até o fim da fidelidade (trimestral e semestral). Mensal não tem multa; anual à vista encerra no fim do período pago, sem reembolso.</p>
+              </ar-panel-card>
             }
           </div>
 
@@ -394,6 +445,8 @@ export class PanelAulaPlanEditorComponent {
   protected readonly forms = CLASS_PAYMENT_FORMS;
   protected readonly formLabel = CLASS_PAYMENT_FORM_LABEL;
   protected readonly dueDays = DUE_DAYS;
+  protected readonly noticeOptions = NOTICE_OPTIONS;
+  protected readonly penaltyPercents = PENALTY_PERCENTS;
   protected readonly athleteDueDaysLabel = `${ATHLETE_DUE_DAY_CHOICES.slice(0, -1).join(', ')} ou ${ATHLETE_DUE_DAY_CHOICES.at(-1)}`;
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda') || !this.arenaContext.hasCapability('aulas'));
 
@@ -441,11 +494,17 @@ export class PanelAulaPlanEditorComponent {
     if (!PLAN_CYCLES.every((c) => discountOk(d.cycles[c].discountPercent))) return `Desconto de 0% a ${MAX_CYCLE_DISCOUNT_PERCENT}%.`;
     return null;
   });
+  protected readonly penaltyError = computed(() => {
+    const d = this.d();
+    if (d.kind !== 'monthly' || d.cancellation.penalty.kind !== 'fixed') return null;
+    const v = parsePrice(d.penaltyFixed);
+    return Number.isFinite(v) && v > 0 ? null : 'Informe o valor da multa (maior que zero).';
+  });
   protected readonly canSave = computed(() => {
     const d = this.d();
     if (d.name.trim().length < 2) return false;
     const price = parsePrice(d.price);
-    const monthlyOk = d.kind !== 'monthly' || (this.cycleError() == null && d.billing.methods.length > 0);
+    const monthlyOk = d.kind !== 'monthly' || (this.cycleError() == null && this.penaltyError() == null && d.billing.methods.length > 0);
     return monthlyOk && Number.isFinite(price) && (d.kind === 'single' ? price >= 0 : price > 0);
   });
   protected readonly previewSub = computed(() => {
@@ -548,6 +607,40 @@ export class PanelAulaPlanEditorComponent {
     this.d.set({ ...d, billing: { ...d.billing, dueDay: ATHLETE_DUE_DAY_CHOICES[0] ?? 5, dueDayOptions: [...ATHLETE_DUE_DAY_CHOICES] } });
   }
 
+  protected setNotice(noticeDays: number): void {
+    const d = this.d();
+    this.d.set({ ...d, cancellation: { ...d.cancellation, noticeDays } });
+  }
+
+  protected isPercent(pct: number): boolean {
+    const p = this.d().cancellation.penalty;
+    return p.kind === 'percent' && p.percent === pct;
+  }
+
+  protected setPenaltyNone(): void {
+    const d = this.d();
+    this.d.set({ ...d, cancellation: { ...d.cancellation, penalty: { kind: 'none', percent: null, amountReais: null } } });
+  }
+
+  protected setPenaltyPercent(percent: number): void {
+    const d = this.d();
+    this.d.set({ ...d, cancellation: { ...d.cancellation, penalty: { kind: 'percent', percent, amountReais: null } } });
+  }
+
+  protected setPenaltyFixed(): void {
+    const d = this.d();
+    this.d.set({ ...d, cancellation: { ...d.cancellation, penalty: { kind: 'fixed', percent: null, amountReais: null } } });
+  }
+
+  /** Regras como vão para o servidor (valor fixo lido do campo). */
+  private cancellationOf(d: PlanDraft): CancellationPolicy {
+    const p = d.cancellation.penalty;
+    const penalty = p.kind === 'fixed'
+      ? { kind: p.kind, percent: null, amountReais: parsePrice(d.penaltyFixed) }
+      : p.kind === 'percent' ? { kind: p.kind, percent: p.percent, amountReais: null } : { kind: p.kind, percent: null, amountReais: null };
+    return { noticeDays: d.cancellation.noticeDays, penalty };
+  }
+
   protected toggleTeacher(teacherId: string): void {
     const d = this.d();
     const teacherIds = d.teacherIds.includes(teacherId)
@@ -585,7 +678,7 @@ export class PanelAulaPlanEditorComponent {
         status,
         teacherIds: d.kind === 'single' ? [] : d.teacherIds,
         cycles: d.kind === 'monthly' ? d.cycles : cloneCycles(DEFAULT_PLAN_CYCLES),
-        ...(d.kind === 'monthly' ? { billing: d.billing } : {}),
+        ...(d.kind === 'monthly' ? { billing: d.billing, cancellation: this.cancellationOf(d) } : {}),
         availableInApp: d.kind !== 'single' && d.availableInApp,
       });
       void this.router.navigate(['/painel/aulas/planos']);

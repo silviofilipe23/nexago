@@ -17,6 +17,7 @@ import {
   planFromDoc,
   rulesFromDoc,
   waitlistFromDoc,
+  type CancellationPolicy,
   type Charge,
   type ClassPlan,
   type ClassRules,
@@ -94,6 +95,23 @@ export function watchStudentCharges(db: Firestore, arenaId: string, studentId: s
   );
 }
 
+/** Multas de cancelamento (`{matrícula}_penalty`) das matrículas pedidas — leitura por documento
+ *  (a rule exige o doc existir: só pede quem tem multa). Falha numa = segue sem ela. */
+export async function fetchPenaltyCharges(db: Firestore, enrollmentIds: readonly string[]): Promise<Map<string, Charge>> {
+  const out = new Map<string, Charge>();
+  await Promise.all(
+    enrollmentIds.map(async (id) => {
+      try {
+        const snap = await getDoc(doc(db, 'arenaClassCharges', `${id}_penalty`));
+        if (snap.exists()) out.set(id, chargeFromDoc(snap));
+      } catch {
+        // sem permissão ou fora do ar: a tela usa a situação gravada no pedido
+      }
+    }),
+  );
+  return out;
+}
+
 export async function fetchAvailableCredits(db: Firestore, arenaId: string): Promise<MakeupCredit[]> {
   const snap = await getDocs(
     query(collection(db, 'arenaClassCredits'), where('arenaId', '==', arenaId), where('status', '==', 'available')),
@@ -148,6 +166,8 @@ export interface PlanInput {
   cycles?: PlanCycles;
   /** Formas aceitas e vencimento do plano. */
   billing?: PlanBilling;
+  /** Aviso prévio e multa por quebra de fidelidade (ausente = não mexe). */
+  cancellation?: CancellationPolicy;
 }
 
 export function upsertPlan(functions: Functions, input: PlanInput): Promise<{ planId: string }> {
@@ -202,6 +222,16 @@ export function setEnrollmentStatus(
   status: 'active' | 'paused' | 'canceled',
 ): Promise<{ status: string; canceledCharges: number }> {
   return call(functions, 'setArenaClassEnrollmentStatus', { enrollmentId, status });
+}
+
+/** Isentar a multa de cancelamento (motivo ≥ 3 caracteres). */
+export function waiveCancellationPenalty(functions: Functions, enrollmentId: string, reason: string): Promise<{ status: string }> {
+  return call(functions, 'waiveClassCancellationPenalty', { enrollmentId, reason });
+}
+
+/** Desfazer o cancelamento: a matrícula volta ao normal e a multa em aberto é cancelada. */
+export function undoCancellation(functions: Functions, enrollmentId: string): Promise<{ status: string; penaltyPaid: boolean }> {
+  return call(functions, 'undoClassCancellation', { enrollmentId });
 }
 
 export function setChargeStatus(

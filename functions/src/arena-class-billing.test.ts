@@ -9,8 +9,11 @@ import {
   monthsToBill,
   parseEnrollmentRequest,
   proratedAmount,
+  cycleStarts,
+  planCycleOptions,
   runMonthlyBilling,
   setEnrollmentStatusCore,
+  validatePlanCycles,
   validatePlanInput,
   type EnrollmentRequest,
 } from "./arena-class-billing";
@@ -53,7 +56,7 @@ function request(overrides: Partial<EnrollmentRequest> = {}): EnrollmentRequest 
   return {
     arenaId: "arena1", planId: "m2", slots: [{classId: "cB", weekday: 2}, {classId: "cB", weekday: 4}],
     dueDay: 5, paymentMethod: "pix", waiveFee: false, waitlistClassId: null, waitlistEntryId: null,
-    billingMode: "manual", cpfCnpj: null,
+    billingMode: "manual", cpfCnpj: null, cycle: "monthly",
     ...overrides,
   };
 }
@@ -340,5 +343,55 @@ describe("reposição e pacote na chamada", () => {
     assert.ok(fake.store.has(`arenaClassCredits/${makeupCreditId(sessionId, "u1")}`));
     assert.equal(fake.store.has(`arenaClassCredits/${makeupCreditId(sessionId, "u4")}`), false);
     assert.equal(fake.store.get("arenaClassCredits/cr2")!["status"], "available");
+  });
+});
+
+describe("billing — ciclos do plano mensal", () => {
+  it("opções: mensal sempre; os longos só com valor; valida o que vem do portal", () => {
+    const opts = planCycleOptions({kind: "monthly", priceReais: 320, cyclePrices: {quarterly: 300, annual: 270}});
+    assert.deepEqual(opts.map((o) => [o.cycle, o.months, o.monthlyPriceReais, o.totalReais]), [
+      ["monthly", 1, 320, 320], ["quarterly", 3, 300, 900], ["annual", 12, 270, 3240],
+    ]);
+    assert.deepEqual(planCycleOptions({kind: "package", priceReais: 360}), []);
+    assert.deepEqual(validatePlanCycles({}, "monthly"), {});
+    assert.deepEqual(validatePlanCycles({cyclePrices: {semiannual: 290, quarterly: null}}, "monthly"), {cyclePrices: {semiannual: 290}});
+    assert.deepEqual(validatePlanCycles({cyclePrices: {annual: 200}}, "package"), {cyclePrices: {}});
+    assert.throws(() => validatePlanCycles({cyclePrices: {annual: -1}}, "monthly"), HttpsError);
+    assert.deepEqual(cycleStarts(["2026-11", "2026-12", "2027-01", "2027-02"], 3), ["2026-11", "2027-02"]);
+  });
+
+  it("trimestral: 1ª cobrança = proporcional + 2 meses; renova 10 dias antes do vencimento do próximo ciclo", async () => {
+    const {fake, db} = makeDb();
+    seedArena(fake);
+    fake.seedDoc("arenas/arena1/classPlans/m2", {
+      name: "Mensal 2x/semana", kind: "monthly", priceReais: 320, classesPerWeek: 2, makeupsPerMonth: 1, status: "active",
+      cyclePrices: {quarterly: 300},
+    });
+    const {enrollmentId} = await createEnrollmentCore(db, request({waiveFee: true, cycle: "quarterly"}), athlete("u1", "Marina"), "gestor", TODAY);
+    const e = fake.store.get(`arenaClassEnrollments/${enrollmentId}`)!;
+    assert.equal(e["cycle"], "quarterly");
+    assert.equal(e["cycleMonths"], 3);
+    assert.equal((e["plan"] as Record<string, unknown>)["priceReais"], 300);
+    assert.equal(e["billedThrough"], "2026-12");
+    const first = fake.store.get(`arenaClassCharges/${enrollmentId}_2026-10`)!;
+    // Out: 4 de 9 aulas de 300 = 133,33 + nov + dez (600).
+    assert.equal(first["amountReais"], 733.33);
+    // Nada até 10 dias antes de 05/01; aí o ciclo jan–mar inteiro.
+    assert.equal((await runMonthlyBilling(db, "2026-12-20")).charges, 0);
+    await runMonthlyBilling(db, "2026-12-27");
+    const next = fake.store.get(`arenaClassCharges/${enrollmentId}_2027-01`)!;
+    assert.equal(next["amountReais"], 900);
+    assert.equal(next["dueDate"], "2027-01-05");
+    assert.match(String(next["description"]), /trimestral jan\/2027 a mar\/2027/);
+    assert.equal(fake.store.get(`arenaClassEnrollments/${enrollmentId}`)!["billedThrough"], "2027-03");
+    assert.equal((await runMonthlyBilling(db, "2027-01-20")).charges, 0);
+  });
+
+  it("ciclo que o plano não oferece é recusado; cliente antigo (sem ciclo) segue mensal", async () => {
+    const {fake, db} = makeDb();
+    seedArena(fake);
+    await assert.rejects(createEnrollmentCore(db, request({cycle: "annual"}), athlete("u1", "Marina"), "gestor", TODAY), /anual/);
+    const {enrollmentId} = await createEnrollmentCore(db, request(), athlete("u1", "Marina"), "gestor", TODAY);
+    assert.equal(fake.store.get(`arenaClassEnrollments/${enrollmentId}`)!["cycle"], "monthly");
   });
 });

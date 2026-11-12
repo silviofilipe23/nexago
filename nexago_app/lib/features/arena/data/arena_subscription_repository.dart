@@ -55,6 +55,68 @@ class ArenaSubscriptionResult {
   bool get includesActivationFee => activationFeeCents > 0;
 }
 
+/// Mensalidade que a arena precisa pagar agora (callable `getArenaPlanOpenCharge`).
+///
+/// No Pix o Asaas gera a cobrança de cada ciclo, mas não avisa a arena: sem
+/// isto a cobrança vencia e o plano caía depois da carência. Cartão só aparece
+/// quando foi recusado (pendente, o Asaas cobra sozinho).
+class ArenaPlanOpenCharge {
+  const ArenaPlanOpenCharge({
+    required this.paymentId,
+    required this.overdue,
+    required this.dueDate,
+    required this.valueCents,
+    required this.billingType,
+    this.invoiceUrl,
+    this.qrCode,
+    this.qrCodeBase64,
+  });
+
+  final String paymentId;
+  final bool overdue;
+
+  /// Vencimento `YYYY-MM-DD` (sem fuso, como o Asaas grava).
+  final String dueDate;
+  final int valueCents;
+  final String billingType;
+  final String? invoiceUrl;
+  final String? qrCode;
+  final String? qrCodeBase64;
+
+  bool get hasPix => (qrCode?.isNotEmpty ?? false);
+  bool get cardDeclined => overdue && billingType == 'CREDIT_CARD';
+
+  /// `12/12/2026`.
+  String get dueDateLabel {
+    final parts = dueDate.split('-');
+    if (parts.length != 3) return dueDate;
+    return '${parts[2]}/${parts[1]}/${parts[0]}';
+  }
+
+  static ArenaPlanOpenCharge? fromMap(Object? raw) {
+    if (raw is! Map) return null;
+    final map = Map<String, dynamic>.from(raw);
+    final paymentId = (map['paymentId'] as String?)?.trim() ?? '';
+    final dueDate = (map['dueDate'] as String?)?.trim() ?? '';
+    if (paymentId.isEmpty || dueDate.isEmpty) return null;
+    String? text(String key) {
+      final v = (map[key] as String?)?.trim();
+      return v == null || v.isEmpty ? null : v;
+    }
+
+    return ArenaPlanOpenCharge(
+      paymentId: paymentId,
+      overdue: map['status'] == 'OVERDUE',
+      dueDate: dueDate,
+      valueCents: (map['valueCents'] as num?)?.toInt() ?? 0,
+      billingType: text('billingType') ?? 'UNDEFINED',
+      invoiceUrl: text('invoiceUrl'),
+      qrCode: text('qrCode'),
+      qrCodeBase64: text('qrCodeBase64'),
+    );
+  }
+}
+
 class ArenaSubscriptionException implements Exception {
   ArenaSubscriptionException(this.message);
   final String message;
@@ -170,6 +232,18 @@ class ArenaSubscriptionRepository {
       if (e is ArenaSubscriptionException) rethrow;
       throw ArenaSubscriptionException('Não foi possível criar a assinatura: $e');
     }
+  }
+
+  /// Mensalidade em aberto da assinatura (com QR do Pix), ou `null`.
+  Future<ArenaPlanOpenCharge?> fetchOpenCharge(String arenaId) async {
+    final id = arenaId.trim();
+    if (id.isEmpty) return null;
+    final raw = await _functions
+        .httpsCallable('getArenaPlanOpenCharge')
+        .call(<String, dynamic>{'arenaId': id});
+    final data = raw.data;
+    if (data is! Map) return null;
+    return ArenaPlanOpenCharge.fromMap(data['charge']);
   }
 
   Future<void> cancelSubscription(String arenaId) async {

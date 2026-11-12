@@ -18,11 +18,14 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent } from '../ui/pill.component';
+import { PlanOpenChargeComponent } from './plan-open-charge.component';
 import {
   cancelArenaSubscription,
   createArenaSubscription,
+  fetchArenaPlanOpenCharge,
   fetchArenaSubscriptionBilling,
   type ArenaAsaasBillingType,
+  type ArenaPlanOpenCharge,
   type ArenaSubscriptionBilling,
   type CreateArenaSubscriptionResult,
 } from './subscription-repository';
@@ -65,7 +68,7 @@ interface PlanCardAction {
 @Component({
   selector: 'ar-panel-plans',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, ModalComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, ModalComponent, PlanOpenChargeComponent],
   template: `
     <ar-panel-shell>
       <ar-page-header title="Planos &amp; assinatura" [subtitle]="headerSubtitle()">
@@ -102,6 +105,10 @@ interface PlanCardAction {
               }
               @if (billing(); as b) {
                 <p class="billing-type-line">Forma de pagamento: {{ billingTypeLabel[b.billingType] }}</p>
+              }
+
+              @if (openCharge(); as c) {
+                <ar-plan-open-charge [charge]="c" />
               }
 
               @if (cancelError(); as cerr) {
@@ -758,6 +765,10 @@ export class PanelPlansComponent {
     );
   });
 
+  /** Mensalidade em aberto no Asaas (Pix gerado pela recorrência). Falha de leitura só
+   *  esconde o bloco: o resto da tela não depende dela. */
+  protected readonly openCharge = signal<ArenaPlanOpenCharge | null>(null);
+
   protected readonly showCancelConfirm = signal(false);
   protected readonly canceling = signal(false);
   protected readonly cancelError = signal<string | null>(null);
@@ -767,7 +778,16 @@ export class PanelPlansComponent {
       const arenaId = this.arenaContext.arenaId();
       if (!arenaId) return;
       void this.loadBilling(arenaId);
+      void this.loadOpenCharge(arenaId);
     });
+  }
+
+  private async loadOpenCharge(arenaId: string): Promise<void> {
+    try {
+      this.openCharge.set(await fetchArenaPlanOpenCharge(arenaFunctions(), arenaId));
+    } catch {
+      this.openCharge.set(null);
+    }
   }
 
   private async loadBilling(arenaId: string): Promise<void> {
@@ -836,6 +856,7 @@ export class PanelPlansComponent {
       );
       this.subscribeResult.set(result);
       await this.loadBilling(arenaId);
+      void this.loadOpenCharge(arenaId);
     } catch (err) {
       this.subscribeError.set(err instanceof Error ? err.message : 'Não foi possível iniciar a assinatura.');
     } finally {
@@ -860,6 +881,7 @@ export class PanelPlansComponent {
     try {
       await cancelArenaSubscription(arenaFunctions(), arenaId);
       await this.loadBilling(arenaId);
+      void this.loadOpenCharge(arenaId);
       this.showCancelConfirm.set(false);
     } catch (err) {
       this.cancelError.set(err instanceof Error ? err.message : 'Não foi possível cancelar a assinatura.');

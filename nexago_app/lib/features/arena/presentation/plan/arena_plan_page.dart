@@ -16,6 +16,7 @@ import '../../domain/arena_schedule_providers.dart';
 import '../../data/arena_subscription_repository.dart';
 import '../widgets/arena_dashboard_tokens.dart';
 import 'arena_subscription_pending_page.dart';
+import 'widgets/arena_plan_open_charge_card.dart';
 
 /// Escolha e assinatura do plano da arena (gestor). Cobrança recorrente via
 /// Asaas: PIX (QR in-app) ou cartão (checkout hospedado).
@@ -69,6 +70,7 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
   ) {
     final statusAsync = ref.watch(arenaPlanStatusProvider(arenaId));
     final status = statusAsync.valueOrNull ?? ArenaPlanStatus.none;
+    final openCharge = ref.watch(arenaPlanOpenChargeProvider(arenaId)).valueOrNull;
     final bottomPad = MediaQuery.paddingOf(context).bottom + 40;
 
     return SliverPadding(
@@ -81,6 +83,13 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
       sliver: SliverList(
         delegate: SliverChildListDelegate([
           _StatusBanner(status: status, colors: colors),
+          if (openCharge != null) ...[
+            const SizedBox(height: 12),
+            ArenaPlanOpenChargeCard(
+              charge: openCharge,
+              onOpenInvoice: _openInvoice,
+            ),
+          ],
           const SizedBox(height: 20),
           _CycleToggle(
             cycle: _cycle,
@@ -211,6 +220,14 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
       rethrow;
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _openInvoice(String url) async {
+    try {
+      await ref.read(arenaSubscriptionRepositoryProvider).openCheckout(url);
+    } on ArenaSubscriptionException catch (e) {
+      if (mounted) showAppSnackBar(context, e.message);
     }
   }
 

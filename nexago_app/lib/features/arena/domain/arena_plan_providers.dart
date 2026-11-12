@@ -16,6 +16,21 @@ final arenaPlanStatusProvider =
   return ref.watch(arenaSubscriptionRepositoryProvider).watchPlan(arenaId);
 });
 
+/// Mensalidade em aberto do plano (Pix da recorrência / cartão recusado).
+/// Recarrega quando o plano muda (pagamento confirmado pelo webhook). Falha de
+/// leitura vira `null`: o card some, o resto da tela segue.
+final arenaPlanOpenChargeProvider = FutureProvider.autoDispose
+    .family<ArenaPlanOpenCharge?, String>((ref, arenaId) async {
+  ref.watch(arenaPlanStatusProvider(arenaId));
+  try {
+    return await ref
+        .watch(arenaSubscriptionRepositoryProvider)
+        .fetchOpenCharge(arenaId);
+  } catch (_) {
+    return null;
+  }
+});
+
 /// Estado do plano da arena atualmente gerida.
 final managedArenaPlanStatusProvider =
     StreamProvider.autoDispose<ArenaPlanStatus>((ref) {

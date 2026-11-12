@@ -25,18 +25,22 @@ Ecossistema (`Prof-app-01…03`, y≈96200) e Arena (`Arena-portal-01…03`, y�
 - Reenviar o contrato do professor cancela o pendente; o assinado anterior vale até o novo ser assinado.
 - Matrícula cancelada encerra o contrato do aluno (`ended`).
 
-## Ciclos de pagamento (plano mensal)
+## Ciclos e cobrança — mesmo modelo dos Planos de horário
 
-- Mensal sempre; trimestral (3), semestral (6) e anual (12) quando a arena preenche o valor por mês do ciclo
-  (`classPlans.cyclePrices`). Pacote e avulsa não têm ciclo.
-- O aluno (app) ou a recepção (portal) escolhe o ciclo; a matrícula guarda `cycle`/`cycleMonths` e o valor
-  por mês do ciclo em `plan.priceReais` (proporcional, renovação e contrato usam esse valor).
-- Uma cobrança por ciclo, paga adiantada: a 1ª = proporcional do mês + os meses seguintes do ciclo, vence
-  na matrícula; a renovação sai 10 dias antes do vencimento do 1º mês do próximo ciclo (mesmo agendador
-  das mensalidades, id `{matrícula}_{AAAA-MM}` do 1º mês).
-- Cancelar não devolve ciclo pago (só cancela o que ainda ia vencer). Reativar depois de pausa cobra o mês
-  da volta proporcional e segue no mesmo ciclo.
-- Repasse por % da receita conta a cobrança no mês em que foi paga (regime de caixa, como antes).
+- `classPlans.cycles`: mensal (sem fidelidade), trimestral e semestral (desconto % e fidelidade de 3/6 meses,
+  pagos mês a mês) e anual (desconto %, à vista: 12 meses numa cobrança, a 1ª proporcional). Desconto 0–50%
+  sobre o mensal; ao menos um ciclo ligado. Ausente = só mensal. Pacote/avulsa não têm ciclo.
+- `classPlans.billing`: formas aceitas (`pix`, `card`, `onsite`) e vencimento fixo (`dueDay`, null = o das
+  Regras de aulas) ou à escolha do aluno (`dueDayOptions`, portal oferece 5/15/25).
+- App: no plano escolhido o aluno escolhe ciclo, vencimento e forma. Pix/cartão = cobrança online (só com a
+  cobrança online das Regras ligada); na arena = manual. A matrícula guarda `cycle`, `prepaidMonths`,
+  `commitmentEndsOn`, `paymentForm`, `dueDay` e o valor do ciclo em `plan.priceReais`.
+- Contrato: `{{plano.ciclo}}` ("trimestral, com fidelidade de 3 meses e pagamento mensal"), `{{plano.preco}}`
+  com o desconto e `{{contrato.fidelidade}}` (fim da fidelidade).
+- Ainda não copiado dos Planos de horário: pagar ao assinar com a vaga segurada por 30 min, desconto no Pix,
+  débito automático no cartão e cancelamento pelo próprio aluno. Cancelar (pela arena) não devolve o que foi
+  pago à vista.
+- Substitui o `cyclePrices` (valor por mês absoluto, #1205), que deixou de ser lido.
 - App da arena (Flutter) ainda matricula só no mensal (não manda `cycle`).
 
 ## Assinatura

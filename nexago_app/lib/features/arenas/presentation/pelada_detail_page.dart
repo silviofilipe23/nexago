@@ -115,6 +115,8 @@ class _PeladaDetailPageState extends ConsumerState<PeladaDetailPage> {
           initial: saved.result,
           candidates: candidates,
           ownerPlayerId: saved.createdBy,
+          sport: saved.sport ?? source?.sport,
+          bookingId: saved.bookingId,
           onSave: (r) => repository.save(saved.bookingId, r),
           confirmBeforeSave:
               'Os jogadores vão receber o placar para confirmar novamente.',

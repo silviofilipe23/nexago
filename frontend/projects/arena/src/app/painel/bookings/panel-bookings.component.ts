@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -56,10 +56,14 @@ function tomorrowKey(): string {
 @Component({
   selector: 'ar-panel-bookings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent],
+  imports: [RouterLink, PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent],
   template: `
     <ar-panel-shell>
-      <ar-page-header title="Reservas" [subtitle]="headerSubtitle()" />
+      <ar-page-header title="Reservas" [subtitle]="headerSubtitle()">
+        <a class="ar-ghost-btn" routerLink="/painel/agenda/cancelamento" title="O que o atleta recebe quando cancela no prazo">
+          Política de cancelamento
+        </a>
+      </ar-page-header>
 
       <div class="body">
         @if (arenaNotFound()) {

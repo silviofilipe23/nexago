@@ -22,13 +22,14 @@ void main() {
       );
       final service = BookingService(firestore, functions: functions);
 
-      final refunded =
+      final outcome =
           await service.cancelBooking(bookingId: 'b1', athleteId: 'u1');
 
       final (name, payload) = functions.calls.single;
       expect(name, 'cancelMyArenaBooking');
       expect(payload, {'bookingId': 'b1'});
-      expect(refunded, 70);
+      expect(outcome.refundedReais, 70);
+      expect(outcome.creditedReais, 0);
       expect(firestore.updates, isEmpty);
     });
 
@@ -36,14 +37,29 @@ void main() {
       final functions = _FakeFirebaseFunctions();
       final service = BookingService(_FakeFirestore({}), functions: functions);
 
-      final refunded = await service.cancelBooking(
+      final outcome = await service.cancelBooking(
         bookingId: 'b1',
         athleteId: 'u1',
         lateCancel: true,
       );
 
-      expect(functions.calls.single.$2, {'bookingId': 'b1', 'lateCancel': true});
-      expect(refunded, 0);
+      expect(
+          functions.calls.single.$2, {'bookingId': 'b1', 'lateCancel': true});
+      expect(outcome.refundedReais, 0);
+      expect(outcome.creditedReais, 0);
+    });
+
+    test('crédito na arena volta no resultado', () async {
+      final functions = _FakeFirebaseFunctions(
+        result: {'refundedReais': 0, 'creditedReais': 70, 'mode': 'credit'},
+      );
+      final service = BookingService(_FakeFirestore({}), functions: functions);
+
+      final outcome =
+          await service.cancelBooking(bookingId: 'b1', athleteId: 'u1');
+
+      expect(outcome.creditedReais, 70);
+      expect(outcome.refundedReais, 0);
     });
 
     test('recusa da callable vira BookingException com a mensagem do servidor',

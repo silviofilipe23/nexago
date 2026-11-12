@@ -23,6 +23,7 @@ import '../../../core/ui/fade_slide_in.dart';
 import '../data/booking_service.dart';
 import '../data/payment_service.dart';
 import '../domain/arena_booking_cancellation_policy.dart';
+import '../domain/athlete_cancel_policy.dart';
 import '../domain/arena_booking_confirm_args.dart';
 import '../domain/arena_booking_labels.dart';
 import '../domain/arena_booking_pix_args.dart';
@@ -148,23 +149,21 @@ class _ArenaBookingConfirmPageState
 
   /// Mensagem quando o cupom não entrou: o desconto de professor ou a
   /// promoção já deixam a reserva mais barata (não acumulam).
-  static String _couponNotBetterMessage(ArenaBookingQuote quote) =>
-      quote.hasMemberHours
-          ? 'O seu banco de horas já deixa esta reserva mais barata que o cupom.'
-          : quote.hasProfessorDiscount
+  static String _couponNotBetterMessage(ArenaBookingQuote quote) => quote
+          .hasMemberHours
+      ? 'O seu banco de horas já deixa esta reserva mais barata que o cupom.'
+      : quote.hasProfessorDiscount
           ? 'O desconto de professor já deixa esta reserva mais barata que o cupom.'
           : quote.hasAthletePricing
-          ? 'O seu preço de ${quote.athletePricingLabel ?? 'perfil'} já deixa esta reserva mais barata que o cupom.'
-          : 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.';
+              ? 'O seu preço de ${quote.athletePricingLabel ?? 'perfil'} já deixa esta reserva mais barata que o cupom.'
+              : 'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.';
 
   Future<void> _loadQuote(ArenaBookingConfirmArgs args) async {
     final seq = ++_quoteSeq;
     final coupon = _appliedCouponCode;
     setState(() => _quoting = true);
     try {
-      final quote = await ref
-          .read(bookingServiceProvider)
-          .quoteBooking(
+      final quote = await ref.read(bookingServiceProvider).quoteBooking(
             args: args,
             couponCode: coupon,
             asProfessor: _quoteAsProfessor,
@@ -205,9 +204,7 @@ class _ArenaBookingConfirmPageState
       _couponError = null;
     });
     try {
-      final quote = await ref
-          .read(bookingServiceProvider)
-          .quoteBooking(
+      final quote = await ref.read(bookingServiceProvider).quoteBooking(
             args: args,
             couponCode: code,
             asProfessor: _quoteAsProfessor,
@@ -379,18 +376,17 @@ class _ArenaBookingConfirmPageState
 
     setState(() => _submitting = true);
     try {
-      final created = await ref
-          .read(bookingServiceProvider)
-          .createBookingAtomically(
-            args: args,
-            athleteId: user.uid,
-            couponCode: _appliedCouponCode,
-            sport: sport,
-            asProfessor: asProfessor,
-            professorStudentId: lessonStudentId,
-            paymentMode: coveredByPlan && !onsiteEnabled ? 'pix' : 'onsite',
-            useWeatherCredit: _sendWeatherCredit && !coveredByPlan,
-          );
+      final created =
+          await ref.read(bookingServiceProvider).createBookingAtomically(
+                args: args,
+                athleteId: user.uid,
+                couponCode: _appliedCouponCode,
+                sport: sport,
+                asProfessor: asProfessor,
+                professorStudentId: lessonStudentId,
+                paymentMode: coveredByPlan && !onsiteEnabled ? 'pix' : 'onsite',
+                useWeatherCredit: _sendWeatherCredit && !coveredByPlan,
+              );
       _clearLessonStudent();
       if (!mounted) return;
       await tryAwardReserveTodayMission(ref, dateKey: args.dateKey);
@@ -437,15 +433,15 @@ class _ArenaBookingConfirmPageState
   ) {
     final amount = created.amountReais;
     final credit = created.weatherCreditAppliedReais;
-    final paymentLabel =
-        created.isCoveredByMemberHours || created.isCoveredBySchedulePlan
+    final paymentLabel = created.isCoveredByMemberHours ||
+            created.isCoveredBySchedulePlan
         ? 'Coberta pelo seu plano: nada a pagar.'
         : created.isCoveredByWeatherCredit
-        ? 'Pago com crédito de chuva.'
-        : credit > 0
-        ? 'Crédito de chuva de ${formatBRL(credit)} aplicado. Restante de '
-              '${formatBRL(created.amountDueOnsiteReais)} na arena.'
-        : 'Pagamento no local na arena.';
+            ? 'Pago com crédito na arena.'
+            : credit > 0
+                ? 'Crédito na arena de ${formatBRL(credit)} aplicado. Restante de '
+                    '${formatBRL(created.amountDueOnsiteReais)} na arena.'
+                : 'Pagamento no local na arena.';
     final timeRange = '${args.startTime} – ${args.endTime}';
     final dateLabel = _dateFmt.format(args.date);
     final uri = Uri(
@@ -521,10 +517,10 @@ class _ArenaBookingConfirmPageState
     final onlineEnabled = arena?.onlinePaymentEnabled ?? true;
     final canPayHere = onsiteEnabled || onlineEnabled;
     final isPaymentConfigLoading = arena == null && arenaAsync.isLoading;
+    final cancelPolicy = arena?.athleteCancelPolicy ?? AthleteCancelPolicy.full;
 
     final state = GoRouterState.of(context);
-    final fromExtra =
-        widget.args ??
+    final fromExtra = widget.args ??
         (state.extra is ArenaBookingConfirmArgs
             ? state.extra! as ArenaBookingConfirmArgs
             : null);
@@ -567,14 +563,13 @@ class _ArenaBookingConfirmPageState
     final sport = sportOptions == null
         ? null
         : sportOptions.contains(_sport)
-        ? _sport
-        : sportOptions.length == 1
-        ? sportOptions.first
-        : null;
+            ? _sport
+            : sportOptions.length == 1
+                ? sportOptions.first
+                : null;
 
-    final professorLink = ref
-        .watch(myArenaProfessorLinkProvider(widget.arenaId))
-        .valueOrNull;
+    final professorLink =
+        ref.watch(myArenaProfessorLinkProvider(widget.arenaId)).valueOrNull;
     final offerProfessor = canOfferBookingAsProfessor(
       professorLink,
       activeRole: ref.watch(activeMobileRoleProvider),
@@ -588,30 +583,26 @@ class _ArenaBookingConfirmPageState
     _maybeLoadQuote(args, asProfessor: asProfessor);
     // Aula da carteira: só como professor de vínculo independente, entre os
     // alunos ativos (o servidor confere de novo).
-    final lessonStudents = asProfessor &&
-            professorLink?.type == ArenaProfessorLinkType.independent
-        ? <({String id, String name})>[
-            for (final s in ref
-                    .watch(professorWalletStudentsProvider)
-                    .valueOrNull ??
-                const <ProfessorWalletStudent>[])
-              if (s.active) (id: s.athleteId, name: s.name),
-          ]
-        : const <({String id, String name})>[];
-    final lessonStudentId =
-        lessonStudents.any((s) => s.id == _lessonStudentId)
-            ? _lessonStudentId
-            : null;
+    final lessonStudents =
+        asProfessor && professorLink?.type == ArenaProfessorLinkType.independent
+            ? <({String id, String name})>[
+                for (final s
+                    in ref.watch(professorWalletStudentsProvider).valueOrNull ??
+                        const <ProfessorWalletStudent>[])
+                  if (s.active) (id: s.athleteId, name: s.name),
+              ]
+            : const <({String id, String name})>[];
+    final lessonStudentId = lessonStudents.any((s) => s.id == _lessonStudentId)
+        ? _lessonStudentId
+        : null;
 
     final timeRange = '${args.startTime} - ${args.endTime}';
     final displayTotal = _displayAmount(args);
     // O desconto de professor só aparece na cotação pedida como professor
     // (troca do interruptor = "Calculando…" até a nova chegar).
     final quote = _quote;
-    final professorDiscount = !_quoting &&
-        asProfessor &&
-        quote != null &&
-        quote.hasProfessorDiscount;
+    final professorDiscount =
+        !_quoting && asProfessor && quote != null && quote.hasProfessorDiscount;
     // Preço por perfil (aluno/professor validado pela arena): vale em
     // qualquer cotação — não depende do interruptor de professor.
     final athletePricing = !_quoting &&
@@ -625,8 +616,7 @@ class _ArenaBookingConfirmPageState
     // pagamento (o servidor confirma no local).
     final coveredByPlan = memberHours && quote.coveredByPlanCoverage;
     // Plano livre aparece quando cobriu ou quando o banco não entrou.
-    final schedulePlanNote =
-        !_quoting &&
+    final schedulePlanNote = !_quoting &&
             quote != null &&
             quote.schedulePlanNotice != null &&
             (quote.hasSchedulePlan || !quote.hasMemberHours)
@@ -637,8 +627,7 @@ class _ArenaBookingConfirmPageState
                 !quote.hasSchedulePlan && quote.schedulePlanNoticeIsWarning,
           )
         : null;
-    final memberNote =
-        schedulePlanNote ??
+    final memberNote = schedulePlanNote ??
         (!_quoting && quote != null && quote.isMember
             ? (
                 title: quote.memberHoursPlanName ?? 'Banco de horas',
@@ -653,17 +642,16 @@ class _ArenaBookingConfirmPageState
               )
             : null);
     final durationCompact = formatCourtDurationLabel(args);
-    final courtLineLabel = durationCompact.isEmpty
-        ? 'Quadra'
-        : 'Quadra ($durationCompact)';
+    final courtLineLabel =
+        durationCompact.isEmpty ? 'Quadra' : 'Quadra ($durationCompact)';
     // Crédito de chuva: o card só aparece com saldo; o valor aplicado vale
     // só da cotação pedida com o card ligado.
     final creditAvailable =
         coveredByPlan ? 0.0 : quote?.weatherCreditAvailableReais ?? 0;
     final creditApplied =
         !_quoting && _useWeatherCredit && quote != null && !coveredByPlan
-        ? quote.weatherCreditAppliedReais
-        : 0.0;
+            ? quote.weatherCreditAppliedReais
+            : 0.0;
     final amountDue = creditApplied > 0
         ? quote!.amountDueAfterWeatherCreditReais
         : displayTotal;
@@ -672,190 +660,192 @@ class _ArenaBookingConfirmPageState
     final stickyMeta = coveredByPlan
         ? 'coberta pelo seu plano'
         : coveredByCredit
-        ? 'coberto pelo crédito de chuva'
-        : choice == _PaymentChoice.pix
-        ? 'Pix ou cartão na próxima etapa'
-        : creditApplied > 0
-        ? 'a pagar na arena'
-        : 'total na arena';
+            ? 'coberto pelo crédito na arena'
+            : choice == _PaymentChoice.pix
+                ? 'Pix ou cartão na próxima etapa'
+                : creditApplied > 0
+                    ? 'a pagar na arena'
+                    : 'total na arena';
     final stickyCta = coveredByPlan
         ? 'Confirmar reserva'
         : choice == _PaymentChoice.pix && !coveredByCredit
-        ? 'Confirmar e pagar'
-        : 'Confirmar reserva';
+            ? 'Confirmar e pagar'
+            : 'Confirmar reserva';
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       appBar: BookingConfirmAppBar(onBack: _onBack),
       body: LayoutBuilder(
-          builder: (context, constraints) {
-            final maxW = constraints.maxWidth > 560
-                ? 520.0
-                : constraints.maxWidth;
-            return Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxW),
-                child: Stack(
-                  children: [
-                    CustomScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      slivers: [
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 180),
-                          sliver: SliverList(
-                            delegate: SliverChildListDelegate.fixed([
-                              FadeSlideIn(
-                                child: BookingConfirmHeroCard(
-                                  dateKey: args.dateKey,
-                                  timeRange: timeRange,
-                                  arenaName: args.arenaName,
-                                  courtName: args.displayCourtName,
-                                  courtSubtitle: args.courtSubtitle,
-                                ),
+        builder: (context, constraints) {
+          final maxW =
+              constraints.maxWidth > 560 ? 520.0 : constraints.maxWidth;
+          return Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxW),
+              child: Stack(
+                children: [
+                  CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 180),
+                        sliver: SliverList(
+                          delegate: SliverChildListDelegate.fixed([
+                            FadeSlideIn(
+                              child: BookingConfirmHeroCard(
+                                dateKey: args.dateKey,
+                                timeRange: timeRange,
+                                arenaName: args.arenaName,
+                                courtName: args.displayCourtName,
+                                courtSubtitle: args.courtSubtitle,
                               ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 22),
+                              child: BookingConfirmSportPicker(
+                                options: sportOptions,
+                                selected: sport,
+                                enabled: !_submitting,
+                                onSelected: (code) =>
+                                    setState(() => _sport = code),
+                              ),
+                            ),
+                            if (offerProfessor)
                               Padding(
                                 padding: const EdgeInsets.only(top: 22),
-                                child: BookingConfirmSportPicker(
-                                  options: sportOptions,
-                                  selected: sport,
+                                child: BookingConfirmProfessorOption(
+                                  arenaName: args.arenaName,
+                                  type: professorLink!.type,
+                                  courtDiscountLabel:
+                                      professorLink.courtDiscountPercent > 0
+                                          ? professorLink.courtDiscountRuleLabel
+                                          : null,
+                                  value: asProfessor,
                                   enabled: !_submitting,
-                                  onSelected: (code) =>
-                                      setState(() => _sport = code),
+                                  onChanged: (value) =>
+                                      setState(() => _asProfessor = value),
                                 ),
                               ),
-                              if (offerProfessor)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 22),
-                                  child: BookingConfirmProfessorOption(
-                                    arenaName: args.arenaName,
-                                    type: professorLink!.type,
-                                    courtDiscountLabel:
-                                        professorLink.courtDiscountPercent > 0
-                                            ? professorLink
-                                                .courtDiscountRuleLabel
-                                            : null,
-                                    value: asProfessor,
-                                    enabled: !_submitting,
-                                    onChanged: (value) =>
-                                        setState(() => _asProfessor = value),
-                                  ),
-                                ),
-                              if (lessonStudents.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 18),
-                                  child: BookingConfirmLessonStudentPicker(
-                                    students: lessonStudents,
-                                    selectedId: lessonStudentId,
-                                    enabled: !_submitting,
-                                    onSelected: (id) =>
-                                        setState(() => _lessonStudentId = id),
-                                  ),
-                                ),
-                              if (creditAvailable > 0)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 18),
-                                  child: WeatherCreditCheckoutCard(
-                                    availableReais: creditAvailable,
-                                    nextExpiresAt:
-                                        quote?.weatherCreditNextExpiresAt,
-                                    value: _useWeatherCredit,
-                                    enabled: !_submitting,
-                                    onChanged: (value) => setState(
-                                      () => _useWeatherCredit = value,
-                                    ),
-                                  ),
-                                ),
+                            if (lessonStudents.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 18),
-                                child: BookingConfirmPriceSummary(
-                                  courtLineLabel: courtLineLabel,
-                                  courtAmountLabel: _quoting
-                                      ? 'Calculando…'
-                                      : formatBRL(
-                                          professorDiscount
-                                              ? quote
-                                                  .amountBeforeProfessorDiscountReais
-                                              : athletePricing
-                                              ? quote
-                                                  .amountBeforeAthletePricingReais
-                                              : memberHours
-                                              ? quote
-                                                  .amountBeforeMemberHoursReais
-                                              : displayTotal,
-                                        ),
-                                  discountLineLabel: professorDiscount
-                                      ? quote.professorDiscountLabel
-                                      : athletePricing
-                                      ? quote.athletePricingLineLabel
-                                      : null,
-                                  discountAmountLabel: professorDiscount
-                                      ? quote.professorDiscountValueLabel
-                                      : athletePricing
-                                      ? quote.athletePricingValueLabel
-                                      : null,
-                                  memberHoursLineLabel: memberHours
-                                      ? quote.planCoverageLineLabel
-                                      : null,
-                                  memberHoursAmountLabel: memberHours
-                                      ? quote.planCoverageValueLabel
-                                      : null,
-                                  weatherCreditAmountLabel: creditApplied > 0
-                                      ? '\u2212 ${formatBRL(creditApplied)}'
-                                      : null,
-                                  totalLineLabel:
-                                      creditApplied > 0 ? 'A pagar' : 'Total',
-                                  totalAmountLabel:
-                                      professorDiscount ||
-                                          athletePricing ||
-                                          memberHours ||
-                                          creditApplied > 0
-                                      ? formatBRL(amountDue)
-                                      : null,
+                                child: BookingConfirmLessonStudentPicker(
+                                  students: lessonStudents,
+                                  selectedId: lessonStudentId,
+                                  enabled: !_submitting,
+                                  onSelected: (id) =>
+                                      setState(() => _lessonStudentId = id),
                                 ),
                               ),
-                              if (memberNote != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: BookingConfirmMemberHoursNote(
-                                    title: memberNote.title,
-                                    message: memberNote.message,
-                                    warning: memberNote.warning,
+                            if (creditAvailable > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 18),
+                                child: WeatherCreditCheckoutCard(
+                                  availableReais: creditAvailable,
+                                  nextExpiresAt:
+                                      quote?.weatherCreditNextExpiresAt,
+                                  value: _useWeatherCredit,
+                                  enabled: !_submitting,
+                                  onChanged: (value) => setState(
+                                    () => _useWeatherCredit = value,
                                   ),
                                 ),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 14),
-                                child: BookingConfirmCouponField(
-                                  controller: _couponController,
-                                  applying: _couponApplying,
-                                  appliedCode: _appliedCouponCode,
-                                  discountReais: _couponDiscountReais,
-                                  errorText: _couponError,
-                                  enabled: !_submitting,
-                                  onApply: () => _applyCoupon(args),
-                                  onRemove: () => _removeCoupon(args),
-                                ),
                               ),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 14),
-                                child: BookingConfirmCancellationCard(
-                                  title:
-                                      ArenaBookingCancellationPolicy.freeCancellationTitle(),
-                                  subtitle:
-                                      ArenaBookingCancellationPolicy.freeCancellationSubtitle(
-                                        args.arenaName,
+                            Padding(
+                              padding: const EdgeInsets.only(top: 18),
+                              child: BookingConfirmPriceSummary(
+                                courtLineLabel: courtLineLabel,
+                                courtAmountLabel: _quoting
+                                    ? 'Calculando…'
+                                    : formatBRL(
+                                        professorDiscount
+                                            ? quote
+                                                .amountBeforeProfessorDiscountReais
+                                            : athletePricing
+                                                ? quote
+                                                    .amountBeforeAthletePricingReais
+                                                : memberHours
+                                                    ? quote
+                                                        .amountBeforeMemberHoursReais
+                                                    : displayTotal,
                                       ),
-                                ),
+                                discountLineLabel: professorDiscount
+                                    ? quote.professorDiscountLabel
+                                    : athletePricing
+                                        ? quote.athletePricingLineLabel
+                                        : null,
+                                discountAmountLabel: professorDiscount
+                                    ? quote.professorDiscountValueLabel
+                                    : athletePricing
+                                        ? quote.athletePricingValueLabel
+                                        : null,
+                                memberHoursLineLabel: memberHours
+                                    ? quote.planCoverageLineLabel
+                                    : null,
+                                memberHoursAmountLabel: memberHours
+                                    ? quote.planCoverageValueLabel
+                                    : null,
+                                weatherCreditAmountLabel: creditApplied > 0
+                                    ? '\u2212 ${formatBRL(creditApplied)}'
+                                    : null,
+                                totalLineLabel:
+                                    creditApplied > 0 ? 'A pagar' : 'Total',
+                                totalAmountLabel: professorDiscount ||
+                                        athletePricing ||
+                                        memberHours ||
+                                        creditApplied > 0
+                                    ? formatBRL(amountDue)
+                                    : null,
                               ),
+                            ),
+                            if (memberNote != null)
                               Padding(
-                                padding: const EdgeInsets.only(top: 18),
-                                child: BookingConfirmObservationsField(
-                                  controller: _observationsController,
-                                  enabled: !_submitting,
+                                padding: const EdgeInsets.only(top: 12),
+                                child: BookingConfirmMemberHoursNote(
+                                  title: memberNote.title,
+                                  message: memberNote.message,
+                                  warning: memberNote.warning,
                                 ),
                               ),
-                              // Coberta pelo plano: nada a pagar, sem forma
-                              // de pagamento.
-                              if (!coveredByPlan) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(top: 14),
+                              child: BookingConfirmCouponField(
+                                controller: _couponController,
+                                applying: _couponApplying,
+                                appliedCode: _appliedCouponCode,
+                                discountReais: _couponDiscountReais,
+                                errorText: _couponError,
+                                enabled: !_submitting,
+                                onApply: () => _applyCoupon(args),
+                                onRemove: () => _removeCoupon(args),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 14),
+                              // A política da arena agora: é a que a
+                              // reserva vai guardar ao ser criada.
+                              child: BookingConfirmCancellationCard(
+                                title: ArenaBookingCancellationPolicy
+                                    .cancellationTitle(
+                                  cancelPolicy,
+                                ),
+                                subtitle: ArenaBookingCancellationPolicy
+                                    .cancellationSubtitle(
+                                  args.arenaName,
+                                  cancelPolicy,
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 18),
+                              child: BookingConfirmObservationsField(
+                                controller: _observationsController,
+                                enabled: !_submitting,
+                              ),
+                            ),
+                            // Coberta pelo plano: nada a pagar, sem forma
+                            // de pagamento.
+                            if (!coveredByPlan) ...[
                               Padding(
                                 padding: const EdgeInsets.only(top: 22),
                                 child: Text(
@@ -873,10 +863,10 @@ class _ArenaBookingConfirmPageState
                                   onsiteEnabled && onlineEnabled
                                       ? 'Escolha como deseja concluir sua reserva.'
                                       : onsiteEnabled && !onlineEnabled
-                                      ? 'Esta arena aceita pagamento na arena.'
-                                      : !onsiteEnabled && onlineEnabled
-                                      ? 'Esta arena aceita Pix ou cartão no app.'
-                                      : 'Esta arena ainda não configurou meios de pagamento no app.',
+                                          ? 'Esta arena aceita pagamento na arena.'
+                                          : !onsiteEnabled && onlineEnabled
+                                              ? 'Esta arena aceita Pix ou cartão no app.'
+                                              : 'Esta arena ainda não configurou meios de pagamento no app.',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: theme.colorScheme.onSurface
                                         .withValues(alpha: 0.6),
@@ -889,136 +879,136 @@ class _ArenaBookingConfirmPageState
                                 child: isPaymentConfigLoading
                                     ? const _PaymentSkeleton()
                                     : !canPayHere
-                                    ? _PaymentErrorCard(
-                                        message:
-                                            'Não é possível concluir por aqui. Entre em contato com a arena.',
-                                      )
-                                    : Column(
-                                        children: [
-                                          if (onsiteEnabled)
-                                            _PaymentOptionCard(
-                                              title: 'Pagar na arena',
-                                              subtitle:
-                                                  'Confirme agora e pague presencialmente ao chegar.',
-                                              icon: Icons.storefront_outlined,
-                                              selected:
-                                                  choice ==
-                                                  _PaymentChoice.atVenue,
-                                              disabled: _submitting,
-                                              onTap: () {
-                                                HapticFeedback.selectionClick();
-                                                setState(
-                                                  () => _paymentChoice =
+                                        ? _PaymentErrorCard(
+                                            message:
+                                                'Não é possível concluir por aqui. Entre em contato com a arena.',
+                                          )
+                                        : Column(
+                                            children: [
+                                              if (onsiteEnabled)
+                                                _PaymentOptionCard(
+                                                  title: 'Pagar na arena',
+                                                  subtitle:
+                                                      'Confirme agora e pague presencialmente ao chegar.',
+                                                  icon:
+                                                      Icons.storefront_outlined,
+                                                  selected: choice ==
                                                       _PaymentChoice.atVenue,
-                                                );
-                                                _requoteForPaymentMode(
-                                                  args,
-                                                  'onsite',
-                                                );
-                                              },
-                                            ),
-                                          if (onsiteEnabled && onlineEnabled)
-                                            const SizedBox(height: 10),
-                                          if (onlineEnabled)
-                                            _PaymentOptionCard(
-                                              title: 'Pagar online',
-                                              subtitle:
-                                                  'Pix ou cartão de crédito — confirmação automática.',
-                                              icon: Icons.payments_outlined,
-                                              selected:
-                                                  choice == _PaymentChoice.pix,
-                                              disabled: _submitting,
-                                              onTap: () {
-                                                HapticFeedback.selectionClick();
-                                                setState(
-                                                  () => _paymentChoice =
+                                                  disabled: _submitting,
+                                                  onTap: () {
+                                                    HapticFeedback
+                                                        .selectionClick();
+                                                    setState(
+                                                      () => _paymentChoice =
+                                                          _PaymentChoice
+                                                              .atVenue,
+                                                    );
+                                                    _requoteForPaymentMode(
+                                                      args,
+                                                      'onsite',
+                                                    );
+                                                  },
+                                                ),
+                                              if (onsiteEnabled &&
+                                                  onlineEnabled)
+                                                const SizedBox(height: 10),
+                                              if (onlineEnabled)
+                                                _PaymentOptionCard(
+                                                  title: 'Pagar online',
+                                                  subtitle:
+                                                      'Pix ou cartão de crédito — confirmação automática.',
+                                                  icon: Icons.payments_outlined,
+                                                  selected: choice ==
                                                       _PaymentChoice.pix,
-                                                );
-                                                _requoteForPaymentMode(
-                                                  args,
-                                                  'pix',
-                                                );
-                                              },
-                                            ),
-                                        ],
-                                      ),
+                                                  disabled: _submitting,
+                                                  onTap: () {
+                                                    HapticFeedback
+                                                        .selectionClick();
+                                                    setState(
+                                                      () => _paymentChoice =
+                                                          _PaymentChoice.pix,
+                                                    );
+                                                    _requoteForPaymentMode(
+                                                      args,
+                                                      'pix',
+                                                    );
+                                                  },
+                                                ),
+                                            ],
+                                          ),
                               ),
-                              ],
-                              Padding(
-                                padding: const EdgeInsets.only(top: 16),
-                                child: Center(
-                                  child: TextButton(
-                                    onPressed: _submitting
-                                        ? null
-                                        : _onBack,
-                                    child: const Text('Alterar horário'),
-                                  ),
+                            ],
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: Center(
+                                child: TextButton(
+                                  onPressed: _submitting ? null : _onBack,
+                                  child: const Text('Alterar horário'),
                                 ),
                               ),
-                            ]),
-                          ),
+                            ),
+                          ]),
                         ),
-                      ],
-                    ),
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: BookingConfirmStickyBar(
-                        metaLabel: stickyMeta,
-                        totalLabel: _quoting
-                            ? 'Calculando…'
-                            : formatBRL(stickyAmount),
-                        ctaLabel: stickyCta,
-                        submitting: _submitting,
-                        enabled:
-                            (canPayHere || coveredByPlan) && !_submitting,
-                        onConfirm: () {
-                          if (sport == null) {
-                            HapticFeedback.heavyImpact();
-                            showAppSnackBar(
-                              context,
-                              sportOptions == null
-                                  ? 'Carregando os esportes da quadra…'
-                                  : 'Escolha o esporte que você vai jogar.',
-                              isError: sportOptions != null,
-                            );
-                            return;
-                          }
-                          HapticFeedback.mediumImpact();
-                          if (coveredByPlan) {
-                            _finalizeBookingPayAtArena(
-                              args,
-                              sport: sport,
-                              asProfessor: asProfessor,
-                              lessonStudentId: lessonStudentId,
-                              coveredByPlan: true,
-                              onsiteEnabled: onsiteEnabled,
-                            );
-                          } else if (choice == _PaymentChoice.pix) {
-                            _confirmWithPix(
-                              args,
-                              sport: sport,
-                              asProfessor: asProfessor,
-                              lessonStudentId: lessonStudentId,
-                            );
-                          } else {
-                            _finalizeBookingPayAtArena(
-                              args,
-                              sport: sport,
-                              asProfessor: asProfessor,
-                              lessonStudentId: lessonStudentId,
-                            );
-                          }
-                        },
                       ),
+                    ],
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: BookingConfirmStickyBar(
+                      metaLabel: stickyMeta,
+                      totalLabel:
+                          _quoting ? 'Calculando…' : formatBRL(stickyAmount),
+                      ctaLabel: stickyCta,
+                      submitting: _submitting,
+                      enabled: (canPayHere || coveredByPlan) && !_submitting,
+                      onConfirm: () {
+                        if (sport == null) {
+                          HapticFeedback.heavyImpact();
+                          showAppSnackBar(
+                            context,
+                            sportOptions == null
+                                ? 'Carregando os esportes da quadra…'
+                                : 'Escolha o esporte que você vai jogar.',
+                            isError: sportOptions != null,
+                          );
+                          return;
+                        }
+                        HapticFeedback.mediumImpact();
+                        if (coveredByPlan) {
+                          _finalizeBookingPayAtArena(
+                            args,
+                            sport: sport,
+                            asProfessor: asProfessor,
+                            lessonStudentId: lessonStudentId,
+                            coveredByPlan: true,
+                            onsiteEnabled: onsiteEnabled,
+                          );
+                        } else if (choice == _PaymentChoice.pix) {
+                          _confirmWithPix(
+                            args,
+                            sport: sport,
+                            asProfessor: asProfessor,
+                            lessonStudentId: lessonStudentId,
+                          );
+                        } else {
+                          _finalizeBookingPayAtArena(
+                            args,
+                            sport: sport,
+                            asProfessor: asProfessor,
+                            lessonStudentId: lessonStudentId,
+                          );
+                        }
+                      },
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

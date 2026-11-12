@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../domain/arena_booking_cancellation_policy.dart';
 import '../../domain/arena_booking_labels.dart';
+import '../../domain/athlete_cancel_policy.dart';
 
 /// Confirmação antes de o atleta cancelar uma reserva de quadra — a mesma em
 /// Minhas reservas e em Detalhes da reserva. Devolve `true` só quando ele
@@ -16,6 +17,7 @@ Future<bool> confirmBookingCancellation(
   required String arenaName,
   required String courtName,
   required DateTime startAt,
+  AthleteCancelPolicy policy = AthleteCancelPolicy.full,
   DateTime Function() clock = DateTime.now,
 }) async {
   final court = courtName.trim().isEmpty ? 'Quadra' : courtName.trim();
@@ -42,7 +44,9 @@ Future<bool> confirmBookingCancellation(
           const SizedBox(height: 10),
           Text(
             ArenaBookingCancellationPolicy.confirmCancellationMessage(
-                arenaName),
+              arenaName,
+              policy: policy,
+            ),
           ),
         ],
       ),

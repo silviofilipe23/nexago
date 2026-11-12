@@ -26,7 +26,8 @@ export function weatherCreditIdFor(originBookingId: string): string {
   return `wx_${originBookingId}`;
 }
 
-export type WeatherCreditSource = "choice" | "auto" | "mid_game" | "reschedule";
+/** `athlete_cancel`: o atleta cancelou no prazo e a arena devolve em crédito (não é chuva). */
+export type WeatherCreditSource = "choice" | "auto" | "mid_game" | "reschedule" | "athlete_cancel";
 
 function timestampMs(v: unknown): number | null {
   return v instanceof Timestamp ? v.toMillis() : null;

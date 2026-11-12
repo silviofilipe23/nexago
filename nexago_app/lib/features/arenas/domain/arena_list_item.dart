@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/location/br_locations_data.dart';
 import 'arena_amenities.dart';
 import 'arena_booking_allocation.dart';
+import 'athlete_cancel_policy.dart';
 
 /// Quem recebe o PIX online: conta NexaGO (padrão) ou Mercado Pago do gestor.
 enum ArenaPaymentReceiver {
@@ -56,6 +57,7 @@ class ArenaListItem {
     this.amenities = ArenaAmenities.empty,
     this.isUnclaimed = false,
     this.bookingAllocation = ArenaBookingAllocation.court,
+    this.athleteCancelPolicy = AthleteCancelPolicy.full,
   });
 
   final String id;
@@ -108,6 +110,9 @@ class ArenaListItem {
 
   /// Como o atleta reserva: escolhe a quadra (padrão) ou só o horário (a arena define a quadra).
   final ArenaBookingAllocation bookingAllocation;
+
+  /// O que o atleta recebe ao cancelar no prazo (vale para reservas novas).
+  final AthleteCancelPolicy athleteCancelPolicy;
 
   /// URLs extras (Firestore: `galleryImageUrls` ou lista `images`).
   final List<String> galleryImageUrls;
@@ -290,6 +295,7 @@ class ArenaListItem {
       amenities: amenities,
       isUnclaimed: data['unclaimed'] == true,
       bookingAllocation: ArenaBookingAllocation.fromMap(data['bookingAllocation']),
+      athleteCancelPolicy: AthleteCancelPolicy.fromRaw(data['athleteCancelPolicy']),
     );
   }
 }

@@ -52,7 +52,7 @@ class BookingPixAmountSection extends StatelessWidget {
             title: 'Total agora',
             amount: formatBRL(payFull),
             footer: weatherCreditReais > 0
-                ? 'Crédito de chuva de ${formatBRL(weatherCreditReais)} já '
+                ? 'Crédito na arena de ${formatBRL(weatherCreditReais)} já '
                       'descontado. O resto é pago integral.'
                 : 'Garante 100% da reserva',
             selected: true,

@@ -167,6 +167,9 @@ export interface ArenaBookingDoc {
   participantUids: string[];
   /** Ocorrência de horário fixo (mensalista) — gerida pela arena, sem cancelamento pelo app. */
   recurringBookingId: string | null;
+  /** O que volta se o atleta cancelar no prazo (cópia da política da arena na criação;
+   *  ausente = estorno integral). */
+  cancelPolicy?: AthleteCancelPolicy;
   createdAt: Date | null;
   couponCode: string | null;
   couponDiscountReais: number;
@@ -589,22 +592,57 @@ export async function cancelPendingBookingPayment(functions: Functions, bookingI
   }
 }
 
+/** Política da arena para o cancelamento no prazo (`arenaBookings.cancelPolicy`) — espelha
+ *  `functions/src/arena-athlete-cancel-policy.ts`. Reserva sem cópia = estorno integral. */
+export interface AthleteCancelPolicy {
+  mode: 'refund' | 'credit';
+  /** Só no `refund`: quanto do valor pago volta (100 = integral). */
+  refundPercent: number;
+}
+
+export function athleteCancelPolicyFrom(raw: unknown): AthleteCancelPolicy {
+  const d = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  if (d['mode'] === 'credit') return { mode: 'credit', refundPercent: 0 };
+  const pct = Number(d['refundPercent']);
+  return { mode: 'refund', refundPercent: [100, 75, 50, 25].includes(pct) ? pct : 100 };
+}
+
+/** O que volta ao cancelar no prazo — texto da confirmação. */
+export function cancelPolicyOutcomeText(policy: AthleteCancelPolicy | undefined, arenaName: string): string {
+  const name = arenaName.trim() || 'arena';
+  if (!policy) return 'o valor pago pelo app volta inteiro, pelo mesmo meio (Pix ou cartão)';
+  if (policy.mode === 'credit') return `o valor pago vira crédito para usar em outra reserva na ${name}`;
+  if (policy.refundPercent < 100) {
+    return `${policy.refundPercent}% do valor pago volta pelo mesmo meio (Pix ou cartão); a ${name} fica com o resto`;
+  }
+  return 'o valor pago pelo app volta inteiro, pelo mesmo meio (Pix ou cartão)';
+}
+
+/** Resultado do cancelamento: o que voltou em dinheiro e o que virou crédito na arena. */
+export interface CancelBookingOutcome {
+  refundedReais: number;
+  creditedReais: number;
+}
+
 /** Cancela a reserva do atleta dono pela callable `cancelMyArenaBooking` — espelha
- *  `BookingService.cancelBooking` (Flutter). Dentro do prazo grátis o que foi pago pelo
- *  app (Pix ou cartão) é estornado pelo mesmo meio; devolve o valor estornado (0 quando
- *  nada foi pago pelo app). Fora do prazo o servidor recusa e manda falar com a arena. */
-export async function cancelBooking(functions: Functions, bookingId: string): Promise<number> {
+ *  `BookingService.cancelBooking` (Flutter). Dentro do prazo vale a política copiada na
+ *  reserva: estorno integral ou parcial pelo mesmo meio (Pix ou cartão), ou crédito na arena.
+ *  Fora do prazo o servidor recusa e manda falar com a arena. */
+export async function cancelBooking(functions: Functions, bookingId: string): Promise<CancelBookingOutcome> {
   const id = bookingId.trim();
   if (!id) {
     throw new ArenaBookingError('Dados inválidos para cancelamento.');
   }
   try {
-    const result = await httpsCallable<{ bookingId: string }, { refundedReais?: unknown }>(
+    const result = await httpsCallable<{ bookingId: string }, { refundedReais?: unknown; creditedReais?: unknown }>(
       functions,
       'cancelMyArenaBooking',
     )({ bookingId: id });
-    const refunded = Number(result.data?.refundedReais);
-    return Number.isFinite(refunded) && refunded > 0 ? refunded : 0;
+    const read = (v: unknown) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    };
+    return { refundedReais: read(result.data?.refundedReais), creditedReais: read(result.data?.creditedReais) };
   } catch (err) {
     const fb = err as { code?: string; message?: string };
     const detail = typeof fb.message === 'string' && fb.message.trim() ? fb.message.trim() : null;
@@ -615,11 +653,14 @@ export async function cancelBooking(functions: Functions, bookingId: string): Pr
   }
 }
 
-/** Aviso depois do cancelamento: com estorno, diz o valor e quando ele chega. */
-export function canceledBookingNotice(refundedReais: number): string {
-  if (refundedReais <= 0) return 'Reserva cancelada.';
-  const value = refundedReais.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  return `Reserva cancelada. Estorno de ${value} a caminho: no Pix cai em instantes; no cartão, aparece na fatura.`;
+/** Aviso depois do cancelamento: o estorno (valor e quando chega) ou o crédito na arena. */
+export function canceledBookingNotice(outcome: CancelBookingOutcome): string {
+  const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  if (outcome.creditedReais > 0) {
+    return `Reserva cancelada. ${brl(outcome.creditedReais)} viraram crédito para a sua próxima reserva nesta arena.`;
+  }
+  if (outcome.refundedReais <= 0) return 'Reserva cancelada.';
+  return `Reserva cancelada. Estorno de ${brl(outcome.refundedReais)} a caminho: no Pix cai em instantes; no cartão, aparece na fatura.`;
 }
 
 function toDateOrNull(v: unknown): Date | null {
@@ -692,6 +733,7 @@ export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): Arena
     participants: bookingParticipantsOf(data['participants']),
     participantUids: participantUidsOf(data),
     recurringBookingId: optionalStr(data['recurringBookingId']),
+    cancelPolicy: athleteCancelPolicyFrom(data['cancelPolicy']),
     createdAt: toDateOrNull(data['createdAt']),
     couponCode: optionalStr(data['couponCode']),
     couponDiscountReais: Number(data['couponDiscountReais']) || 0,

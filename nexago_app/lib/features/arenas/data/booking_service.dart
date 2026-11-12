@@ -250,7 +250,8 @@ class BookingService {
       lineItems: lines,
       couponApplied: map['couponApplied'] == true,
       couponId: map['couponId'] as String?,
-      couponDiscountReais: (map['couponDiscountReais'] as num?)?.toDouble() ?? 0,
+      couponDiscountReais:
+          (map['couponDiscountReais'] as num?)?.toDouble() ?? 0,
       professorDiscountPercent:
           (map['professorDiscountPercent'] as num?)?.round() ?? 0,
       professorDiscountReais:
@@ -461,8 +462,7 @@ class BookingService {
         amountDueOnsiteReais:
             (data['amountDueOnsiteReais'] as num?)?.toDouble() ?? 0,
         paymentMode: 'pix',
-        paymentFraction:
-            (data['paymentFraction'] as num?)?.toDouble() ?? 1.0,
+        paymentFraction: (data['paymentFraction'] as num?)?.toDouble() ?? 1.0,
         paymentExpiresAt: PendingPixBookingMatch.paymentExpiresAtIso(data),
         weatherCreditAppliedReais: _nonNegative(data['weatherCreditReais']),
       );
@@ -552,14 +552,15 @@ class BookingService {
   }
 
   /// Cancela a reserva do próprio atleta pelo servidor (`cancelMyArenaBooking`):
-  /// dentro do prazo grátis, o que foi pago pelo app (Pix ou cartão) é estornado
-  /// pelo mesmo meio. Devolve o valor estornado (0 quando nada foi pago pelo app).
+  /// dentro do prazo, vale a política da arena copiada na reserva — estorno
+  /// integral ou parcial pelo mesmo meio (Pix ou cartão), ou crédito na arena.
+  /// Devolve quanto foi estornado e quanto virou crédito.
   /// Reserva aguardando pagamento só perde a cobrança aberta (nada a estornar).
   /// A escrita direta antiga só marcava `canceled` e o dinheiro ficava retido.
   ///
   /// [lateCancel]: fora do prazo grátis cancela mesmo assim, sem estorno
   /// ("Cancelar mesmo" do modo professor).
-  Future<double> cancelBooking({
+  Future<BookingCancelOutcome> cancelBooking({
     required String bookingId,
     required String athleteId,
     bool lateCancel = false,
@@ -574,12 +575,10 @@ class BookingService {
       final result = await _functions
           .httpsCallable('cancelMyArenaBooking')
           .call(<String, dynamic>{
-            'bookingId': id,
-            if (lateCancel) 'lateCancel': true,
-          });
-      final data = result.data;
-      final refunded = data is Map ? data['refundedReais'] : null;
-      return refunded is num ? refunded.toDouble() : 0;
+        'bookingId': id,
+        if (lateCancel) 'lateCancel': true,
+      });
+      return BookingCancelOutcome.fromCallable(result.data);
     } on FirebaseFunctionsException catch (e) {
       throw BookingException(
         e.message ?? 'Não foi possível cancelar a reserva.',
@@ -790,7 +789,8 @@ class BookingService {
         throw BookingException('Reserva cancelada não permite check-in.');
       }
       final attendanceStatus =
-          (data['attendanceStatus'] as String?)?.trim().toLowerCase() ?? 'pending';
+          (data['attendanceStatus'] as String?)?.trim().toLowerCase() ??
+              'pending';
       if (attendanceStatus == 'checked_in') {
         throw BookingException('Check-in já realizado.');
       }
@@ -809,7 +809,8 @@ class BookingService {
           final startParts = startRaw.split(':');
           final endParts = endRaw.split(':');
           final sh = int.tryParse(startParts[0]) ?? 0;
-          final sm = startParts.length > 1 ? (int.tryParse(startParts[1]) ?? 0) : 0;
+          final sm =
+              startParts.length > 1 ? (int.tryParse(startParts[1]) ?? 0) : 0;
           final eh = int.tryParse(endParts[0]) ?? 0;
           final em = endParts.length > 1 ? (int.tryParse(endParts[1]) ?? 0) : 0;
           startAt = DateTime(date.year, date.month, date.day, sh, sm);
@@ -820,14 +821,16 @@ class BookingService {
         final startParts = startRaw.split(':');
         final endParts = endRaw.split(':');
         final sh = int.tryParse(startParts[0]) ?? 0;
-        final sm = startParts.length > 1 ? (int.tryParse(startParts[1]) ?? 0) : 0;
+        final sm =
+            startParts.length > 1 ? (int.tryParse(startParts[1]) ?? 0) : 0;
         final eh = int.tryParse(endParts[0]) ?? 0;
         final em = endParts.length > 1 ? (int.tryParse(endParts[1]) ?? 0) : 0;
         startAt = DateTime(date.year, date.month, date.day, sh, sm);
         endAt = DateTime(date.year, date.month, date.day, eh, em);
       }
       if (startAt == null || endAt == null) {
-        throw BookingException('Não foi possível validar a janela do check-in.');
+        throw BookingException(
+            'Não foi possível validar a janela do check-in.');
       }
       if (!endAt.isAfter(startAt)) {
         endAt = endAt.add(const Duration(days: 1));
@@ -861,10 +864,15 @@ class BookingService {
     try {
       final result = await _functions
           .httpsCallable('checkInArenaBookingByCourtQr')
-          .call(<String, dynamic>{'bookingId': bookingId.trim(), 'qr': qr.trim()});
+          .call(<String, dynamic>{
+        'bookingId': bookingId.trim(),
+        'qr': qr.trim()
+      });
       final data = result.data;
       final court = data is Map ? data['courtName'] : null;
-      return court is String && court.trim().isNotEmpty ? court.trim() : 'Quadra';
+      return court is String && court.trim().isNotEmpty
+          ? court.trim()
+          : 'Quadra';
     } on FirebaseFunctionsException catch (e) {
       final details = e.details;
       final reason = details is Map ? details['reason'] : null;
@@ -975,8 +983,7 @@ class CreateBookingResult {
   final int scheduleFlexMinutes;
 
   /// O banco de horas cobriu tudo: confirmada no local, nada a pagar.
-  bool get isCoveredByMemberHours =>
-      memberHoursMinutes > 0 && amountReais <= 0;
+  bool get isCoveredByMemberHours => memberHoursMinutes > 0 && amountReais <= 0;
 
   /// O plano de horário livre cobriu tudo: confirmada, nada a pagar.
   bool get isCoveredBySchedulePlan =>
@@ -1000,4 +1007,25 @@ class BookingException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// Resultado do `cancelMyArenaBooking`: o que voltou em dinheiro e o que
+/// virou crédito na arena (os dois 0 quando nada foi pago pelo app).
+class BookingCancelOutcome {
+  const BookingCancelOutcome({this.refundedReais = 0, this.creditedReais = 0});
+
+  factory BookingCancelOutcome.fromCallable(Object? data) {
+    double read(String key) {
+      final v = data is Map ? data[key] : null;
+      return v is num ? v.toDouble() : 0;
+    }
+
+    return BookingCancelOutcome(
+      refundedReais: read('refundedReais'),
+      creditedReais: read('creditedReais'),
+    );
+  }
+
+  final double refundedReais;
+  final double creditedReais;
 }

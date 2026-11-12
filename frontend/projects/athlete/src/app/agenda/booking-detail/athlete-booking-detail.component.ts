@@ -5,7 +5,7 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { fetchArenaById, arenaListItemImageUrl, courtSportLabel, type ArenaListItem } from '@nexago/arena-discovery';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
-import { cancelBooking, canceledBookingNotice, fetchArenaBooking, watchArenaBooking, type ArenaBookingDoc } from '../../data/arena-bookings-repository';
+import { cancelBooking, canceledBookingNotice, cancelPolicyOutcomeText, fetchArenaBooking, watchArenaBooking, type ArenaBookingDoc } from '../../data/arena-bookings-repository';
 import { formatMemberHours } from '../../reservar/member-hours';
 import { REVIEW_ALREADY_SENT_MESSAGE } from '../../data/arena-reviews-repository';
 import { BOOKING_MAX_PLAYERS, type BookingInvite } from '../../data/booking-invite-model';
@@ -211,6 +211,12 @@ export class AthleteBookingDetailComponent {
     return !this.isOwner() && uid != null && (this.booking()?.participantUids.includes(uid) ?? false);
   });
 
+  /** O que volta se cancelar agora, pela política copiada na reserva. */
+  protected readonly cancelOutcomeText = computed(() => {
+    const b = this.booking();
+    return b ? cancelPolicyOutcomeText(b.cancelPolicy, b.arenaName) : '';
+  });
+
   protected readonly canCancel = computed(
     () => this.isOwner() && this.lifecycle() === 'future' && !this.isRecurring(),
   );
@@ -400,7 +406,7 @@ export class AthleteBookingDetailComponent {
     if (b.paymentChannel === 'pix') return 'Via PIX';
     if (b.paymentChannel === 'card') return 'Cartão de crédito';
     if (b.paymentChannel === 'onsite') return 'No local';
-    if (b.paymentChannel === 'weather_credit') return 'Crédito de chuva';
+    if (b.paymentChannel === 'weather_credit') return 'Crédito na arena';
     return 'A confirmar';
   });
 
@@ -633,10 +639,10 @@ export class AthleteBookingDetailComponent {
     if (!uid || !b || this.canceling()) return;
     this.canceling.set(true);
     try {
-      const refunded = await cancelBooking(athleteFunctions(), b.id);
+      const outcome = await cancelBooking(athleteFunctions(), b.id);
       this.booking.set({ ...b, status: 'canceled' });
       this.confirmingCancel.set(false);
-      this.showNotice(canceledBookingNotice(refunded));
+      this.showNotice(canceledBookingNotice(outcome));
       void this.router.navigate(['/agenda']);
     } catch (err) {
       this.showNotice(err instanceof Error ? err.message : 'Não foi possível cancelar a reserva.');

@@ -31,7 +31,7 @@ class WeatherCreditsPage extends ConsumerWidget {
           tooltip: 'Voltar',
           onPressed: () => popOrGo(context, AppRoutes.athleteSettings),
         ),
-        title: const Text('Créditos de chuva'),
+        title: const Text('Créditos na arena'),
       ),
       body: NexaAsyncView<List<WeatherCredit>>(
         value: creditsAsync,
@@ -45,7 +45,8 @@ class WeatherCreditsPage extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
             children: [
               Text(
-                'Quando a arena libera um horário por chuva, o valor pago vira '
+                'Quando a arena libera um horário por chuva, ou quando você '
+                'cancela numa arena que devolve em crédito, o valor pago vira '
                 'crédito para reservar de novo nela.',
                 style: TextStyle(
                     fontSize: 13, height: 1.45, color: colors.onSurfaceMuted),
@@ -78,7 +79,7 @@ class _EmptyCredits extends StatelessWidget {
             WeatherRainIcon(size: 40, color: WeatherTone.rainText(context)),
             const SizedBox(height: 12),
             Text(
-              'Nenhum crédito de chuva',
+              'Nenhum crédito na arena',
               style: AppTypography.soraRegular(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -87,7 +88,8 @@ class _EmptyCredits extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Quando uma arena liberar seu horário por chuva, o crédito aparece aqui.',
+              'Quando uma arena liberar seu horário por chuva ou devolver um '
+              'cancelamento em crédito, ele aparece aqui.',
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 13, height: 1.45, color: colors.onSurfaceMuted),
@@ -256,6 +258,6 @@ class _CreditRow extends StatelessWidget {
       if (c.originStartTime != null) c.originStartTime!,
       if (c.originCourtName != null) c.originCourtName!,
     ];
-    return parts.isEmpty ? 'Reserva liberada por chuva' : parts.join(' · ');
+    return parts.isEmpty ? 'Reserva de origem' : parts.join(' · ');
   }
 }

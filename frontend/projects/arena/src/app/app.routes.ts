@@ -90,6 +90,15 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/agenda/cancelamento',
+    title: 'Política de cancelamento — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/cancel-policy/panel-cancel-policy.component').then(
+        (m) => m.PanelCancelPolicyComponent,
+      ),
+  },
+  {
     path: 'painel/reservas',
     title: 'Reservas — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],

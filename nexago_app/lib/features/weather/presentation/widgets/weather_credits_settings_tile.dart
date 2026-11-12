@@ -26,7 +26,7 @@ class WeatherCreditsSettingsTile extends ConsumerWidget {
     return AthleteSettingsTile(
       key: const Key('athlete-settings-weather-credits'),
       icon: Icons.umbrella_outlined,
-      title: 'Créditos de chuva',
+      title: 'Créditos na arena',
       subtitle: cents > 0
           ? '${WeatherCopy.money(cents / 100)} para usar nas arenas'
           : 'Usados ou vencidos',

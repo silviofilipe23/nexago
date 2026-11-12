@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../arenas/domain/athlete_cancel_policy.dart';
 import '../../../domain/booking_attendance_providers.dart';
 import 'booking_details_section_card.dart';
 import 'booking_details_view_model.dart';
@@ -54,9 +55,16 @@ class BookingDetailsAttendanceCard extends StatelessWidget {
 }
 
 class BookingDetailsCancellationCard extends StatelessWidget {
-  const BookingDetailsCancellationCard({super.key, required this.arenaName});
+  const BookingDetailsCancellationCard({
+    super.key,
+    required this.arenaName,
+    this.policy = AthleteCancelPolicy.full,
+  });
 
   final String arenaName;
+
+  /// Política copiada na reserva: o que volta se o atleta cancelar no prazo.
+  final AthleteCancelPolicy policy;
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +93,7 @@ class BookingDetailsCancellationCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  bookingDetailsCancellationTitle(),
+                  bookingDetailsCancellationTitle(policy),
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                     color: context.themeColors.onSurface,
@@ -93,7 +101,7 @@ class BookingDetailsCancellationCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  bookingDetailsCancellationSubtitle(arenaName),
+                  bookingDetailsCancellationSubtitle(arenaName, policy),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: context.themeColors.onSurfaceMuted,
                     height: 1.35,

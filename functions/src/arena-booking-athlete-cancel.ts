@@ -1,5 +1,5 @@
 /**
- * Cancelamento da reserva pelo próprio atleta, COM estorno.
+ * Cancelamento da reserva pelo próprio atleta, com o que a arena escolheu devolver.
  *
  * Antes, o app e o portal só gravavam `status: canceled` no doc: o Pix ou o cartão
  * ficavam com a plataforma e o atleta dependia da arena estornar à mão no Asaas.
@@ -7,32 +7,44 @@
  *
  * 1. Mesma regra do app (`ArenaBookingCancellationPolicy`): só o titular, só reserva
  *    avulsa (horário fixo é com a arena), sem escolha de chuva pendente e até
- *    [ATHLETE_FREE_CANCEL_HOURS]h antes do início — dentro do prazo grátis o
- *    estorno é integral. Depois do prazo o cancelamento é combinado com a arena;
- *    só o "Cancelar mesmo" do modo professor (`lateCancel`) cancela até o início,
- *    sem estorno — o mesmo que esse caminho sempre fez.
- * 2. Estorna no Asaas cada pagamento recebido: a cobrança da reserva (Pix ou cartão)
- *    e, na reserva dividida, cada parte paga (volta para quem pagou). Falhou um →
- *    a reserva NÃO é cancelada e o atleta tenta de novo; os já estornados ficam
- *    marcados em `athleteCancelRefunds` e não são estornados duas vezes.
+ *    [ATHLETE_FREE_CANCEL_HOURS]h antes do início. Depois do prazo o cancelamento é
+ *    combinado com a arena; só o "Cancelar mesmo" do modo professor (`lateCancel`)
+ *    cancela até o início, sem devolver nada — o mesmo que esse caminho sempre fez.
+ * 2. Dentro do prazo vale a política da arena copiada na reserva (`cancelPolicy`,
+ *    ver `arena-athlete-cancel-policy.ts`; sem cópia = estorno integral):
+ *    - estorno integral ou parcial no Asaas de cada pagamento recebido — a cobrança
+ *      da reserva (Pix ou cartão) e, na reserva dividida, cada parte paga (volta para
+ *      quem pagou). Falhou um → a reserva NÃO é cancelada e o atleta tenta de novo;
+ *      os já estornados ficam em `athleteCancelRefunds` e não se repetem;
+ *    - crédito na arena: o valor pago vira saldo em `arenaWeatherCredits` (o mesmo dos
+ *      créditos de chuva), criado na MESMA transação que cancela a reserva.
  * 3. Marca a reserva cancelada (`canceledByRole: athlete`); o trigger de slot libera
  *    o horário como em qualquer cancelamento.
- * 4. Tira da carteira da arena o líquido que ela recebeu por esta reserva (a
- *    plataforma absorve a própria taxa, como no clubinho) e, no cartão ainda não
- *    liquidado, o valor do "a liberar".
+ * 4. Estorno: tira da carteira da arena a mesma fração do líquido que ela recebeu (a
+ *    plataforma absorve a própria taxa, como no clubinho). Crédito: a carteira não
+ *    mexe — o dinheiro fica na arena, como nos créditos de chuva.
  *
- * O cashback usado volta pelo webhook `PAYMENT_REFUNDED`, que também desconta o
- * "pago pelo app" da reserva — nada disso é refeito aqui.
+ * No estorno integral, o cashback usado volta pelo webhook `PAYMENT_REFUNDED`. No
+ * parcial, o Asaas devolve a fração sobre o valor TODO (cashback incluso), limitada
+ * ao que saiu do bolso; o saldo de cashback usado fica com a reserva.
  */
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {
   FieldValue,
   getFirestore,
   type DocumentData,
+  type DocumentReference,
   type Firestore,
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
-import {arenaWalletRef, releaseArenaAwaitingSettlement} from "./arena-wallet";
+import {arenaWalletRef, heldArenaAwaitingSettlement, releaseArenaAwaitingSettlement} from "./arena-wallet";
+import {
+  DEFAULT_ATHLETE_CANCEL_POLICY,
+  normalizeAthleteCancelPolicy,
+  type AthleteCancelPolicy,
+} from "./arena-athlete-cancel-policy";
+import {ARENA_WEATHER_CREDITS, weatherCreditDoc} from "./arena-weather-credits";
+import {normalizeWeatherPolicy, weatherCreditExpiresAtMs} from "./arena-weather-model";
 import {arenaBookingStartAt} from "./arena-booking-start-at";
 import {refundAsaasPayment} from "./asaas-booking-payment";
 import {asaasArenaSecrets} from "./asaas-client";
@@ -61,15 +73,42 @@ const NOT_CANCELLABLE_STATUSES = new Set([
 export type AthleteCancelRefund = {
   paymentId: string;
   amountReais: number;
+  /** Estorno parcial: vai `value` ao Asaas. Integral: sem `value` (tudo, cashback junto). */
+  partial: boolean;
   /** `booking`: cobrança da reserva inteira; `share`: parte paga de uma divisão. */
   kind: "booking" | "share";
   shareId?: string;
 };
 
+export type AthleteCancelCredit = {
+  /** `wx_<reserva>` (titular) ou `wx_<reserva>_<parte>` (quem pagou a parte). */
+  creditId: string;
+  athleteId: string;
+  amountReais: number;
+};
+
 export type AthleteCancelPlan =
   | {kind: "reject"; code: "permission-denied" | "failed-precondition"; message: string}
   | {kind: "pending_payment"}
-  | {kind: "cancel"; refunds: AthleteCancelRefund[]; late?: true};
+  | {
+    kind: "cancel";
+    policy: AthleteCancelPolicy;
+    refunds: AthleteCancelRefund[];
+    credits: AthleteCancelCredit[];
+    late?: true;
+  };
+
+/** Um pagamento recebido pela reserva. */
+type PaidItem = {
+  paymentId: string;
+  kind: "booking" | "share";
+  shareId?: string;
+  payerUid: string;
+  /** O que saiu do bolso pelo Asaas. */
+  cashReais: number;
+  /** O que conta como pago (com cashback e desconto de embaixador). */
+  valueReais: number;
+};
 
 function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
@@ -100,6 +139,7 @@ function refundedBefore(booking: DocumentData): Set<string> {
  * `shares` são os docs de `paymentShares` (com `id`), vazios fora da divisão.
  */
 export function planAthleteBookingCancel(input: {
+  bookingId: string;
   booking: DocumentData;
   shares: Array<DocumentData & {id: string}>;
   callerUid: string;
@@ -145,7 +185,9 @@ export function planAthleteBookingCancel(input: {
     return {kind: "reject", code: "failed-precondition", message: "Esta reserva já começou."};
   }
   if (nowMs >= startMs - ATHLETE_FREE_CANCEL_HOURS * 60 * 60 * 1000) {
-    if (input.lateCancel === true) return {kind: "cancel", refunds: [], late: true};
+    if (input.lateCancel === true) {
+      return {kind: "cancel", policy: DEFAULT_ATHLETE_CANCEL_POLICY, refunds: [], credits: [], late: true};
+    }
     return {
       kind: "reject",
       code: "failed-precondition",
@@ -154,32 +196,15 @@ export function planAthleteBookingCancel(input: {
     };
   }
 
-  const done = refundedBefore(booking);
-  const refunds: AthleteCancelRefund[] = [];
-  const split = booking["hasSplitShares"] === true;
-  const paymentStatus = str(booking["paymentStatus"]).toLowerCase();
-  const reversals = (booking["appPaymentReversals"] ?? {}) as Record<string, unknown>;
-
-  // Cobrança da reserva inteira. Dividida, ela foi substituída pelas partes.
-  const mainId = str(booking["asaasPaymentId"]);
-  if (!split && mainId && (paymentStatus === "paid" || paymentStatus === "partial") &&
-      reversals[mainId] == null && !done.has(mainId)) {
-    // O que saiu do bolso (`asaasPaidAmount`); o cashback usado volta como saldo, pelo webhook.
-    const cash = booking["asaasPaidAmount"] != null ?
-      num(booking["asaasPaidAmount"]) :
-      num(booking["amountPaidOnlineReais"]) - num(booking["cashbackAppliedReais"]) - num(booking["squadDiscountReais"]);
-    refunds.push({paymentId: mainId, amountReais: roundMoney(Math.max(0, cash)), kind: "booking"});
-  }
-  for (const share of shares) {
-    const paymentId = str(share["asaasPaymentId"]);
-    if (share["status"] !== "paid" || !paymentId || reversals[paymentId] != null || done.has(paymentId)) continue;
-    refunds.push({paymentId, amountReais: roundMoney(num(share["asaasPaidAmount"])), kind: "share", shareId: share.id});
-  }
+  const policy = booking["cancelPolicy"] == null ?
+    DEFAULT_ATHLETE_CANCEL_POLICY :
+    normalizeAthleteCancelPolicy(booking["cancelPolicy"]);
+  const items = paidItems(booking, shares);
 
   // Pago online por um caminho que não sabemos estornar (Mercado Pago legado):
   // cancelar sem devolver repetiria o problema — a arena resolve.
-  if (refunds.length === 0 && done.size === 0 && num(booking["amountPaidOnlineReais"]) > 0 &&
-      !mainId && str(booking["mercadopagoPaymentId"])) {
+  if (items.length === 0 && num(booking["amountPaidOnlineReais"]) > 0 &&
+      !str(booking["asaasPaymentId"]) && str(booking["mercadopagoPaymentId"])) {
     return {
       kind: "reject",
       code: "failed-precondition",
@@ -187,24 +212,95 @@ export function planAthleteBookingCancel(input: {
     };
   }
 
-  return {kind: "cancel", refunds};
+  if (policy.mode === "credit") {
+    const bookingId = input.bookingId;
+    const credits = items
+      .filter((i) => i.valueReais > 0 && i.payerUid)
+      .map((i) => ({
+        creditId: i.kind === "share" ? `wx_${bookingId}_${i.shareId}` : `wx_${bookingId}`,
+        athleteId: i.payerUid,
+        amountReais: roundMoney(i.valueReais),
+      }));
+    return {kind: "cancel", policy, refunds: [], credits};
+  }
+
+  const done = refundedBefore(booking);
+  const reversals = (booking["appPaymentReversals"] ?? {}) as Record<string, unknown>;
+  const partial = policy.refundPercent < 100;
+  const refunds: AthleteCancelRefund[] = [];
+  for (const i of items) {
+    if (reversals[i.paymentId] != null || done.has(i.paymentId)) continue;
+    const amount = partial ?
+      Math.min(i.cashReais, roundMoney(i.valueReais * policy.refundPercent / 100)) :
+      i.cashReais;
+    if (amount <= 0) continue;
+    refunds.push({
+      paymentId: i.paymentId,
+      amountReais: roundMoney(amount),
+      partial,
+      kind: i.kind,
+      ...(i.shareId ? {shareId: i.shareId} : {}),
+    });
+  }
+  return {kind: "cancel", policy, refunds, credits: []};
+}
+
+/** Pagamentos recebidos: a cobrança da reserva inteira ou, dividida, as partes pagas. */
+function paidItems(booking: DocumentData, shares: Array<DocumentData & {id: string}>): PaidItem[] {
+  const items: PaidItem[] = [];
+  const paymentStatus = str(booking["paymentStatus"]).toLowerCase();
+  // Dividida, a cobrança da reserva inteira foi substituída pelas partes.
+  const mainId = str(booking["asaasPaymentId"]);
+  if (booking["hasSplitShares"] !== true && mainId && (paymentStatus === "paid" || paymentStatus === "partial")) {
+    const value = num(booking["amountPaidOnlineReais"]);
+    const cash = booking["asaasPaidAmount"] != null ?
+      num(booking["asaasPaidAmount"]) :
+      value - num(booking["cashbackAppliedReais"]) - num(booking["squadDiscountReais"]);
+    items.push({
+      paymentId: mainId,
+      kind: "booking",
+      payerUid: str(booking["athleteId"]),
+      cashReais: roundMoney(Math.max(0, cash)),
+      valueReais: roundMoney(Math.max(0, value)),
+    });
+  }
+  for (const share of shares) {
+    const paymentId = str(share["asaasPaymentId"]);
+    if (share["status"] !== "paid" || !paymentId) continue;
+    const paid = roundMoney(Math.max(0, num(share["asaasPaidAmount"])));
+    items.push({
+      paymentId,
+      kind: "share",
+      shareId: share.id,
+      payerUid: str(share["payerAthleteId"]),
+      cashReais: paid,
+      valueReais: paid,
+    });
+  }
+  return items;
 }
 
 export interface AthleteCancelDeps {
-  refund: (paymentId: string) => Promise<void>;
+  /** `valueReais` só no estorno parcial; sem ele o Asaas devolve tudo. */
+  refund: (paymentId: string, valueReais?: number) => Promise<void>;
   nowMs: () => number;
 }
 
 const defaultDeps: AthleteCancelDeps = {
-  refund: (paymentId) => refundAsaasPayment(paymentId),
+  refund: (paymentId, valueReais) => refundAsaasPayment(paymentId, valueReais),
   nowMs: () => Date.now(),
 };
 
 export type CancelMyArenaBookingResult = {
   bookingId: string;
   status: "cancelled" | "canceled";
-  /** Total devolvido nesta reserva (0 quando nada foi pago pelo app). */
+  /** Total devolvido em dinheiro (0 quando nada foi pago pelo app ou a arena dá crédito). */
   refundedReais: number;
+  /** Total que virou crédito do atleta na arena. */
+  creditedReais: number;
+  /** O que a política da reserva mandou fazer. */
+  mode: "refund" | "credit";
+  refundPercent: number;
 };
 
 /** Doc de controle do pagamento no webhook do Asaas (marca do "a liberar" do cartão). */
@@ -222,7 +318,14 @@ export async function debitArenaWalletForAthleteCancel(
   db: Firestore,
   arenaId: string,
   bookingId: string,
+  opts: {
+    /** Fração do líquido que sai (1 no estorno integral; 0,5 no estorno de 50%). */
+    fraction?: number;
+    /** Líquido ainda no "a liberar" (cartão não liquidado) que entra depois e também conta. */
+    awaitingNetReais?: number;
+  } = {},
 ): Promise<number> {
+  const fraction = Math.min(1, Math.max(0, opts.fraction ?? 1));
   const walletRef = arenaWalletRef(db, arenaId);
   const ledger = walletRef.collection("ledger");
   const debitRef = ledger.doc(`athleteCancel_${bookingId}`);
@@ -236,7 +339,7 @@ export async function debitArenaWalletForAthleteCancel(
       // Só o crédito da própria reserva (sem `source`): clubinho, aula e repasses têm o seu.
       if (entry["type"] === "credit" && entry["source"] == null) netReais += num(entry["netReais"]);
     }
-    netReais = roundMoney(netReais);
+    netReais = roundMoney((netReais + Math.max(0, opts.awaitingNetReais ?? 0)) * fraction);
     if (netReais <= 0) return 0;
 
     const walletSnap = await tx.get(walletRef);
@@ -250,6 +353,7 @@ export async function debitArenaWalletForAthleteCancel(
       type: "refund",
       source: "booking_athlete_cancel",
       bookingId,
+      ...(fraction < 1 ? {fraction} : {}),
       grossReais: roundMoney(-netReais),
       platformFeeReais: 0,
       netReais: roundMoney(-netReais),
@@ -274,6 +378,7 @@ export async function cancelMyArenaBookingCore(
   if (!bookingSnap.exists) throw new HttpsError("not-found", "Reserva não encontrada.");
   const booking = bookingSnap.data()!;
   const plan = planAthleteBookingCancel({
+    bookingId,
     booking,
     shares: sharesSnap.docs.map((d) => ({...d.data(), id: d.id})),
     callerUid,
@@ -284,13 +389,23 @@ export async function cancelMyArenaBookingCore(
   if (plan.kind === "reject") throw new HttpsError(plan.code, plan.message);
   if (plan.kind === "pending_payment") {
     const res = await cancelPendingArenaBookingPaymentCore(db, callerUid, bookingId);
-    return {...res, refundedReais: 0};
+    return {...res, refundedReais: 0, creditedReais: 0, mode: "refund", refundPercent: 100};
+  }
+  const {policy} = plan;
+  const result = (refundedReais: number, creditedReais: number): CancelMyArenaBookingResult => ({
+    bookingId, status: "canceled", refundedReais, creditedReais, mode: policy.mode, refundPercent: policy.refundPercent,
+  });
+
+  if (policy.mode === "credit" && !plan.late) {
+    const creditedReais = await cancelWithArenaCredit(db, bookingRef, booking, plan.credits, deps.nowMs());
+    logger.info("cancelMyArenaBooking: reserva cancelada, valor virou crédito na arena", {bookingId, creditedReais});
+    return result(0, creditedReais);
   }
 
   // 1. Estornos. Cada sucesso fica gravado: o retry depois de uma falha não repete.
   for (const r of plan.refunds) {
     try {
-      await deps.refund(r.paymentId);
+      await deps.refund(r.paymentId, r.partial ? r.amountReais : undefined);
     } catch (e) {
       logger.error("cancelMyArenaBooking: estorno falhou", {bookingId, paymentId: r.paymentId, error: String(e)});
       await bookingRef.set({
@@ -307,6 +422,7 @@ export async function cancelMyArenaBookingCore(
           status: "done",
           kind: r.kind,
           amountReais: r.amountReais,
+          ...(r.partial ? {partial: true} : {}),
           ...(r.shareId ? {shareId: r.shareId} : {}),
           refundedAt: FieldValue.serverTimestamp(),
         },
@@ -318,15 +434,10 @@ export async function cancelMyArenaBookingCore(
   const doneMap = await db.runTransaction(async (tx) => {
     const current = (await tx.get(bookingRef)).data() ?? {};
     const refunds = (current["athleteCancelRefunds"] ?? {}) as Record<string, Record<string, unknown>>;
-    const status = str(current["status"]).toLowerCase();
-    if (!NOT_CANCELLABLE_STATUSES.has(status)) {
+    if (!NOT_CANCELLABLE_STATUSES.has(str(current["status"]).toLowerCase())) {
       tx.update(bookingRef, {
-        status: "canceled",
-        attendanceStatus: "canceled",
-        canceledAt: FieldValue.serverTimestamp(),
-        canceledByRole: "athlete",
+        ...canceledFields(plan.late ? null : policy),
         ...(plan.late ? {canceledLate: true} : {}),
-        updatedAt: FieldValue.serverTimestamp(),
       });
     }
     return refunds;
@@ -335,16 +446,25 @@ export async function cancelMyArenaBookingCore(
     .filter((e) => e?.["status"] === "done")
     .reduce((sum, e) => sum + num(e["amountReais"]), 0));
 
-  // 3. Carteira da arena. Falha aqui não desfaz o estorno do atleta: grita no log.
+  // 3. Carteira da arena: sai a mesma fração do líquido. Falha aqui não desfaz o
+  //    estorno do atleta: grita no log.
   const arenaId = str(booking["arenaId"]);
   if (refundedReais > 0 && arenaId) {
     try {
-      const debited = await debitArenaWalletForAthleteCancel(db, arenaId, bookingId);
       const mainId = str(booking["asaasPaymentId"]);
-      const released = mainId ?
-        await releaseArenaAwaitingSettlement(db, processedPaymentRef(db, mainId), "athlete_cancel") :
-        0;
-      logger.info("cancelMyArenaBooking: carteira da arena ajustada", {bookingId, arenaId, debited, released});
+      const fraction = policy.refundPercent / 100;
+      let released = 0;
+      let awaitingNetReais = 0;
+      if (mainId && fraction >= 1) {
+        // Integral: o cartão não vai liquidar — sai do "a liberar".
+        released = await releaseArenaAwaitingSettlement(db, processedPaymentRef(db, mainId), "athlete_cancel");
+      } else if (mainId) {
+        // Parcial: o cartão ainda liquida (menos o estorno) e credita o líquido cheio
+        // depois; a fração dele já sai agora junto com o resto.
+        awaitingNetReais = heldArenaAwaitingSettlement((await processedPaymentRef(db, mainId).get()).data())?.netReais ?? 0;
+      }
+      const debited = await debitArenaWalletForAthleteCancel(db, arenaId, bookingId, {fraction, awaitingNetReais});
+      logger.info("cancelMyArenaBooking: carteira da arena ajustada", {bookingId, arenaId, debited, released, fraction});
     } catch (e) {
       logger.error("cancelMyArenaBooking: ajuste da carteira da arena falhou — resolver à mão", {
         bookingId, arenaId, refundedReais, error: String(e),
@@ -352,11 +472,77 @@ export async function cancelMyArenaBookingCore(
     }
   }
 
-  logger.info("cancelMyArenaBooking: reserva cancelada pelo atleta", {bookingId, refundedReais});
-  return {bookingId, status: "canceled", refundedReais};
+  logger.info("cancelMyArenaBooking: reserva cancelada pelo atleta", {bookingId, refundedReais, policy});
+  return result(refundedReais, 0);
 }
 
-/** Atleta cancela a própria reserva; o que foi pago pelo app volta pelo mesmo meio. */
+/** Campos do cancelamento pelo atleta (com a política aplicada, quando houve). */
+function canceledFields(policy: AthleteCancelPolicy | null): DocumentData {
+  return {
+    status: "canceled",
+    attendanceStatus: "canceled",
+    canceledAt: FieldValue.serverTimestamp(),
+    canceledByRole: "athlete",
+    ...(policy ? {athleteCancelOutcome: {mode: policy.mode, refundPercent: policy.refundPercent}} : {}),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+/**
+ * Política "crédito na arena": cria os créditos (id fixo — repetir não credita em
+ * dobro) e cancela a reserva na MESMA transação. A carteira da arena não mexe: o
+ * dinheiro já está lá desde o pagamento. Devolve o total creditado.
+ */
+async function cancelWithArenaCredit(
+  db: Firestore,
+  bookingRef: DocumentReference,
+  booking: DocumentData,
+  credits: AthleteCancelCredit[],
+  nowMs: number,
+): Promise<number> {
+  const arenaId = str(booking["arenaId"]);
+  const arenaData = arenaId ? (await db.collection("arenas").doc(arenaId).get()).data() : undefined;
+  const expiresAtMs = weatherCreditExpiresAtMs(normalizeWeatherPolicy(arenaData?.["weatherPolicy"]), nowMs);
+  const names = new Map<string, string>();
+  for (const uid of new Set(credits.map((c) => c.athleteId))) {
+    const user = (await db.collection("users").doc(uid).get()).data();
+    names.set(uid, str(user?.["fullName"]) || str(user?.["displayName"]) || "Atleta");
+  }
+
+  return db.runTransaction(async (tx) => {
+    const current = (await tx.get(bookingRef)).data() ?? {};
+    const refs = credits.map((c) => db.collection(ARENA_WEATHER_CREDITS).doc(c.creditId));
+    const existing = await Promise.all(refs.map((r) => tx.get(r)));
+    if (NOT_CANCELLABLE_STATUSES.has(str(current["status"]).toLowerCase())) {
+      // Outra chamada cancelou primeiro: o que ela criou é o que vale.
+      return roundMoney(existing.reduce((sum, snap) => sum + num(snap.data()?.["amountReais"]), 0));
+    }
+    let total = 0;
+    credits.forEach((c, i) => {
+      total += c.amountReais;
+      if (existing[i].exists) return;
+      tx.set(refs[i], {
+        ...weatherCreditDoc({
+          originBookingId: bookingRef.id,
+          booking: {...current, athleteId: c.athleteId},
+          athleteName: names.get(c.athleteId) ?? "Atleta",
+          amountReais: c.amountReais,
+          balanceReais: c.amountReais,
+          source: "athlete_cancel",
+          expiresAtMs,
+          nowMs,
+        }),
+      });
+    });
+    tx.update(bookingRef, {
+      ...canceledFields({mode: "credit", refundPercent: 0}),
+      athleteCancelCreditIds: credits.map((c) => c.creditId),
+    });
+    return roundMoney(total);
+  });
+}
+
+/** Atleta cancela a própria reserva; volta o que a política da arena manda (estorno ou crédito). */
 export const cancelMyArenaBooking = onCall({
   region: CLIENT_FACING_REGIONS,
   secrets: [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL],

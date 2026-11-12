@@ -20,6 +20,9 @@ const db = getFirestore();
 
 const {cancelMyArenaBookingCore} = await import('../lib/arena-booking-athlete-cancel.js');
 const {arenaBookingStartAt} = await import('../lib/arena-booking-start-at.js');
+const {createArenaBooking, quoteArenaBooking} = await import('../lib/arena-booking-create.js');
+const {spNow} = await import('../lib/arena-peak-rules.js');
+const {addDaysToDateKey} = await import('../lib/arena-weather-model.js');
 
 const DATE = '2026-12-10';
 const START_MS = arenaBookingStartAt(DATE, '19:00').getTime();
@@ -37,9 +40,9 @@ function fakeAsaas({failOn = []} = {}) {
     refunded,
     deps: {
       nowMs: () => DAY_BEFORE,
-      refund: async (paymentId) => {
+      refund: async (paymentId, value) => {
         if (failOn.includes(paymentId)) throw new Error('ASAAS_DOWN');
-        refunded.push(paymentId);
+        refunded.push(value == null ? paymentId : `${paymentId}:${value}`);
       },
     },
   };
@@ -75,7 +78,9 @@ describe('cancelMyArenaBooking', () => {
 
     const res = await cancelMyArenaBookingCore(db, 'uA', 'b1', asaas.deps);
 
-    assert.deepEqual(res, {bookingId: 'b1', status: 'canceled', refundedReais: 70});
+    assert.deepEqual(res, {
+      bookingId: 'b1', status: 'canceled', refundedReais: 70, creditedReais: 0, mode: 'refund', refundPercent: 100,
+    });
     assert.deepEqual(asaas.refunded, ['pay_b1']);
     const booking = (await db.doc('arenaBookings/b1').get()).data();
     assert.equal(booking.status, 'canceled');
@@ -143,5 +148,113 @@ describe('cancelMyArenaBooking', () => {
     await assert.rejects(cancelMyArenaBookingCore(db, 'uA', 'b5', late), /6h antes/);
     assert.deepEqual(asaas.refunded, []);
     assert.equal((await db.doc('arenaBookings/b5').get()).data().status, 'confirmed');
+  });
+
+  test('estorno parcial (50%): metade volta e sai metade do líquido da arena', async () => {
+    await seedPaidBooking('b6', {cancelPolicy: {mode: 'refund', refundPercent: 50}});
+    await seedWallet(100, [{gross: 70, net: 64.4, extra: {bookingId: 'b6'}}]);
+    const asaas = fakeAsaas();
+
+    const res = await cancelMyArenaBookingCore(db, 'uA', 'b6', asaas.deps);
+
+    assert.deepEqual(asaas.refunded, ['pay_b6:35']);
+    assert.equal(res.refundedReais, 35);
+    assert.equal(res.refundPercent, 50);
+    const booking = (await db.doc('arenaBookings/b6').get()).data();
+    assert.equal(booking.status, 'canceled');
+    assert.deepEqual(booking.athleteCancelOutcome, {mode: 'refund', refundPercent: 50});
+    assert.equal((await db.doc('arenaWallets/a1').get()).data().availableReais, 67.8);
+  });
+
+  test('crédito na arena: nada no Asaas, carteira intacta, crédito usável na arena', async () => {
+    await seedPaidBooking('b7', {cancelPolicy: {mode: 'credit'}});
+    await db.doc('arenas/a1').set({name: 'Arena CFC', weatherPolicy: {creditValidityDays: 60}});
+    await db.doc('users/uA').set({fullName: 'Atleta A'});
+    await seedWallet(100, [{gross: 70, net: 64.4, extra: {bookingId: 'b7'}}]);
+    const asaas = fakeAsaas();
+
+    const res = await cancelMyArenaBookingCore(db, 'uA', 'b7', asaas.deps);
+
+    assert.deepEqual(asaas.refunded, []);
+    assert.equal(res.creditedReais, 70);
+    assert.equal(res.mode, 'credit');
+    const credit = (await db.doc('arenaWeatherCredits/wx_b7').get()).data();
+    assert.equal(credit.athleteId, 'uA');
+    assert.equal(credit.athleteName, 'Atleta A');
+    assert.equal(credit.arenaId, 'a1');
+    assert.equal(credit.balanceReais, 70);
+    assert.equal(credit.status, 'open');
+    assert.equal(credit.source, 'athlete_cancel');
+    const days = (credit.expiresAt.toMillis() - DAY_BEFORE) / 86_400_000;
+    assert.equal(days, 60);
+    const booking = (await db.doc('arenaBookings/b7').get()).data();
+    assert.equal(booking.status, 'canceled');
+    assert.deepEqual(booking.athleteCancelCreditIds, ['wx_b7']);
+    assert.equal((await db.doc('arenaWallets/a1').get()).data().availableReais, 100);
+
+    // Repetir não credita em dobro.
+    await assert.rejects(cancelMyArenaBookingCore(db, 'uA', 'b7', asaas.deps), /não pode mais ser cancelada/);
+    assert.equal((await db.collection('arenaWeatherCredits').get()).size, 1);
+  });
+
+  test('crédito com reserva dividida: cada pagador ganha a sua parte', async () => {
+    await seedPaidBooking('b8', {cancelPolicy: {mode: 'credit'}, hasSplitShares: true, paymentStatus: 'split_pending'});
+    await db.doc('arenaBookings/b8/paymentShares/s1').set({status: 'paid', asaasPaymentId: 'p1', asaasPaidAmount: 35, payerAthleteId: 'uA'});
+    await db.doc('arenaBookings/b8/paymentShares/s2').set({status: 'paid', asaasPaymentId: 'p2', asaasPaidAmount: 35, payerAthleteId: 'uB'});
+    const res = await cancelMyArenaBookingCore(db, 'uA', 'b8', fakeAsaas().deps);
+    assert.equal(res.creditedReais, 70);
+    assert.equal((await db.doc('arenaWeatherCredits/wx_b8_s2').get()).data().athleteId, 'uB');
+    assert.equal((await db.doc('arenaWeatherCredits/wx_b8_s1').get()).data().athleteId, 'uA');
+  });
+});
+
+describe('política da arena na reserva real', () => {
+  beforeEach(clearFirestore);
+
+  const LATER = addDaysToDateKey(spNow(new Date()).dateKey, 5);
+  const call = (fn, uid, data) => fn.run({auth: {uid, token: {}}, data, rawRequest: {headers: {}}, acceptsStreaming: false});
+  const input = (extra = {}) => ({
+    arenaId: 'a1', arenaName: 'Arena CFC', courtId: 'q1', courtName: 'Quadra 1', date: LATER,
+    startTime: '21:00', endTime: '22:00', paymentMode: 'onsite', ...extra,
+  });
+
+  async function seedArena(policy) {
+    await db.doc('arenas/a1').set({
+      name: 'Arena CFC', managerUserId: 'uOwner', planTier: 'pro', planStatus: 'active',
+      onlinePaymentEnabled: true, onsitePaymentEnabled: true, paymentReceiver: 'manager',
+      ...(policy ? {athleteCancelPolicy: policy} : {}),
+    });
+    await db.doc('arenas/a1/courts/q1').set({name: 'Quadra 1', basePricePerHourReais: 70});
+    await db.doc('users/uA').set({fullName: 'Atleta A'});
+  }
+
+  test('a reserva nasce com a política da arena; mudar depois não mexe nela', async () => {
+    await seedArena({mode: 'refund', refundPercent: 50});
+    const res = await call(createArenaBooking, 'uA', input());
+    assert.deepEqual((await db.doc(`arenaBookings/${res.bookingId}`).get()).data().cancelPolicy,
+      {mode: 'refund', refundPercent: 50});
+
+    await db.doc('arenas/a1').update({athleteCancelPolicy: {mode: 'credit'}});
+    assert.deepEqual((await db.doc(`arenaBookings/${res.bookingId}`).get()).data().cancelPolicy,
+      {mode: 'refund', refundPercent: 50});
+    const next = await call(createArenaBooking, 'uA', input({startTime: '19:00', endTime: '20:00'}));
+    assert.deepEqual((await db.doc(`arenaBookings/${next.bookingId}`).get()).data().cancelPolicy,
+      {mode: 'credit', refundPercent: 0});
+  });
+
+  test('arena sem política: integral', async () => {
+    await seedArena(null);
+    const res = await call(createArenaBooking, 'uA', input());
+    assert.deepEqual((await db.doc(`arenaBookings/${res.bookingId}`).get()).data().cancelPolicy,
+      {mode: 'refund', refundPercent: 100});
+  });
+
+  test('crédito do cancelamento aparece na cotação da próxima reserva', async () => {
+    await seedArena({mode: 'credit'});
+    // Data relativa a hoje: a cotação usa o relógio de verdade para a validade do crédito.
+    await seedPaidBooking('b9', {date: LATER, cancelPolicy: {mode: 'credit'}});
+    await cancelMyArenaBookingCore(db, 'uA', 'b9', {...fakeAsaas().deps, nowMs: () => Date.now()});
+    const quote = await call(quoteArenaBooking, 'uA', input({useWeatherCredit: true}));
+    assert.equal(quote.weatherCreditAvailableReais, 70);
   });
 });

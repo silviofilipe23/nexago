@@ -76,7 +76,7 @@ void main() {
     await tester.pumpWidget(app(const [], const WeatherCreditsSettingsTile()));
     await tester.pump();
     await tester.pump();
-    expect(find.text('Créditos de chuva'), findsNothing);
+    expect(find.text('Créditos na arena'), findsNothing);
   });
 
   testWidgets('tile dos ajustes: com crédito, mostra o saldo', (tester) async {
@@ -86,7 +86,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    expect(find.text('Créditos de chuva'), findsOneWidget);
+    expect(find.text('Créditos na arena'), findsOneWidget);
     expect(
         find.text('${formatBRL(45.5)} para usar nas arenas'), findsOneWidget);
   });

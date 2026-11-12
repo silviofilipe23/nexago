@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../../../../core/formatting/app_currency_format.dart';
 
 import '../../../../arenas/domain/arena_booking_cancellation_policy.dart';
+import '../../../../arenas/domain/athlete_cancel_policy.dart';
 import '../../../../arenas/domain/arena_booking_success_actions.dart';
 import '../../../domain/booking_invite_status.dart' show kBookingMaxPlayers;
 
@@ -224,11 +225,14 @@ String formatDistanceKmLabel(double km) {
   return '${km.toStringAsFixed(1).replaceAll('.', ',')} km';
 }
 
-String bookingDetailsCancellationTitle() =>
-    ArenaBookingCancellationPolicy.freeCancellationTitle();
+String bookingDetailsCancellationTitle(AthleteCancelPolicy policy) =>
+    ArenaBookingCancellationPolicy.cancellationTitle(policy);
 
-String bookingDetailsCancellationSubtitle(String arenaName) =>
-    ArenaBookingCancellationPolicy.freeCancellationSubtitle(arenaName);
+String bookingDetailsCancellationSubtitle(
+  String arenaName,
+  AthleteCancelPolicy policy,
+) =>
+    ArenaBookingCancellationPolicy.cancellationSubtitle(arenaName, policy);
 
 bool bookingDetailsCanInvite(BookingDetailsStatus status) {
   return bookingDetailsActionsEnabled(status);

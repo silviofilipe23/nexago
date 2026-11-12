@@ -24,6 +24,7 @@ import {
   reviewArenaWithdrawal,
 } from "./arena-booking-pix";
 import {cancelMyArenaBooking} from "./arena-booking-athlete-cancel";
+import {saveArenaAthleteCancelPolicy} from "./arena-athlete-cancel-policy";
 import {createArenaSubscription, cancelArenaSubscription} from "./arena-subscription";
 import {asaasWebhook} from "./asaas-webhook";
 import {asaasWithdrawalValidation} from "./asaas-withdrawal-validation";
@@ -523,6 +524,7 @@ export {
   onArenaCourtMaintenanceRelocateFloating,
   cancelPendingArenaBookingPayment,
   cancelMyArenaBooking,
+  saveArenaAthleteCancelPolicy,
   createArenaBookingCardPayment,
   createArenaBookingPixPayment,
   expirePendingArenaBookingPayments,

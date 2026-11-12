@@ -52,6 +52,7 @@ import {weatherCreditToApply, type WeatherCreditUse} from "./arena-weather-model
 import {hasBlockedSlotOverlap} from "./arena-recurring-booking";
 import {dayKeyFromEventDate} from "./event-timezone";
 import {arenaBookingStartAt} from "./arena-booking-start-at";
+import {athleteCancelPolicySnapshot} from "./arena-athlete-cancel-policy";
 import {arenaBlockApplies} from "./arena-block-guard";
 import {
   applyMemberHours,
@@ -815,6 +816,8 @@ export const createArenaBooking = onCall({
         athleteId,
         arenaId,
         arenaName,
+        // O que vale se o atleta cancelar no prazo: a política da arena AGORA.
+        cancelPolicy: athleteCancelPolicySnapshot(ctx.arenaData),
         courtId,
         courtName,
         sport,

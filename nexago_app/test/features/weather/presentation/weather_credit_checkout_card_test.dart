@@ -22,7 +22,7 @@ void main() {
     await initializeDateFormatting('pt_BR');
   });
 
-  group('A5 — "Usar crédito de chuva"', () {
+  group('A5 — "Usar crédito na arena"', () {
     testWidgets('mostra saldo e vencimento; o switch devolve a escolha',
         (tester) async {
       final changes = <bool>[];
@@ -35,7 +35,7 @@ void main() {
           onChanged: changes.add,
         ),
       );
-      expect(find.text('Usar crédito de chuva'), findsOneWidget);
+      expect(find.text('Usar crédito na arena'), findsOneWidget);
       expect(
           find.text('Saldo ${formatBRL(60)} · vence 27 jan'), findsOneWidget);
       expect(
@@ -80,7 +80,7 @@ void main() {
           onChanged: (_) {},
         ),
       );
-      expect(find.text('Usar crédito de chuva'), findsNothing);
+      expect(find.text('Usar crédito na arena'), findsNothing);
     });
 
     testWidgets('desligado enquanto envia', (tester) async {
@@ -104,7 +104,7 @@ void main() {
   });
 
   group('resumo de valores com crédito', () {
-    testWidgets('linha "Crédito de chuva" e "A pagar"', (tester) async {
+    testWidgets('linha "Crédito na arena" e "A pagar"', (tester) async {
       await pumpBody(
         tester,
         BookingConfirmPriceSummary(
@@ -117,7 +117,7 @@ void main() {
       );
       expect(find.byKey(const Key('booking-confirm-weather-credit')),
           findsOneWidget);
-      expect(find.text('Crédito de chuva'), findsOneWidget);
+      expect(find.text('Crédito na arena'), findsOneWidget);
       expect(find.text('− ${formatBRL(60)}'), findsOneWidget);
       expect(find.text('A pagar'), findsOneWidget);
       expect(find.text(formatBRL(10)), findsOneWidget);

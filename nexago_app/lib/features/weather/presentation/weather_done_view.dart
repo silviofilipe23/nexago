@@ -86,7 +86,7 @@ class WeatherDoneView extends StatelessWidget {
             _isReschedule
                 ? 'O novo horário já está em Minhas reservas.'
                 : 'Aplicado automaticamente na sua próxima reserva nesta arena. '
-                    'Fica em Ajustes › Créditos de chuva.',
+                    'Fica em Ajustes › Créditos na arena.',
             textAlign: TextAlign.center,
             style: TextStyle(
                 fontSize: 12, height: 1.5, color: colors.onSurfaceMuted),

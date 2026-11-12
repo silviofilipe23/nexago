@@ -154,7 +154,7 @@ void main() {
     expect(quotePayload['useWeatherCredit'], isTrue);
     expect(quotePayload['paymentMode'], 'onsite');
 
-    expect(find.text('Usar crédito de chuva'), findsOneWidget);
+    expect(find.text('Usar crédito na arena'), findsOneWidget);
     expect(
       tester
           .widget<Switch>(find.byKey(WeatherCreditCheckoutCard.switchKey))
@@ -202,7 +202,7 @@ void main() {
         'weatherCreditAppliedReais': 50.0,
       },
     );
-    expect(find.text('coberto pelo crédito de chuva'), findsOneWidget);
+    expect(find.text('coberto pelo crédito na arena'), findsOneWidget);
 
     await tester.tap(confirmCta());
     await tester.pump();
@@ -214,7 +214,7 @@ void main() {
     expect(find.text('tela do pix'), findsNothing);
     final extra = r.successExtras.last as BookingSuccessArgs;
     expect(extra.bookingIds, ['b9']);
-    expect(extra.paymentLabel, 'Pago com crédito de chuva.');
+    expect(extra.paymentLabel, 'Pago com crédito na arena.');
   });
 
   testWidgets('sem saldo: nada de card e payload de criação sem a chave',
@@ -228,7 +228,7 @@ void main() {
         'paymentMode': 'onsite'
       },
     );
-    expect(find.text('Usar crédito de chuva'), findsNothing);
+    expect(find.text('Usar crédito na arena'), findsNothing);
 
     await tester.tap(confirmCta());
     await tester.pump();

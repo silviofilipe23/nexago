@@ -63,7 +63,7 @@ class WeatherCreditCheckoutCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Usar crédito de chuva',
+                  'Usar crédito na arena',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                     color: colors.onSurface,

@@ -134,7 +134,7 @@ void main() {
     expect(find.byKey(const Key('booking-pix-full-only')), findsOneWidget);
     expect(find.text(formatBRL(10)), findsWidgets);
     expect(
-      find.textContaining('Crédito de chuva de ${formatBRL(60)} já descontado'),
+      find.textContaining('Crédito na arena de ${formatBRL(60)} já descontado'),
       findsOneWidget,
     );
 

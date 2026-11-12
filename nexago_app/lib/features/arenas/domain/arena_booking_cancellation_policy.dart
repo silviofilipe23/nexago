@@ -1,4 +1,5 @@
 import '../../../core/formatting/app_currency_format.dart';
+import 'athlete_cancel_policy.dart';
 
 /// O que "Cancelar reserva" pode fazer agora no app do atleta. Regra única
 /// de Minhas reservas e de Detalhes da reserva (aberto pela Agenda).
@@ -35,8 +36,8 @@ class ArenaBookingCancellationPolicy {
     DateTime bookingStart,
     DateTime now,
   ) {
-    final deadline =
-        bookingStart.subtract(const Duration(hours: freeCancellationHoursBeforeStart));
+    final deadline = bookingStart
+        .subtract(const Duration(hours: freeCancellationHoursBeforeStart));
     return now.isBefore(deadline);
   }
 
@@ -76,27 +77,72 @@ class ArenaBookingCancellationPolicy {
         '$lateCancellationRetentionPercent% do valor pago.';
   }
 
-  /// Texto da confirmação antes de cancelar (só aparece dentro do prazo
-  /// grátis): o que foi pago pelo app volta inteiro, pelo mesmo meio.
-  static String confirmCancellationMessage(String arenaName) =>
-      '${freeCancellationTitle()} do horário: o valor pago pelo app volta '
-      'inteiro, pelo mesmo meio (Pix ou cartão). '
-      '${freeCancellationSubtitle(arenaName)}';
+  /// Título da regra do prazo conforme a política da arena: "grátis" só
+  /// quando o valor volta inteiro.
+  static String cancellationTitle(
+    AthleteCancelPolicy policy,
+  ) =>
+      policy == AthleteCancelPolicy.full
+          ? freeCancellationTitle()
+          : 'Cancelamento até ${freeCancellationHoursBeforeStart}h antes';
 
-  /// Aviso depois do cancelamento, com o estorno feito pelo servidor.
-  static String canceledMessage(double refundedReais) {
+  /// O que acontece com o valor pago quando o atleta cancela no prazo.
+  static String _policyOutcome(AthleteCancelPolicy policy, String name) {
+    if (policy.credit) {
+      return 'o valor pago vira crédito para usar em outra reserva na $name';
+    }
+    if (policy.partial) {
+      return '${policy.refundPercent}% do valor pago volta pelo mesmo meio '
+          '(Pix ou cartão); a $name fica com o resto';
+    }
+    return 'o valor pago pelo app volta inteiro, pelo mesmo meio (Pix ou '
+        'cartão)';
+  }
+
+  static String _arenaLabel(String arenaName) =>
+      arenaName.trim().isEmpty ? 'arena' : arenaName.trim();
+
+  /// Linha de apoio da regra (card da reserva e confirmação da reserva):
+  /// o que volta no prazo e que, depois dele, é com a arena.
+  static String cancellationSubtitle(
+    String arenaName,
+    AthleteCancelPolicy policy,
+  ) {
+    final name = _arenaLabel(arenaName);
+    final outcome = _policyOutcome(policy, name);
+    return '${outcome[0].toUpperCase()}${outcome.substring(1)}. '
+        'Depois disso, o cancelamento é combinado com a $name.';
+  }
+
+  /// Texto da confirmação antes de cancelar (só aparece dentro do prazo),
+  /// pela política copiada na reserva.
+  static String confirmCancellationMessage(
+    String arenaName, {
+    AthleteCancelPolicy policy = AthleteCancelPolicy.full,
+  }) =>
+      '${cancellationTitle(policy)} do horário: '
+      '${_policyOutcome(policy, _arenaLabel(arenaName))}.';
+
+  /// Aviso depois do cancelamento: o estorno feito pelo servidor ou o
+  /// crédito que ficou na arena.
+  static String canceledMessage(
+    double refundedReais, {
+    double creditedReais = 0,
+  }) {
+    if (creditedReais > 0) {
+      return 'Reserva cancelada. ${formatBRL(creditedReais)} viraram crédito '
+          'para a sua próxima reserva nesta arena.';
+    }
     if (refundedReais <= 0) return 'Reserva cancelada.';
     return 'Reserva cancelada. Estorno de ${formatBRL(refundedReais)} a '
         'caminho: no Pix cai em instantes; no cartão, aparece na fatura.';
   }
 
   static String blockedCancellationMessage({String? arenaName}) {
-    final retention = lateCancellationRetentionPercent;
     final name = arenaName?.trim() ?? '';
     final contact = name.isEmpty ? 'a arena' : name;
     return 'O cancelamento pelo app vai só até '
         '${freeCancellationHoursBeforeStart}h antes do horário. '
-        'Para cancelar agora, fale com $contact: depois do prazo, '
-        'a arena retém $retention% do valor pago.';
+        'Para cancelar agora, fale com $contact.';
   }
 }

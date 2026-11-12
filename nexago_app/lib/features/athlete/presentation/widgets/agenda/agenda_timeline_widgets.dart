@@ -1169,14 +1169,17 @@ Future<void> cancelAgendaBooking(
   final uid = ref.read(authProvider).valueOrNull?.uid;
   if (uid == null || uid.isEmpty) return;
   try {
-    final refunded = await ref
+    final outcome = await ref
         .read(bookingServiceProvider)
         .cancelBooking(bookingId: rental.bookingId, athleteId: uid);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
-        content: Text(ArenaBookingCancellationPolicy.canceledMessage(refunded)),
+        content: Text(ArenaBookingCancellationPolicy.canceledMessage(
+          outcome.refundedReais,
+          creditedReais: outcome.creditedReais,
+        )),
       ));
   } catch (e) {
     if (!context.mounted) return;

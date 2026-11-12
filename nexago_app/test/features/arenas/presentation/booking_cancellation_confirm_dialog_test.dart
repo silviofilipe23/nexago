@@ -56,8 +56,7 @@ void main() {
     expect(
       find.text(
         'Cancelamento grátis até 6h antes do horário: o valor pago pelo app '
-        'volta inteiro, pelo mesmo meio (Pix ou cartão). '
-        'Depois disso, a Arena Sol retém 50% do valor pago.',
+        'volta inteiro, pelo mesmo meio (Pix ou cartão).',
       ),
       findsOneWidget,
     );

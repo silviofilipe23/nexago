@@ -13,6 +13,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../arena/domain/arena_booking_labels.dart';
 import '../../arena_orders/presentation/arena_app_orders_catalog_page.dart';
 import '../../arenas/domain/arena_booking_cancellation_policy.dart';
+import '../../arenas/domain/athlete_cancel_policy.dart';
 import '../../arenas/domain/arena_booking_allocation.dart';
 import '../../arenas/domain/arena_booking_success_actions.dart';
 import '../../arenas/domain/booking_court_qr.dart';
@@ -108,9 +109,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         : ref.watch(arenaByIdProvider(widget.arenaId!));
     final arena = arenaAsync?.valueOrNull;
 
-    final bookingSnap = ref
-        .watch(arenaBookingDocProvider(widget.bookingId))
-        .valueOrNull;
+    final bookingSnap =
+        ref.watch(arenaBookingDocProvider(widget.bookingId)).valueOrNull;
     final bookingData = bookingSnap?.data();
 
     // A reserva pode ser cancelada com a tela aberta (ex.: chuva): o doc vivo
@@ -150,9 +150,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
 
     final amountValue =
         widget.amountReais ?? (bookingData?['amountReais'] as num?)?.toDouble();
-    final paymentLabel = amountValue != null
-        ? formatBRL(amountValue)
-        : 'A confirmar';
+    final paymentLabel =
+        amountValue != null ? formatBRL(amountValue) : 'A confirmar';
 
     final paymentTypeLabel = arenaBookingPaymentLabel(bookingData);
     final paymentMethod = paymentTypeLabel != '—'
@@ -160,17 +159,16 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         : bookingDetailsPaymentTypeLabel(widget.paymentType);
 
     final ps = (bookingData?['paymentStatus'] as String?)?.toLowerCase().trim();
-    final paidOnline = (bookingData?['amountPaidOnlineReais'] as num?)
-        ?.toDouble();
+    final paidOnline =
+        (bookingData?['amountPaidOnlineReais'] as num?)?.toDouble();
     final showSplit = bookingDetailsShowSplitCard(
       paymentStatus: ps,
       paidOnline: paidOnline,
     );
     final splitLabel = formatSplitPerPersonLabel(amountValue);
 
-    final attendance = ref
-        .watch(bookingAttendanceProvider(widget.bookingId))
-        .valueOrNull;
+    final attendance =
+        ref.watch(bookingAttendanceProvider(widget.bookingId)).valueOrNull;
 
     // Ocorrência de horário fixo (mensalista): criada pela arena; alterações
     // e cancelamento são acertados direto com a arena.
@@ -304,7 +302,10 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
               _RecurringBookingNoteCard(arenaName: widget.arenaName)
             else if (!weatherChoicePending)
               // Liberada por chuva: a regra de cancelamento não vale agora.
-              BookingDetailsCancellationCard(arenaName: widget.arenaName),
+              BookingDetailsCancellationCard(
+                arenaName: widget.arenaName,
+                policy: AthleteCancelPolicy.fromBooking(bookingData),
+              ),
           ],
           const SizedBox(height: 14),
           BookingDetailsActionsSection(
@@ -319,10 +320,10 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             showCancel: !isGuest && !weatherChoicePending,
             cancelHint:
                 cancellation == AthleteBookingCancellation.deadlinePassed
-                ? ArenaBookingCancellationPolicy.blockedCancellationMessage(
-                    arenaName: widget.arenaName,
-                  )
-                : null,
+                    ? ArenaBookingCancellationPolicy.blockedCancellationMessage(
+                        arenaName: widget.arenaName,
+                      )
+                    : null,
           ),
           const SizedBox(height: 88),
         ],
@@ -351,7 +352,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text(
+          SnackBar(
+              content: Text(
             friendlyErrorMessage(
               e,
               action: 'Não foi possível confirmar presença',
@@ -374,9 +376,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     if (_checkingIn) return;
     setState(() => _checkingIn = true);
     try {
-      await ref
-          .read(checkInProvider)
-          .checkIn(
+      await ref.read(checkInProvider).checkIn(
             bookingId: widget.bookingId,
             locationVerified: _locationVerified,
           );
@@ -391,7 +391,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          SnackBar(content: Text(
+          SnackBar(
+              content: Text(
             friendlyErrorMessage(
               e,
               action: 'Não foi possível fazer check-in',
@@ -480,33 +481,40 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
   Future<void> _cancelBooking() async {
     final uid = ref.read(authProvider).valueOrNull?.uid;
     if (uid == null || uid.isEmpty) return;
+    final booking =
+        ref.read(arenaBookingDocProvider(widget.bookingId)).valueOrNull;
     final confirmed = await confirmBookingCancellation(
       context,
+      policy: AthleteCancelPolicy.fromBooking(booking?.data()),
       arenaName: widget.arenaName,
       courtName: widget.courtName,
       startAt: widget.startAt,
     );
     if (!confirmed || !mounted) return;
     try {
-      final refunded = await ref
+      final outcome = await ref
           .read(bookingServiceProvider)
           .cancelBooking(bookingId: widget.bookingId, athleteId: uid);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(ArenaBookingCancellationPolicy.canceledMessage(refunded)),
+        content: Text(ArenaBookingCancellationPolicy.canceledMessage(
+          outcome.refundedReais,
+          creditedReais: outcome.creditedReais,
+        )),
       ));
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(
-          friendlyErrorMessage(
-            e,
-            action: 'Não foi possível cancelar',
-            logReason: 'reserva:cancelar',
-          ),
-        )));
+      ).showSnackBar(SnackBar(
+          content: Text(
+        friendlyErrorMessage(
+          e,
+          action: 'Não foi possível cancelar',
+          logReason: 'reserva:cancelar',
+        ),
+      )));
     }
   }
 }
@@ -530,7 +538,8 @@ class _RecurringBookingNoteCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.event_repeat_rounded, size: 20, color: colors.onSurfaceMuted),
+          Icon(Icons.event_repeat_rounded,
+              size: 20, color: colors.onSurfaceMuted),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

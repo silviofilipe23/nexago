@@ -105,7 +105,7 @@ class BookingConfirmPriceSummary extends StatelessWidget {
                 const SizedBox(height: 10),
                 _PriceRow(
                   key: const Key('booking-confirm-weather-credit'),
-                  label: 'Crédito de chuva',
+                  label: 'Crédito na arena',
                   value: weatherCreditAmountLabel!,
                   valueStyle: theme.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w700,

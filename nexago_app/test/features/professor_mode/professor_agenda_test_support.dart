@@ -212,7 +212,7 @@ class FakeBookingService extends BookingService {
   final canceled = <({String bookingId, String athleteId, bool lateCancel})>[];
 
   @override
-  Future<double> cancelBooking({
+  Future<BookingCancelOutcome> cancelBooking({
     required String bookingId,
     required String athleteId,
     bool lateCancel = false,
@@ -220,7 +220,7 @@ class FakeBookingService extends BookingService {
     canceled.add(
       (bookingId: bookingId, athleteId: athleteId, lateCancel: lateCancel),
     );
-    return 0;
+    return const BookingCancelOutcome();
   }
 }
 

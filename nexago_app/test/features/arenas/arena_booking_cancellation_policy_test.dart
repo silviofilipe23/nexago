@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/arenas/domain/arena_booking_cancellation_policy.dart';
+import 'package:nexago_app/features/arenas/domain/athlete_cancel_policy.dart';
 
 void main() {
   final start = DateTime(2026, 5, 22, 9, 0);
@@ -134,22 +135,82 @@ void main() {
   });
 
   group('textos', () {
-    test('confirmação traz a política e diz que o valor volta', () {
-      final text = ArenaBookingCancellationPolicy.confirmCancellationMessage(
-        'Arena Sol',
+    final half =
+        AthleteCancelPolicy.fromRaw({'mode': 'refund', 'refundPercent': 50});
+    final credit = AthleteCancelPolicy.fromRaw({'mode': 'credit'});
+
+    test('confirmação segue a política da reserva', () {
+      expect(
+        ArenaBookingCancellationPolicy.confirmCancellationMessage('Arena Sol'),
+        'Cancelamento grátis até 6h antes do horário: o valor pago pelo app '
+        'volta inteiro, pelo mesmo meio (Pix ou cartão).',
       );
-      expect(text, contains('6h antes'));
-      expect(text, contains('Arena Sol'));
-      expect(text, contains('50%'));
-      expect(text, contains('volta inteiro, pelo mesmo meio (Pix ou cartão)'));
+      expect(
+        ArenaBookingCancellationPolicy.confirmCancellationMessage(
+          'Arena Sol',
+          policy: half,
+        ),
+        'Cancelamento até 6h antes do horário: 50% do valor pago volta pelo '
+        'mesmo meio (Pix ou cartão); a Arena Sol fica com o resto.',
+      );
+      expect(
+        ArenaBookingCancellationPolicy.confirmCancellationMessage(
+          'Arena Sol',
+          policy: credit,
+        ),
+        'Cancelamento até 6h antes do horário: o valor pago vira crédito para '
+        'usar em outra reserva na Arena Sol.',
+      );
     });
 
-    test('aviso pós-cancelamento mostra o estorno só quando houve', () {
+    test('card da reserva: o que volta no prazo e que depois é com a arena',
+        () {
+      expect(
+        ArenaBookingCancellationPolicy.cancellationSubtitle(
+          'Arena Sol',
+          credit,
+        ),
+        'O valor pago vira crédito para usar em outra reserva na Arena Sol. '
+        'Depois disso, o cancelamento é combinado com a Arena Sol.',
+      );
+      expect(
+        ArenaBookingCancellationPolicy.cancellationTitle(
+            AthleteCancelPolicy.full),
+        'Cancelamento grátis até 6h antes',
+      );
+    });
+
+    test('aviso pós-cancelamento: estorno, crédito ou nada', () {
       expect(ArenaBookingCancellationPolicy.canceledMessage(0),
           'Reserva cancelada.');
       final text = ArenaBookingCancellationPolicy.canceledMessage(70);
       expect(text, contains('Estorno de R\$'));
       expect(text, contains('70,00'));
+      final credited =
+          ArenaBookingCancellationPolicy.canceledMessage(0, creditedReais: 70);
+      expect(credited, contains('70,00'));
+      expect(credited, contains('crédito'));
+    });
+
+    test('política: lê da reserva; sem cópia ou estranha vira integral', () {
+      expect(AthleteCancelPolicy.fromBooking(null), AthleteCancelPolicy.full);
+      expect(
+          AthleteCancelPolicy.fromBooking({
+            'cancelPolicy': {'mode': 'credit'}
+          }),
+          credit);
+      expect(
+        AthleteCancelPolicy.fromBooking({
+          'cancelPolicy': {'mode': 'refund', 'refundPercent': 50},
+        }),
+        half,
+      );
+      expect(
+        AthleteCancelPolicy.fromRaw({'mode': 'refund', 'refundPercent': 33}),
+        AthleteCancelPolicy.full,
+      );
+      expect(half.partial, isTrue);
+      expect(credit.partial, isFalse);
     });
 
     test('aviso de prazo encerrado manda falar com a arena', () {

@@ -18,13 +18,13 @@ class _FakeBookingService implements BookingService {
   final canceled = <String>[];
 
   @override
-  Future<double> cancelBooking({
+  Future<BookingCancelOutcome> cancelBooking({
     required String bookingId,
     required String athleteId,
     bool lateCancel = false,
   }) async {
     canceled.add('$bookingId/$athleteId');
-    return 0;
+    return const BookingCancelOutcome();
   }
 
   @override

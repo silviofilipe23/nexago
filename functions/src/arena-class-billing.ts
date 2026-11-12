@@ -29,14 +29,18 @@ import {
   CLASS_TEACHERS,
   CLASS_WAITLIST,
   DEFAULT_CLASS_RULES,
+  CLASS_PAYMENT_FORMS,
   CYCLE_LABEL_PT,
   CYCLE_MONTHS,
+  MAX_CYCLE_DISCOUNT_PERCENT,
   PAYMENT_METHODS,
+  PREPAID_MONTHS,
   PLAN_CYCLES,
   PLAN_KINDS,
   billingProfileId,
   parseBillingMode,
   type ClassBillingMode,
+  type ClassPaymentForm,
   type ClassPlanCycle,
   type ClassPaymentMethod,
   type ClassPlanKind,
@@ -183,63 +187,169 @@ export function validatePlanInput(raw: Record<string, unknown>): ClassPlanData {
   return {name, kind: "single", priceReais, description, classesPerWeek: null, makeupsPerMonth: null, credits: null, validityDays: null};
 }
 
-/** Valor por mês dos ciclos longos oferecidos (ausente = ciclo não oferecido). */
-export type CyclePrices = Partial<Record<Exclude<ClassPlanCycle, "monthly">, number>>;
+export interface PlanCycleConfig {
+  enabled: boolean;
+  discountPercent: number;
+}
 
-export function parseCyclePrices(raw: unknown): CyclePrices {
-  const out: CyclePrices = {};
-  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return out;
+/** Ciclos do plano mensal (`classPlans.cycles`). Ausente = só o mensal, sem desconto. */
+export type PlanCycles = Record<ClassPlanCycle, PlanCycleConfig>;
+
+export const DEFAULT_PLAN_CYCLES: PlanCycles = {
+  monthly: {enabled: true, discountPercent: 0},
+  quarterly: {enabled: false, discountPercent: 0},
+  semiannual: {enabled: false, discountPercent: 0},
+  annual: {enabled: false, discountPercent: 0},
+};
+
+function clampDiscount(raw: unknown): number {
+  const n = Math.round(Number(raw));
+  return Number.isFinite(n) ? Math.min(MAX_CYCLE_DISCOUNT_PERCENT, Math.max(0, n)) : 0;
+}
+
+export function parsePlanCycles(raw: unknown): PlanCycles {
+  const d = raw != null && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
+  if (!d) return {...DEFAULT_PLAN_CYCLES};
+  const out = {} as PlanCycles;
   for (const cycle of PLAN_CYCLES) {
-    if (cycle === "monthly") continue;
-    const v = (raw as Record<string, unknown>)[cycle];
-    if (typeof v === "number" && Number.isFinite(v) && v > 0) out[cycle] = Math.round(v * 100) / 100;
+    const c = (d[cycle] ?? {}) as Record<string, unknown>;
+    out[cycle] = {
+      enabled: cycle === "monthly" ? c["enabled"] !== false : c["enabled"] === true,
+      discountPercent: cycle === "monthly" ? 0 : clampDiscount(c["discountPercent"]),
+    };
   }
   return out;
 }
 
-/** `cyclePrices` vindo do portal. Ausente no pedido = não mexe (portal antigo). Só plano mensal. */
-export function validatePlanCycles(input: Record<string, unknown>, kind: ClassPlanKind): {cyclePrices?: CyclePrices} {
-  if (input["cyclePrices"] === undefined) return {};
-  if (kind !== "monthly") return {cyclePrices: {}};
-  const raw = input["cyclePrices"];
-  if (raw !== null && (typeof raw !== "object" || Array.isArray(raw))) {
-    throw new HttpsError("invalid-argument", "Valores dos ciclos inválidos.");
+/** `cycles` vindo do portal. Ausente no pedido = não mexe (portal antigo). Só plano mensal. */
+export function validatePlanCycles(input: Record<string, unknown>, kind: ClassPlanKind): {cycles?: PlanCycles} {
+  if (input["cycles"] === undefined) return {};
+  if (kind !== "monthly") return {cycles: {...DEFAULT_PLAN_CYCLES}};
+  const raw = input["cycles"];
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new HttpsError("invalid-argument", "Ciclos do plano inválidos.");
   }
-  const out: CyclePrices = {};
   for (const cycle of PLAN_CYCLES) {
-    if (cycle === "monthly" || raw == null) continue;
-    const v = (raw as Record<string, unknown>)[cycle];
-    if (v == null) continue;
-    const n = Math.round(num(v) * 100) / 100;
-    if (!Number.isFinite(n) || n <= 0 || n > 100000) {
-      throw new HttpsError("invalid-argument", `Valor por mês do plano ${CYCLE_LABEL_PT[cycle].toLowerCase()} inválido.`);
+    const pct = Number(((raw as Record<string, unknown>)[cycle] as Record<string, unknown> | undefined)?.["discountPercent"] ?? 0);
+    if (!Number.isFinite(pct) || pct < 0 || pct > MAX_CYCLE_DISCOUNT_PERCENT) {
+      throw new HttpsError("invalid-argument", `Desconto do ${CYCLE_LABEL_PT[cycle].toLowerCase()}: de 0% a ${MAX_CYCLE_DISCOUNT_PERCENT}%.`);
     }
-    out[cycle] = n;
   }
-  return {cyclePrices: out};
+  const cycles = parsePlanCycles(raw);
+  if (!PLAN_CYCLES.some((c) => cycles[c].enabled)) {
+    throw new HttpsError("invalid-argument", "Ligue ao menos um ciclo.");
+  }
+  return {cycles};
+}
+
+/** Cobrança do plano (`classPlans.billing`), como no Plano de horário. */
+export interface PlanBilling {
+  methods: ClassPaymentForm[];
+  /** Vencimento fixo; `null` = o das Regras de aulas. */
+  dueDay: number | null;
+  /** Dias que o aluno escolhe ao contratar (2 a 4). Vazio = vale `dueDay`. */
+  dueDayOptions: number[];
+}
+
+export const DEFAULT_PLAN_BILLING: PlanBilling = {methods: [...CLASS_PAYMENT_FORMS], dueDay: null, dueDayOptions: []};
+
+export function parsePlanBilling(raw: unknown): PlanBilling {
+  const d = raw != null && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : null;
+  if (!d) return {...DEFAULT_PLAN_BILLING, methods: [...DEFAULT_PLAN_BILLING.methods]};
+  const methods = Array.isArray(d["methods"]) ?
+    CLASS_PAYMENT_FORMS.filter((m) => (d["methods"] as unknown[]).includes(m)) :
+    [...CLASS_PAYMENT_FORMS];
+  const dueDay = Number(d["dueDay"]);
+  const options = Array.isArray(d["dueDayOptions"]) ?
+    [...new Set((d["dueDayOptions"] as unknown[]).map(Number))].filter((n) => Number.isInteger(n) && n >= 1 && n <= 28).sort((a, b) => a - b) :
+    [];
+  return {
+    methods: methods.length > 0 ? methods : [...CLASS_PAYMENT_FORMS],
+    dueDay: Number.isInteger(dueDay) && dueDay >= 1 && dueDay <= 28 ? dueDay : null,
+    dueDayOptions: options.length >= 2 ? options.slice(0, 4) : [],
+  };
+}
+
+export function validatePlanBilling(input: Record<string, unknown>): {billing?: PlanBilling} {
+  if (input["billing"] === undefined) return {};
+  const raw = input["billing"];
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new HttpsError("invalid-argument", "Cobrança do plano inválida.");
+  }
+  const d = raw as Record<string, unknown>;
+  if (!Array.isArray(d["methods"]) || !CLASS_PAYMENT_FORMS.some((m) => (d["methods"] as unknown[]).includes(m))) {
+    throw new HttpsError("invalid-argument", "Escolha ao menos uma forma de pagamento.");
+  }
+  if (d["dueDay"] != null) {
+    const n = Number(d["dueDay"]);
+    if (!Number.isInteger(n) || n < 1 || n > 28) throw new HttpsError("invalid-argument", "Dia de vencimento: de 1 a 28.");
+  }
+  if (d["dueDayOptions"] != null) {
+    const opts = Array.isArray(d["dueDayOptions"]) ? d["dueDayOptions"] as unknown[] : null;
+    if (!opts || opts.length > 4 || opts.some((x) => !Number.isInteger(Number(x)) || Number(x) < 1 || Number(x) > 28)) {
+      throw new HttpsError("invalid-argument", "Dias de vencimento: até 4, entre 1 e 28.");
+    }
+  }
+  return {billing: parsePlanBilling(raw)};
 }
 
 export interface PlanCycleOption {
   cycle: ClassPlanCycle;
+  /** Fidelidade (meses de compromisso): 1 no mensal. */
   months: number;
-  /** Valor por mês neste ciclo. */
+  /** Meses pagos de uma vez: 12 no anual, 1 nos outros. */
+  prepaidMonths: number;
+  discountPercent: number;
+  /** Valor por mês neste ciclo (mensal − desconto). */
   monthlyPriceReais: number;
-  /** Valor do ciclo inteiro (sem o proporcional do 1º mês). */
+  /** O que paga de uma vez em cada cobrança cheia (anual: 12 meses). */
   totalReais: number;
 }
 
-/** Ciclos que o aluno pode escolher: mensal sempre; os longos que a arena precificou. */
-export function planCycleOptions(plan: {kind: string; priceReais: number; cyclePrices?: CyclePrices}): PlanCycleOption[] {
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Ciclos ligados do plano mensal, com o valor por mês já com desconto. */
+export function planCycleOptions(plan: {kind: string; priceReais: number; cycles?: PlanCycles}): PlanCycleOption[] {
   if (plan.kind !== "monthly") return [];
-  const prices = plan.cyclePrices ?? {};
+  const cycles = plan.cycles ?? DEFAULT_PLAN_CYCLES;
   return PLAN_CYCLES
+    .filter((cycle) => cycles[cycle].enabled)
     .map((cycle) => {
-      const monthly = cycle === "monthly" ? plan.priceReais : prices[cycle];
-      if (monthly == null) return null;
-      const months = CYCLE_MONTHS[cycle];
-      return {cycle, months, monthlyPriceReais: monthly, totalReais: Math.round(monthly * months * 100) / 100};
-    })
-    .filter((o): o is PlanCycleOption => o != null);
+      const discountPercent = cycle === "monthly" ? 0 : cycles[cycle].discountPercent;
+      const monthly = round2(plan.priceReais * (1 - discountPercent / 100));
+      const prepaidMonths = PREPAID_MONTHS[cycle];
+      return {
+        cycle, months: CYCLE_MONTHS[cycle], prepaidMonths, discountPercent,
+        monthlyPriceReais: monthly, totalReais: round2(monthly * prepaidMonths),
+      };
+    });
+}
+
+/** Fim da fidelidade (trimestral/semestral/anual) a partir do início; `null` no mensal. */
+export function commitmentEndsOn(cycle: ClassPlanCycle, startDateKey: string): string | null {
+  const months = CYCLE_MONTHS[cycle];
+  if (months <= 1) return null;
+  const [y, m, d] = startDateKey.split("-").map(Number);
+  const total = (y ?? 2000) * 12 + ((m ?? 1) - 1) + months;
+  const year = Math.floor(total / 12);
+  const month = (total % 12) + 1;
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${year}-${String(month).padStart(2, "0")}-${String(Math.min(d ?? 1, last)).padStart(2, "0")}`;
+}
+
+/** Vencimento do aluno: o escolhido (se o plano deixa escolher), o fixo do plano ou o das Regras. */
+export function resolveDueDay(billing: PlanBilling, requested: unknown, rulesDueDay: number): number {
+  if (billing.dueDayOptions.length > 0) {
+    const n = Number(requested);
+    if (requested == null) return billing.dueDayOptions[0]!;
+    if (!billing.dueDayOptions.includes(n)) {
+      throw new HttpsError("invalid-argument", `Vencimento: dia ${billing.dueDayOptions.join(", ")}.`);
+    }
+    return n;
+  }
+  return billing.dueDay ?? rulesDueDay;
 }
 
 export function parseCycle(raw: unknown): ClassPlanCycle {
@@ -277,6 +387,7 @@ export const upsertArenaClassPlan = onCall({region: CLIENT_FACING_REGIONS}, asyn
   const appFields = {
     ...await validatePlanAppFields(db, arenaId, input),
     ...validatePlanCycles(input, plan.kind),
+    ...validatePlanBilling(input),
   };
   const col = db.collection("arenas").doc(arenaId).collection(CLASS_PLANS);
   if (planId == null) {
@@ -408,6 +519,8 @@ export interface EnrollmentRequest {
   cpfCnpj: string | null;
   /** Ciclo de pagamento do plano mensal (cliente antigo não manda = mensal). */
   cycle: ClassPlanCycle;
+  /** Forma escolhida (Pix/cartão pelo app ou na arena); `null` = recepção/cliente antigo. */
+  paymentForm: ClassPaymentForm | null;
 }
 
 export function parseEnrollmentRequest(input: Record<string, unknown>): EnrollmentRequest {
@@ -446,7 +559,12 @@ export function parseEnrollmentRequest(input: Record<string, unknown>): Enrollme
     billingMode: parseBillingMode(input["billingMode"]),
     cpfCnpj: parseOptionalCpf(input["cpfCnpj"]),
     cycle: parseCycle(input["cycle"]),
+    paymentForm: parsePaymentForm(input["paymentForm"]),
   };
+}
+
+export function parsePaymentForm(raw: unknown): ClassPaymentForm | null {
+  return (CLASS_PAYMENT_FORMS as readonly string[]).includes(String(raw)) ? raw as ClassPaymentForm : null;
 }
 
 function parseOptionalCpf(raw: unknown): string | null {
@@ -524,7 +642,7 @@ export function firstCharges(
   const charges: PlannedCharge[] = [];
   let billedThrough: string | null = null;
   if (plan.kind === "monthly") {
-    const months = CYCLE_MONTHS[cycle];
+    const months = PREPAID_MONTHS[cycle];
     const first = proratedMonthCharge(enrollmentId, plan, weekdays, todayKey);
     if (months === 1) {
       if (first) charges.push(first);
@@ -536,7 +654,7 @@ export function firstCharges(
       const amountReais = Math.round(((first?.amountReais ?? 0) + plan.priceReais * (months - 1)) * 100) / 100;
       charges.push({
         id: `${enrollmentId}_${start}`,
-        description: `${plan.name} · ${CYCLE_LABEL_PT[cycle].toLowerCase()} ${monthLabelPt(start)} a ${monthLabelPt(last)}` +
+        description: `${plan.name} · ${CYCLE_LABEL_PT[cycle].toLowerCase()} à vista ${monthLabelPt(start)} a ${monthLabelPt(last)}` +
           (first ? ` (1º mês: ${first.description.split("(")[1]?.replace(")", "") ?? "proporcional"})` : ""),
         period: start,
         amountReais,
@@ -593,10 +711,10 @@ export async function planEnrollment(
   const basePlan = parsePlan(rawPlan);
   // Ciclo: o valor por mês do ciclo vira o `priceReais` da matrícula (proporcional, renovação, contrato).
   const cycleOption = basePlan.kind === "monthly" ?
-    planCycleOptions({...basePlan, cyclePrices: parseCyclePrices(rawPlan["cyclePrices"])}).find((o) => o.cycle === req.cycle) :
+    planCycleOptions({...basePlan, cycles: parsePlanCycles(rawPlan["cycles"])}).find((o) => o.cycle === req.cycle) :
     req.cycle === "monthly" ? {monthlyPriceReais: basePlan.priceReais} : undefined;
   if (!cycleOption) {
-    throw new HttpsError("failed-precondition", `O plano ${basePlan.name} não tem pagamento ${CYCLE_LABEL_PT[req.cycle].toLowerCase()}.`);
+    throw new HttpsError("failed-precondition", `O plano ${basePlan.name} não tem o ciclo ${CYCLE_LABEL_PT[req.cycle].toLowerCase()}.`);
   }
   const plan: ClassPlanData & {status: string} = {...basePlan, priceReais: cycleOption.monthlyPriceReais};
   if (plan.kind === "single") {
@@ -741,7 +859,11 @@ export async function createEnrollmentCore(
       photoUrl: student.photoUrl,
       plan: {planId: req.planId, ...plan},
       cycle: planned.cycle,
-      cycleMonths: CYCLE_MONTHS[planned.cycle],
+      /** Meses pagos de uma vez (anual à vista = 12). */
+      prepaidMonths: PREPAID_MONTHS[planned.cycle],
+      /** Fim da fidelidade (trimestral/semestral/anual); null no mensal. */
+      commitmentEndsOn: commitmentEndsOn(planned.cycle, todayKey),
+      paymentForm: req.paymentForm,
       slots: planned.slots,
       status: "active",
       dueDay: req.dueDay,
@@ -1163,7 +1285,9 @@ export async function runMonthlyBilling(db: Firestore, todayKey: string): Promis
       );
       // Ciclo longo: uma cobrança por ciclo, começando no 1º mês ainda não cobrado.
       const cycle = parseCycle(data["cycle"]);
-      const cycleMonths = CYCLE_MONTHS[cycle];
+      const cycleMonths = Number.isInteger(data["prepaidMonths"]) && Number(data["prepaidMonths"]) > 0 ?
+        Number(data["prepaidMonths"]) :
+        PREPAID_MONTHS[cycle];
       const starts = cycleMonths === 1 ? months : cycleStarts(months, cycleMonths);
       for (const month of starts) {
         const last = addMonthsKey(month, cycleMonths - 1);
@@ -1176,7 +1300,7 @@ export async function runMonthlyBilling(db: Firestore, todayKey: string): Promis
             id: chargeId,
             description: cycleMonths === 1 ?
               `${String(plan["name"] ?? "Mensalidade")} · ${monthLabelPt(month)}` :
-              `${String(plan["name"] ?? "Mensalidade")} · ${CYCLE_LABEL_PT[cycle].toLowerCase()} ${monthLabelPt(month)} a ${monthLabelPt(last)}`,
+              `${String(plan["name"] ?? "Mensalidade")} · ${CYCLE_LABEL_PT[cycle].toLowerCase()} à vista ${monthLabelPt(month)} a ${monthLabelPt(last)}`,
             period: month,
             amountReais: Math.round(Number(plan["priceReais"] ?? 0) * cycleMonths * 100) / 100,
             dueDate: dueDateFor(month, dueDay),

@@ -263,6 +263,8 @@ class FakeClassAgreementsRepository implements ClassAgreementsRepository {
     required String planId,
     required List<ClassSlotChoice> slots,
     String cycle = 'monthly',
+    int? dueDay,
+    String? paymentForm,
     String? cpf,
   }) async {
     calls.add('preview $planId');
@@ -270,6 +272,8 @@ class FakeClassAgreementsRepository implements ClassAgreementsRepository {
       'arenaId': arenaId,
       'planId': planId,
       'cycle': cycle,
+      'dueDay': dueDay,
+      'paymentForm': paymentForm,
       'slots': [for (final s in slots) s.key],
       'cpf': cpf,
     });
@@ -287,12 +291,16 @@ class FakeClassAgreementsRepository implements ClassAgreementsRepository {
     required String platform,
     required String appVersion,
     String cycle = 'monthly',
+    int? dueDay,
+    String? paymentForm,
     String? cpf,
   }) async {
     calls.add('enroll $planId');
     lastEnroll = {
       'arenaId': arenaId,
       'cycle': cycle,
+      'dueDay': dueDay,
+      'paymentForm': paymentForm,
       'planId': planId,
       'slots': [for (final s in slots) s.key],
       'sha256': sha256,

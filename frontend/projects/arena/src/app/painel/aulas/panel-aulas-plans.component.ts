@@ -9,21 +9,32 @@ import { PillComponent } from '../ui/pill.component';
 import { ToggleComponent } from '../ui/toggle.component';
 import { AulasPageComponent } from './aulas-ui';
 import {
-  CYCLE_LABEL,
-  CYCLE_MONTHS,
-  LONG_CYCLES,
+  ATHLETE_DUE_DAY_CHOICES,
+  CLASS_PAYMENT_FORMS,
+  CLASS_PAYMENT_FORM_LABEL,
+  DEFAULT_PLAN_BILLING,
+  DEFAULT_PLAN_CYCLES,
+  DEFAULT_RULES,
+  MAX_CYCLE_DISCOUNT_PERCENT,
+  PLAN_CYCLES,
   PLAN_GROUP_LABEL,
   PLAN_KIND_LABEL,
   brl,
+  cycleMonthlyPrice,
   parsePrice,
   planDetail,
   planPriceUnit,
+  type ClassPaymentForm,
   type ClassPlan,
+  type ClassRules,
   type Enrollment,
   type LongCycle,
+  type PlanBilling,
+  type PlanCycle,
+  type PlanCycles,
   type PlanKind,
 } from './billing.model';
-import { fetchEnrollments, fetchPlans, upsertPlan } from './billing-repository';
+import { fetchEnrollments, fetchPlans, fetchRules, upsertPlan } from './billing-repository';
 import type { ClassTeacher } from './class.model';
 import { fetchTeachers } from './classes-repository';
 
@@ -40,17 +51,39 @@ interface PlanDraft {
   status: 'active' | 'archived';
   teacherIds: string[];
   availableInApp: boolean;
-  /** Valor por mês digitado de cada ciclo longo; vazio = não oferecido. */
-  cycles: Record<LongCycle, string>;
+  /** Ciclos do plano mensal (desconto sobre o mensal). */
+  cycles: PlanCycles;
+  /** Formas aceitas e vencimento (só plano mensal). */
+  billing: PlanBilling;
 }
 
-const NO_CYCLES: Record<LongCycle, string> = { quarterly: '', semiannual: '', annual: '' };
+function cloneCycles(c: PlanCycles): PlanCycles {
+  return { monthly: { ...c.monthly }, quarterly: { ...c.quarterly }, semiannual: { ...c.semiannual }, annual: { ...c.annual } };
+}
+
+function cloneBilling(b: PlanBilling): PlanBilling {
+  return { methods: [...b.methods], dueDay: b.dueDay, dueDayOptions: [...b.dueDayOptions] };
+}
 
 const EMPTY: PlanDraft = {
   planId: null, name: '', kind: 'monthly', price: '', classesPerWeek: 2, makeupsPerMonth: 2,
   credits: 8, validityDays: 60, description: '', status: 'active', teacherIds: [], availableInApp: false,
-  cycles: { ...NO_CYCLES },
+  cycles: cloneCycles(DEFAULT_PLAN_CYCLES), billing: cloneBilling(DEFAULT_PLAN_BILLING),
 };
+
+/** Vencimento fixo — os dias do Plano de horário; `null` = o das Regras de aulas. */
+const DUE_DAYS: readonly number[] = [1, 5, 10, 15];
+
+/** Ciclos com desconto, na linguagem do editor dos Planos de horário. */
+const DISCOUNT_CYCLES: ReadonlyArray<{ id: LongCycle; label: string; sub: string }> = [
+  { id: 'quarterly', label: 'Trimestral', sub: '3 meses · paga mês a mês' },
+  { id: 'semiannual', label: 'Semestral', sub: '6 meses · paga mês a mês' },
+  { id: 'annual', label: 'Anual', sub: '12 meses · à vista (1ª proporcional)' },
+];
+
+function discountOk(n: number): boolean {
+  return Number.isInteger(n) && n >= 0 && n <= MAX_CYCLE_DISCOUNT_PERCENT;
+}
 
 /** 13 · Planos e pacotes — mensalidades (aulas/semana), pacotes de créditos e avulsas. Mudar o
  *  valor vale para matrículas novas; as atuais guardam o valor de quando matricularam. */
@@ -142,15 +175,62 @@ const EMPTY: PlanDraft = {
                   <button type="button" aria-label="Mais" (click)="patch({ makeupsPerMonth: Math.min(10, d.makeupsPerMonth + 1) })">+</button>
                 </div>
                 <p class="hint">Faltas justificadas viram crédito até esse limite no mês.</p>
-                <div class="field-label spaced">Ciclos de pagamento</div>
-                <p class="hint first">Valor por mês em cada ciclo. O aluno paga o ciclo inteiro de uma vez (o 1º mês é proporcional) e renova no mesmo ciclo. Em branco = não oferecido.</p>
-                <div class="cycles">
-                  @for (c of longCycles; track c) {
+                <div class="section">
+                  <div class="section-title">Preço e ciclo</div>
+                  <div class="cycle">
+                    <div><div class="cycle-name" [class.off]="!d.cycles.monthly.enabled">Mensal</div><div class="cycle-sub">Sem fidelidade</div></div>
+                    <span class="cycle-val">{{ brl(priceValue()) }}<small>/mês</small></span>
+                    <ar-toggle [checked]="d.cycles.monthly.enabled" label="Mensal" (changed)="setCycle('monthly', $event)" />
+                  </div>
+                  @for (c of discountCycles; track c.id) {
                     <div class="cycle">
-                      <div class="cycle-head">{{ cycleLabel[c] }} <span>{{ cycleMonths[c] }} meses</span></div>
-                      <input class="input-box" type="text" inputmode="decimal" placeholder="—" [attr.aria-label]="'Valor por mês no ' + cycleLabel[c].toLowerCase()" [value]="d.cycles[c]" (input)="patchCycle(c, $any($event.target).value)" />
-                      <div class="cycle-sub">{{ cycleSummary(d, c) }}</div>
+                      <div>
+                        <div class="cycle-name" [class.off]="!d.cycles[c.id].enabled">
+                          {{ c.label }}
+                          <span class="disc">−<input type="number" min="0" [max]="maxDiscount" [attr.aria-label]="'Desconto ' + c.label" [value]="d.cycles[c.id].discountPercent" (input)="setDiscount(c.id, +$any($event.target).value)" />%</span>
+                        </div>
+                        <div class="cycle-sub">{{ c.sub }}</div>
+                      </div>
+                      @if (c.id === 'annual') {
+                        <span class="cycle-val">{{ brl(cycleValue(d.cycles[c.id].discountPercent) * 12) }}<small>/ano</small></span>
+                      } @else {
+                        <span class="cycle-val">{{ brl(cycleValue(d.cycles[c.id].discountPercent)) }}<small>/mês</small></span>
+                      }
+                      <ar-toggle [checked]="d.cycles[c.id].enabled" [label]="c.label" (changed)="setCycle(c.id, $event)" />
                     </div>
+                  }
+                  @if (cycleError(); as err) {
+                    <p class="hint warn">{{ err }}</p>
+                  } @else {
+                    <p class="hint">Trimestral e semestral têm fidelidade e são cobrados mês a mês com desconto; o anual é cobrado de uma vez.</p>
+                  }
+                </div>
+                <div class="section">
+                  <div class="section-title">Cobrança</div>
+                  <div class="field-label">Formas</div>
+                  <div class="chip-row">
+                    @for (f of forms; track f) {
+                      <button type="button" class="ar-chip" [class.active]="d.billing.methods.includes(f)" [attr.aria-pressed]="d.billing.methods.includes(f)" (click)="toggleForm(f)">{{ formLabel[f] }}</button>
+                    }
+                  </div>
+                  @if (d.billing.methods.length === 0) {
+                    <p class="hint warn">Escolha ao menos uma forma de pagamento.</p>
+                  } @else if (!rules().onlineBillingEnabled && (d.billing.methods.includes('pix') || d.billing.methods.includes('card'))) {
+                    <p class="hint">Para cobrar pelo app, ligue a cobrança online nas Regras de aulas.</p>
+                  }
+                  <div class="field-label spaced">Vencimento</div>
+                  <div class="chip-row">
+                    <button type="button" class="ar-chip" [class.active]="d.billing.dueDayOptions.length === 0 && d.billing.dueDay == null"
+                      (click)="setDueDay(null)">Das Regras (dia {{ rules().defaultDueDay }})</button>
+                    @for (n of dueDays; track n) {
+                      <button type="button" class="ar-chip" [class.active]="d.billing.dueDayOptions.length === 0 && d.billing.dueDay === n"
+                        (click)="setDueDay(n)">Dia {{ n }}</button>
+                    }
+                    <button type="button" class="ar-chip" [class.active]="d.billing.dueDayOptions.length > 0"
+                      (click)="letAthleteChooseDueDay()">Atleta escolhe: {{ athleteDueDaysLabel }}</button>
+                  </div>
+                  @if (d.billing.dueDayOptions.length > 0) {
+                    <p class="hint">Ao contratar, o atleta escolhe o dia {{ athleteDueDaysLabel }}. As mensalidades vencem sempre nesse dia.</p>
                   }
                 </div>
               } @else if (d.kind === 'package') {
@@ -219,11 +299,17 @@ const EMPTY: PlanDraft = {
     .plan-foot span:first-child { flex: 1; }
     .first { margin-top: 0; }
     .grow { flex: 1; }
-    .cycles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
-    .cycle { display: flex; flex-direction: column; gap: 6px; }
-    .cycle-head { font-size: 12.5px; font-weight: 700; color: var(--nx-text); }
-    .cycle-head span { font-family: var(--nx-font-mono); font-size: 10px; font-weight: 500; color: var(--nx-text-dim); margin-left: 4px; }
-    .cycle-sub { font-family: var(--nx-font-mono); font-size: 10.5px; color: var(--nx-text-dim); min-height: 14px; }
+    .section { margin-top: 14px; padding: 12px 14px; border-radius: var(--nx-r-3, 12px); border: 1px solid var(--nx-line); background: var(--nx-surface-0); }
+    .section-title { font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--nx-text-dim); margin-bottom: 8px; }
+    .cycle { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--nx-line); }
+    .cycle-name { font-family: var(--nx-font-display); font-weight: 700; font-size: 13px; color: var(--nx-text); }
+    .cycle-name.off { color: var(--nx-text-mute); }
+    .cycle-sub { font-size: 11px; color: var(--nx-text-dim); margin-top: 2px; }
+    .disc { font-family: var(--nx-font-mono); font-size: 10px; font-weight: 700; color: var(--nx-win); margin-left: 8px; }
+    .disc input { width: 34px; background: transparent; border: none; border-bottom: 1px dashed rgba(43, 209, 126, 0.5); color: inherit; font: inherit; text-align: right; padding: 0; }
+    .cycle-val { font-family: var(--nx-font-mono); font-weight: 700; font-size: 13px; color: var(--nx-text); white-space: nowrap; }
+    .cycle-val small { font-weight: 500; font-size: 10.5px; color: var(--nx-text-dim); }
+    .hint.warn { color: var(--nx-live); }
     .teachers { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
     .teacher { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--nx-line); background: var(--nx-surface-0); color: var(--nx-text-mute); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
     .teacher.on { border-color: var(--nx-orange-500); color: var(--nx-text); background: rgba(255, 106, 26, 0.08); }
@@ -245,9 +331,13 @@ export class PanelAulasPlansComponent {
   protected readonly unit = planPriceUnit;
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda') || !this.arenaContext.hasCapability('aulas'));
 
-  protected readonly longCycles = LONG_CYCLES;
-  protected readonly cycleLabel = CYCLE_LABEL;
-  protected readonly cycleMonths = CYCLE_MONTHS;
+  protected readonly discountCycles = DISCOUNT_CYCLES;
+  protected readonly maxDiscount = MAX_CYCLE_DISCOUNT_PERCENT;
+  protected readonly forms = CLASS_PAYMENT_FORMS;
+  protected readonly formLabel = CLASS_PAYMENT_FORM_LABEL;
+  protected readonly dueDays = DUE_DAYS;
+  protected readonly athleteDueDaysLabel = `${ATHLETE_DUE_DAY_CHOICES.slice(0, -1).join(', ')} ou ${ATHLETE_DUE_DAY_CHOICES.at(-1)}`;
+  protected readonly rules = signal<ClassRules>(DEFAULT_RULES);
   protected readonly plans = signal<ClassPlan[]>([]);
   private readonly teachers = signal<ClassTeacher[]>([]);
   protected readonly activeTeachers = computed(() => this.teachers().filter((t) => t.status === 'active'));
@@ -265,17 +355,24 @@ export class PanelAulasPlansComponent {
     }
     return out;
   });
+  /** Mensal digitado (0 enquanto vazio ou inválido) — base dos valores de cada ciclo. */
+  protected readonly priceValue = computed(() => {
+    const v = parsePrice(this.draft()?.price ?? '');
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  });
+  protected readonly cycleError = computed(() => {
+    const d = this.draft();
+    if (!d || d.kind !== 'monthly') return null;
+    if (!PLAN_CYCLES.some((c) => d.cycles[c].enabled)) return 'Ligue ao menos um ciclo.';
+    if (!PLAN_CYCLES.every((c) => discountOk(d.cycles[c].discountPercent))) return `Desconto de 0% a ${MAX_CYCLE_DISCOUNT_PERCENT}%.`;
+    return null;
+  });
   protected readonly canSave = computed(() => {
     const d = this.draft();
     if (!d || d.name.trim().length < 2) return false;
     const price = parsePrice(d.price);
-    const cyclesOk = d.kind !== 'monthly' || LONG_CYCLES.every((c) => {
-      const raw = d.cycles[c].trim();
-      if (!raw) return true;
-      const v = parsePrice(raw);
-      return Number.isFinite(v) && v > 0;
-    });
-    return cyclesOk && Number.isFinite(price) && (d.kind === 'single' ? price >= 0 : price > 0);
+    const monthlyOk = d.kind !== 'monthly' || (this.cycleError() == null && d.billing.methods.length > 0);
+    return monthlyOk && Number.isFinite(price) && (d.kind === 'single' ? price >= 0 : price > 0);
   });
 
   constructor() {
@@ -290,12 +387,14 @@ export class PanelAulasPlansComponent {
     this.loadError.set(null);
     try {
       const db = arenaFirestore();
-      const [plans, enrollments, teachers] = await Promise.all([
+      const [plans, enrollments, teachers, rules] = await Promise.all([
         fetchPlans(db, arenaId),
         fetchEnrollments(db, arenaId),
         fetchTeachers(db, arenaId).catch(() => [] as ClassTeacher[]),
+        fetchRules(db, arenaId).catch(() => DEFAULT_RULES),
       ]);
       this.plans.set(plans);
+      this.rules.set(rules);
       this.enrollments.set(enrollments);
       this.teachers.set(teachers);
     } catch {
@@ -316,7 +415,7 @@ export class PanelAulasPlansComponent {
   protected openNew(): void {
     if (this.readOnly()) return;
     this.saveError.set(null);
-    this.draft.set({ ...EMPTY });
+    this.draft.set({ ...EMPTY, cycles: cloneCycles(EMPTY.cycles), billing: cloneBilling(EMPTY.billing) });
   }
 
   protected openEdit(p: ClassPlan): void {
@@ -327,11 +426,7 @@ export class PanelAulasPlansComponent {
       classesPerWeek: p.classesPerWeek ?? 2, makeupsPerMonth: p.makeupsPerMonth ?? 0,
       credits: p.credits ?? 8, validityDays: p.validityDays ?? 60, description: p.description ?? '', status: p.status,
       teacherIds: [...p.teacherIds], availableInApp: p.availableInApp,
-      cycles: {
-        quarterly: p.cyclePrices.quarterly != null ? String(p.cyclePrices.quarterly).replace('.', ',') : '',
-        semiannual: p.cyclePrices.semiannual != null ? String(p.cyclePrices.semiannual).replace('.', ',') : '',
-        annual: p.cyclePrices.annual != null ? String(p.cyclePrices.annual).replace('.', ',') : '',
-      },
+      cycles: cloneCycles(p.cycles), billing: cloneBilling(p.billing),
     });
   }
 
@@ -340,28 +435,39 @@ export class PanelAulasPlansComponent {
     if (d) this.draft.set({ ...d, ...change });
   }
 
-  protected patchCycle(cycle: LongCycle, value: string): void {
+  protected setCycle(id: PlanCycle, enabled: boolean): void {
     const d = this.draft();
-    if (d) this.draft.set({ ...d, cycles: { ...d.cycles, [cycle]: value } });
+    if (d) this.draft.set({ ...d, cycles: { ...d.cycles, [id]: { ...d.cycles[id], enabled } } });
   }
 
-  /** "R$ 720 por ciclo · −8%" do valor digitado (vazio = não oferecido). */
-  protected cycleSummary(d: PlanDraft, cycle: LongCycle): string {
-    if (!d.cycles[cycle].trim()) return 'não oferecido';
-    const monthly = parsePrice(d.cycles[cycle]);
-    if (!Number.isFinite(monthly) || monthly <= 0) return 'valor inválido';
-    const base = parsePrice(d.price);
-    const off = Number.isFinite(base) && base > 0 && monthly < base ? Math.round((1 - monthly / base) * 100) : 0;
-    return `${brl(monthly * CYCLE_MONTHS[cycle])} por ciclo${off > 0 ? ` · −${off}%` : ''}`;
+  protected setDiscount(id: LongCycle, discountPercent: number): void {
+    const d = this.draft();
+    if (d) this.draft.set({ ...d, cycles: { ...d.cycles, [id]: { ...d.cycles[id], discountPercent: Number.isFinite(discountPercent) ? discountPercent : 0 } } });
   }
 
-  private cyclePrices(d: PlanDraft): Partial<Record<LongCycle, number>> {
-    const out: Partial<Record<LongCycle, number>> = {};
-    for (const c of LONG_CYCLES) {
-      const v = parsePrice(d.cycles[c]);
-      if (d.cycles[c].trim() && Number.isFinite(v) && v > 0) out[c] = v;
-    }
-    return out;
+  protected cycleValue(discountPercent: number): number {
+    return cycleMonthlyPrice(this.priceValue(), discountOk(discountPercent) ? discountPercent : 0);
+  }
+
+  protected toggleForm(f: ClassPaymentForm): void {
+    const d = this.draft();
+    if (!d) return;
+    const methods = d.billing.methods.includes(f)
+      ? d.billing.methods.filter((m) => m !== f)
+      : CLASS_PAYMENT_FORMS.filter((m) => m === f || d.billing.methods.includes(m));
+    this.draft.set({ ...d, billing: { ...d.billing, methods } });
+  }
+
+  /** Vencimento fixo (`null` = o das Regras de aulas). */
+  protected setDueDay(dueDay: number | null): void {
+    const d = this.draft();
+    if (d) this.draft.set({ ...d, billing: { ...d.billing, dueDay, dueDayOptions: [] } });
+  }
+
+  /** Vencimento à escolha do atleta (5, 15 ou 25); quem não escolhe fica com o 1º. */
+  protected letAthleteChooseDueDay(): void {
+    const d = this.draft();
+    if (d) this.draft.set({ ...d, billing: { ...d.billing, dueDay: ATHLETE_DUE_DAY_CHOICES[0] ?? 5, dueDayOptions: [...ATHLETE_DUE_DAY_CHOICES] } });
   }
 
   protected toggleTeacher(teacherId: string): void {
@@ -401,7 +507,8 @@ export class PanelAulasPlansComponent {
         description: d.description.trim() || null,
         status,
         teacherIds: d.kind === 'single' ? [] : d.teacherIds,
-        cyclePrices: d.kind === 'monthly' ? this.cyclePrices(d) : {},
+        cycles: d.kind === 'monthly' ? d.cycles : cloneCycles(DEFAULT_PLAN_CYCLES),
+        ...(d.kind === 'monthly' ? { billing: d.billing } : {}),
         availableInApp: d.kind !== 'single' && d.availableInApp,
       });
       this.draft.set(null);

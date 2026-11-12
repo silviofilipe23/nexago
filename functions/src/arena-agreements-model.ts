@@ -11,7 +11,7 @@
  * explícito + data, aparelho, IP e o hash do texto mostrado.
  */
 import {contractSha256, fillContractBody, maskIp, sameDocument, shortDate, termEnd} from "./training-center-contracts-model";
-import {CYCLE_LABEL_PT, CYCLE_MONTHS, type ClassPlanCycle} from "./arena-class-constants";
+import {CYCLE_LABEL_PT, CYCLE_MONTHS, PREPAID_MONTHS, type ClassPaymentForm, type ClassPlanCycle} from "./arena-class-constants";
 
 export {contractSha256, fillContractBody, maskIp, sameDocument};
 
@@ -65,13 +65,14 @@ export const AGREEMENT_VARIABLES: Record<AgreementAudience, AgreementVariable[]>
     {key: "aluno.email", group: "Aluno", label: "E-mail"},
     {key: "plano.nome", group: "Plano e aulas", label: "Plano"},
     {key: "plano.preco", group: "Plano e aulas", label: "Preço"},
-    {key: "plano.ciclo", group: "Plano e aulas", label: "Ciclo de pagamento"},
+    {key: "plano.ciclo", group: "Plano e aulas", label: "Ciclo e fidelidade"},
     {key: "plano.regra", group: "Plano e aulas", label: "Regra do plano"},
     {key: "aulas.horarios", group: "Plano e aulas", label: "Dias e horários"},
     {key: "aulas.professor", group: "Plano e aulas", label: "Professor"},
     {key: "cobranca.dia", group: "Cobrança", label: "Dia do vencimento"},
     {key: "cobranca.forma", group: "Cobrança", label: "Forma de pagamento"},
     {key: "politica.reposicao", group: "Cobrança", label: "Reposição"},
+    {key: "contrato.fidelidade", group: "Vigência", label: "Fim da fidelidade"},
     ...TERM_VARS,
   ],
   professor: [
@@ -90,7 +91,7 @@ export const DEFAULT_TEMPLATES: Record<AgreementAudience, {title: string; body: 
     body: [
       "1. PARTES. De um lado, {{arena.razao_social}} ({{arena.nome}}), CNPJ {{arena.cnpj}}, com endereço em {{arena.endereco}}, {{arena.cidade}}, doravante ARENA; de outro, {{aluno.nome}}, CPF {{aluno.cpf}}, doravante ALUNO.",
       "2. OBJETO. A ARENA presta ao ALUNO aulas do plano {{plano.nome}} ({{plano.regra}}), nos horários {{aulas.horarios}}, com {{aulas.professor}} ou substituto indicado pela ARENA.",
-      "3. VALOR E PAGAMENTO. O ALUNO paga {{plano.preco}}, no ciclo {{plano.ciclo}}, com vencimento no dia {{cobranca.dia}}, por {{cobranca.forma}}. O primeiro mês é proporcional às aulas restantes. Ciclo pago adiantado não é devolvido se o ALUNO sair antes do fim.",
+      "3. VALOR E PAGAMENTO. O ALUNO contrata o plano {{plano.ciclo}} e paga {{plano.preco}}, com vencimento no dia {{cobranca.dia}}, por {{cobranca.forma}}. O primeiro mês é proporcional às aulas restantes. Com fidelidade (até {{contrato.fidelidade}}), sair antes não devolve o que foi pago à vista nem dispensa as mensalidades até o fim da fidelidade.",
       "4. FALTAS E REPOSIÇÃO. {{politica.reposicao}} Aula cancelada pela ARENA (chuva, manutenção) gera crédito de reposição.",
       "5. VIGÊNCIA E CANCELAMENTO. Este contrato vale de {{contrato.inicio}} a {{contrato.fim}}. Qualquer parte pode encerrá-lo com 30 dias de aviso; mensalidades vencidas continuam devidas.",
       "6. USO DO ESPAÇO. O ALUNO segue as regras de convivência e segurança da ARENA e responde por danos que causar.",
@@ -184,13 +185,16 @@ export interface PlanLike {
   validityDays: number | null;
 }
 
-/** "R$ 240,00 por mês, pagos a cada 3 meses (R$ 720,00 por trimestre)". */
-export function planPriceLabel(plan: PlanLike, cycle: ClassPlanCycle = "monthly"): string {
+/**
+ * Mensal: "R$ 260,00 por mês". Trimestral/semestral: "R$ 234,00 por mês (10% de desconto do plano
+ * trimestral)". Anual: "R$ 221,00 por mês, pagos à vista (R$ 2.652,00 por 12 meses)".
+ */
+export function planPriceLabel(plan: PlanLike, cycle: ClassPlanCycle = "monthly", discountPercent = 0): string {
   if (plan.kind === "monthly") {
-    const months = CYCLE_MONTHS[cycle];
-    if (months === 1) return `${brl(plan.priceReais)} por mês`;
-    const period = cycle === "quarterly" ? "trimestre" : cycle === "semiannual" ? "semestre" : "ano";
-    return `${brl(plan.priceReais)} por mês, pagos a cada ${months} meses (${brl(plan.priceReais * months)} por ${period})`;
+    const prepaid = PREPAID_MONTHS[cycle];
+    const off = discountPercent > 0 ? ` (${discountPercent}% de desconto do plano ${CYCLE_LABEL_PT[cycle].toLowerCase()})` : "";
+    if (prepaid > 1) return `${brl(plan.priceReais)} por mês, pagos à vista (${brl(plan.priceReais * prepaid)} por ${prepaid} meses)${off}`;
+    return `${brl(plan.priceReais)} por mês${off}`;
   }
   if (plan.kind === "package") return `${brl(plan.priceReais)} pelo pacote`;
   return brl(plan.priceReais);
@@ -286,9 +290,30 @@ export interface StudentAgreementContext {
   online: boolean;
   /** Ciclo de pagamento (mensal quando ausente). */
   cycle?: ClassPlanCycle;
+  cycleDiscountPercent?: number;
+  /** Fim da fidelidade, `YYYY-MM-DD` (null no mensal). */
+  commitmentEndsOn?: string | null;
+  /** Forma escolhida no app; ausente = pelo `online`. */
+  paymentForm?: ClassPaymentForm | null;
   rules: {makeupNoticeHours: number; makeupValidityDays: number; excusedGeneratesCredit: boolean};
   startKey: string;
   endKey: string;
+}
+
+/** "mensal, sem fidelidade" / "trimestral, com fidelidade de 3 meses e pagamento mensal" / "anual, pago à vista". */
+export function cycleClause(ctx: Pick<StudentAgreementContext, "plan" | "cycle">): string {
+  if (ctx.plan.kind !== "monthly") return "pagamento único";
+  const cycle = ctx.cycle ?? "monthly";
+  if (cycle === "monthly") return "mensal, sem fidelidade";
+  if (cycle === "annual") return "anual, pago à vista, com fidelidade de 12 meses";
+  return `${CYCLE_LABEL_PT[cycle].toLowerCase()}, com fidelidade de ${CYCLE_MONTHS[cycle]} meses e pagamento mensal`;
+}
+
+function paymentFormLabel(ctx: Pick<StudentAgreementContext, "online" | "paymentForm">): string {
+  if (ctx.paymentForm === "pix") return "Pix pelo app nexaGO";
+  if (ctx.paymentForm === "card") return "cartão pelo app nexaGO";
+  if (ctx.paymentForm === "onsite") return "pagamento direto na arena";
+  return ctx.online ? "Pix ou cartão pelo app nexaGO" : "pagamento direto na arena";
 }
 
 export function studentValues(ctx: StudentAgreementContext): Record<string, string> {
@@ -299,13 +324,14 @@ export function studentValues(ctx: StudentAgreementContext): Record<string, stri
     "aluno.telefone": ctx.student.phone,
     "aluno.email": ctx.student.email,
     "plano.nome": ctx.plan.name,
-    "plano.preco": planPriceLabel(ctx.plan, ctx.cycle ?? "monthly"),
-    "plano.ciclo": ctx.plan.kind === "monthly" ? CYCLE_LABEL_PT[ctx.cycle ?? "monthly"].toLowerCase() : "pagamento único",
+    "plano.preco": planPriceLabel(ctx.plan, ctx.cycle ?? "monthly", ctx.cycleDiscountPercent ?? 0),
+    "plano.ciclo": cycleClause(ctx),
+    "contrato.fidelidade": ctx.commitmentEndsOn ? brDateKey(ctx.commitmentEndsOn) : "sem fidelidade",
     "plano.regra": planRuleLabel(ctx.plan),
     "aulas.horarios": slotsLabel(ctx.slots),
     "aulas.professor": namesLabel(ctx.slots.map((s) => s.teacherName)),
     "cobranca.dia": ctx.plan.kind === "monthly" ? String(ctx.dueDay) : brDateKey(ctx.startKey),
-    "cobranca.forma": ctx.online ? "Pix ou cartão pelo app nexaGO" : "pagamento direto na arena",
+    "cobranca.forma": paymentFormLabel(ctx),
     "politica.reposicao": makeupPolicyLabel(ctx.rules),
     ...termValues(ctx.startKey, ctx.endKey),
   };
@@ -339,9 +365,10 @@ export function studentEssentials(ctx: StudentAgreementContext): Array<{label: s
     {label: "Professor", value: v["aulas.professor"] || "—"},
     {label: "Aulas", value: v["aulas.horarios"] || "—"},
     {label: "Valor", value: v["plano.preco"]!},
-    ...(ctx.plan.kind === "monthly" && (ctx.cycle ?? "monthly") !== "monthly" ?
-      [{label: "Pagamento", value: CYCLE_LABEL_PT[ctx.cycle!]}] :
-      []),
+    ...(ctx.plan.kind === "monthly" ? [{label: "Ciclo", value: ctx.commitmentEndsOn ?
+      `${CYCLE_LABEL_PT[ctx.cycle ?? "monthly"]} · fidelidade até ${brDateKey(ctx.commitmentEndsOn)}` :
+      "Mensal · sem fidelidade"}] : []),
+    {label: "Pagamento", value: `${paymentFormLabel(ctx)} · dia ${ctx.dueDay}`},
     {label: "Vigência", value: `${v["contrato.inicio"]} a ${v["contrato.fim"]}`},
   ];
 }

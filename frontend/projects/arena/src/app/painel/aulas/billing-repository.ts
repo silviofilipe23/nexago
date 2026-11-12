@@ -23,6 +23,8 @@ import {
   type Enrollment,
   type MakeupCredit,
   type PaymentMethod,
+  type PlanBilling,
+  type PlanCycles,
   type PlanKind,
   type WaitlistEntry,
 } from './billing.model';
@@ -142,8 +144,10 @@ export interface PlanInput {
   /** Contratos de aulas: professores do plano e "Contratar pelo app". */
   teacherIds?: string[];
   availableInApp?: boolean;
-  /** Valor por mês de trimestral/semestral/anual; ciclo ausente = não oferecido. */
-  cyclePrices?: Partial<Record<'quarterly' | 'semiannual' | 'annual', number>>;
+  /** Ciclos do plano mensal (desconto 0–50% sobre o mensal; ao menos um ligado). */
+  cycles?: PlanCycles;
+  /** Formas aceitas e vencimento do plano. */
+  billing?: PlanBilling;
 }
 
 export function upsertPlan(functions: Functions, input: PlanInput): Promise<{ planId: string }> {

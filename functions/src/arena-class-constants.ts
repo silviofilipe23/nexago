@@ -49,12 +49,21 @@ export const PLAN_KINDS = ["monthly", "package", "single"] as const;
 export type ClassPlanKind = typeof PLAN_KINDS[number];
 
 /**
- * Ciclo de pagamento do plano mensal: o aluno paga 1, 3, 6 ou 12 meses de uma vez (uma cobrança
- * por ciclo). O valor por mês de cada ciclo é da arena (`classPlans.cyclePrices`); mensal = `priceReais`.
+ * Ciclo do plano mensal — o mesmo modelo dos Planos de horário: desconto (%) sobre o mensal;
+ * trimestral e semestral têm fidelidade (3/6 meses) e são pagos mês a mês; anual é à vista
+ * (12 meses numa cobrança, a 1ª proporcional). Config em `classPlans.cycles`.
  */
 export const PLAN_CYCLES = ["monthly", "quarterly", "semiannual", "annual"] as const;
 export type ClassPlanCycle = typeof PLAN_CYCLES[number];
 export const CYCLE_MONTHS: Record<ClassPlanCycle, number> = {monthly: 1, quarterly: 3, semiannual: 6, annual: 12};
+/** Meses pagos de uma vez: só o anual é à vista. */
+export const PREPAID_MONTHS: Record<ClassPlanCycle, number> = {monthly: 1, quarterly: 1, semiannual: 1, annual: 12};
+export const MAX_CYCLE_DISCOUNT_PERCENT = 50;
+
+/** Formas de pagamento que o plano aceita (as do Plano de horário): Pix e cartão pelo app, ou na arena. */
+export const CLASS_PAYMENT_FORMS = ["pix", "card", "onsite"] as const;
+export type ClassPaymentForm = typeof CLASS_PAYMENT_FORMS[number];
+
 export const CYCLE_LABEL_PT: Record<ClassPlanCycle, string> = {
   monthly: "Mensal", quarterly: "Trimestral", semiannual: "Semestral", annual: "Anual",
 };

@@ -69,6 +69,8 @@ class ClassAgreementsRepository {
     required String planId,
     required List<ClassSlotChoice> slots,
     String cycle = 'monthly',
+    int? dueDay,
+    String? paymentForm,
     String? cpf,
   }) async =>
       ClassEnrollmentPreview.fromMap(await _call(
@@ -78,6 +80,8 @@ class ClassAgreementsRepository {
           'planId': planId,
           'slots': [for (final s in slots) s.toMap()],
           'cycle': cycle,
+          if (dueDay != null) 'dueDay': dueDay,
+          if (paymentForm != null) 'paymentForm': paymentForm,
           if (cpf != null && cpf.isNotEmpty) 'cpfCnpj': cpf,
         },
         'Não foi possível montar o contrato.',
@@ -92,6 +96,8 @@ class ClassAgreementsRepository {
     required String platform,
     required String appVersion,
     String cycle = 'monthly',
+    int? dueDay,
+    String? paymentForm,
     String? cpf,
   }) async =>
       ClassEnrollmentResult.fromMap(await _call(
@@ -101,6 +107,8 @@ class ClassAgreementsRepository {
           'planId': planId,
           'slots': [for (final s in slots) s.toMap()],
           'cycle': cycle,
+          if (dueDay != null) 'dueDay': dueDay,
+          if (paymentForm != null) 'paymentForm': paymentForm,
           'agreed': true,
           'sha256': sha256,
           'readSeconds': readSeconds,

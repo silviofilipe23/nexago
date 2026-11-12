@@ -19,6 +19,7 @@ import {
   PLAN_GROUP_LABEL,
   planCycles,
   type PlanCycle,
+  type PlanCycleOption,
   brl,
   formatPhoneBR,
   planDetail,
@@ -335,11 +336,11 @@ export function cpfDigitsOk(raw: string): boolean {
                       @for (c of cycles(); track c.cycle) {
                         <button type="button" class="pick" [class.on]="cycle() === c.cycle" (click)="setCycle(c.cycle)">
                           <div class="p-title">{{ cycleLabel[c.cycle] }}{{ c.discountPercent > 0 ? ' · −' + c.discountPercent + '%' : '' }}</div>
-                          <div class="sub">{{ brl(c.monthlyPriceReais) }}/mês{{ c.months > 1 ? ' · ' + brl(c.totalReais) + ' por ciclo' : '' }}</div>
+                          <div class="sub">{{ cycleSub(c) }}</div>
                         </button>
                       }
                     </div>
-                    <p class="hint">{{ cycle() === 'monthly' ? 'Cobra todo mês.' : 'Cobra o ciclo inteiro de uma vez (o 1º mês proporcional) e renova no mesmo ciclo.' }}</p>
+                    <p class="hint">{{ cycleHint() }}</p>
                   }
                   @if (rules().onlineBillingEnabled) {
                     <div class="mode-grid">
@@ -371,7 +372,15 @@ export function cpfDigitsOk(raw: string): boolean {
                     @if (plan()?.kind === 'monthly') {
                       <div>
                         <div class="field-label">Dia de vencimento</div>
-                        <input class="input-box" type="number" min="1" max="28" [value]="dueDay()" (input)="dueDay.set(+$any($event.target).value)" />
+                        @if (dueDayOptions().length > 0) {
+                          <div class="chip-row">
+                            @for (n of dueDayOptions(); track n) {
+                              <button type="button" class="ar-chip" [class.active]="dueDay() === n" (click)="setDueDay(n)">Dia {{ n }}</button>
+                            }
+                          </div>
+                        } @else {
+                          <input class="input-box" type="number" min="1" max="28" [value]="dueDay()" (input)="setDueDay(+$any($event.target).value)" />
+                        }
                       </div>
                     }
                     <div>
@@ -573,6 +582,14 @@ export class PanelAulaEnrollmentComponent {
   protected readonly cycles = computed(() => {
     const p = this.plan();
     return p ? planCycles(p) : [];
+  });
+  /** Dias que o plano deixa escolher (vazio = vencimento livre). */
+  protected readonly dueDayOptions = computed(() => (this.plan()?.kind === 'monthly' ? this.plan()?.billing.dueDayOptions ?? [] : []));
+  protected readonly cycleHint = computed(() => {
+    const c = this.cycles().find((o) => o.cycle === this.cycle());
+    if (!c || c.cycle === 'monthly') return 'Cobra todo mês.';
+    if (c.cycle === 'annual') return 'Cobra 12 meses de uma vez (o 1º proporcional).';
+    return `Fidelidade de ${c.months} meses, cobrado mês a mês com desconto.`;
   });
   /** Id do aluno nas turmas: o uid do atleta ou o id do contato já cadastrado. */
   private readonly studentKey = computed(() => {
@@ -835,7 +852,7 @@ export class PanelAulaEnrollmentComponent {
       paymentMethod: this.method(),
       waiveFee: this.waiveFee(),
       billingMode: this.billingMode(),
-      cycle: plan.kind === 'monthly' && this.cycles().some((c) => c.cycle === this.cycle()) ? this.cycle() : 'monthly',
+      cycle: plan.kind === 'monthly' ? (this.cycles().some((c) => c.cycle === this.cycle()) ? this.cycle() : this.cycles()[0]?.cycle ?? 'monthly') : 'monthly',
       ...(this.billingMode() === 'asaas' && this.cpf().trim() ? { cpfCnpj: this.cpf().replace(/\D/g, '') } : {}),
       ...student,
       ...(p?.source === 'waitlist' && this.classIdParam
@@ -910,8 +927,24 @@ export class PanelAulaEnrollmentComponent {
   }
 
   protected pickPlan(planId: string): void {
-    if (this.planId() !== planId) this.cycle.set('monthly');
+    const changed = this.planId() !== planId;
     this.planId.set(planId);
+    if (!changed) return;
+    // Primeiro ciclo ligado (o mensal pode estar desligado) e o vencimento do plano, se houver.
+    this.cycle.set(this.cycles()[0]?.cycle ?? 'monthly');
+    const billing = this.plan()?.billing;
+    this.dueDay.set(billing?.dueDayOptions[0] ?? billing?.dueDay ?? this.rules().defaultDueDay);
+  }
+
+  /** "R$ 240/mês · 3 meses de fidelidade" · "R$ 2.652 à vista (12 meses)". */
+  protected cycleSub(c: PlanCycleOption): string {
+    if (c.cycle === 'annual') return `${brl(c.totalReais)} à vista (12 meses)`;
+    return `${brl(c.monthlyPriceReais)}/mês · ${c.months > 1 ? c.months + ' meses de fidelidade' : 'sem fidelidade'}`;
+  }
+
+  protected setDueDay(day: number): void {
+    this.dueDay.set(day);
+    if (Number.isInteger(day) && day >= 1 && day <= 28) void this.refreshPreview();
   }
 
   protected setCycle(cycle: PlanCycle): void {

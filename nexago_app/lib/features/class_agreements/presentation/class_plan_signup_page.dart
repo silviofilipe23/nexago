@@ -55,6 +55,10 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
   /// Ciclo de pagamento escolhido (mensal por padrão).
   String _cycle = 'monthly';
 
+  /// Vencimento escolhido (planos que deixam escolher) e forma de pagamento.
+  int? _dueDay;
+  String? _paymentForm;
+
   ClassEnrollmentPreview? _preview;
   Object? _previewError;
   bool _loadingPreview = false;
@@ -105,6 +109,22 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
   String _cycleOf(ClassSignupPlan plan) =>
       cycleOptionOf(plan, _cycle)?.cycle ?? 'monthly';
 
+  /// Vencimento: o escolhido, se o plano deixa escolher; senão o do plano.
+  int? _dueDayOf(ClassSignupPlan plan) {
+    final options = plan.billing.dueDayOptions;
+    if (options.isEmpty) return null;
+    final d = _dueDay;
+    return d != null && options.contains(d) ? d : options.first;
+  }
+
+  /// Forma: a escolhida, se o plano aceita; senão Pix, senão a primeira.
+  String _formOf(ClassSignupPlan plan) {
+    final methods = plan.billing.methods;
+    final f = _paymentForm;
+    if (f != null && methods.contains(f)) return f;
+    return methods.contains('pix') ? 'pix' : methods.first;
+  }
+
   // ── navegação entre passos ─────────────────────────────────────────────
 
   void _goTo(_Step step) {
@@ -134,6 +154,8 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
         _teacherId = null;
         _anyTeacher = false;
         _cycle = 'monthly';
+        _dueDay = null;
+        _paymentForm = null;
       }
       _planId = plan.planId;
     });
@@ -165,6 +187,8 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
             planId: plan.planId,
             slots: _slots,
             cycle: _cycleOf(plan),
+            dueDay: _dueDayOf(plan),
+            paymentForm: _formOf(plan),
           );
       if (!mounted) return;
       setState(() {
@@ -206,6 +230,8 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
             platform: ref.read(contractSignPlatformProvider),
             appVersion: appVersion,
             cycle: _cycleOf(plan),
+            dueDay: _dueDayOf(plan),
+            paymentForm: _formOf(plan),
             cpf: preview.needsCpf ? _cpf : null,
           );
       if (!mounted) return;
@@ -320,13 +346,18 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
       case _Step.plan:
         if (plan == null) return null;
         final option = cycleOptionOf(plan, _cycle);
-        final longCycle = option != null && option.months > 1;
         return NexaBottomActionBar(
           leading: _PriceLeading(
-            price: formatBRL(longCycle ? option.totalReais : plan.priceReais),
-            caption: longCycle
-                ? '${cyclePeriodSuffix(option.cycle)} · ${formatBRL(option.monthlyPriceReais)}/mês'
-                : '${planPriceSuffix(plan)} · ${plan.name}',
+            price: formatBRL(option == null
+                ? plan.priceReais
+                : option.isPrepaid
+                    ? option.totalReais
+                    : option.monthlyPriceReais),
+            caption: option == null
+                ? '${planPriceSuffix(plan)} · ${plan.name}'
+                : option.isPrepaid
+                    ? 'à vista · ${formatBRL(option.monthlyPriceReais)}/mês'
+                    : 'por mês · ${cycleLabel(option.cycle)}${option.months > 1 ? ', ${option.months} meses' : ''}',
           ),
           action: SchedulePrimaryButton(
             key: const Key('class-signup-next-plan'),
@@ -416,12 +447,16 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
             onTap: () => _pickPlan(options, plan),
             child: _PlanCardBody(plan: plan, options: options),
           ),
-          if (plan.planId == _planId && plan.hasLongCycles) ...[
+          if (plan.planId == _planId && plan.hasPaymentChoices) ...[
             const SizedBox(height: 10),
-            _CyclePicker(
+            _PaymentChoices(
               plan: plan,
-              selected: _cycleOf(plan),
-              onPick: (c) => setState(() => _cycle = c),
+              cycle: _cycleOf(plan),
+              dueDay: _dueDayOf(plan),
+              form: _formOf(plan),
+              onCycle: (c) => setState(() => _cycle = c),
+              onDueDay: (d) => setState(() => _dueDay = d),
+              onForm: (f) => setState(() => _paymentForm = f),
             ),
           ],
           const SizedBox(height: 10),
@@ -1021,51 +1056,114 @@ class _PlanCardBody extends StatelessWidget {
   }
 }
 
-/// "Como pagar": mensal, trimestral, semestral, anual (os que a arena oferece).
-class _CyclePicker extends StatelessWidget {
-  const _CyclePicker({required this.plan, required this.selected, required this.onPick});
+/// Como nos Planos de horário: ciclo (com desconto e fidelidade), vencimento
+/// e forma de pagamento — só o que o plano oferece.
+class _PaymentChoices extends StatelessWidget {
+  const _PaymentChoices({
+    required this.plan,
+    required this.cycle,
+    required this.dueDay,
+    required this.form,
+    required this.onCycle,
+    required this.onDueDay,
+    required this.onForm,
+  });
 
   final ClassSignupPlan plan;
-  final String selected;
-  final ValueChanged<String> onPick;
+  final String cycle;
+  final int? dueDay;
+  final String form;
+  final ValueChanged<String> onCycle;
+  final ValueChanged<int> onDueDay;
+  final ValueChanged<String> onForm;
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final selected = cycleOptionOf(plan, cycle);
+    // Linhas de `columns` chips da mesma altura, que crescem com o texto
+    // (grade de proporção fixa cortava a 2ª linha com fonte maior).
+    Widget grid(int columns, List<Widget> children, {double ratio = 0}) {
+      final rows = <Widget>[];
+      for (var i = 0; i < children.length; i += columns) {
+        final row = children.sublist(i, (i + columns).clamp(0, children.length));
+        rows.add(IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var j = 0; j < columns; j++) ...[
+                if (j > 0) const SizedBox(width: 8),
+                Expanded(child: j < row.length ? row[j] : const SizedBox.shrink()),
+              ],
+            ],
+          ),
+        ));
+        if (i + columns < children.length) rows.add(const SizedBox(height: 8));
+      }
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: rows);
+    }
     return Column(
       key: const Key('class-cycle-picker'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const ScheduleKicker('Como pagar'),
-        const SizedBox(height: 8),
-        GridView.count(
-          crossAxisCount: 2,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 2.6,
-          children: [
+        if (plan.hasLongCycles) ...[
+          const ScheduleKicker('Ciclo'),
+          const SizedBox(height: 8),
+          grid(2, [
             for (final c in plan.cycles)
               ScheduleChoiceChip(
                 key: Key('class-cycle-${c.cycle}'),
                 label: cycleDiscountPercent(plan, c) > 0
                     ? '${cycleLabel(c.cycle)} · −${cycleDiscountPercent(plan, c)}%'
                     : cycleLabel(c.cycle),
-                sub: c.months == 1
-                    ? '${formatBRL(c.monthlyPriceReais)}/mês'
-                    : '${formatBRL(c.monthlyPriceReais)}/mês · ${formatBRL(c.totalReais)}',
-                selected: c.cycle == selected,
-                onTap: () => onPick(c.cycle),
+                sub: c.isPrepaid
+                    ? '${formatBRL(c.totalReais)} · ${cycleSub(c)}'
+                    : '${formatBRL(c.monthlyPriceReais)}/mês · ${cycleSub(c)}',
+                selected: c.cycle == cycle,
+                onTap: () => onCycle(c.cycle),
               ),
+          ]),
+          if (selected != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              selected.isPrepaid
+                  ? 'Paga ${selected.prepaidMonths} meses de uma vez (o 1º proporcional às aulas que faltam).'
+                  : selected.months > 1
+                      ? 'Fidelidade de ${selected.months} meses, cobrado mês a mês com desconto.'
+                      : 'Cobrado todo mês, sem fidelidade. O 1º mês é proporcional.',
+              style: AppTypography.bodyS.copyWith(color: colors.onSurfaceMuted),
+            ),
           ],
-        ),
-        const SizedBox(height: 6),
-        Text(
-          selected == 'monthly'
-              ? 'Paga todo mês. O 1º mês é proporcional às aulas que faltam.'
-              : 'Paga o ciclo inteiro de uma vez (o 1º mês é proporcional) e renova no mesmo ciclo.',
-          style: AppTypography.bodyS.copyWith(color: context.themeColors.onSurfaceMuted),
-        ),
+          const SizedBox(height: 14),
+        ],
+        if (plan.billing.dueDayOptions.isNotEmpty) ...[
+          const ScheduleKicker('Vencimento'),
+          const SizedBox(height: 8),
+          grid(plan.billing.dueDayOptions.length, [
+            for (final d in plan.billing.dueDayOptions)
+              ScheduleChoiceChip(
+                key: Key('class-due-$d'),
+                label: 'Dia $d',
+                selected: d == dueDay,
+                onTap: () => onDueDay(d),
+              ),
+          ], ratio: 2.4),
+          const SizedBox(height: 14),
+        ],
+        if (plan.billing.methods.length > 1) ...[
+          const ScheduleKicker('Forma de pagamento'),
+          const SizedBox(height: 8),
+          grid(plan.billing.methods.length, [
+            for (final f in plan.billing.methods)
+              ScheduleChoiceChip(
+                key: Key('class-form-$f'),
+                label: paymentFormLabel(f),
+                sub: paymentFormSub(f),
+                selected: f == form,
+                onTap: () => onForm(f),
+              ),
+          ], ratio: 2.0),
+        ],
       ],
     );
   }

@@ -19,10 +19,11 @@ List<Map<String, Object?>> _plansWithCycles() => [
         'makeupsPerMonth': 2,
         'teacherIds': ['t1', 't2'],
         'cycles': [
-          {'cycle': 'monthly', 'months': 1, 'monthlyPriceReais': 280, 'totalReais': 280},
-          {'cycle': 'quarterly', 'months': 3, 'monthlyPriceReais': 260, 'totalReais': 780},
-          {'cycle': 'annual', 'months': 12, 'monthlyPriceReais': 238, 'totalReais': 2856},
+          {'cycle': 'monthly', 'months': 1, 'prepaidMonths': 1, 'discountPercent': 0, 'monthlyPriceReais': 280, 'totalReais': 280},
+          {'cycle': 'quarterly', 'months': 3, 'prepaidMonths': 1, 'discountPercent': 7, 'monthlyPriceReais': 260.4, 'totalReais': 260.4},
+          {'cycle': 'annual', 'months': 12, 'prepaidMonths': 12, 'discountPercent': 15, 'monthlyPriceReais': 238, 'totalReais': 2856},
         ],
+        'billing': {'methods': ['pix', 'card', 'onsite'], 'dueDayOptions': [5, 15, 25], 'dueDay': 5},
       },
       {
         'planId': 'pacote-10',
@@ -85,7 +86,7 @@ void main() {
 
       await tapKey(tester, 'class-cycle-annual');
       expect(find.textContaining('2.856,00'), findsWidgets);
-      expect(find.textContaining('por ano'), findsOneWidget);
+      expect(find.textContaining('à vista'), findsWidgets);
 
       await tapKey(tester, 'class-signup-next-plan');
       await tapKey(tester, 'class-teacher-t1');
@@ -94,6 +95,8 @@ void main() {
       await tapKey(tester, 'class-slot-c2:2');
       await tapKey(tester, 'class-signup-next-days');
       expect(repo.previewCalls.last['cycle'], 'annual');
+      expect(repo.previewCalls.last['dueDay'], 5);
+      expect(repo.previewCalls.last['paymentForm'], 'pix');
 
       await tester.drag(_key('class-contract-scroll'), const Offset(0, -5000));
       await settle(tester);
@@ -101,6 +104,28 @@ void main() {
       await tapKey(tester, 'class-sign-agree');
       await tapKey(tester, 'class-sign-confirm');
       expect(repo.lastEnroll!['cycle'], 'annual');
+    });
+
+    testWidgets('vencimento e forma escolhidos vão na prévia e na assinatura',
+        (tester) async {
+      final repo = FakeClassAgreementsRepository(
+        options: buildSignupOptions(plans: _plansWithCycles()),
+      );
+      await pumpClassAgreementsApp(tester, location: _signupPath, repo: repo, size: const Size(400, 2200));
+      await tapKey(tester, 'class-plan-mensal-2x');
+      await tapKey(tester, 'class-cycle-quarterly');
+      expect(find.textContaining('Fidelidade de 3 meses'), findsOneWidget);
+      await tapKey(tester, 'class-due-15');
+      await tapKey(tester, 'class-form-onsite');
+      await tapKey(tester, 'class-signup-next-plan');
+      await tapKey(tester, 'class-teacher-t1');
+      await tapKey(tester, 'class-signup-next-teacher');
+      await tapKey(tester, 'class-slot-c1:1');
+      await tapKey(tester, 'class-slot-c2:2');
+      await tapKey(tester, 'class-signup-next-days');
+      expect(repo.previewCalls.last['cycle'], 'quarterly');
+      expect(repo.previewCalls.last['dueDay'], 15);
+      expect(repo.previewCalls.last['paymentForm'], 'onsite');
     });
 
     testWidgets('trocar de plano volta o ciclo para o mensal; pacote não mostra ciclos',
@@ -113,7 +138,9 @@ void main() {
       await tapKey(tester, 'class-plan-mensal-2x');
       await tapKey(tester, 'class-cycle-quarterly');
       await tapKey(tester, 'class-plan-pacote-10');
-      expect(_key('class-cycle-picker'), findsNothing);
+      // Pacote não tem ciclo; a forma de pagamento continua.
+      expect(_key('class-cycle-annual'), findsNothing);
+      expect(_key('class-form-pix'), findsOneWidget);
       await tapKey(tester, 'class-plan-mensal-2x');
       final chip = tester.widget(_key('class-cycle-monthly'));
       expect((chip as dynamic).selected, isTrue);

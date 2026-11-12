@@ -84,6 +84,8 @@ void main() {
         'arenaId': 'arena-sul',
         'planId': 'mensal-2x',
         'cycle': 'monthly',
+        'dueDay': null,
+        'paymentForm': 'pix',
         'slots': ['c1:1', 'c2:2'],
         'cpf': null,
       });

@@ -23,13 +23,17 @@ DateTime? _dt(Object? v) => v is String ? DateTime.tryParse(v) : null;
 
 // ── opções de contratação ───────────────────────────────────────────────
 
-/// Ciclo de pagamento do plano mensal: paga 1, 3, 6 ou 12 meses de uma vez.
+/// Ciclo do plano mensal, no modelo dos Planos de horário: desconto sobre o
+/// mensal; trimestral e semestral têm fidelidade e são pagos mês a mês; anual
+/// é à vista.
 class ClassPlanCycleOption {
   const ClassPlanCycleOption({
     required this.cycle,
     required this.months,
     required this.monthlyPriceReais,
     required this.totalReais,
+    this.prepaidMonths = 1,
+    this.discountPercent = 0,
   });
 
   factory ClassPlanCycleOption.fromMap(Map<String, dynamic> m) =>
@@ -38,15 +42,71 @@ class ClassPlanCycleOption {
         months: _i(m['months']) ?? 1,
         monthlyPriceReais: _d(m['monthlyPriceReais']),
         totalReais: _d(m['totalReais']),
+        prepaidMonths: _i(m['prepaidMonths']) ?? 1,
+        discountPercent: _i(m['discountPercent']) ?? 0,
       );
 
   /// `monthly`, `quarterly`, `semiannual` ou `annual`.
   final String cycle;
+
+  /// Fidelidade em meses (1 no mensal).
   final int months;
   final double monthlyPriceReais;
 
-  /// O ciclo inteiro (sem o proporcional do 1º mês).
+  /// O que sai de uma vez em cada cobrança cheia (anual: 12 meses).
   final double totalReais;
+
+  /// Meses pagos de uma vez: 12 no anual, 1 nos outros.
+  final int prepaidMonths;
+
+  /// Desconto sobre o mensal (%), definido pela arena.
+  final int discountPercent;
+
+  bool get isPrepaid => prepaidMonths > 1;
+}
+
+/// Cobrança do plano: formas aceitas agora e vencimento (fixo ou à escolha).
+class ClassPlanBilling {
+  const ClassPlanBilling({
+    this.methods = const ['onsite'],
+    this.dueDayOptions = const [],
+    this.dueDay = 5,
+  });
+
+  factory ClassPlanBilling.fromMap(Map<String, dynamic> m) {
+    final methods = (m['methods'] is List)
+        ? (m['methods'] as List).map(_s).where((s) => s.isNotEmpty).toList()
+        : const <String>[];
+    return ClassPlanBilling(
+      methods: methods.isEmpty ? const ['onsite'] : methods,
+      dueDayOptions: (m['dueDayOptions'] is List)
+          ? (m['dueDayOptions'] as List).whereType<num>().map((n) => n.toInt()).toList()
+          : const [],
+      dueDay: _i(m['dueDay']) ?? 5,
+    );
+  }
+
+  /// `pix`, `card`, `onsite`.
+  final List<String> methods;
+  final List<int> dueDayOptions;
+  final int dueDay;
+}
+
+/// "Pix", "Cartão", "Na arena".
+String paymentFormLabel(String form) => switch (form) {
+      'pix' => 'Pix',
+      'card' => 'Cartão',
+      _ => 'Na arena',
+    };
+
+String paymentFormSub(String form) => form == 'onsite' ? 'na recepção' : 'pelo app';
+
+/// Linha de apoio do ciclo: "sem fidelidade" / "3 meses de fidelidade" /
+/// "à vista · 12 meses".
+String cycleSub(ClassPlanCycleOption o) {
+  if (o.isPrepaid) return 'à vista · ${o.prepaidMonths} meses';
+  if (o.months <= 1) return 'sem fidelidade';
+  return '${o.months} meses de fidelidade';
 }
 
 /// "Mensal", "Trimestral", "Semestral", "Anual".
@@ -67,6 +127,7 @@ String cyclePeriodSuffix(String cycle) => switch (cycle) {
 
 /// Desconto do ciclo sobre o mensal, em % inteiro (0 sem desconto).
 int cycleDiscountPercent(ClassSignupPlan plan, ClassPlanCycleOption option) {
+  if (option.discountPercent > 0) return option.discountPercent;
   if (plan.priceReais <= 0 || option.monthlyPriceReais >= plan.priceReais) {
     return 0;
   }
@@ -97,6 +158,7 @@ class ClassSignupPlan {
     this.anyTeacher = false,
     this.mine = false,
     this.cycles = const [],
+    this.billing = const ClassPlanBilling(),
   });
 
   factory ClassSignupPlan.fromMap(Map<String, dynamic> m) => ClassSignupPlan(
@@ -115,6 +177,9 @@ class ClassSignupPlan {
         anyTeacher: m['anyTeacher'] == true,
         mine: m['mine'] == true,
         cycles: _maps(m['cycles']).map(ClassPlanCycleOption.fromMap).toList(),
+        billing: m['billing'] is Map
+            ? ClassPlanBilling.fromMap(spMap(m['billing']))
+            : const ClassPlanBilling(methods: ['pix', 'card', 'onsite']),
       );
 
   final String planId;
@@ -141,8 +206,17 @@ class ClassSignupPlan {
   /// Ciclos de pagamento (só mensal; vazio em pacote ou servidor antigo).
   final List<ClassPlanCycleOption> cycles;
 
+  /// Cobrança do plano (formas e vencimento).
+  final ClassPlanBilling billing;
+
   /// Tem ciclo além do mensal para escolher.
   bool get hasLongCycles => cycles.length > 1;
+
+  /// Há alguma escolha de pagamento a fazer (ciclo, vencimento ou forma).
+  bool get hasPaymentChoices =>
+      hasLongCycles ||
+      billing.dueDayOptions.isNotEmpty ||
+      billing.methods.length > 1;
 
   bool get isMonthly => kind == 'monthly';
 }
@@ -469,6 +543,9 @@ class ClassEnrollmentPreview {
     this.online = false,
     this.needsCpf = false,
     this.cycle = 'monthly',
+    this.dueDay,
+    this.paymentForm,
+    this.commitmentEndsOn,
     this.startDate = '',
     this.endDate = '',
   });
@@ -486,6 +563,9 @@ class ClassEnrollmentPreview {
       online: m['online'] == true,
       needsCpf: m['needsCpf'] == true,
       cycle: _s(m['cycle']).isEmpty ? 'monthly' : _s(m['cycle']),
+      dueDay: _i(m['dueDay']),
+      paymentForm: _sn(m['paymentForm']),
+      commitmentEndsOn: _sn(m['commitmentEndsOn']),
       startDate: _s(m['startDate']),
       endDate: _s(m['endDate']),
     );
@@ -507,6 +587,13 @@ class ClassEnrollmentPreview {
 
   /// Ciclo de pagamento da matrícula.
   final String cycle;
+  final int? dueDay;
+
+  /// `pix`, `card` ou `onsite`.
+  final String? paymentForm;
+
+  /// Fim da fidelidade, `YYYY-MM-DD`.
+  final String? commitmentEndsOn;
   final String startDate;
   final String endDate;
 }

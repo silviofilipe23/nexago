@@ -145,6 +145,23 @@ int? scheduleDiscountVsSinglePercent({
   return off > 0 ? off : null;
 }
 
+/// Quanto o plano economiza por mês contra o avulso (mesma conta do
+/// [scheduleDiscountVsSinglePercent]), em centavos arredondados. `null` sem
+/// preço de referência ou quando o plano não sai mais barato.
+double? schedulePlanMonthlySavingsReais(SchedulePlan plan) {
+  final ref = plan.referenceHourlyReais;
+  if (ref == null ||
+      ref <= 0 ||
+      plan.durationMinutes <= 0 ||
+      plan.timesPerWeek <= 0) {
+    return null;
+  }
+  final singleMonthly =
+      ref * (plan.durationMinutes / 60) * plan.timesPerWeek * 52 / 12;
+  final savings = _roundCents(singleMonthly - plan.monthlyPriceReais);
+  return savings > 0 ? savings : null;
+}
+
 int? schedulePlanDiscountPercent(SchedulePlan plan) =>
     scheduleDiscountVsSinglePercent(
       monthlyPriceReais: plan.monthlyPriceReais,

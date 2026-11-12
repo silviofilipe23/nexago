@@ -185,6 +185,7 @@ class SchedulePlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final off = schedulePlanDiscountPercent(plan);
+    final savings = off == null ? null : schedulePlanMonthlySavingsReais(plan);
     final pixPrice = plan.billingMethods.contains(SchedulePaymentMethod.pixAuto)
         ? schedulePixPriceReais(plan.monthlyPriceReais, plan.pixDiscountPercent)
         : null;
@@ -269,6 +270,18 @@ class SchedulePlanCard extends StatelessWidget {
               ),
             ],
           ),
+          if (savings != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Economia de ${scheduleMoney(savings)} por mês vs avulso',
+              key: ValueKey('schedule-plan-savings-${plan.id}'),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: colors.win,
+              ),
+            ),
+          ],
           if (pixPrice != null) ...[
             const SizedBox(height: 4),
             Text(

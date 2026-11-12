@@ -349,14 +349,8 @@ export async function upsertSchedulePlanCore(
   if (planId) {
     const existing = await ref.get();
     if (!existing.exists) throw new HttpsError("not-found", "Plano não encontrado.");
-    const stored = parseSchedulePlan(existing.data() as Data);
-    // As assinaturas vivas foram feitas num modo (séries fixas ou cota livre): trocar no meio quebraria as duas.
-    if (stored.bookingMode !== plan.bookingMode && stored.occupiedCount > 0) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Este plano já tem assinantes: o modo (horário fixo ou livre) não pode mais mudar. Crie outro plano.",
-      );
-    }
+    // Trocar o modo vale para quem assinar daqui pra frente: cada assinatura guarda o seu no
+    // `planSnapshot` (série fixa ou cota livre) e segue como foi assinada.
     await ref.set({...plan, courtNames, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
   } else {
     await ref.set({
@@ -435,9 +429,10 @@ export async function getPlanAvailabilityCore(
   const primeCapReached = capacityMinutes > 0 &&
     usedMinutes * 100 >= settings.primeCapPercent * capacityMinutes;
 
-  // Plano livre não tem dia/horário para escolher: o atleta reserva depois, dentro das janelas.
-  const weekdays = plan.bookingMode === "flexible" ? [] :
-    [...new Set(plan.windows.map((w) => w.weekday))].sort((a, b) => a - b);
+  // Também no plano livre: o app novo ignora (não há dia/horário a escolher), mas a troca de horário
+  // de quem assinou como fixo antes do plano virar livre precisa deles, e o app antigo assina por eles
+  // (o servidor ignora dia/horário no livre).
+  const weekdays = [...new Set(plan.windows.map((w) => w.weekday))].sort((a, b) => a - b);
   const days = weekdays.map((weekday) => ({
     weekday,
     times: candidateStartTimes(plan.windows, weekday, plan.durationMinutes).map((startTime): AvailabilityTime => {

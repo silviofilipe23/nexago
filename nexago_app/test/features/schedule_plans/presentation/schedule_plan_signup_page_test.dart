@@ -749,6 +749,55 @@ void main() {
       expect(find.text('MEU PLANO'), findsOneWidget);
     });
 
+    testWidgets(
+        'troca de horário de quem assinou como fixo segue pedindo dia e hora',
+        (tester) async {
+      tester.view.physicalSize = const Size(1170, 2532);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      // Plano que virou livre depois: o servidor ainda manda os horários.
+      final turned = SchedulePlanAvailability.fromMap({
+        'plan': {
+          'name': 'Noite',
+          'bookingMode': 'flexible',
+          'timesPerWeek': 1,
+          'monthlyPriceReais': 200,
+          'windows': [
+            {'weekday': 2, 'startTime': '18:00', 'endTime': '22:00'},
+          ],
+        },
+        'days': [
+          {
+            'weekday': 2,
+            ...times([
+              ['19:00', '20:00', 2, 0],
+            ]),
+          },
+        ],
+      }, arenaId: 'a1', planId: 'p1');
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            schedulePlansUidProvider.overrideWith((ref) => 'u1'),
+            schedulePlanAvailabilityProvider
+                .overrideWith((ref, key) async => turned),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: const SchedulePlanSignupPage(
+              arenaId: 'a1',
+              planId: 'p1',
+              changeSubscriptionId: 's1',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.byKey(const Key('schedule-flex-rule')), findsNothing);
+      expect(find.byKey(const ValueKey('schedule-day-2')), findsOneWidget);
+    });
+
     testWidgets('plano livre lotado não deixa assinar', (tester) async {
       tester.view.physicalSize = const Size(1170, 2532);
       tester.view.devicePixelRatio = 3;

@@ -220,7 +220,7 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
       }
       showAppSnackBar(
         context,
-        friendlyErrorMessage(e, action: 'assinar o contrato'),
+        friendlyErrorMessage(e, action: 'Não foi possível assinar o contrato'),
         isError: true,
       );
     }
@@ -562,7 +562,7 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
         const SizedBox(height: 10),
         Row(
           children: [
-            for (var d = 1; d <= 6; d++) ...[
+            for (var d = 1; d <= 7; d++) ...[
               if (d > 1) const SizedBox(width: 6),
               Expanded(
                 child: _DayPill(
@@ -630,7 +630,7 @@ class _ClassPlanSignupPageState extends ConsumerState<ClassPlanSignupPage> {
       return _Empty(
         icon: Icons.description_outlined,
         title: 'Não deu para montar o contrato',
-        message: friendlyErrorMessage(_previewError ?? 'erro', action: 'montar o contrato'),
+        message: friendlyErrorMessage(_previewError ?? 'erro', action: 'Não foi possível montar o contrato'),
         action: TextButton(
           onPressed: () => _openContract(plan),
           child: const Text('Tentar de novo'),

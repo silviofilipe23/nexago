@@ -268,7 +268,7 @@ class ClassSlotOption {
 /// Horários que o atleta precisa escolher: o "aulas por semana" do plano
 /// mensal; pacote = 1 a 7 (`null`).
 int? requiredSlotCount(ClassSignupPlan plan) =>
-    plan.isMonthly ? (plan.classesPerWeek ?? 1) : null;
+    plan.isMonthly ? ((plan.classesPerWeek ?? 1).clamp(1, 7)) : null;
 
 /// Professores para o passo "Professor": os do plano, na ordem da arena.
 List<ClassSignupTeacher> teachersForPlan(

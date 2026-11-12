@@ -20,6 +20,7 @@ import '../../athlete_training/presentation/widgets/center_contract_widgets.dart
 import '../../schedule_plans/presentation/widgets/schedule_plan_ui.dart';
 import '../application/class_agreements_providers.dart';
 import '../domain/class_agreements.dart';
+import '../infrastructure/class_agreements_repository.dart';
 
 /// Contratos de aulas (canvas 07/08 do atleta e 01–03 do professor): a lista,
 /// a leitura com comprovante e, no contrato de professor pendente, a
@@ -294,11 +295,14 @@ class ClassAgreementPage extends ConsumerStatefulWidget {
 
 class _ClassAgreementPageState extends ConsumerState<ClassAgreementPage> {
   final _scroll = ScrollController();
-  final _reading = Stopwatch()..start();
+  final _reading = Stopwatch();
   bool _reachedEnd = false;
   double _progress = 0;
   bool _signing = false;
   bool _justSigned = false;
+
+  /// O cronômetro de leitura começa quando o texto chega, não ao abrir a tela.
+  bool _loadedOnce = false;
 
   static const _endSlack = 24.0;
 
@@ -358,7 +362,16 @@ class _ClassAgreementPageState extends ConsumerState<ClassAgreementPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _signing = false);
-      showAppSnackBar(context, friendlyErrorMessage(e, action: 'assinar o contrato'), isError: true);
+      showAppSnackBar(context, friendlyErrorMessage(e, action: 'Não foi possível assinar o contrato'), isError: true);
+      // Texto mudou ou o contrato não espera mais assinatura: relê e trava a leitura de novo.
+      if (e is ClassAgreementException && e.code == 'failed-precondition') {
+        setState(() {
+          _reachedEnd = false;
+          _progress = 0;
+          _loadedOnce = false;
+        });
+        ref.invalidate(classAgreementProvider(widget.agreementId));
+      }
     }
   }
 
@@ -384,6 +397,12 @@ class _ClassAgreementPageState extends ConsumerState<ClassAgreementPage> {
         data: (a) {
           if (_justSigned && a.status == ClassAgreementStatus.signed) {
             return _SignedNow(agreement: a);
+          }
+          if (!_loadedOnce) {
+            _loadedOnce = true;
+            _reading
+              ..reset()
+              ..start();
           }
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) _measure();

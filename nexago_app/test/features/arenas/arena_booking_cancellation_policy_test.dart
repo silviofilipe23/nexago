@@ -134,15 +134,22 @@ void main() {
   });
 
   group('textos', () {
-    test('confirmação traz a política e não promete estorno', () {
+    test('confirmação traz a política e diz que o valor volta', () {
       final text = ArenaBookingCancellationPolicy.confirmCancellationMessage(
         'Arena Sol',
       );
       expect(text, contains('6h antes'));
       expect(text, contains('Arena Sol'));
       expect(text, contains('50%'));
-      expect(text.toLowerCase(), isNot(contains('estorn')));
-      expect(text.toLowerCase(), isNot(contains('reembols')));
+      expect(text, contains('volta inteiro, pelo mesmo meio (Pix ou cartão)'));
+    });
+
+    test('aviso pós-cancelamento mostra o estorno só quando houve', () {
+      expect(ArenaBookingCancellationPolicy.canceledMessage(0),
+          'Reserva cancelada.');
+      final text = ArenaBookingCancellationPolicy.canceledMessage(70);
+      expect(text, contains('Estorno de R\$'));
+      expect(text, contains('70,00'));
     });
 
     test('aviso de prazo encerrado manda falar com a arena', () {

@@ -6,52 +6,56 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/arenas/data/booking_service.dart';
 
-/// `cancelBooking` do atleta: reserva aguardando PIX passa pela callable
-/// `cancelPendingArenaBookingPayment` (remove a cobrança aberta na Asaas antes
-/// de liberar o horário); os demais status seguem com a escrita direta.
+/// `cancelBooking` do atleta: tudo passa pela callable `cancelMyArenaBooking`,
+/// que estorna o que foi pago pelo app (Pix ou cartão) — a escrita direta antiga
+/// só marcava `canceled` e o dinheiro ficava retido.
 void main() {
   group('BookingService.cancelBooking', () {
-    test('pending_payment cancela pela callable, sem escrita direta', () async {
-      final firestore = _FakeFirestore({
-        'status': 'pending_payment',
-        'athleteId': 'u1',
-      });
-      final functions = _FakeFirebaseFunctions();
-      final service = BookingService(firestore, functions: functions);
-
-      await service.cancelBooking(bookingId: 'b1', athleteId: 'u1');
-
-      final (name, payload) = functions.calls.single;
-      expect(name, 'cancelPendingArenaBookingPayment');
-      expect(payload, {'bookingId': 'b1'});
-      expect(firestore.updates, isEmpty);
-    });
-
-    test('confirmed segue com a escrita direta, sem callable', () async {
+    test('cancela pela callable, sem escrita direta, e devolve o estorno',
+        () async {
       final firestore = _FakeFirestore({
         'status': 'confirmed',
         'athleteId': 'u1',
       });
-      final functions = _FakeFirebaseFunctions();
+      final functions = _FakeFirebaseFunctions(
+        result: {'bookingId': 'b1', 'status': 'canceled', 'refundedReais': 70},
+      );
       final service = BookingService(firestore, functions: functions);
 
-      await service.cancelBooking(bookingId: 'b1', athleteId: 'u1');
+      final refunded =
+          await service.cancelBooking(bookingId: 'b1', athleteId: 'u1');
 
-      expect(functions.calls, isEmpty);
-      expect(firestore.updates.single['status'], 'canceled');
-      expect(firestore.updates.single['attendanceStatus'], 'canceled');
+      final (name, payload) = functions.calls.single;
+      expect(name, 'cancelMyArenaBooking');
+      expect(payload, {'bookingId': 'b1'});
+      expect(refunded, 70);
+      expect(firestore.updates, isEmpty);
+    });
+
+    test('lateCancel vai no payload; resposta sem valor vira 0', () async {
+      final functions = _FakeFirebaseFunctions();
+      final service = BookingService(_FakeFirestore({}), functions: functions);
+
+      final refunded = await service.cancelBooking(
+        bookingId: 'b1',
+        athleteId: 'u1',
+        lateCancel: true,
+      );
+
+      expect(functions.calls.single.$2, {'bookingId': 'b1', 'lateCancel': true});
+      expect(refunded, 0);
     });
 
     test('recusa da callable vira BookingException com a mensagem do servidor',
         () async {
       final firestore = _FakeFirestore({
-        'status': 'pending_payment',
+        'status': 'confirmed',
         'athleteId': 'u1',
       });
       final functions = _FakeFirebaseFunctions(
         error: FirebaseFunctionsException(
-          code: 'failed-precondition',
-          message: 'Pagamento já registrado.',
+          code: 'unavailable',
+          message: 'Não foi possível estornar o pagamento agora.',
         ),
       );
       final service = BookingService(firestore, functions: functions);
@@ -62,7 +66,7 @@ void main() {
           isA<BookingException>().having(
             (e) => e.message,
             'message',
-            'Pagamento já registrado.',
+            'Não foi possível estornar o pagamento agora.',
           ),
         ),
       );
@@ -145,9 +149,10 @@ class _FakeSnapshot implements DocumentSnapshot<Map<String, dynamic>> {
 /// Fake mínimo de [FirebaseFunctions]: registra (nome, payload) de cada
 /// callable e, se [error] vier, lança no `call`.
 class _FakeFirebaseFunctions implements FirebaseFunctions {
-  _FakeFirebaseFunctions({this.error});
+  _FakeFirebaseFunctions({this.error, this.result});
 
   final FirebaseFunctionsException? error;
+  final Object? result;
   final List<(String, Map<String, dynamic>)> calls = [];
 
   @override
@@ -172,7 +177,7 @@ class _FakeHttpsCallable implements HttpsCallable {
     );
     final error = _functions.error;
     if (error != null) throw error;
-    return _FakeHttpsCallableResult<T>();
+    return _FakeHttpsCallableResult<T>(_functions.result);
   }
 
   @override
@@ -180,8 +185,12 @@ class _FakeHttpsCallable implements HttpsCallable {
 }
 
 class _FakeHttpsCallableResult<T> implements HttpsCallableResult<T> {
+  _FakeHttpsCallableResult(this._data);
+
+  final Object? _data;
+
   @override
-  T get data => null as T;
+  T get data => _data as T;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

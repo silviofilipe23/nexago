@@ -551,15 +551,18 @@ class BookingService {
     }
   }
 
-  /// Cancela uma reserva do atleta.
+  /// Cancela a reserva do próprio atleta pelo servidor (`cancelMyArenaBooking`):
+  /// dentro do prazo grátis, o que foi pago pelo app (Pix ou cartão) é estornado
+  /// pelo mesmo meio. Devolve o valor estornado (0 quando nada foi pago pelo app).
+  /// Reserva aguardando pagamento só perde a cobrança aberta (nada a estornar).
+  /// A escrita direta antiga só marcava `canceled` e o dinheiro ficava retido.
   ///
-  /// `pending_payment` vai pela callable `cancelPendingArenaBookingPayment`, que
-  /// remove a cobrança PIX aberta na Asaas antes de liberar o horário — a escrita
-  /// direta deixava o PIX pagável e o pagamento caía numa reserva já cancelada.
-  /// Os demais status seguem com a escrita direta.
-  Future<void> cancelBooking({
+  /// [lateCancel]: fora do prazo grátis cancela mesmo assim, sem estorno
+  /// ("Cancelar mesmo" do modo professor).
+  Future<double> cancelBooking({
     required String bookingId,
     required String athleteId,
+    bool lateCancel = false,
   }) async {
     final id = bookingId.trim();
     final uid = athleteId.trim();
@@ -567,36 +570,21 @@ class BookingService {
       throw BookingException('Dados inválidos para cancelamento.');
     }
 
-    final ref = _firestore.collection(arenaBookingsCollection).doc(id);
-    final snap = await ref.get();
-    if (!snap.exists) {
-      throw BookingException('Reserva não encontrada.');
+    try {
+      final result = await _functions
+          .httpsCallable('cancelMyArenaBooking')
+          .call(<String, dynamic>{
+            'bookingId': id,
+            if (lateCancel) 'lateCancel': true,
+          });
+      final data = result.data;
+      final refunded = data is Map ? data['refundedReais'] : null;
+      return refunded is num ? refunded.toDouble() : 0;
+    } on FirebaseFunctionsException catch (e) {
+      throw BookingException(
+        e.message ?? 'Não foi possível cancelar a reserva.',
+      );
     }
-    final data = snap.data() ?? <String, dynamic>{};
-    final ownerId = (data['athleteId'] as String?)?.trim() ?? '';
-    if (ownerId != uid) {
-      throw BookingException('Você não pode cancelar esta reserva.');
-    }
-
-    final status = (data['status'] as String?)?.toLowerCase().trim() ?? '';
-    if (status == 'pending_payment') {
-      try {
-        await _functions
-            .httpsCallable('cancelPendingArenaBookingPayment')
-            .call(<String, dynamic>{'bookingId': id});
-      } on FirebaseFunctionsException catch (e) {
-        throw BookingException(
-          e.message ?? 'Não foi possível cancelar a reserva.',
-        );
-      }
-      return;
-    }
-
-    await ref.update(<String, dynamic>{
-      'status': 'canceled',
-      'attendanceStatus': 'canceled',
-      'canceledAt': FieldValue.serverTimestamp(),
-    });
   }
 
   static const Duration _undoWindow = Duration(seconds: 60);

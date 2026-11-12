@@ -589,30 +589,37 @@ export async function cancelPendingBookingPayment(functions: Functions, bookingI
   }
 }
 
-/** Cancela a reserva do atleta dono — espelha `BookingService.cancelBooking` (Flutter):
- *  write direto, dentro da allow-list do dono em `arenaBookings` (firestore.rules,
- *  `arenaBookingOwnerUpdateOk`). Campo novo neste payload precisa entrar lá antes. */
-export async function cancelBooking(db: Firestore, bookingId: string, athleteId: string): Promise<void> {
+/** Cancela a reserva do atleta dono pela callable `cancelMyArenaBooking` — espelha
+ *  `BookingService.cancelBooking` (Flutter). Dentro do prazo grátis o que foi pago pelo
+ *  app (Pix ou cartão) é estornado pelo mesmo meio; devolve o valor estornado (0 quando
+ *  nada foi pago pelo app). Fora do prazo o servidor recusa e manda falar com a arena. */
+export async function cancelBooking(functions: Functions, bookingId: string): Promise<number> {
   const id = bookingId.trim();
-  const uid = athleteId.trim();
-  if (!id || !uid) {
+  if (!id) {
     throw new ArenaBookingError('Dados inválidos para cancelamento.');
   }
-  const ref = doc(db, ARENA_BOOKINGS, id);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    throw new ArenaBookingError('Reserva não encontrada.');
+  try {
+    const result = await httpsCallable<{ bookingId: string }, { refundedReais?: unknown }>(
+      functions,
+      'cancelMyArenaBooking',
+    )({ bookingId: id });
+    const refunded = Number(result.data?.refundedReais);
+    return Number.isFinite(refunded) && refunded > 0 ? refunded : 0;
+  } catch (err) {
+    const fb = err as { code?: string; message?: string };
+    const detail = typeof fb.message === 'string' && fb.message.trim() ? fb.message.trim() : null;
+    // As recusas do cancelamento (prazo, horário fixo, estorno indisponível) já vêm em
+    // português do servidor; o mapeamento genérico falaria em "reservar".
+    if (detail && !(fb.code ?? '').endsWith('internal')) throw new ArenaBookingError(detail);
+    throw mapCallableError(err);
   }
-  const data = snap.data() as Record<string, unknown>;
-  const ownerId = optionalStr(data['athleteId']);
-  if (ownerId !== uid) {
-    throw new ArenaBookingError('Você não pode cancelar esta reserva.');
-  }
-  await updateDoc(ref, {
-    status: 'canceled',
-    attendanceStatus: 'canceled',
-    canceledAt: serverTimestamp(),
-  });
+}
+
+/** Aviso depois do cancelamento: com estorno, diz o valor e quando ele chega. */
+export function canceledBookingNotice(refundedReais: number): string {
+  if (refundedReais <= 0) return 'Reserva cancelada.';
+  const value = refundedReais.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return `Reserva cancelada. Estorno de ${value} a caminho: no Pix cai em instantes; no cartão, aparece na fatura.`;
 }
 
 function toDateOrNull(v: unknown): Date | null {

@@ -95,8 +95,8 @@ class _ProfessorAgendaLessonPageState
     }
   }
 
-  /// E5b (no prazo) / E5c (fora do prazo) → E5d. A reserva cai como antes
-  /// (`cancelBooking`, a rule de dono confere) e o aluno é avisado com o
+  /// E5b (no prazo) / E5c (fora do prazo) → E5d. A reserva cai pelo
+  /// `cancelMyArenaBooking` (só o titular) e o aluno é avisado com o
   /// motivo (`notifyProfessorLessonCanceled`).
   Future<void> _cancel(
     ProfessorLesson l, {
@@ -167,9 +167,12 @@ class _ProfessorAgendaLessonPageState
     }
     setState(() => _canceling = true);
     try {
+      // No prazo: o servidor estorna o que foi pago pelo app. Fora dele, o
+      // "Cancelar mesmo" cancela sem estorno (o acerto é com a arena).
       await ref.read(bookingServiceProvider).cancelBooking(
             bookingId: l.bookingId,
             athleteId: ref.read(professorLinksUidProvider),
+            lateCancel: !free,
           );
     } catch (e) {
       if (mounted) {

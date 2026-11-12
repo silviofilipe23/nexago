@@ -488,13 +488,13 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     );
     if (!confirmed || !mounted) return;
     try {
-      await ref
+      final refunded = await ref
           .read(bookingServiceProvider)
           .cancelBooking(bookingId: widget.bookingId, athleteId: uid);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Reserva cancelada.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ArenaBookingCancellationPolicy.canceledMessage(refunded)),
+      ));
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;

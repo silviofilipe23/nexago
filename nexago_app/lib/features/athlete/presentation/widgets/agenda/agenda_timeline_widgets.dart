@@ -10,6 +10,7 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../../core/ui/app_snackbar.dart';
+import '../../../../arenas/domain/arena_booking_cancellation_policy.dart';
 import '../../../../arenas/domain/arenas_providers.dart';
 import '../../../../arenas/domain/booking_providers.dart';
 import '../../../../arenas/domain/booking_story.dart';
@@ -1168,13 +1169,15 @@ Future<void> cancelAgendaBooking(
   final uid = ref.read(authProvider).valueOrNull?.uid;
   if (uid == null || uid.isEmpty) return;
   try {
-    await ref
+    final refunded = await ref
         .read(bookingServiceProvider)
         .cancelBooking(bookingId: rental.bookingId, athleteId: uid);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('Reserva cancelada.')));
+      ..showSnackBar(SnackBar(
+        content: Text(ArenaBookingCancellationPolicy.canceledMessage(refunded)),
+      ));
   } catch (e) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context)

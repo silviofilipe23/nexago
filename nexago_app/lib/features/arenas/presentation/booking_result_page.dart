@@ -77,6 +77,11 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
           initial: result,
           candidates: crew,
           ownerPlayerId: ownerId,
+          sport: widget.presetSport ??
+              ref
+                  .read(bookingStorySourceProvider(widget.args.bookingId))
+                  ?.sport,
+          bookingId: bookingId,
           // Só quem reservou grava (a callable confere); o convidado e o
           // story sem reserva ficam só com a arte.
           onSave: canSave ? (r) => repository.save(bookingId, r) : null,

@@ -1,13 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/layout/nexa_app_bar.dart';
+import '../../../core/sports/sport_catalog.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/booking_result.dart';
+import '../data/pelada_live_draft_store.dart';
 import '../domain/booking_result_record.dart';
+import '../domain/pelada_live/pelada_live_rules.dart';
+import '../domain/pelada_live/pelada_live_session.dart';
 import 'booking_result_team_page.dart';
+import 'pelada_live/pelada_live_page.dart';
+import 'pelada_live/pelada_live_setup_page.dart';
 import 'widgets/booking_story/booking_result_card.dart';
 import 'widgets/booking_story/booking_story_editor.dart';
 
@@ -24,9 +32,21 @@ class BookingResultScorePage extends StatefulWidget {
     this.confirmBeforeSave,
     this.localOnlyNotice = 'O placar vai só para a arte do story: não fica '
         'salvo nem conta no seu histórico ou no ranking.',
+    this.sport,
+    this.bookingId = '',
+    this.liveStore,
   });
 
   final BookingResult initial;
+
+  /// Esporte da reserva: escolhe as regras do "Marcar ao vivo".
+  final String? sport;
+
+  /// A reserva, chave do rascunho do "Marcar ao vivo" no aparelho.
+  final String bookingId;
+
+  /// Onde a marcação ao vivo fica salva; `null` = `SharedPreferences`.
+  final PeladaLiveDraftStore? liveStore;
 
   /// Quem estava na reserva — os primeiros nomes do "Adicionar dupla".
   final List<ResultPlayer> candidates;
@@ -53,7 +73,110 @@ class _BookingResultScorePageState extends State<BookingResultScorePage> {
   late BookingResult _r = widget.initial;
   bool _saving = false;
 
+  late final PeladaLiveDraftStore _liveStore =
+      widget.liveStore ?? SharedPrefsPeladaLiveDraftStore();
+  late final String _draftKey = peladaLiveDraftKey(widget.bookingId);
+
+  /// Marcação ao vivo guardada no aparelho (o card vira "Continuar").
+  PeladaLiveSession? _draft;
+
   static const int _maxScore = 99;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDraft();
+  }
+
+  Future<void> _loadDraft() async {
+    final draft = await _liveStore.load(_draftKey);
+    if (mounted) setState(() => _draft = draft);
+  }
+
+  String? get _sportLabel => SportCatalog.labelOf(widget.sport);
+
+  /// "Marcar ao vivo": regras da partida e o placar ponto a ponto. O que
+  /// volta entra no placar desta tela (ainda não salvo).
+  Future<void> _openLive({bool restart = false}) async {
+    var session = restart ? null : _draft;
+    if (session == null) {
+      // Dois times: os sets marcados substituem os lançados.
+      if (!_r.isRotation && _r.hasScore) {
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Marcar ao vivo?'),
+            content: const Text(
+              'Os sets marcados ao vivo entram no lugar do placar lançado '
+              'aqui.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Voltar'),
+              ),
+              FilledButton(
+                key: const Key('pelada-live-replace-confirm'),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Marcar ao vivo'),
+              ),
+            ],
+          ),
+        );
+        if (ok != true || !mounted) return;
+      }
+      session = await Navigator.of(context).push<PeladaLiveSession>(
+        MaterialPageRoute(
+          builder: (_) => PeladaLiveSetupPage(
+            initial: _r,
+            sport: widget.sport,
+            store: _liveStore,
+          ),
+        ),
+      );
+      if (session == null || !mounted) return;
+    }
+    final result = await Navigator.of(context).push<BookingResult>(
+      MaterialPageRoute(
+        builder: (_) => PeladaLivePage(
+          session: session!,
+          store: _liveStore,
+          draftKey: _draftKey,
+          sportLabel: _sportLabel,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (result != null) setState(() => _r = result);
+    // O rascunho pode ter andado, sido descartado ou encerrado.
+    await _loadDraft();
+  }
+
+  Future<void> _restartLive() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Recomeçar a marcação?'),
+        content: const Text('Os pontos marcados ao vivo até aqui somem.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            key: const Key('pelada-live-restart-confirm'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Recomeçar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    await _liveStore.clear(_draftKey);
+    if (!mounted) return;
+    setState(() => _draft = null);
+    await _openLive(restart: true);
+  }
 
   Future<void> _save() async {
     if (_saving) return;
@@ -99,6 +222,8 @@ class _BookingResultScorePageState extends State<BookingResultScorePage> {
       setState(() => _saving = true);
       try {
         await save(_r);
+        // Placar gravado: a marcação ao vivo cumpriu o papel.
+        unawaited(_liveStore.clear(_draftKey));
       } catch (e) {
         if (!mounted) return;
         setState(() => _saving = false);
@@ -223,6 +348,17 @@ class _BookingResultScorePageState extends State<BookingResultScorePage> {
       body: ListView(
         padding: const EdgeInsets.only(top: 4, bottom: 16),
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+            child: _LiveCard(
+              draft: _draft,
+              sportLabel: _sportLabel,
+              rules: PeladaLiveRules.forSport(widget.sport),
+              rotation: rotation,
+              onOpen: _openLive,
+              onRestart: _restartLive,
+            ),
+          ),
           BookingStorySectionLabel(rotation ? 'Classificação' : 'Resultado'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -369,6 +505,120 @@ class _BookingResultScorePageState extends State<BookingResultScorePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// "Marcar ao vivo" no topo do Editar placar (canvas "Pelada · marcar ao
+/// vivo", 01); com marcação guardada no aparelho, vira "Continuar marcação".
+class _LiveCard extends StatelessWidget {
+  const _LiveCard({
+    required this.draft,
+    required this.sportLabel,
+    required this.rules,
+    required this.rotation,
+    required this.onOpen,
+    required this.onRestart,
+  });
+
+  final PeladaLiveSession? draft;
+  final String? sportLabel;
+  final PeladaLiveRules rules;
+  final bool rotation;
+  final VoidCallback onOpen;
+  final VoidCallback onRestart;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final draft = this.draft;
+    final sport = sportLabel?.toLowerCase();
+    final rulesText = rules.mode == PeladaLiveMode.points
+        ? 'cada toque vale um ponto'
+        : rules.summary;
+    final subtitle = draft != null
+        ? '${draft.progressLabel} · ${draft.rules.summary}'
+        : [
+            sport == null || rules.mode == PeladaLiveMode.points
+                ? 'Ponto a ponto durante o jogo: $rulesText.'
+                : 'Ponto a ponto durante o jogo, com as regras do $sport: '
+                    '$rulesText.',
+            if (rotation) 'Rei da quadra: quem vence fica.',
+          ].join(' ');
+
+    return Material(
+      color: AppColors.brand.withValues(alpha: colors.isDark ? 0.08 : 0.07),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(
+          color: AppColors.brand.withValues(alpha: 0.6),
+          width: 1.5,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: const Key('pelada-live-open'),
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: AppColors.brand,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  draft != null
+                      ? Icons.play_arrow_rounded
+                      : Icons.scoreboard_outlined,
+                  color: const Color(0xFF0A0A0A),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      draft != null ? 'Continuar marcação' : 'Marcar ao vivo',
+                      style: AppTypography.soraRegular(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      key: const Key('pelada-live-card-subtitle'),
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: colors.onSurface.withValues(alpha: 0.72),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (draft != null)
+                TextButton(
+                  key: const Key('pelada-live-restart'),
+                  onPressed: onRestart,
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.brandText,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: const Text('Recomeçar'),
+                )
+              else
+                Icon(Icons.chevron_right_rounded, color: colors.brandText),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -185,6 +185,9 @@ class SchedulePlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final off = schedulePlanDiscountPercent(plan);
+    final pixPrice = plan.billingMethods.contains(SchedulePaymentMethod.pixAuto)
+        ? schedulePixPriceReais(plan.monthlyPriceReais, plan.pixDiscountPercent)
+        : null;
     final (spots, tone) = scheduleSpotsLabel(scheduleSpotsLeft(plan));
     final spotsColor = switch (tone) {
       ScheduleSpotsTone.few => colors.pending,
@@ -266,6 +269,19 @@ class SchedulePlanCard extends StatelessWidget {
               ),
             ],
           ),
+          if (pixPrice != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${scheduleMoney(pixPrice)}/mês no Pix '
+              '(−${plan.pixDiscountPercent}%)',
+              key: ValueKey('schedule-plan-pix-${plan.id}'),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: colors.win,
+              ),
+            ),
+          ],
         ],
       ),
     );

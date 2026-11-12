@@ -351,7 +351,12 @@ export async function upsertSchedulePlanCore(
     if (!existing.exists) throw new HttpsError("not-found", "Plano não encontrado.");
     // Trocar o modo vale para quem assinar daqui pra frente: cada assinatura guarda o seu no
     // `planSnapshot` (série fixa ou cota livre) e segue como foi assinada.
+    const stored = parseSchedulePlan(existing.data() as Data);
     await ref.set({...plan, courtNames, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    // O desconto no Pix vale também para quem já assina: as próximas faturas de Pix saem com o novo.
+    if (stored.billing.pixDiscountPercent !== plan.billing.pixDiscountPercent) {
+      await syncSubscriptionsPixDiscount(db, arenaId, ref.id, plan.billing.pixDiscountPercent);
+    }
   } else {
     await ref.set({
       ...plan, courtNames, arenaId, occupiedCount: 0, waitingCount: 0,
@@ -359,6 +364,23 @@ export async function upsertSchedulePlanCore(
     });
   }
   return {planId: ref.id};
+}
+
+/** Grava o desconto no Pix do plano nas assinaturas que ainda não acabaram (em lotes de 400). */
+export async function syncSubscriptionsPixDiscount(
+  db: Firestore, arenaId: string, planId: string, percent: number,
+): Promise<number> {
+  const snap = await db.collection(ARENA_SCHEDULE_SUBSCRIPTIONS).where("planId", "==", planId).get();
+  const live = snap.docs.filter((d) => d.data()["arenaId"] === arenaId && d.data()["status"] !== "canceled" &&
+    d.data()["pixDiscountPercent"] !== percent);
+  for (let i = 0; i < live.length; i += 400) {
+    const batch = db.batch();
+    for (const d of live.slice(i, i + 400)) {
+      batch.set(d.ref, {pixDiscountPercent: percent, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    }
+    await batch.commit();
+  }
+  return live.length;
 }
 
 export async function saveScheduleRulesCore(db: Firestore, uid: string, input: Data): Promise<ScheduleSettings> {

@@ -108,4 +108,32 @@ void main() {
       expect(none.schedulePlanNotice, isNull);
     });
   });
+
+  group('desconto no Pix', () {
+    test('valor no Pix igual ao servidor', () {
+      expect(schedulePixPriceReais(220, 10), 198);
+      expect(schedulePixPriceReais(99.9, 5), 94.91);
+      expect(schedulePixPriceReais(220, 0), isNull);
+      expect(schedulePixPriceReais(5.2, 10), isNull);
+    });
+
+    test('plano, assinatura e checkout leem o desconto', () {
+      final plan = SchedulePlan.fromMap('p1', {
+        'billing': {'pixDiscountPercent': 15},
+      });
+      expect(plan.pixDiscountPercent, 15);
+      expect(
+        ScheduleSubscription.fromMap({'pixDiscountPercent': 10}).pixDiscountPercent,
+        10,
+      );
+      final checkout = ScheduleCheckout.fromMap({
+        'invoiceUrl': 'u',
+        'amountReais': 220,
+        'pixAmountReais': 198,
+        'pixDiscountPercent': 10,
+      });
+      expect(checkout.pixReais, 198);
+      expect(ScheduleCheckout.fromMap({'amountReais': 220}).pixReais, 220);
+    });
+  });
 }

@@ -25,6 +25,8 @@ import {
   CPF_REQUIRED_MESSAGE,
   MIN_ONLINE_CHARGE_REAIS,
   PENDING_PAYMENT_STATUS,
+  clampPixDiscount,
+  pixDiscountedReais,
   SCHEDULE_PAYMENT_REF_PREFIX,
   autopayOf,
   parseScheduleSettings,
@@ -90,6 +92,8 @@ export interface ScheduleAsaasDeps {
   registerCustomer: (athleteId: string, cpfCnpj: string) => Promise<string>;
   createPayment: (input: {
     groupId: string; customerId: string; valueReais: number; dueDate: string; description: string;
+    /** `PIX` quando o plano dá desconto no Pix (a fatura sai só de Pix, com o valor descontado). */
+    billingType?: "PIX";
   }) => Promise<{paymentId: string; invoiceUrl: string; status: string}>;
   /** Apaga a cobrança; lança se não der (já paga, por exemplo). 404 conta como apagada. */
   deletePayment: (paymentId: string) => Promise<void>;
@@ -129,6 +133,7 @@ export const defaultScheduleAsaasDeps: ScheduleAsaasDeps = {
       externalReference: `${SCHEDULE_PAYMENT_REF_PREFIX}${input.groupId}`,
       // Mesmo grupo = mesma cobrança: retentativa do worker, da varredura ou do "Pagar" não duplica.
       idempotencyKey: `schedule-pay-${getAsaasEnvTag()}-${input.groupId}`,
+      ...(input.billingType ? {billingType: input.billingType} : {}),
     });
   },
   deletePayment: async (paymentId) => {
@@ -195,9 +200,14 @@ export function decideScheduleBillingMode(input: {onlineBilling: boolean; sub: D
 export function scheduleAsaasGroupData(
   chargeId: string,
   charge: Data,
-  opts: {customerAthleteId: string | null; arenaName?: string; silentLink?: boolean},
+  opts: {customerAthleteId: string | null; arenaName?: string; silentLink?: boolean; pixDiscountPercent?: unknown},
 ): Data {
   const label = chargePeriodLabel(charge);
+  // Desconto no Pix: o grupo guarda o valor do plano (`amountReais`, base do cartão e do débito
+  // automático) e o do Pix (`pixAmountReais`, a fatura que nasce só de Pix).
+  const amountReais = Number(charge["amountReais"] ?? 0);
+  const pixDiscountPercent = clampPixDiscount(opts.pixDiscountPercent);
+  const pixAmountReais = pixDiscountedReais(amountReais, pixDiscountPercent);
   const description = [`Plano ${str(charge["planName"]) || "de horário"}`, label, opts.arenaName ?? ""]
     .filter(Boolean).join(" · ").slice(0, 480);
   return {
@@ -207,7 +217,8 @@ export function scheduleAsaasGroupData(
     payerAthleteId: str(charge["payerAthleteId"]) || null,
     customerAthleteId: opts.customerAthleteId,
     name: str(charge["payerName"]),
-    amountReais: Number(charge["amountReais"] ?? 0),
+    amountReais,
+    ...(pixAmountReais != null ? {pixAmountReais, pixDiscountPercent} : {}),
     dueDate: str(charge["dueDate"]),
     description,
     state: "pending" satisfies ClassAsaasState,
@@ -277,7 +288,9 @@ export async function decideScheduleChargeBilling(
       if (card) cardExpired = {last4: card.last4, planName: str(charge["planName"]) || "de horário"};
     }
     const groupRef = groupsCol(db).doc();
-    tx.set(groupRef, scheduleAsaasGroupData(chargeId, charge, {customerAthleteId: null, arenaName: str(sub["arenaName"])}));
+    tx.set(groupRef, scheduleAsaasGroupData(chargeId, charge, {
+      customerAthleteId: null, arenaName: str(sub["arenaName"]), pixDiscountPercent: sub["pixDiscountPercent"],
+    }));
     tx.set(chargeRef, {billingMode: "asaas", asaas: chargeAsaasMirror(groupRef.id, "pending")}, {merge: true});
     return {billingMode: "asaas", groupId: groupRef.id, autopay: false, cardExpired, payerId};
   });
@@ -327,7 +340,9 @@ export async function ensureScheduleChargeLinkGroup(
     if (currentId && current && current["state"] !== "void") return currentId;
     const groupRef = groupsCol(db).doc();
     const sub = (subSnap.data() ?? {}) as Data;
-    tx.set(groupRef, scheduleAsaasGroupData(chargeId, charge, {customerAthleteId: null, arenaName: str(sub["arenaName"])}));
+    tx.set(groupRef, scheduleAsaasGroupData(chargeId, charge, {
+      customerAthleteId: null, arenaName: str(sub["arenaName"]), pixDiscountPercent: sub["pixDiscountPercent"],
+    }));
     tx.set(chargeRef, {asaas: chargeAsaasMirror(groupRef.id, "pending")}, {merge: true});
     return groupRef.id;
   });
@@ -446,12 +461,14 @@ export async function ensureScheduleAsaasPayment(
       await settle(db, groupId, "needs_cpf", {});
       return {state: "needs_cpf"};
     }
+    const pixAmount = Number(claimed["pixAmountReais"] ?? 0);
     created = await deps.createPayment({
       groupId,
       customerId,
-      valueReais: Number(claimed["amountReais"] ?? 0),
+      valueReais: pixAmount > 0 ? pixAmount : Number(claimed["amountReais"] ?? 0),
       dueDate: str(claimed["dueDate"]),
       description: str(claimed["description"]) || "Mensalidade",
+      ...(pixAmount > 0 ? {billingType: "PIX" as const} : {}),
     });
   } catch (e) {
     logger.error(`ensureScheduleAsaasPayment ${groupId}: falhou`, e);
@@ -472,11 +489,14 @@ export async function ensureScheduleAsaasPayment(
   const pushTo = payerId || customerAthleteId;
   if (state === "open" && pushTo && claimed["silentLink"] !== true) {
     const amount = Number(claimed["amountReais"] ?? 0);
+    const pixAmount = Number(claimed["pixAmountReais"] ?? 0);
     try {
       await deps.notify({
         userId: pushTo,
         title: "Mensalidade disponível",
-        body: `${str(claimed["description"]) || "Mensalidade"} · ${brl(amount)}. Toque para pagar com Pix ou cartão.`,
+        body: pixAmount > 0 ?
+          `${str(claimed["description"]) || "Mensalidade"} · ${brl(pixAmount)} no Pix (${brl(amount)} no cartão). Toque para pagar.` :
+          `${str(claimed["description"]) || "Mensalidade"} · ${brl(amount)}. Toque para pagar com Pix ou cartão.`,
         type: SCHEDULE_CHARGE_LINK_TYPE,
         data: {
           chargeId: str(claimed["chargeId"]),
@@ -980,6 +1000,7 @@ export async function getScheduleChargePaymentLinkCore(
       const newRef = groupsCol(db).doc();
       tx.set(newRef, scheduleAsaasGroupData(chargeId, data, {
         customerAthleteId: uid, arenaName: str(subSnap.data()?.["arenaName"]), silentLink: true,
+        pixDiscountPercent: subSnap.data()?.["pixDiscountPercent"],
       }));
       tx.set(chargeRef, {asaas: chargeAsaasMirror(newRef.id, "pending")}, {merge: true});
     });
@@ -1028,21 +1049,29 @@ export async function getScheduleChargeCheckoutCore(
   invoiceUrl: string; amountReais: number; qrCode?: string; qrCodeBase64?: string;
   chargedReais?: number; cardFeeReais?: number; cardFeePercent?: number;
   cardProcessingPercent?: number; cardFixedReais?: number;
+  /** Desconto no Pix: o Pix sai por `pixAmountReais`; `amountReais` é o valor do plano (cartão). */
+  pixAmountReais?: number; pixDiscountPercent?: number;
 }> {
   await assertPaymentWindowOpen(db, str(chargeIdRaw));
   const {invoiceUrl} = await getScheduleChargePaymentLinkCore(db, uid, chargeIdRaw, cpfRaw, deps, opts);
   const charge = ((await db.collection(ARENA_SCHEDULE_CHARGES).doc(str(chargeIdRaw)).get()).data() ?? {}) as Data;
   const amountReais = Number(charge["amountReais"] ?? 0);
   const method = str(methodRaw);
-  // `method` ausente (apps antigos) = a fatura de sempre, que aceita Pix e cartão sem taxa.
-  if (method === "card") return scheduleCardCheckout(db, charge, amountReais, invoiceUrl, deps);
-  if (method !== "pix") return {invoiceUrl, amountReais};
   const groupId = str(asaasOf(charge)["groupId"]);
-  const paymentId = groupId ? str((await groupsCol(db).doc(groupId).get()).data()?.["paymentId"]) : "";
+  const group = groupId ? ((await groupsCol(db).doc(groupId).get()).data() ?? {}) as Data : {};
+  const pixAmount = Number(group["pixAmountReais"] ?? 0);
+  // Fatura com desconto no Pix (só Pix): o app mostra os dois valores.
+  const pixFields = pixAmount > 0 ?
+    {pixAmountReais: pixAmount, pixDiscountPercent: clampPixDiscount(group["pixDiscountPercent"])} :
+    {};
+  // `method` ausente (apps antigos) = a fatura de sempre (só Pix, quando há desconto no Pix).
+  if (method === "card") return {...await scheduleCardCheckout(db, charge, amountReais, invoiceUrl, deps), ...pixFields};
+  if (method !== "pix") return {invoiceUrl, amountReais, ...pixFields};
+  const paymentId = str(group["paymentId"]);
   if (!paymentId) throw new HttpsError("unavailable", LINK_PENDING_MESSAGE);
   try {
     const qr = await deps.fetchPixQrCode(paymentId);
-    return {invoiceUrl, amountReais, qrCode: qr.qrCode, qrCodeBase64: qr.qrCodeBase64};
+    return {invoiceUrl, amountReais, ...pixFields, qrCode: qr.qrCode, qrCodeBase64: qr.qrCodeBase64};
   } catch (e) {
     logger.warn(`getScheduleChargeCheckoutCore: QR do Pix de ${paymentId} falhou`, e);
     throw new HttpsError("unavailable", PIX_UNAVAILABLE_MESSAGE);
@@ -1071,7 +1100,10 @@ async function scheduleCardCheckout(
   const terms = await deps.cardFeeTerms();
   const surcharge = cardSurcharge(baseReais, terms);
   const feeCents = surcharge.totalCents;
-  if (feeCents <= 0) return {invoiceUrl, amountReais};
+  // A fatura do grupo é só de Pix quando há desconto no Pix: o cartão sai numa cobrança à parte,
+  // pelo valor do plano, mesmo sem taxa.
+  const pixOnlyInvoice = Number(group["pixAmountReais"] ?? 0) > 0;
+  if (feeCents <= 0 && !pixOnlyInvoice) return {invoiceUrl, amountReais};
 
   const customerAthleteId = str(group["customerAthleteId"]) || str(group["payerAthleteId"]);
   const customerId = customerAthleteId ? await deps.resolveCustomer(customerAthleteId) : null;

@@ -8,7 +8,12 @@ import {
   type FlexPlanSubscription,
 } from "./arena-schedule-flex";
 import {billingWeekdaysOf, isFlexibleSubscription, planFirstCharge, planWindowWeekdays} from "./arena-schedule-subscriptions";
-import {parseSchedulePlan, validateSchedulePlanInput} from "./arena-schedule-plan-constants";
+import {
+  clampPixDiscount,
+  parseSchedulePlan,
+  pixDiscountedReais,
+  validateSchedulePlanInput,
+} from "./arena-schedule-plan-constants";
 import type {CouponPricingOutcome} from "./arena-coupons";
 
 const NO_COUPON: CouponPricingOutcome = {couponApplied: false, couponId: null, couponCode: null, couponDiscountReais: 0};
@@ -187,5 +192,29 @@ describe("plano livre: modo, proporcional e dias", () => {
     assert.deepEqual(billingWeekdaysOf(sub), [6]);
     assert.deepEqual(billingWeekdaysOf({slots: [{weekday: 2}, {weekday: 4}]}), [2, 4]);
     assert.equal(isFlexibleSubscription({planSnapshot: {timesPerWeek: 1}}), false);
+  });
+});
+
+describe("desconto no Pix do plano", () => {
+  it("valor no Pix em centavos; 0%, valor baixo ou sem mudança = sem desconto", () => {
+    assert.equal(pixDiscountedReais(220, 10), 198);
+    assert.equal(pixDiscountedReais(99.9, 5), 94.91);
+    assert.equal(pixDiscountedReais(220, 0), null);
+    assert.equal(pixDiscountedReais(5.2, 10), null); // 4,68 < mínimo online
+    assert.equal(clampPixDiscount(80), 50);
+    assert.equal(clampPixDiscount("x"), 0);
+  });
+
+  it("validação: até 50%, e sem Pix entre as formas o desconto zera", () => {
+    const base = {
+      name: "Noite", status: "active", timesPerWeek: 1, durationMinutes: 60, capacity: 5, monthlyPriceReais: 200,
+      windows: [{weekday: 1, startTime: "18:00", endTime: "22:00"}], courtIds: ["c1"],
+    };
+    assert.equal(validateSchedulePlanInput({...base, billing: {pixDiscountPercent: 10}}).billing.pixDiscountPercent, 10);
+    assert.equal(validateSchedulePlanInput(base).billing.pixDiscountPercent, 0);
+    assert.throws(() => validateSchedulePlanInput({...base, billing: {pixDiscountPercent: 60}}), /Desconto no Pix/);
+    assert.equal(validateSchedulePlanInput({...base, billing: {methods: ["card", "onsite"], pixDiscountPercent: 10}})
+      .billing.pixDiscountPercent, 0);
+    assert.equal(parseSchedulePlan({billing: {pixDiscountPercent: 15}}).billing.pixDiscountPercent, 15);
   });
 });

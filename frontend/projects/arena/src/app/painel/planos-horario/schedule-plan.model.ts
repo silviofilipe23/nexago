@@ -39,6 +39,8 @@ export interface PlanBilling {
   /** 1–28; 0 = dia da assinatura. */
   dueDay: number;
   overdueReleaseDays: 1 | 3 | 7;
+  /** Desconto (%) na mensalidade paga por Pix online. 0 = sem desconto. */
+  pixDiscountPercent: number;
 }
 
 export interface PlanRules {
@@ -247,7 +249,9 @@ export const DEFAULT_PLAN_CYCLES: PlanCycles = {
   annual: { enabled: true, discountPercent: 10 },
 };
 
-export const DEFAULT_PLAN_BILLING: PlanBilling = { methods: ['pix_auto', 'card', 'onsite'], dueDay: 5, overdueReleaseDays: 3 };
+export const DEFAULT_PLAN_BILLING: PlanBilling = {
+  methods: ['pix_auto', 'card', 'onsite'], dueDay: 5, overdueReleaseDays: 3, pixDiscountPercent: 0,
+};
 
 export const DEFAULT_PLAN_RULES: PlanRules = {
   makeup: { enabled: true, perMonth: 2, validityDays: 30, noticeHours: 24 },
@@ -377,6 +381,7 @@ export function planFromRaw(id: string, d: Raw): SchedulePlan {
       methods: Array.isArray(billing['methods']) ? methods : [...DEFAULT_PLAN_BILLING.methods],
       dueDay: num(billing['dueDay'], 5),
       overdueReleaseDays: release === 1 || release === 7 ? release : 3,
+      pixDiscountPercent: Math.max(0, Math.min(50, Math.floor(num(billing['pixDiscountPercent'], 0)))),
     },
     rules: {
       makeup: {

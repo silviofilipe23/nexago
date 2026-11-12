@@ -271,6 +271,19 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
                     <p class="hint">{{ store.settings().onlineBillingEnabled ? feeText : 'Para cobrar por link, ligue a cobrança online nas Regras gerais.' }}</p>
                   }
                 </div>
+                @if (d().billing.methods.includes('pix_auto')) {
+                  <div data-testid="ph-plan-pix-discount">
+                    <div class="field-label">Desconto no Pix</div>
+                    <div class="chip-row">
+                      @for (n of pixDiscounts; track n) {
+                        <button type="button" class="sm-chip" [class.active]="d().billing.pixDiscountPercent === n" (click)="patchBilling({ pixDiscountPercent: n })">
+                          {{ n === 0 ? 'Sem desconto' : n + '%' }}
+                        </button>
+                      }
+                    </div>
+                    <p class="hint">{{ pixDiscountHint() }}</p>
+                  </div>
+                }
                 <div>
                   <div class="field-label">Vencimento</div>
                   <div class="chip-row">
@@ -468,6 +481,17 @@ export class PanelPhPlanEditorComponent {
   protected readonly readOnly = computed(() => !this.access.canWrite('agenda') || !this.arenaContext.hasCapability('planosHorario'));
   protected readonly original = computed<SchedulePlan | null>(() => (this.planId ? this.store.planById().get(this.planId) ?? null : null));
   protected readonly d = signal<EditorDraft>(this.blankDraft());
+  protected readonly pixDiscounts = [0, 5, 10, 15, 20] as const;
+  /** "Pago por Pix pelo app: R$ 198,00 por mês (−10%). Cartão e na arena seguem no valor cheio." */
+  protected readonly pixDiscountHint = computed(() => {
+    const pct = this.d().billing.pixDiscountPercent;
+    if (pct <= 0) return 'Ligue para a mensalidade sair mais barata quando o atleta pagar por Pix.';
+    const price = this.priceValue();
+    const pix = Math.round(Math.round(price * 100) * (100 - pct) / 100) / 100;
+    const value = price > 0 ? `${pix.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} por mês (−${pct}%)` : `−${pct}%`;
+    const online = this.store.settings().onlineBillingEnabled ? '' : ' Vale quando a cobrança online estiver ligada nas Regras gerais.';
+    return `Pago por Pix pelo app: ${value}. Cartão e na arena seguem no valor cheio; quem já assina passa a ter o desconto nas próximas mensalidades.${online}`;
+  });
   /** `Pix e Cartão: Pix ou cartão por link (online) · Na arena: baixa manual`. */
   protected readonly billingNote = computed(() => {
     const online = this.store.settings().onlineBillingEnabled;

@@ -542,7 +542,7 @@ class _SchedulePlanSignupPageState
               const SizedBox(height: 18),
               const ScheduleKicker('Pagamento'),
               const SizedBox(height: 8),
-              _methodChips(a.plan),
+              _methodChips(a.plan, onlineBilling: a.onlineBilling),
               const SizedBox(height: 8),
               Text(
                 scheduleMethodNote(
@@ -887,9 +887,11 @@ class _SchedulePlanSignupPageState
     ];
   }
 
-  Widget _methodChips(SchedulePlan plan) {
+  Widget _methodChips(SchedulePlan plan, {required bool onlineBilling}) {
     final methods = plan.billingMethods;
     final current = _methodOf(plan);
+    // O desconto vale no Pix pago pelo app (cobrança online da arena).
+    final pixOff = onlineBilling ? plan.pixDiscountPercent : 0;
     return Row(
       children: [
         for (var i = 0; i < methods.length; i++) ...[
@@ -897,7 +899,9 @@ class _SchedulePlanSignupPageState
           Expanded(
             child: ScheduleChoiceChip(
               key: ValueKey('schedule-method-${methods[i].key}'),
-              label: methods[i].label,
+              label: methods[i] == SchedulePaymentMethod.pixAuto && pixOff > 0
+                  ? '${methods[i].label} −$pixOff%'
+                  : methods[i].label,
               selected: methods[i] == current,
               onTap: () => setState(() => _method = methods[i]),
             ),
@@ -1082,7 +1086,13 @@ class _SchedulePlanSignupPageState
         : weekdays.isEmpty
             ? monthly * 12
             : scheduleAnnualUpfrontReais(monthly, weekdays, DateTime.now());
-    final share = scheduleSharePerPlayer(total, players);
+    final fullShare = scheduleSharePerPlayer(total, players);
+    // Pix pelo app com desconto do plano: cada pagador paga a parte dele com o desconto.
+    final pixShare = a.onlineBilling &&
+            _methodOf(plan) == SchedulePaymentMethod.pixAuto
+        ? schedulePixPriceReais(fullShare, plan.pixDiscountPercent)
+        : null;
+    final share = pixShare ?? fullShare;
     final ready = _pendingPayment() == null &&
         (_mode == _Mode.offer ? offer != null : _readyForSlots(a));
     return NexaBottomActionBar(
@@ -1100,11 +1110,12 @@ class _SchedulePlanSignupPageState
             ),
           ),
           Text(
-            upfront
+            (upfront
                 ? (players > 1
                     ? 'sua parte · 12 meses à vista'
                     : '12 meses · à vista')
-                : (players > 1 ? 'sua parte · por mês' : 'por mês'),
+                : (players > 1 ? 'sua parte · por mês' : 'por mês')) +
+                (pixShare != null ? ' no Pix' : ''),
             key: const Key('schedule-signup-share-sub'),
             style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
           ),

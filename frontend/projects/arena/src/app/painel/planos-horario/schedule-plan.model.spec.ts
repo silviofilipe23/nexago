@@ -21,7 +21,8 @@ describe('schedule-plan.model · parse', () => {
     expect(p.durationMinutes).toBe(60);
     expect(p.cycles.quarterly).toEqual({ enabled: true, discountPercent: 5 });
     expect(p.cycles.annual.discountPercent).toBe(10);
-    expect(p.billing).toEqual({ methods: ['pix_auto', 'card', 'onsite'], dueDay: 5, overdueReleaseDays: 3 });
+    expect(p.billing).toEqual({ methods: ['pix_auto', 'card', 'onsite'], dueDay: 5, overdueReleaseDays: 3, pixDiscountPercent: 0 });
+    expect(planFromRaw('p2', { billing: { pixDiscountPercent: 10 } }).billing.pixDiscountPercent).toBe(10);
     expect(p.rules.makeup).toEqual({ enabled: true, perMonth: 2, validityDays: 30, noticeHours: 24 });
     expect(p.rules.holiday).toBe('makeup');
     expect(p.rules.split.maxPlayers).toBe(4);
@@ -35,7 +36,7 @@ describe('schedule-plan.model · parse', () => {
       rules: { holiday: 'play', weather: false },
     });
     expect(p.windows).toEqual([{ weekday: 1, startTime: '18:00', endTime: '23:00' }]);
-    expect(p.billing).toEqual({ methods: ['card'], dueDay: 0, overdueReleaseDays: 7 });
+    expect(p.billing).toEqual({ methods: ['card'], dueDay: 0, overdueReleaseDays: 7, pixDiscountPercent: 0 });
     expect(p.rules.holiday).toBe('play');
     expect(p.rules.weather).toBeFalse();
   });

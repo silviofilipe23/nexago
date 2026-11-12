@@ -282,6 +282,7 @@ class SchedulePlan {
     ],
     this.billingMethods = const [SchedulePaymentMethod.onsite],
     this.dueDay = 5,
+    this.pixDiscountPercent = 0,
     this.rules = const SchedulePlanRules(),
   });
 
@@ -307,6 +308,9 @@ class SchedulePlan {
   final List<SchedulePlanCycleOption> cycles;
   final List<SchedulePaymentMethod> billingMethods;
   final int dueDay;
+
+  /// Desconto (%) na mensalidade paga por Pix online; 0 = sem desconto.
+  final int pixDiscountPercent;
   final SchedulePlanRules rules;
 
   bool get isActive => status == 'active';
@@ -383,6 +387,7 @@ class SchedulePlan {
       billingMethods:
           methods.isEmpty ? const [SchedulePaymentMethod.onsite] : methods,
       dueDay: spInt(billing['dueDay'], 5),
+      pixDiscountPercent: spInt(billing['pixDiscountPercent']).clamp(0, 50),
       rules: SchedulePlanRules.fromMap(spMap(m['rules'])),
     );
   }
@@ -853,7 +858,11 @@ class ScheduleSubscription {
     this.charges = const [],
     this.autopay = const {},
     this.prepaidMonths = 1,
+    this.pixDiscountPercent = 0,
   });
+
+  /// Desconto (%) do plano no Pix online (as próximas faturas de Pix saem com ele).
+  final int pixDiscountPercent;
 
   final String id;
   final String arenaId;
@@ -955,6 +964,7 @@ class ScheduleSubscription {
       monthlyPriceReais: spDouble(m['monthlyPriceReais']),
       commitmentEndsOn: spDate(m['commitmentEndsOn']),
       prepaidMonths: spInt(m['prepaidMonths'], 1),
+      pixDiscountPercent: spInt(m['pixDiscountPercent']).clamp(0, 50),
       paymentMethod:
           schedulePaymentMethodFromKey(spStrOrNull(m['paymentMethod'])) ??
               SchedulePaymentMethod.onsite,
@@ -1182,10 +1192,21 @@ class ScheduleCheckout {
     this.qrCodeBase64,
     this.chargedReais,
     this.cardFeeReais = 0,
+    this.pixAmountReais,
+    this.pixDiscountPercent = 0,
   });
 
   final String invoiceUrl;
+
+  /// Valor do plano (o cartão parte dele).
   final double amountReais;
+
+  /// Fatura com desconto no Pix: o que o Pix cobra. `null` = sem desconto.
+  final double? pixAmountReais;
+  final int pixDiscountPercent;
+
+  /// O que o QR do Pix cobra.
+  double get pixReais => pixAmountReais ?? amountReais;
 
   /// Cartão: o que vai para o cartão (plano + taxas do cartão). Ausente
   /// (Pix, servidor antigo) = [amountReais].
@@ -1207,5 +1228,7 @@ class ScheduleCheckout {
         qrCodeBase64: spStrOrNull(m['qrCodeBase64']),
         chargedReais: spDoubleOrNull(m['chargedReais']),
         cardFeeReais: spDouble(m['cardFeeReais']),
+        pixAmountReais: spDoubleOrNull(m['pixAmountReais']),
+        pixDiscountPercent: spInt(m['pixDiscountPercent']),
       );
 }

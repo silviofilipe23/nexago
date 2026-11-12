@@ -128,3 +128,18 @@ O que o backend fez além (ou diferente) do texto acima — portal e app devem c
   paused`) na mesma transação.
 - **Webhook:** pagamento cuja mensalidade aponta para outro grupo é estornado; o mesmo pagamento processado ao mesmo
   tempo por webhook e varredura é confirmado uma vez só (sem estorno nem crédito em dobro).
+
+## Desconto no Pix (12/11/2026)
+
+- Plano: `billing.pixDiscountPercent` (0–50, padrão 0; zera se o plano não aceita Pix). Assinatura guarda
+  `pixDiscountPercent`; salvar o plano com outro valor regrava as assinaturas não canceladas dele (vale para as
+  próximas faturas; fatura já criada fica como nasceu).
+- A mensalidade (`amountReais`) segue cheia. O grupo Asaas guarda `amountReais` (base do cartão e do débito
+  automático) e, com desconto, `pixAmountReais`/`pixDiscountPercent`: a fatura nasce **só Pix** (`billingType: PIX`)
+  pelo valor com desconto, para o link não ser pago no cartão pelo preço do Pix. Valor do Pix em centavos
+  arredondados; abaixo de R$ 5 não há desconto.
+- Cartão pelo app: sempre cobrança à parte pelo valor cheio (+ taxas), mesmo sem taxa, quando a fatura é só Pix.
+- Webhook: o caixa da arena recebe o que foi pago (já era `payment.value − taxa do cartão`); a mensalidade ganha
+  `paidReais`.
+- Fora: baixa manual (Pix direto na arena) não aplica o desconto sozinha; app da loja sem `method` só paga Pix
+  quando há desconto.

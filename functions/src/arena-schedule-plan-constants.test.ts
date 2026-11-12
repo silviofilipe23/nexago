@@ -56,7 +56,7 @@ describe("validateSchedulePlanInput", () => {
       quarterly: {enabled: true, discountPercent: 5},
       annual: {enabled: true, discountPercent: 10},
     });
-    assert.deepEqual(plan.billing, {methods: ["pix_auto", "card", "onsite"], dueDay: 5, overdueReleaseDays: 3});
+    assert.deepEqual(plan.billing, {methods: ["pix_auto", "card", "onsite"], dueDay: 5, overdueReleaseDays: 3, pixDiscountPercent: 0});
     assert.deepEqual(plan.rules.makeup, {enabled: true, perMonth: 2, validityDays: 30, noticeHours: 24});
     assert.equal(plan.rules.holiday, "makeup");
     assert.deepEqual(plan.rules.pause, {enabled: true, maxDaysPerYear: 30});

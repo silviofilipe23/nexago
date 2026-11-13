@@ -13,45 +13,32 @@ import '../domain/booking_result_record_providers.dart';
 import '../domain/booking_social_unlock.dart';
 import '../domain/booking_story.dart';
 import '../domain/booking_story_providers.dart';
+import 'lancar_placar/lancar_placar_page.dart';
 import 'pelada_detail_page.dart';
-import 'booking_result_score_page.dart';
 import 'widgets/booking_story/booking_result_card.dart';
 import 'widgets/booking_story/booking_social_locked_view.dart';
 import 'widgets/booking_story/booking_story_editor.dart';
 
 /// Abre o pós-jogo por cima de tudo (fora do shell com a barra).
-/// [startLive]: o "Marcar ao vivo" da Agenda — abre o Editar placar já
-/// seguindo para o placar ao vivo (regras ou "Continuar").
-Future<void> openBookingResult(
-  BuildContext context,
-  BookingStoryArgs args, {
-  bool startLive = false,
-}) {
+Future<void> openBookingResult(BuildContext context, BookingStoryArgs args) {
   return Navigator.of(context, rootNavigator: true).push(
-    MaterialPageRoute<void>(
-      builder: (_) => BookingResultPage(args: args, startLive: startLive),
-    ),
+    MaterialPageRoute<void>(builder: (_) => BookingResultPage(args: args)),
   );
 }
 
-/// Reservar · 16 — pós-jogo: o atleta lança o placar da partida que jogou na
-/// quadra reservada e posta o resultado no story. "Salvar placar" grava a
-/// pelada em `bookingResults`: todo mundo no placar confirma, e só então ela
-/// conta nas estatísticas. Editar depois volta tudo a pendente.
+/// Reservar · 16 — pós-jogo: a arte do resultado para o story. O placar se
+/// lança pelo "Lançar placar" ([LancarPlacarPage]), que grava a pelada em
+/// `bookingResults`: todo mundo no placar confirma, e só então ela conta nas
+/// estatísticas. Editar depois volta tudo a pendente.
 class BookingResultPage extends ConsumerStatefulWidget {
   const BookingResultPage({
     super.key,
     required this.args,
     this.presetResult,
     this.presetSport,
-    this.startLive = false,
   });
 
   final BookingStoryArgs args;
-
-  /// Abre direto no placar ao vivo assim que a reserva, o perfil e o placar
-  /// salvo carregam.
-  final bool startLive;
 
   /// "Compartilhar resultado" do detalhe da pelada: só a arte deste placar,
   /// sem editar (serve também a quem não está nele).
@@ -70,52 +57,25 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
   BookingResult? _edited;
   final Set<BookingResultInfo> _hidden = {};
 
-  /// O "Marcar ao vivo" da Agenda já abriu (uma vez só).
-  bool _liveLaunched = false;
-
   void _toggleInfo(BookingResultInfo info) {
     setState(() {
       if (!_hidden.remove(info)) _hidden.add(info);
     });
   }
 
-  Future<void> _editScore(
-    BookingResult result,
-    List<ResultPlayer> crew,
-    String? ownerId, {
-    required bool canSave,
-    bool resave = false,
-    bool startLive = false,
-  }) async {
-    final bookingId = widget.args.bookingId.trim();
-    final repository = ref.read(bookingResultRepositoryProvider);
-    final edited = await Navigator.of(context).push<BookingResult>(
-      MaterialPageRoute(
-        builder: (_) => BookingResultScorePage(
-          initial: result,
-          candidates: crew,
-          ownerPlayerId: ownerId,
-          autoStartLive: startLive,
-          sport: widget.presetSport ??
-              ref
-                  .read(bookingStorySourceProvider(widget.args.bookingId))
-                  ?.sport,
-          bookingId: bookingId,
-          // Só quem reservou grava (a callable confere); o convidado e o
-          // story sem reserva ficam só com a arte.
-          onSave: canSave ? (r) => repository.save(bookingId, r) : null,
-          confirmBeforeSave: canSave && resave
-              ? 'Os jogadores vão receber o placar para confirmar novamente.'
-              : null,
-          localOnlyNotice: bookingId.isEmpty
-              ? 'O placar vai só para a arte do story: não fica salvo nem '
-                  'conta no seu histórico ou no ranking.'
-              : 'Só quem reservou a quadra salva o placar para os outros '
-                  'confirmarem. Este fica só na arte do story.',
-        ),
-      ),
+  /// "Lançar placar" / "Editar placar": o fluxo de 2 passos.
+  Future<void> _launch() async {
+    final outcome = await openLancarPlacar(
+      context,
+      widget.args,
+      presetSport: widget.presetSport,
+      fromStoryEditor: true,
     );
-    if (edited != null && mounted) setState(() => _edited = edited);
+    // Enviado ou só para a arte: a arte já mostra o placar novo (o salvo
+    // ainda chega pelo Firestore).
+    if (outcome != null && mounted) {
+      setState(() => _edited = outcome.result);
+    }
   }
 
   @override
@@ -150,10 +110,6 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
         isOwner: source?.ownerUid == null || source!.ownerUid == uid,
       );
     }
-    // Convidado também abre o pós-jogo pela Agenda; sem o doc da reserva
-    // (carregando, sem acesso) a callable decide.
-    final canSave = args.bookingId.trim().isNotEmpty &&
-        (source?.ownerUid == null || source!.ownerUid == uid);
     final preset = widget.presetResult;
     final saved = preset != null
         ? null
@@ -199,33 +155,9 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
       for (final info in available)
         if (!_hidden.contains(info)) info,
     };
-    // "Marcar ao vivo" da Agenda: espera a galera e o placar salvo para os
-    // times saírem certos, e abre o Editar placar já indo para o ao vivo.
-    final ready = ref.watch(myBookingResultsLoadedProvider) &&
-        ref.watch(athleteProfileProvider).hasValue;
-    if (widget.startLive && !_liveLaunched && !shareOnly && ready) {
-      _liveLaunched = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _editScore(
-          result,
-          crew,
-          ownerId,
-          canSave: canSave,
-          resave: saved != null,
-          startLive: true,
-        );
-      });
-    }
     void edit() {
       if (shareOnly) return;
-      _editScore(
-        result,
-        crew,
-        ownerId,
-        canSave: canSave,
-        resave: saved != null,
-      );
+      _launch();
     }
 
     return BookingStoryEditorScaffold(
@@ -266,7 +198,8 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  child: const Text('Editar placar'),
+                  child:
+                      Text(saved == null ? 'Lançar placar' : 'Editar placar'),
                 ),
         ),
         Padding(

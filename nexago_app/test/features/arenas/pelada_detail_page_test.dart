@@ -9,7 +9,7 @@ import 'package:nexago_app/features/arenas/domain/booking_result_record_provider
 import 'package:nexago_app/features/arenas/domain/booking_social_unlock.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story_providers.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_page.dart';
-import 'package:nexago_app/features/arenas/presentation/booking_result_score_page.dart';
+import 'package:nexago_app/features/arenas/presentation/lancar_placar/lancar_placar_page.dart';
 import 'package:nexago_app/features/arenas/presentation/pelada_detail_page.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 
@@ -170,7 +170,7 @@ void main() {
     expect(rich('Rafael contestou: Placar errado'), findsOneWidget);
     await tester.tap(find.byKey(const Key('pelada-review')));
     await tester.pumpAndSettle();
-    expect(find.byType(BookingResultScorePage), findsOneWidget);
+    expect(find.byType(LancarPlacarPage), findsOneWidget);
   });
 
   testWidgets(
@@ -196,7 +196,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('pelada-review')));
     await tester.pumpAndSettle();
-    expect(find.byType(BookingResultScorePage), findsNothing);
+    expect(find.byType(LancarPlacarPage), findsNothing);
     expect(find.textContaining('Pague pelo app pelo menos metade'),
         findsOneWidget);
   });

@@ -15,6 +15,8 @@ import '../../../../arenas/domain/arenas_providers.dart';
 import '../../../../arenas/domain/booking_providers.dart';
 import '../../../../arenas/domain/booking_story.dart';
 import '../../../../arenas/presentation/booking_result_page.dart';
+import '../../../../arenas/presentation/lancar_placar/lancar_placar_page.dart';
+import '../../../../arenas/data/pelada_live_draft_store.dart';
 import '../../../../arenas/presentation/booking_story_page.dart';
 import '../../../domain/agenda/athlete_agenda_logic.dart';
 import '../../../domain/agenda/athlete_agenda_models.dart';
@@ -431,6 +433,14 @@ class _RentalCard extends ConsumerWidget {
       startTime: startHour,
       endTime: endHour,
     );
+    final draft = showResult
+        ? ref.watch(peladaLiveDraftProvider(rental.bookingId)).valueOrNull
+        : null;
+    Future<void> launch(LancarPlacarMode mode) async {
+      await openLancarPlacar(context, storyArgs, mode: mode);
+      ref.invalidate(peladaLiveDraftProvider(rental.bookingId));
+    }
+
     final payLabel = agendaRentalPaymentButtonLabel(rental.amountReais);
     final isDark = context.themeColors.isDark;
     final accent = agendaCardAccent(item.accentColor, isDark: isDark);
@@ -620,49 +630,60 @@ class _RentalCard extends ConsumerWidget {
               ],
               if (showResult) ...[
                 const SizedBox(height: 14),
-                // Um botão por linha: lado a lado o texto não cabia.
-                // Durante o jogo: marcar ponto a ponto, direto.
-                if (stage == AthleteAgendaBookingStage.current) ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      key: Key('agenda-booking-live-${rental.bookingId}'),
-                      onPressed: () => openBookingResult(context, storyArgs,
-                          startLive: true),
-                      icon: const Icon(
-                        Icons.scoreboard_outlined,
-                        size: 18,
-                        color: AppColors.black,
-                      ),
-                      label: const Text(
-                        'Marcar ao vivo',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                          color: AppColors.black,
-                        ),
-                      ),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(44),
-                        backgroundColor: AppColors.brand,
-                        foregroundColor: AppColors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                // Lançar placar (canvas "Proposta · lançar placar em 2
+                // passos"): um botão por linha. Em andamento, marcar ao vivo
+                // vem primeiro; marcação guardada vira "Continuar".
+                if (draft != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Marcação em andamento · ${draft.progressLabel}',
+                      key: Key('agenda-booking-draft-${rental.bookingId}'),
+                      style: AppTypography.mono(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: context.themeColors.win,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                ],
+                  _PrimaryActionButton(
+                    key: Key('agenda-booking-live-${rental.bookingId}'),
+                    icon: Icons.play_arrow_rounded,
+                    label: 'Continuar marcação',
+                    onPressed: () => launch(LancarPlacarMode.live),
+                  ),
+                ] else if (stage == AthleteAgendaBookingStage.current)
+                  _PrimaryActionButton(
+                    key: Key('agenda-booking-live-${rental.bookingId}'),
+                    icon: Icons.scoreboard_outlined,
+                    label: 'Marcar ao vivo',
+                    onPressed: () => launch(LancarPlacarMode.live),
+                  )
+                else
+                  _PrimaryActionButton(
+                    key: Key('agenda-booking-launch-${rental.bookingId}'),
+                    icon: Icons.scoreboard_outlined,
+                    label: 'Lançar placar',
+                    onPressed: () => launch(LancarPlacarMode.typed),
+                  ),
+                const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
-                  child: _ShareActionButton(
-                    key: Key('agenda-booking-result-${rental.bookingId}'),
-                    icon: Icons.emoji_events_outlined,
-                    label: 'Postar resultado',
-                    onPressed: () => openBookingResult(context, storyArgs),
-                  ),
+                  child: stage == AthleteAgendaBookingStage.current ||
+                          draft != null
+                      ? _ShareActionButton(
+                          key: Key('agenda-booking-type-${rental.bookingId}'),
+                          icon: Icons.dialpad_rounded,
+                          label: 'Digitar o placar',
+                          onPressed: () => launch(LancarPlacarMode.typed),
+                        )
+                      : _ShareActionButton(
+                          key: Key('agenda-booking-result-${rental.bookingId}'),
+                          icon: Icons.amp_stories_outlined,
+                          label: 'Postar no story',
+                          onPressed: () =>
+                              openBookingResult(context, storyArgs),
+                        ),
                 ),
               ],
             ],
@@ -696,6 +717,48 @@ class _RentalCard extends ConsumerWidget {
 }
 
 /// Atalho de compartilhamento dos cards (story / resultado).
+/// Botão cheio laranja, largura toda (o principal do card).
+class _PrimaryActionButton extends StatelessWidget {
+  const _PrimaryActionButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 18, color: AppColors.black),
+        label: Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+            color: AppColors.black,
+          ),
+        ),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size.fromHeight(44),
+          backgroundColor: AppColors.brand,
+          foregroundColor: AppColors.black,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ShareActionButton extends StatelessWidget {
   const _ShareActionButton({
     super.key,

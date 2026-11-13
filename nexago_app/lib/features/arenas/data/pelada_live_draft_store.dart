@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/pelada_live/pelada_live_rules.dart';
@@ -109,3 +110,17 @@ class SharedPrefsPeladaLiveDraftStore implements PeladaLiveDraftStore {
     } catch (_) {}
   }
 }
+
+final peladaLiveDraftStoreProvider = Provider<PeladaLiveDraftStore>(
+  (ref) => SharedPrefsPeladaLiveDraftStore(),
+);
+
+/// Marcação ao vivo guardada no aparelho para a reserva [bookingId] (a Agenda
+/// troca "Marcar ao vivo" por "Continuar marcação"). Invalidar depois do fluxo.
+final peladaLiveDraftProvider = FutureProvider.autoDispose
+    .family<PeladaLiveSession?, String>((ref, bookingId) {
+  if (bookingId.trim().isEmpty) return Future.value();
+  return ref.watch(peladaLiveDraftStoreProvider).load(
+        peladaLiveDraftKey(bookingId),
+      );
+});

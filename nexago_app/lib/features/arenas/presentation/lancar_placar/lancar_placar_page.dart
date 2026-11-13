@@ -1,0 +1,952 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/layout/nexa_app_bar.dart';
+import '../../../../core/search/search_keywords.dart';
+import '../../../../core/sports/sport_catalog.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_theme_colors.dart';
+import '../../../../core/theme/app_typography.dart';
+import '../../../../core/ui/app_snackbar.dart';
+import '../../../athlete/domain/athlete_display_name.dart';
+import '../../../athlete/domain/athlete_profile_providers.dart';
+import '../../../tournaments/data/partner_search_service.dart';
+import '../../data/pelada_live_draft_store.dart';
+import '../../domain/booking_result.dart';
+import '../../domain/booking_result_record_providers.dart';
+import '../../domain/booking_social_unlock.dart';
+import '../../domain/booking_story.dart';
+import '../../domain/booking_story_providers.dart';
+import '../../domain/lancar_placar.dart';
+import '../../domain/pelada_live/pelada_live_rules.dart';
+import '../../domain/pelada_live/pelada_live_session.dart';
+import '../booking_result_page.dart';
+import '../pelada_live/pelada_live_page.dart';
+import '../pelada_live/pelada_live_widgets.dart';
+import '../widgets/booking_story/booking_result_card.dart';
+import '../widgets/booking_story/booking_social_locked_view.dart';
+import 'lancar_placar_widgets.dart';
+import 'placar_digitado_page.dart';
+import 'placar_enviado_page.dart';
+
+/// Como o placar entra no passo 2.
+enum LancarPlacarMode { typed, live }
+
+/// Como o "Lançar placar" terminou (o que [openLancarPlacar] devolve).
+sealed class LancarPlacarOutcome {
+  const LancarPlacarOutcome(this.result);
+
+  final BookingResult result;
+}
+
+/// Gravado e enviado para os outros confirmarem.
+final class LancarPlacarSent extends LancarPlacarOutcome {
+  const LancarPlacarSent(super.result);
+}
+
+/// Quem não envia (convidado): o placar só vai para a arte do story.
+final class LancarPlacarArt extends LancarPlacarOutcome {
+  const LancarPlacarArt(super.result);
+}
+
+/// Abre o "Lançar placar" por cima de tudo. [fromStoryEditor]: veio do
+/// Pós-jogo (o story já está embaixo; "Postar no story" só volta).
+Future<LancarPlacarOutcome?> openLancarPlacar(
+  BuildContext context,
+  BookingStoryArgs args, {
+  LancarPlacarMode mode = LancarPlacarMode.typed,
+  String? presetSport,
+  bool fromStoryEditor = false,
+}) {
+  return Navigator.of(context, rootNavigator: true).push<LancarPlacarOutcome>(
+    MaterialPageRoute(
+      builder: (_) => LancarPlacarPage(
+        args: args,
+        mode: mode,
+        presetSport: presetSport,
+        fromStoryEditor: fromStoryEditor,
+      ),
+    ),
+  );
+}
+
+/// Lançar placar (canvas "Proposta · lançar placar em 2 passos" e "marcar ao
+/// vivo dentro do mesmo fluxo"). Passo 1 é esta tela, "Quem jogou?": a galera
+/// da reserva já dividida nos times, cada jogador com os botões A/B ao lado —
+/// trocar de time é um toque. O passo 2 é o placar digitado
+/// ([PlacarDigitadoPage]) ou o ao vivo ([PeladaLivePage]); no fim, "Enviado".
+class LancarPlacarPage extends ConsumerStatefulWidget {
+  const LancarPlacarPage({
+    super.key,
+    required this.args,
+    this.mode = LancarPlacarMode.typed,
+    this.presetSport,
+    this.fromStoryEditor = false,
+  });
+
+  final BookingStoryArgs args;
+  final LancarPlacarMode mode;
+  final String? presetSport;
+  final bool fromStoryEditor;
+
+  @override
+  ConsumerState<LancarPlacarPage> createState() => _LancarPlacarPageState();
+}
+
+class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
+  late LancarPlacarMode _mode = widget.mode;
+  BookingResult? _r;
+  final List<ResultPlayer> _extra = [];
+  final _query = TextEditingController();
+  Timer? _debounce;
+  String _search = '';
+  bool _resumeChecked = false;
+
+  String get _bookingId => widget.args.bookingId.trim();
+  String get _draftKey => peladaLiveDraftKey(widget.args.bookingId);
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _query.dispose();
+    super.dispose();
+  }
+
+  void _onQuery(String _) {
+    setState(() {});
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) setState(() => _search = _query.text.trim());
+    });
+  }
+
+  // Dados da reserva --------------------------------------------------------
+
+  String? get _sport =>
+      widget.presetSport ??
+      ref.read(bookingStorySourceProvider(widget.args.bookingId))?.sport;
+
+  String get _sportKey {
+    final code = SportCatalog.resolve(_sport)?.code;
+    return code ?? 'other';
+  }
+
+  bool get _canSave {
+    final uid = ref.read(bookingResultUidProvider);
+    final owner =
+        ref.read(bookingStorySourceProvider(widget.args.bookingId))?.ownerUid;
+    return _bookingId.isNotEmpty && (owner == null || owner == uid);
+  }
+
+  String get _ownerId {
+    final profile = ref.read(athleteProfileProvider).valueOrNull;
+    return profile?.id ?? ref.read(bookingResultUidProvider);
+  }
+
+  String _sendLabel(BookingResult r) {
+    final names = lancarNamesLine(lancarConfirmers(r, _ownerId));
+    return names.isEmpty ? 'Enviar placar' : 'Enviar para $names';
+  }
+
+  // Ações -------------------------------------------------------------------
+
+  void _assign(ResultPlayer player, int teamId) {
+    final r = _r;
+    if (r == null) return;
+    final (next, outcome) = r.assignPlayer(player, teamId);
+    if (outcome == LancarAssignOutcome.teamFull) {
+      final index = r.teams.indexWhere((t) => t.id == teamId);
+      showAppSnackBar(
+        context,
+        'O Time ${lancarTeamLetter(index)} já tem $kLancarMaxTeamPlayers '
+        'jogadores.',
+      );
+      return;
+    }
+    if (!_extra.contains(player) && !_candidates().contains(player)) {
+      _extra.add(player);
+    }
+    setState(() => _r = next);
+  }
+
+  Future<void> _rename(ResultTeam team, int index) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _RenameDialog(
+        initial: team.name,
+        title: 'Nome do Time ${lancarTeamLetter(index)}',
+      ),
+    );
+    if (name == null || !mounted || _r == null) return;
+    setState(
+        () => _r = _r!.replaceTeam(team.copyWith(customName: name.trim())));
+  }
+
+  /// Pergunta antes de regravar um placar já salvo (todos confirmam de novo).
+  Future<bool> _confirmResave() async {
+    final saved = ref.read(savedBookingResultProvider(widget.args.bookingId));
+    if (saved == null) return true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enviar o placar novo?'),
+        content: const Text(
+          'Os jogadores vão receber o placar para confirmar novamente.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            key: const Key('lancar-placar-resave-confirm'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  /// Grava (a callable confere tudo de novo) e apaga a marcação ao vivo.
+  Future<void> _save(BookingResult r) async {
+    if (!await _confirmResave()) throw const PeladaLiveSendCancelled();
+    await ref.read(bookingResultRepositoryProvider).save(_bookingId, r);
+    await ref.read(peladaLiveDraftStoreProvider).clear(_draftKey);
+    ref.invalidate(peladaLiveDraftProvider(widget.args.bookingId));
+  }
+
+  // Os builders das rotas abaixo rodam de novo a cada reconstrução (tema,
+  // girar a tela) — depois que esta tela já saiu. Nada de `ref` neles: tudo
+  // é lido antes de abrir a rota.
+
+  void _done(BookingResult r) {
+    final confirmers = lancarConfirmers(r, _ownerId);
+    final sport = _sport;
+    final args = widget.args;
+    final fromStoryEditor = widget.fromStoryEditor;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => PlacarEnviadoPage(
+          args: args,
+          result: r,
+          confirmers: confirmers,
+          sport: sport,
+          fromStoryEditor: fromStoryEditor,
+        ),
+      ),
+      result: LancarPlacarSent(r),
+    );
+  }
+
+  void _art(BookingResult r) {
+    if (widget.fromStoryEditor) {
+      Navigator.of(context).pop(LancarPlacarArt(r));
+      return;
+    }
+    final sport = _sport;
+    final args = widget.args;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => BookingResultPage(
+          args: args,
+          presetResult: r,
+          presetSport: sport,
+        ),
+      ),
+      result: LancarPlacarArt(r),
+    );
+  }
+
+  Future<void> _next() async {
+    final r = _r;
+    if (r == null || lancarTeamsMissing(r) != null) return;
+    if (_mode == LancarPlacarMode.live) {
+      final store = ref.read(peladaLiveDraftStoreProvider);
+      final rules =
+          await store.lastRules(_sportKey) ?? PeladaLiveRules.forSport(_sport);
+      if (!mounted) return;
+      await _runLive(
+        PeladaLiveSession.start(r, rules, now: DateTime.now()),
+      );
+    } else {
+      await _runTyped(r);
+    }
+  }
+
+  Future<void> _runLive(PeladaLiveSession session) async {
+    final canSave = _canSave;
+    final store = ref.read(peladaLiveDraftStoreProvider);
+    final draftKey = _draftKey;
+    final sportLabel = SportCatalog.labelOf(_sport);
+    final sportKey = _sportKey;
+    final sendLabel = canSave ? _sendLabel(session.toResult()) : null;
+    final exit = await Navigator.of(context).push<PeladaLiveExit>(
+      MaterialPageRoute(
+        builder: (_) => PeladaLivePage(
+          session: session,
+          store: store,
+          draftKey: draftKey,
+          sportLabel: sportLabel,
+          sport: sportKey,
+          onSend: canSave ? _save : null,
+          sendLabel: sendLabel,
+        ),
+      ),
+    );
+    ref.invalidate(peladaLiveDraftProvider(widget.args.bookingId));
+    if (!mounted || exit == null) return;
+    switch (exit) {
+      case PeladaLiveSent(:final result):
+        _done(result);
+      case PeladaLiveReview(:final result):
+        setState(() => _r = result);
+        await _runTyped(result);
+    }
+  }
+
+  Future<void> _runTyped(BookingResult r) async {
+    final canSave = _canSave;
+    final sport = _sport;
+    final submitLabel = canSave ? _sendLabel(r) : 'Gerar arte do story';
+    BookingResult? finished;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (pageContext) => PlacarDigitadoPage(
+          initial: r,
+          sport: sport,
+          canSend: canSave,
+          submitLabel: submitLabel,
+          onChanged: (next) => _r = next,
+          onSubmit: (result) async {
+            if (canSave) {
+              try {
+                await _save(result);
+              } on PeladaLiveSendCancelled {
+                return;
+              }
+            }
+            finished = result;
+            if (pageContext.mounted) Navigator.of(pageContext).pop();
+          },
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {});
+    final result = finished;
+    if (result == null) return;
+    canSave ? _done(result) : _art(result);
+  }
+
+  // Tela --------------------------------------------------------------------
+
+  List<ResultPlayer> _candidates() {
+    final profile = ref.read(athleteProfileProvider).valueOrNull;
+    final source = ref.read(bookingStorySourceProvider(widget.args.bookingId));
+    final crew = bookingResultCrew(
+      ownerUid: profile?.id ?? source?.ownerUid,
+      ownerName:
+          profile == null ? null : athleteDisplayName(profile, fallback: ''),
+      ownerAvatarUrl: profile?.avatarUrl,
+      confirmed: source?.confirmed ?? const [],
+    );
+    final out = [...crew];
+    void add(ResultPlayer p) {
+      if (!p.isGuest && !out.contains(p)) out.add(p);
+    }
+
+    for (final t in _r?.teams ?? const <ResultTeam>[]) {
+      t.players.forEach(add);
+    }
+    _extra.forEach(add);
+    return out;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final args = widget.args;
+    final profileAsync = ref.watch(athleteProfileProvider);
+    final source = ref.watch(bookingStorySourceProvider(args.bookingId));
+    final uid = ref.watch(bookingResultUidProvider);
+    final unlock = ref.watch(bookingSocialUnlockProvider(args.bookingId));
+    final loaded = ref.watch(myBookingResultsLoadedProvider);
+    final saved = ref.watch(savedBookingResultProvider(args.bookingId));
+    final draft = _mode == LancarPlacarMode.live
+        ? ref.watch(peladaLiveDraftProvider(args.bookingId))
+        : const AsyncValue<PeladaLiveSession?>.data(null);
+
+    if (unlock != null && !unlock.unlocked) {
+      return BookingSocialLockedView(
+        unlock: unlock,
+        isOwner: source?.ownerUid == null || source!.ownerUid == uid,
+      );
+    }
+    // A marcação guardada só importa na abertura (para continuar de onde
+    // parou); trocar para "ao vivo" no passo 1 não volta a esperar por ela.
+    final ready = unlock != null &&
+        loaded &&
+        profileAsync.hasValue &&
+        (_r != null || !draft.isLoading);
+    if (!ready) {
+      return Scaffold(
+        backgroundColor: colors.canvas,
+        body: const Center(
+          child: CircularProgressIndicator(color: AppColors.brand),
+        ),
+      );
+    }
+
+    // Uma vez: o placar salvo ou a galera da reserva dividida em dois times.
+    _r ??= saved?.result ?? initialBookingResult(_candidates());
+    final r = _r!;
+
+    // Marcação ao vivo guardada: continua de onde parou, sem o passo 1.
+    if (!_resumeChecked) {
+      _resumeChecked = true;
+      final resume = draft.valueOrNull;
+      if (resume != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _runLive(resume);
+        });
+      }
+    }
+
+    final candidates = _candidates();
+    final searching = isPartnerQueryLongEnough(_search);
+    final remote = searching
+        ? ref.watch(bookingResultPlayerSearchProvider(_search))
+        : const AsyncValue<List<ResultPlayer>>.data([]);
+    final typed = _query.text.trim();
+    final listed = [
+      for (final p in candidates)
+        if (typed.isEmpty ||
+            normalizeSearchTerm(p.name).contains(normalizeSearchTerm(typed)))
+          p,
+    ];
+    final found = [
+      for (final p in remote.valueOrNull ?? const <ResultPlayer>[])
+        if (!candidates.contains(p)) p,
+    ];
+    final missing = lancarTeamsMissing(r);
+    final live = _mode == LancarPlacarMode.live;
+
+    return Scaffold(
+      backgroundColor: colors.canvas,
+      appBar: NexaAppBar(
+        backgroundColor: colors.canvas,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        title: LancarPlacarTitle(
+          title: 'Quem jogou?',
+          subtitle: live ? '1 de 2 · antes de marcar' : '1 de 2 · times',
+        ),
+      ),
+      bottomNavigationBar: LancarPlacarFooter(
+        buttonKey: const Key('lancar-placar-next'),
+        label: missing ?? (live ? 'Começar a marcar' : 'Próximo: placar'),
+        enabled: missing == null,
+        onPressed: _next,
+        secondary: TextButton(
+          key: const Key('lancar-placar-switch-mode'),
+          onPressed: () => setState(
+            () => _mode = live ? LancarPlacarMode.typed : LancarPlacarMode.live,
+          ),
+          style: TextButton.styleFrom(foregroundColor: colors.brandText),
+          child: Text(live ? 'ou digitar o placar' : 'ou marcar ao vivo'),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        children: [
+          const LancarPlacarSteps(step: 1),
+          const SizedBox(height: 6),
+          _TeamsBoard(
+            result: r,
+            onRemove: (p, teamId) => _assign(p, teamId),
+            onRename: _rename,
+            onDrop: (id) => setState(() => _r = r.dropTeam(id)),
+          ),
+          if (r.teams.length < kLancarMaxTeams)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const Key('lancar-placar-add-team'),
+                onPressed: () => setState(() => _r = r.addEmptyTeam()),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: Text(
+                  r.isRotation
+                      ? 'Mais um time'
+                      : 'Mais um time (rei da quadra)',
+                ),
+                style: TextButton.styleFrom(foregroundColor: colors.brandText),
+              ),
+            ),
+          PeladaLiveLabel(
+            typed.isEmpty ? 'Da reserva' : 'Jogadores',
+            trailing: 'toque no time',
+          ),
+          for (final (i, p) in listed.indexed)
+            _PlayerAssignRow(
+              key: Key('lancar-player-${p.id}'),
+              player: p,
+              first: i == 0,
+              subtitle: p.id == uid
+                  ? 'você'
+                  : _extra.contains(p)
+                      ? 'adicionado pela busca'
+                      : 'na reserva',
+              result: r,
+              onAssign: (teamId) => _assign(p, teamId),
+            ),
+          const SizedBox(height: 14),
+          TextField(
+            key: const Key('lancar-placar-search'),
+            controller: _query,
+            onChanged: _onQuery,
+            textCapitalization: TextCapitalization.words,
+            style: TextStyle(fontSize: 14, color: colors.onSurface),
+            decoration: InputDecoration(
+              labelText: 'Buscar mais atletas',
+              hintText: 'Nome ou @ (pelo menos 3 letras)',
+              prefixIcon: const Icon(Icons.search_rounded, size: 20),
+              isDense: true,
+              filled: true,
+              fillColor: colors.onSurface.withValues(alpha: 0.03),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          if (remote.isLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          for (final (i, p) in found.indexed)
+            _PlayerAssignRow(
+              key: Key('lancar-player-${p.id}'),
+              player: p,
+              first: i == 0,
+              subtitle: 'no nexaGO',
+              result: r,
+              onAssign: (teamId) => _assign(p, teamId),
+            ),
+          if (searching && !remote.isLoading && found.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(
+                'Ninguém com esse nome no nexaGO.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: colors.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+          const PeladaLiveNote(
+            'Todo mundo do placar precisa ter conta no nexaGO: cada um '
+            'confirma o resultado.',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Os times lado a lado (dois por linha), com quem já está em cada um.
+class _TeamsBoard extends StatelessWidget {
+  const _TeamsBoard({
+    required this.result,
+    required this.onRemove,
+    required this.onRename,
+    required this.onDrop,
+  });
+
+  final BookingResult result;
+  final void Function(ResultPlayer player, int teamId) onRemove;
+  final void Function(ResultTeam team, int index) onRename;
+  final ValueChanged<int> onDrop;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 10.0;
+        final width = (constraints.maxWidth - gap) / 2;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final (i, t) in result.teams.indexed)
+              SizedBox(
+                width: width,
+                child: _TeamColumn(
+                  key: Key('lancar-team-$i'),
+                  team: t,
+                  index: i,
+                  canDrop: result.teams.length > 2,
+                  onRemove: (p) => onRemove(p, t.id),
+                  onRename: () => onRename(t, i),
+                  onDrop: () => onDrop(t.id),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TeamColumn extends StatelessWidget {
+  const _TeamColumn({
+    super.key,
+    required this.team,
+    required this.index,
+    required this.canDrop,
+    required this.onRemove,
+    required this.onRename,
+    required this.onDrop,
+  });
+
+  final ResultTeam team;
+  final int index;
+  final bool canDrop;
+  final ValueChanged<ResultPlayer> onRemove;
+  final VoidCallback onRename;
+  final VoidCallback onDrop;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final fill = lancarTeamFill(index);
+    final ink = lancarTeamColor(context, index);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 112),
+      padding: const EdgeInsets.fromLTRB(10, 6, 6, 10),
+      decoration: BoxDecoration(
+        color: fill.withValues(alpha: colors.isDark ? 0.10 : 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: fill.withValues(alpha: 0.55), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  key: Key('lancar-team-$index-rename'),
+                  onTap: team.players.isEmpty ? null : onRename,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text(
+                      'TIME ${lancarTeamLetter(index)} · ${team.players.length}',
+                      style: AppTypography.mono(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 1.3,
+                        color: ink,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (canDrop)
+                SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: IconButton(
+                    key: Key('lancar-team-$index-drop'),
+                    tooltip: 'Tirar o Time ${lancarTeamLetter(index)}',
+                    padding: EdgeInsets.zero,
+                    onPressed: onDrop,
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: 16,
+                      color: colors.onSurface.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (team.customName != null && team.customName!.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                team.customName!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.soraRegular(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: colors.onSurface,
+                ),
+              ),
+            ),
+          if (team.players.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, right: 4),
+              child: Text(
+                'Toque ${lancarTeamLetter(index)} ao lado de quem jogou',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: colors.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+          for (final p in team.players)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Material(
+                color: colors.canvas.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  key: Key('lancar-team-$index-remove-${p.id}'),
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => onRemove(p),
+                  child: SizedBox(
+                    height: 40,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 6),
+                        ResultTeamAvatars(
+                          players: [p],
+                          size: 24,
+                          borderColor: Colors.transparent,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            p.firstName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: colors.onSurface,
+                            ),
+                          ),
+                        ),
+                        Semantics(
+                          label: 'Tirar ${p.firstName} do time',
+                          child: Icon(
+                            Icons.close_rounded,
+                            size: 16,
+                            color: colors.onSurface.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Um jogador e os botões dos times: o selecionado fica pintado; tocar nele
+/// de novo tira o jogador do placar.
+class _PlayerAssignRow extends StatelessWidget {
+  const _PlayerAssignRow({
+    super.key,
+    required this.player,
+    required this.first,
+    required this.subtitle,
+    required this.result,
+    required this.onAssign,
+  });
+
+  final ResultPlayer player;
+  final bool first;
+  final String subtitle;
+  final BookingResult result;
+  final ValueChanged<int> onAssign;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final current = result.teamIdOf(player.id);
+    return Column(
+      children: [
+        if (!first)
+          Divider(height: 1, color: colors.onSurface.withValues(alpha: 0.06)),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              ResultTeamAvatars(
+                players: [player],
+                size: 36,
+                borderColor: colors.canvas,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      player.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.soraRegular(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: colors.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (final (i, t) in result.teams.indexed)
+                    _TeamButton(
+                      key: Key('lancar-assign-${player.id}-$i'),
+                      index: i,
+                      selected: current == t.id,
+                      playerName: player.firstName,
+                      onTap: () => onAssign(t.id),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TeamButton extends StatelessWidget {
+  const _TeamButton({
+    super.key,
+    required this.index,
+    required this.selected,
+    required this.playerName,
+    required this.onTap,
+  });
+
+  final int index;
+  final bool selected;
+  final String playerName;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final fill = lancarTeamFill(index);
+    final letter = lancarTeamLetter(index);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: selected
+          ? '$playerName no Time $letter. Tocar tira do time'
+          : 'Pôr $playerName no Time $letter',
+      child: Material(
+        color: selected ? fill : colors.surfaceRaised,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(
+            color: selected ? fill : colors.onSurface.withValues(alpha: 0.14),
+            width: 1.5,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Center(
+              child: Text(
+                letter,
+                style: AppTypography.soraRegular(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: selected
+                      ? const Color(0xFF0A0A0A)
+                      : colors.onSurface.withValues(alpha: 0.75),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// O diálogo é dono do controller (descartar no fim do `showDialog` quebra a
+/// animação de saída).
+class _RenameDialog extends StatefulWidget {
+  const _RenameDialog({required this.initial, required this.title});
+
+  final String initial;
+  final String title;
+
+  @override
+  State<_RenameDialog> createState() => _RenameDialogState();
+}
+
+class _RenameDialogState extends State<_RenameDialog> {
+  late final _controller = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        key: const Key('lancar-team-name-field'),
+        controller: _controller,
+        autofocus: true,
+        maxLength: 32,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(hintText: 'Ex.: As brabas'),
+        onSubmitted: (v) => Navigator.of(context).pop(v),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          key: const Key('lancar-team-name-save'),
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: const Text('Salvar'),
+        ),
+      ],
+    );
+  }
+}

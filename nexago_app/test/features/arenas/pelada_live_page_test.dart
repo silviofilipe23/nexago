@@ -6,9 +6,7 @@ import 'package:nexago_app/features/arenas/domain/booking_result.dart';
 import 'package:nexago_app/features/arenas/domain/pelada_live/pelada_live_match.dart';
 import 'package:nexago_app/features/arenas/domain/pelada_live/pelada_live_rules.dart';
 import 'package:nexago_app/features/arenas/domain/pelada_live/pelada_live_session.dart';
-import 'package:nexago_app/features/arenas/presentation/booking_result_score_page.dart';
 import 'package:nexago_app/features/arenas/presentation/pelada_live/pelada_live_page.dart';
-import 'package:nexago_app/features/arenas/presentation/pelada_live/pelada_live_setup_page.dart';
 
 /// Rascunho em memória (o de verdade é o `SharedPreferences`).
 class _MemoryStore implements PeladaLiveDraftStore {
@@ -61,29 +59,6 @@ void _phone(WidgetTester tester) {
   addTearDown(tester.view.reset);
 }
 
-Future<void> _scorePage(
-  WidgetTester tester, {
-  required BookingResult initial,
-  required String sport,
-  required _MemoryStore store,
-}) async {
-  _phone(tester);
-  await tester.pumpWidget(
-    MaterialApp(
-      theme: AppTheme.dark,
-      home: BookingResultScorePage(
-        initial: initial,
-        candidates: const [],
-        ownerPlayerId: 'u0a',
-        sport: sport,
-        bookingId: 'b1',
-        liveStore: store,
-      ),
-    ),
-  );
-  await tester.pumpAndSettle();
-}
-
 Future<void> _tapN(WidgetTester tester, Finder f, int n) async {
   for (var i = 0; i < n; i++) {
     await tester.tap(f);
@@ -96,57 +71,6 @@ String _score(WidgetTester tester, LiveSide side) => tester
     .data!;
 
 void main() {
-  testWidgets(
-      'futevôlei: do Editar placar ao placar ao vivo e de volta com o set',
-      (tester) async {
-    final store = _MemoryStore();
-    await _scorePage(tester,
-        initial: _two(), sport: 'footvolley', store: store);
-
-    expect(
-      find.textContaining('com as regras do futevôlei'),
-      findsOneWidget,
-    );
-    await tester.tap(find.byKey(const Key('pelada-live-open')));
-    await tester.pumpAndSettle();
-    expect(find.byType(PeladaLiveSetupPage), findsOneWidget);
-
-    // 1 set até 18.
-    await tester.tap(find.byKey(const Key('pelada-live-bestof-0')));
-    await tester.pump();
-    await tester.tap(find.byKey(const Key('pelada-live-start')));
-    await tester.pumpAndSettle();
-    expect(find.byType(PeladaLivePage), findsOneWidget);
-    expect(find.text('Set 1 · até 18'), findsOneWidget);
-
-    await _tapN(tester, find.byKey(const Key('pelada-live-half-b')), 3);
-    await _tapN(tester, find.byKey(const Key('pelada-live-half-a')), 17);
-    expect(_score(tester, LiveSide.a), '17');
-    expect(find.text('SET POINT'), findsOneWidget);
-    expect(store.drafts['b1']!.match.current.a, 17);
-
-    // Desfazer tira o último ponto.
-    await tester.tap(find.byKey(const Key('pelada-live-undo')));
-    await tester.pump();
-    expect(_score(tester, LiveSide.a), '16');
-
-    await _tapN(tester, find.byKey(const Key('pelada-live-half-a')), 2);
-    await tester.pumpAndSettle();
-    expect(
-      find.text('Maria & Enzo venceram 18–3'),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.byKey(const Key('pelada-live-use')));
-    await tester.pumpAndSettle();
-    expect(find.byType(BookingResultScorePage), findsOneWidget);
-    expect(find.text('Salvar placar · 1 set'), findsOneWidget);
-    // O rascunho fica até salvar: o card vira "Continuar marcação".
-    expect(find.text('Continuar marcação'), findsOneWidget);
-    expect(find.text('18'), findsOneWidget);
-    expect(find.text('3'), findsWidgets);
-  });
-
   testWidgets('beach tennis: 15/30/40, ponto de ouro e o game na faixa',
       (tester) async {
     _phone(tester);
@@ -298,104 +222,5 @@ void main() {
       {1, 2},
     );
     await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('rascunho guardado: Continuar abre o placar onde parou',
-      (tester) async {
-    final store = _MemoryStore();
-    var session = PeladaLiveSession.start(
-      _two(),
-      PeladaLiveRules.forSport('beachVolleyball'),
-      now: DateTime(2026, 11, 12),
-    );
-    for (var i = 0; i < 5; i++) {
-      session = session.point(LiveSide.a, now: DateTime(2026, 11, 12));
-    }
-    store.drafts['b1'] = session;
-    await _scorePage(
-      tester,
-      initial: _two(),
-      sport: 'beachVolleyball',
-      store: store,
-    );
-    expect(find.text('Continuar marcação'), findsOneWidget);
-    expect(find.textContaining('Set 1 · 5–0'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('pelada-live-open')));
-    await tester.pumpAndSettle();
-    expect(find.byType(PeladaLiveSetupPage), findsNothing);
-    expect(_score(tester, LiveSide.a), '5');
-
-    // Descartar some com o rascunho e volta ao Editar placar.
-    await tester.tap(find.byKey(const Key('pelada-live-menu')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('pelada-live-menu-discard')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('pelada-live-discard-confirm')));
-    await tester.pumpAndSettle();
-    expect(store.drafts, isEmpty);
-    expect(find.text('Marcar ao vivo'), findsOneWidget);
-  });
-
-  testWidgets('placar já lançado: pergunta antes de marcar ao vivo por cima',
-      (tester) async {
-    final store = _MemoryStore();
-    await _scorePage(
-      tester,
-      initial: _two().updateGame(
-        0,
-        const ResultGame(teamA: 0, teamB: 1, scoreA: 21, scoreB: 15),
-      ),
-      sport: 'beachVolleyball',
-      store: store,
-    );
-    await tester.tap(find.byKey(const Key('pelada-live-open')));
-    await tester.pumpAndSettle();
-    expect(find.text('Marcar ao vivo?'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('pelada-live-replace-confirm')));
-    await tester.pumpAndSettle();
-    expect(find.byType(PeladaLiveSetupPage), findsOneWidget);
-    // Vôlei de praia: troca de lado e vantagem de 2 ligadas por padrão.
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('pelada-live-court-switch')),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(
-      tester
-          .widget<SwitchListTile>(
-            find.byKey(const Key('pelada-live-court-switch')),
-          )
-          .value,
-      isTrue,
-    );
-  });
-
-  testWidgets(
-      'vindo da Agenda: o Editar placar já abre as regras, e "Ajustar times" '
-      'volta para ele', (tester) async {
-    _phone(tester);
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.dark,
-        home: BookingResultScorePage(
-          initial: _two(),
-          candidates: const [],
-          ownerPlayerId: 'u0a',
-          sport: 'padel',
-          bookingId: 'b1',
-          liveStore: _MemoryStore(),
-          autoStartLive: true,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byType(PeladaLiveSetupPage), findsOneWidget);
-    expect(find.text('No 40–40'.toUpperCase()), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('pelada-live-edit-teams')));
-    await tester.pumpAndSettle();
-    expect(find.byType(PeladaLiveSetupPage), findsNothing);
-    expect(find.byType(BookingResultScorePage), findsOneWidget);
-    expect(find.text('Marcar ao vivo'), findsOneWidget);
   });
 }

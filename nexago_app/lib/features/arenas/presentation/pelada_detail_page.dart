@@ -6,18 +6,15 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
-import '../../athlete/domain/athlete_display_name.dart';
-import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/presentation/booking_details_page.dart';
 import '../domain/arena_booking_success_actions.dart';
 import '../domain/booking_result.dart';
 import '../domain/booking_result_record.dart';
 import '../domain/booking_result_record_providers.dart';
 import '../domain/booking_social_unlock.dart';
-import '../domain/booking_story_providers.dart';
 import '../domain/pelada.dart';
 import 'booking_result_page.dart';
-import 'booking_result_score_page.dart';
+import 'lancar_placar/lancar_placar_page.dart';
 import 'pelada_analytics.dart';
 import 'widgets/booking_story/booking_story_editor.dart';
 import 'widgets/pelada/pelada_widgets.dart';
@@ -81,7 +78,7 @@ class _PeladaDetailPageState extends ConsumerState<PeladaDetailPage> {
     }
   }
 
-  /// "Editar placar" / "Revisar placar": abre o Editar placar com o salvo; ao
+  /// "Editar placar" / "Revisar placar": abre o Lançar placar com o salvo; ao
   /// salvar, todo mundo recebe para confirmar de novo.
   Future<void> _edit(SavedBookingResult saved) async {
     // Editar grava de novo: pede a reserva liberada (a callable também recusa).
@@ -93,37 +90,12 @@ class _PeladaDetailPageState extends ConsumerState<PeladaDetailPage> {
       );
       return;
     }
-    final profile = ref.read(athleteProfileProvider).valueOrNull;
-    final source = ref.read(bookingStorySourceProvider(saved.bookingId));
-    final crew = bookingResultCrew(
-      ownerUid: profile?.id,
-      ownerName:
-          profile == null ? null : athleteDisplayName(profile, fallback: ''),
-      ownerAvatarUrl: profile?.avatarUrl,
-      confirmed: source?.confirmed ?? const [],
+    final outcome = await openLancarPlacar(
+      context,
+      saved.toStoryArgs(),
+      presetSport: saved.sport,
     );
-    final candidates = [
-      ...crew,
-      for (final t in saved.result.teams)
-        for (final p in t.players)
-          if (!p.isGuest && !crew.contains(p)) p,
-    ];
-    final repository = ref.read(bookingResultRepositoryProvider);
-    final edited = await Navigator.of(context).push<BookingResult>(
-      MaterialPageRoute(
-        builder: (_) => BookingResultScorePage(
-          initial: saved.result,
-          candidates: candidates,
-          ownerPlayerId: saved.createdBy,
-          sport: saved.sport ?? source?.sport,
-          bookingId: saved.bookingId,
-          onSave: (r) => repository.save(saved.bookingId, r),
-          confirmBeforeSave:
-              'Os jogadores vão receber o placar para confirmar novamente.',
-        ),
-      ),
-    );
-    if (edited != null) {
+    if (outcome is LancarPlacarSent) {
       logPelada(ref, (a) => a.logPeladaEdited(saved.version + 1));
     }
   }

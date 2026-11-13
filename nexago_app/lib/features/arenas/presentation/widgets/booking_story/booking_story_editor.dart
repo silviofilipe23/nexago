@@ -29,10 +29,25 @@ mixin BookingStoryEditorMixin<T extends ConsumerStatefulWidget>
   Uint8List? storyPhoto;
   bool storyBusy = false;
 
+  /// Capa da arena já baixada: vira a primeira opção da "Foto de fundo".
+  Uint8List? arenaCoverPhoto;
+
   /// Pergunta a origem (câmera ou galeria) e aplica a foto como fundo.
   Future<void> pickStoryPhoto() async {
-    final source = await showBookingStoryPhotoSourceSheet(context);
+    final cover = arenaCoverPhoto;
+    final source = await showBookingStoryPhotoSourceSheet(
+      context,
+      withArenaPhoto: cover != null,
+    );
     if (!mounted || source == null) return;
+    if (source == BookingStoryPhotoSource.arena) {
+      if (cover == null) return;
+      setState(() {
+        storyPhoto = cover;
+        storyTheme = BookingStoryTheme.photo;
+      });
+      return;
+    }
     Uint8List? bytes;
     try {
       bytes = await ref.read(bookingStoryPhotoPickerProvider)(source);
@@ -90,8 +105,9 @@ mixin BookingStoryEditorMixin<T extends ConsumerStatefulWidget>
 
 /// Folha "Foto de fundo": Tirar foto agora · Escolher da galeria.
 Future<BookingStoryPhotoSource?> showBookingStoryPhotoSourceSheet(
-  BuildContext context,
-) {
+  BuildContext context, {
+  bool withArenaPhoto = false,
+}) {
   return showModalBottomSheet<BookingStoryPhotoSource>(
     context: context,
     useSafeArea: true,
@@ -140,6 +156,12 @@ Future<BookingStoryPhotoSource?> showBookingStoryPhotoSourceSheet(
                 style: AppTypography.titleL.copyWith(color: colors.onSurface),
               ),
             ),
+            if (withArenaPhoto)
+              tile(
+                Icons.stadium_outlined,
+                'Foto da arena',
+                BookingStoryPhotoSource.arena,
+              ),
             tile(
               Icons.photo_camera_outlined,
               'Tirar foto agora',

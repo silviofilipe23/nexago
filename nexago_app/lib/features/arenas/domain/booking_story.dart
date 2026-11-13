@@ -46,6 +46,7 @@ class BookingStoryArgs {
     required this.dateKey,
     required this.startTime,
     required this.endTime,
+    this.arenaId,
   });
 
   factory BookingStoryArgs.fromSuccess(BookingSuccessArgs args) {
@@ -56,6 +57,7 @@ class BookingStoryArgs {
       dateKey: args.dateKey,
       startTime: args.startTime,
       endTime: args.endTime,
+      arenaId: args.arenaId,
     );
   }
 
@@ -67,6 +69,7 @@ class BookingStoryArgs {
       dateKey: booking.dateRaw,
       startTime: booking.startTime,
       endTime: booking.endTime,
+      arenaId: booking.arenaId,
     );
   }
 
@@ -80,6 +83,9 @@ class BookingStoryArgs {
   final String dateKey;
   final String startTime;
   final String endTime;
+
+  /// Arena da reserva: a capa e o logo entram na arte do pós-jogo.
+  final String? arenaId;
 }
 
 /// A arte diz "QUADRA GARANTIDA": cancelada ou esperando o pagamento online

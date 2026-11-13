@@ -427,6 +427,7 @@ class _RentalCard extends ConsumerWidget {
       arenaName: displayArenaName,
       courtName: rental.courtName,
       dateKey: calendarDateKey(rental.startAt),
+      arenaId: rental.arenaId,
       startTime: startHour,
       endTime: endHour,
     );

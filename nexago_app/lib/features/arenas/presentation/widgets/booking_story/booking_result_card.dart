@@ -17,6 +17,7 @@ class BookingResultArtData {
     required this.duration,
     required this.dateLabel,
     required this.placeLabel,
+    this.arenaLogo,
   });
 
   /// "Jogaço\nna areia."
@@ -30,6 +31,9 @@ class BookingResultArtData {
 
   /// `Arena CFC · Quadra 1`.
   final String placeLabel;
+
+  /// Logo da arena já baixado: entra redondo antes do [placeLabel].
+  final Uint8List? arenaLogo;
 }
 
 /// Arte 9:16 do pós-jogo (protótipo "Reservar · 6"), mesma moldura do story
@@ -128,6 +132,26 @@ class BookingResultCard extends StatelessWidget {
                 Expanded(
                   child: _Meta(
                     label: art.dateLabel,
+                    leading: art.arenaLogo == null
+                        ? null
+                        : Container(
+                            key: const Key('booking-result-arena-logo'),
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              border: Border.all(color: line, width: 1.5),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: Image.memory(
+                              art.arenaLogo!,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
+                              errorBuilder: (_, __, ___) =>
+                                  const SizedBox.shrink(),
+                            ),
+                          ),
                     value: art.placeLabel,
                     valueStyle: AppTypography.soraRegular(
                       fontSize: 14,
@@ -479,7 +503,11 @@ class _Meta extends StatelessWidget {
     required this.value,
     required this.valueStyle,
     required this.sub,
+    this.leading,
   });
+
+  /// Antes do valor, na mesma linha (o logo da arena).
+  final Widget? leading;
 
   final String label;
   final String value;
@@ -500,12 +528,30 @@ class _Meta extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 3),
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: valueStyle,
-        ),
+        // Sem logo fica só o texto: a coluna "Em quadra" não tem largura
+        // limitada, e um Flexible ali quebraria o layout.
+        if (leading == null)
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: valueStyle,
+          )
+        else
+          Row(
+            children: [
+              leading!,
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: valueStyle,
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }

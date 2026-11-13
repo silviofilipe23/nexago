@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
+import '../data/booking_arena_art.dart';
 import '../domain/booking_result.dart';
 import '../domain/booking_result_record.dart';
 import '../domain/booking_result_record_providers.dart';
@@ -71,6 +72,10 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
 
   /// O "Marcar ao vivo" da Agenda já abriu (uma vez só).
   bool _liveLaunched = false;
+
+  /// A capa da arena já virou o fundo padrão (uma vez só: depois vale o que
+  /// o atleta escolher).
+  bool _coverApplied = false;
 
   void _toggleInfo(BookingResultInfo info) {
     setState(() {
@@ -167,7 +172,28 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
       startTime: args.startTime,
       endTime: args.endTime,
     );
+    // Capa e logo da arena (canvas "Pelada · placares…", 17 e 18): a capa
+    // abre como fundo e fica na "Foto de fundo"; o logo vai ao lado do nome.
+    final arenaId = (widget.args.arenaId ?? source?.arenaId ?? '').trim();
+    final arenaArt = arenaId.isEmpty
+        ? null
+        : ref.watch(bookingArenaArtProvider(arenaId)).valueOrNull;
+    final cover = arenaArt?.cover;
+    arenaCoverPhoto = cover;
+    if (cover != null && !_coverApplied) {
+      _coverApplied = true;
+      if (storyPhoto == null && storyTheme == BookingStoryTheme.ember) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || storyPhoto != null) return;
+          setState(() {
+            storyPhoto = cover;
+            storyTheme = BookingStoryTheme.photo;
+          });
+        });
+      }
+    }
     final art = BookingResultArtData(
+      arenaLogo: arenaArt?.logo,
       headline: bookingResultHeadline(widget.presetSport ?? source?.sport),
       duration: bookingResultDuration(args.startTime, args.endTime),
       dateLabel: story.dateLabel,

@@ -37,6 +37,48 @@ void main() {
       expect(id, 'bk1');
     });
 
+    test('atleta com banco de horas: athleteId + useMemberHours', () async {
+      final functions = _FakeFirebaseFunctions(result: {'bookingId': 'bk1'});
+      final service = ArenaManualBookingService(functions: functions);
+
+      await service.create(
+        arenaId: 'a1',
+        courtId: 'c1',
+        dateKey: '2026-11-14',
+        startTime: '19:00',
+        endTime: '20:00',
+        athleteId: 'u1',
+        customerName: 'Maria',
+        amountReais: 120,
+        useMemberHours: true,
+      );
+
+      final payload = functions.calls.single.$2;
+      expect(payload['athleteId'], 'u1');
+      expect(payload['customerName'], 'Maria');
+      expect(payload['useMemberHours'], true);
+    });
+
+    test('useMemberHours sem atleta não vai', () async {
+      final functions = _FakeFirebaseFunctions(result: {'bookingId': 'bk1'});
+      final service = ArenaManualBookingService(functions: functions);
+
+      await service.create(
+        arenaId: 'a1',
+        courtId: 'c1',
+        dateKey: '2026-11-14',
+        startTime: '19:00',
+        endTime: '20:00',
+        customerName: 'João',
+        amountReais: 120,
+        useMemberHours: true,
+      );
+
+      final payload = functions.calls.single.$2;
+      expect(payload.containsKey('useMemberHours'), isFalse);
+      expect(payload.containsKey('athleteId'), isFalse);
+    });
+
     test('nota preenchida vai no payload', () async {
       final functions = _FakeFirebaseFunctions(result: {'bookingId': 'bk1'});
       final service = ArenaManualBookingService(functions: functions);
@@ -104,7 +146,7 @@ void main() {
       final functions = _FakeFirebaseFunctions(result: {'amountReais': 90});
       final service = ArenaManualBookingService(functions: functions);
 
-      final amount = await service.quote(
+      final quote = await service.quote(
         arenaId: 'a1',
         courtId: 'c1',
         dateKey: '2026-11-14',
@@ -121,7 +163,35 @@ void main() {
         'startTime': '19:00',
         'endTime': '20:00',
       });
-      expect(amount, 90.0);
+      expect(quote.amountReais, 90.0);
+      expect(quote.memberHours, isNull);
+    });
+
+    test('com atleta, manda athleteId e lê o banco de horas', () async {
+      final functions = _FakeFirebaseFunctions(result: {
+        'amountReais': 120,
+        'memberHours': {
+          'weeklyMinutes': 240,
+          'availableMinutes': 180,
+          'coverMinutes': 60,
+          'planName': 'Mensal 4h',
+          'blocked': false,
+        },
+      });
+      final service = ArenaManualBookingService(functions: functions);
+
+      final quote = await service.quote(
+        arenaId: 'a1',
+        courtId: 'c1',
+        dateKey: '2026-11-14',
+        startTime: '19:00',
+        endTime: '20:00',
+        athleteId: ' u1 ',
+      );
+
+      expect(functions.calls.single.$2['athleteId'], 'u1');
+      expect(quote.memberHours?.coverMinutes, 60);
+      expect(quote.memberHours?.planName, 'Mensal 4h');
     });
 
     test('resposta sem valor vira null (gestor digita)', () async {
@@ -129,7 +199,7 @@ void main() {
         functions: _FakeFirebaseFunctions(result: null),
       );
 
-      final amount = await service.quote(
+      final quote = await service.quote(
         arenaId: 'a1',
         courtId: 'c1',
         dateKey: '2026-11-14',
@@ -137,7 +207,8 @@ void main() {
         endTime: '20:00',
       );
 
-      expect(amount, isNull);
+      expect(quote.amountReais, isNull);
+      expect(quote.memberHours, isNull);
     });
   });
 }

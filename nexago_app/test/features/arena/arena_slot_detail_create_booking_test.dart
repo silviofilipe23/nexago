@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/users_repository.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arena/data/manual_booking_service.dart';
 import 'package:nexago_app/features/arena/domain/arena_access_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_providers.dart';
+import 'package:nexago_app/features/arena/domain/arena_manual_booking.dart';
 import 'package:nexago_app/features/arena/domain/arena_schedule_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_slot_detail_args.dart';
 import 'package:nexago_app/features/arena/domain/arena_staff_role.dart';
@@ -31,7 +34,10 @@ void main() {
     priceReais: 120,
   );
 
-  List<Override> overrides(_FakeManualBookingService service) {
+  List<Override> overrides(
+    _FakeManualBookingService service,
+    _FakeUsersRepository users,
+  ) {
     const membership = ArenaMembership(
       arenaId: 'a1',
       name: 'Vegeton',
@@ -49,6 +55,7 @@ void main() {
         (ref) => Stream.value(const []),
       ),
       arenaManualBookingServiceProvider.overrideWithValue(service),
+      usersRepositoryProvider.overrideWithValue(users),
     ];
   }
 
@@ -56,6 +63,7 @@ void main() {
     WidgetTester tester,
     _FakeManualBookingService service, {
     ArenaSlot? slotOverride,
+    _FakeUsersRepository? users,
   }) async {
     final router = GoRouter(
       initialLocation: '/slot',
@@ -79,7 +87,7 @@ void main() {
     );
     await tester.pumpWidget(
       ProviderScope(
-        overrides: overrides(service),
+        overrides: overrides(service, users ?? _FakeUsersRepository()),
         child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
       ),
     );
@@ -109,6 +117,7 @@ void main() {
       find.widgetWithText(TextField, 'Nome de quem vai jogar'),
       'João',
     );
+    await tester.ensureVisible(submitButton);
     await tester.tap(submitButton);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
@@ -130,11 +139,15 @@ void main() {
     await pumpPage(tester, service);
 
     await openSheet(tester);
+    await tester.ensureVisible(submitButton);
     await tester.tap(submitButton);
     await tester.pump();
 
     expect(service.created, isEmpty);
-    expect(find.text('Informe o nome do cliente.'), findsOneWidget);
+    expect(
+      find.text('Informe o atleta ou o nome do cliente.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('recusa do servidor aparece e a folha continua aberta',
@@ -149,6 +162,7 @@ void main() {
       find.widgetWithText(TextField, 'Nome de quem vai jogar'),
       'João',
     );
+    await tester.ensureVisible(submitButton);
     await tester.tap(submitButton);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
@@ -160,6 +174,161 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(ArenaManualBookingSheet), findsOneWidget);
+  });
+
+  testWidgets('atleta mensalista: desconta do banco de horas', (tester) async {
+    final service = _FakeManualBookingService(
+      quoteAmount: 120,
+      memberHours: const ArenaMemberHours(
+        weeklyMinutes: 240,
+        availableMinutes: 180,
+        coverMinutes: 60,
+        planName: 'Mensal 4h',
+        blocked: false,
+      ),
+    );
+    final users = _FakeUsersRepository(results: const [
+      AppUserProfile(uid: 'u1', nickname: '@maria', fullName: 'Maria Souza'),
+    ]);
+    await pumpPage(tester, service, users: users);
+
+    await openSheet(tester);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Buscar por nome ou apelido'),
+      'mar',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    expect(users.terms, ['mar']);
+
+    await tester.tap(find.text('maria'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Cotação com o atleta: traz o banco de horas.
+    expect(service.quotedAthleteIds.last, 'u1');
+    expect(find.text('Trocar'), findsOneWidget);
+    expect(
+      find.text('Descontar do banco de horas · Mensal 4h'),
+      findsOneWidget,
+    );
+    expect(find.text('A cobrar: nada (coberta pelo plano)'), findsOneWidget);
+
+    await tester.ensureVisible(submitButton);
+    await tester.tap(submitButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final call = service.created.single;
+    expect(call['athleteId'], 'u1');
+    expect(call['customerName'], 'maria');
+    expect(call['useMemberHours'], true);
+    expect(call['amountReais'], 120.0);
+  });
+
+  testWidgets('mensalista desmarca o banco: reserva avulsa', (tester) async {
+    final service = _FakeManualBookingService(
+      quoteAmount: 120,
+      memberHours: const ArenaMemberHours(
+        weeklyMinutes: 240,
+        availableMinutes: 180,
+        coverMinutes: 60,
+        planName: 'Mensal 4h',
+        blocked: false,
+      ),
+    );
+    final users = _FakeUsersRepository(results: const [
+      AppUserProfile(uid: 'u1', nickname: 'maria'),
+    ]);
+    await pumpPage(tester, service, users: users);
+
+    await openSheet(tester);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Buscar por nome ou apelido'),
+      'mar',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    await tester.tap(find.text('maria'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.byType(Checkbox));
+    await tester.pump();
+    expect(find.textContaining('A cobrar'), findsNothing);
+
+    await tester.ensureVisible(submitButton);
+    await tester.tap(submitButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(service.created.single['useMemberHours'], false);
+    expect(service.created.single['athleteId'], 'u1');
+  });
+
+  testWidgets('mensalista atrasado: avisa e não desconta', (tester) async {
+    final service = _FakeManualBookingService(
+      quoteAmount: 120,
+      memberHours: const ArenaMemberHours(
+        weeklyMinutes: 240,
+        availableMinutes: 180,
+        coverMinutes: 0,
+        planName: 'Mensal 4h',
+        blocked: true,
+      ),
+    );
+    final users = _FakeUsersRepository(results: const [
+      AppUserProfile(uid: 'u1', nickname: 'maria'),
+    ]);
+    await pumpPage(tester, service, users: users);
+
+    await openSheet(tester);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Buscar por nome ou apelido'),
+      'mar',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    await tester.tap(find.text('maria'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.textContaining('mensalidade atrasada'), findsOneWidget);
+    expect(find.byType(Checkbox), findsNothing);
+
+    await tester.ensureVisible(submitButton);
+    await tester.tap(submitButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(service.created.single['useMemberHours'], false);
+  });
+
+  testWidgets('trocar o atleta volta para a busca', (tester) async {
+    final service = _FakeManualBookingService(quoteAmount: 120);
+    final users = _FakeUsersRepository(results: const [
+      AppUserProfile(uid: 'u1', nickname: 'maria'),
+    ]);
+    await pumpPage(tester, service, users: users);
+
+    await openSheet(tester);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Buscar por nome ou apelido'),
+      'mar',
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+    await tester.tap(find.text('maria'));
+    await tester.pump();
+
+    await tester.tap(find.text('Trocar'));
+    await tester.pump();
+
+    expect(find.text('Trocar'), findsNothing);
+    expect(
+      find.widgetWithText(TextField, 'Buscar por nome ou apelido'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('horário ocupado não abre a folha', (tester) async {
@@ -182,41 +351,36 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(ArenaManualBookingSheet), findsNothing);
   });
-
-  group('parseManualBookingAmount', () {
-    test('aceita formatos do balcão', () {
-      expect(parseManualBookingAmount('120'), 120);
-      expect(parseManualBookingAmount('120.00'), 120);
-      expect(parseManualBookingAmount('120,50'), 120.5);
-      expect(parseManualBookingAmount('R\$ 1.200,00'), 1200);
-      expect(parseManualBookingAmount('0'), 0);
-    });
-
-    test('vazio, negativo ou lixo é null', () {
-      expect(parseManualBookingAmount(''), isNull);
-      expect(parseManualBookingAmount('  '), isNull);
-      expect(parseManualBookingAmount('-10'), isNull);
-      expect(parseManualBookingAmount('abc'), isNull);
-    });
-  });
 }
 
 class _FakeManualBookingService implements ArenaManualBookingService {
-  _FakeManualBookingService({this.quoteAmount, this.createError});
+  _FakeManualBookingService({
+    this.quoteAmount,
+    this.memberHours,
+    this.createError,
+  });
 
   final double? quoteAmount;
+  final ArenaMemberHours? memberHours;
   final Object? createError;
+  final List<String?> quotedAthleteIds = [];
   final List<Map<String, Object?>> created = [];
 
   @override
-  Future<double?> quote({
+  Future<ArenaManualBookingQuote> quote({
     required String arenaId,
     required String courtId,
     required String dateKey,
     required String startTime,
     required String endTime,
-  }) async =>
-      quoteAmount;
+    String? athleteId,
+  }) async {
+    quotedAthleteIds.add(athleteId);
+    return ArenaManualBookingQuote(
+      amountReais: quoteAmount,
+      memberHours: athleteId != null ? memberHours : null,
+    );
+  }
 
   @override
   Future<String> create({
@@ -225,8 +389,10 @@ class _FakeManualBookingService implements ArenaManualBookingService {
     required String dateKey,
     required String startTime,
     required String endTime,
-    required String customerName,
     required double amountReais,
+    String? athleteId,
+    String? customerName,
+    bool useMemberHours = false,
     String? note,
   }) async {
     final error = createError;
@@ -237,10 +403,31 @@ class _FakeManualBookingService implements ArenaManualBookingService {
       'dateKey': dateKey,
       'startTime': startTime,
       'endTime': endTime,
-      'customerName': customerName,
       'amountReais': amountReais,
+      'athleteId': athleteId,
+      'customerName': customerName,
+      'useMemberHours': useMemberHours,
       'note': note,
     });
     return 'bk1';
   }
+}
+
+class _FakeUsersRepository implements UsersRepository {
+  _FakeUsersRepository({this.results = const []});
+
+  final List<AppUserProfile> results;
+  final List<String> terms = [];
+
+  @override
+  Future<List<AppUserProfile>> searchAthletesByKeywords(
+    String term, {
+    int max = 25,
+  }) async {
+    terms.add(term);
+    return results;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

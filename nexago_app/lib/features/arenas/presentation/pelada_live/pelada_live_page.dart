@@ -110,7 +110,8 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
     switch (next.match.lastEvent) {
       case LiveEvent.courtSwitch:
         HapticFeedback.heavyImpact();
-        _showToast('Troquem de lado');
+        // Fica na tela até o próximo ponto: a troca leva o tempo que levar.
+        _showToast('Troquem de lado', untilNextPoint: true);
       case LiveEvent.set:
         HapticFeedback.heavyImpact();
         _showToast('Fim do set ${next.gameNumber - 1}');
@@ -132,9 +133,11 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
     }
   }
 
-  void _showToast(String text) {
+  /// [untilNextPoint]: sem prazo, some no próximo ponto (ou no toque nele).
+  void _showToast(String text, {bool untilNextPoint = false}) {
     _toastTimer?.cancel();
     setState(() => _toast = text);
+    if (untilNextPoint) return;
     _toastTimer = Timer(const Duration(seconds: 4), () {
       if (mounted) setState(() => _toast = null);
     });
@@ -145,6 +148,9 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
       _finish();
       return;
     }
+    // O ponto seguinte tira o aviso anterior (troca de lado, fim do set).
+    _toastTimer?.cancel();
+    _toast = null;
     _update(_s.point(side, value: value, now: widget.clock()));
   }
 

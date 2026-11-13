@@ -11,6 +11,7 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import {SOCIAL_LOCKED_MESSAGE, resolveBookingSocialUnlock} from "./booking-app-payment";
 import {EVENT_TIME_ZONE} from "./event-timezone";
+import {clearBookingResultSuggestion} from "./booking-result-nudge";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {
   WEB_PUSH_PRIVATE_KEY,
@@ -353,7 +354,12 @@ export const saveBookingResult = onCall(
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Entre na sua conta para salvar o placar.");
-    const {result, notices} = await saveBookingResultCore(getFirestore(), uid, request.data, new Date());
+    const db = getFirestore();
+    const {result, notices} = await saveBookingResultCore(db, uid, request.data, new Date());
+    // O placar enviado substitui o que o convidado sugeriu.
+    const bookingId = typeof (request.data as {bookingId?: unknown} | null)?.bookingId === "string" ?
+      ((request.data as {bookingId: string}).bookingId).trim() : "";
+    if (bookingId) await clearBookingResultSuggestion(db, bookingId);
     await deliverNotices(notices);
     return result;
   },

@@ -423,3 +423,45 @@ String bookingResultAttentionTitle(SavedBookingResult saved, String uid) {
       'Aguardando ${bookingResultNamesLine(saved.pendingFirstNames)} confirmar',
   };
 }
+
+/// Placar marcado pelo convidado da reserva e mandado para quem reservou
+/// conferir e enviar (`bookingResultSuggestions/{bookingId}`, fase 2 do
+/// "Lançar placar"). Some quando quem reservou envia.
+@immutable
+class BookingResultSuggestion {
+  const BookingResultSuggestion({
+    required this.bookingId,
+    required this.suggestedBy,
+    required this.suggestedByName,
+    required this.result,
+  });
+
+  final String bookingId;
+  final String suggestedBy;
+  final String suggestedByName;
+  final BookingResult result;
+
+  String get suggestedByFirstName {
+    final first = suggestedByName.trim().split(RegExp(r'\s+')).first;
+    return first.isEmpty ? 'Um jogador' : first;
+  }
+
+  /// Times e jogos no mesmo formato do placar salvo.
+  static BookingResultSuggestion? fromFirestore(
+    String id,
+    Map<String, dynamic> d,
+  ) {
+    final by = d['suggestedBy'];
+    if (by is! String || by.trim().isEmpty) return null;
+    final parsed =
+        SavedBookingResult.fromFirestore(id, {...d, 'createdBy': by});
+    if (parsed == null) return null;
+    final name = d['suggestedByName'];
+    return BookingResultSuggestion(
+      bookingId: parsed.bookingId,
+      suggestedBy: by.trim(),
+      suggestedByName: name is String ? name.trim() : '',
+      result: parsed.result,
+    );
+  }
+}

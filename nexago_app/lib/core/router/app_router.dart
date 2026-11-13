@@ -157,6 +157,7 @@ import '../../features/athlete/presentation/athlete_complete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_edit_profile_page.dart';
 import '../../features/athlete/presentation/athlete_profile_goals_page.dart';
 import '../../features/athlete/presentation/booking_invite_page.dart';
+import '../../features/arenas/presentation/lancar_placar/lancar_placar_route_page.dart';
 import '../../features/arenas/presentation/pelada_detail_page.dart';
 import '../../features/arenas/presentation/peladas_list.dart';
 import '../../features/friendly_match/presentation/friendly_match_detail_page.dart';
@@ -3643,6 +3644,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final inviteId = state.pathParameters['inviteId']!;
           return BookingInvitePage(inviteId: inviteId);
         },
+      ),
+      GoRoute(
+        path: AppRoutes.lancarPlacar,
+        name: AppRouteNames.lancarPlacar,
+        builder: (context, state) => LancarPlacarRoutePage(
+          bookingId: state.pathParameters['bookingId'] ?? '',
+        ),
       ),
       // Endereço do #781 ("Conferir placar"): push antigo ainda aponta pra cá.
       GoRoute(

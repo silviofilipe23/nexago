@@ -78,6 +78,50 @@ class FirebaseBookingResultRepository implements BookingResultRepository {
         );
   }
 
+  static const String suggestions = 'bookingResultSuggestions';
+
+  @override
+  Stream<BookingResultSuggestion?> watchSuggestion(
+    String bookingId,
+    String ownerUid,
+  ) {
+    final id = bookingId.trim();
+    if (id.isEmpty || ownerUid.isEmpty) return Stream.value(null);
+    // Por QUERY: a sugestão nasce depois da tela abrir e o `get` de doc
+    // inexistente seria negado pela rule.
+    return _firestore
+        .collection(suggestions)
+        .where('ownerUid', isEqualTo: ownerUid)
+        .where('bookingId', isEqualTo: id)
+        .limit(1)
+        .snapshots()
+        .map(
+          (snap) => snap.docs.isEmpty
+              ? null
+              : BookingResultSuggestion.fromFirestore(
+                  snap.docs.first.id,
+                  snap.docs.first.data(),
+                ),
+        )
+        .transform(
+          StreamTransformer.fromHandlers(
+            handleError: (error, stack, sink) {
+              if (error is FirebaseException) {
+                sink.add(null);
+              } else {
+                sink.addError(error, stack);
+              }
+            },
+          ),
+        );
+  }
+
+  @override
+  Future<void> suggest(String bookingId, BookingResult result) => _call(
+      'suggestBookingResult',
+      bookingResultPayload(bookingId, result),
+      'Não foi possível mandar o placar. Tente de novo.');
+
   @override
   Future<void> save(String bookingId, BookingResult result) => _call(
       'saveBookingResult',

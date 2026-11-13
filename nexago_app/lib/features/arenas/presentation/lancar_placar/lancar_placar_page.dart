@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/deep_link/app_domains.dart';
+import '../../../../core/ui/nexa_share.dart';
+import '../../../athlete/domain/booking_invite_links.dart';
+import '../../../athlete/domain/booking_invite_providers.dart';
 import '../../../../core/layout/nexa_app_bar.dart';
 import '../../../../core/search/search_keywords.dart';
 import '../../../../core/sports/sport_catalog.dart';
@@ -15,6 +19,7 @@ import '../../../athlete/domain/athlete_profile_providers.dart';
 import '../../../tournaments/data/partner_search_service.dart';
 import '../../data/pelada_live_draft_store.dart';
 import '../../domain/booking_result.dart';
+import '../../domain/booking_result_record.dart';
 import '../../domain/booking_result_record_providers.dart';
 import '../../domain/booking_social_unlock.dart';
 import '../../domain/booking_story.dart';
@@ -22,7 +27,6 @@ import '../../domain/booking_story_providers.dart';
 import '../../domain/lancar_placar.dart';
 import '../../domain/pelada_live/pelada_live_rules.dart';
 import '../../domain/pelada_live/pelada_live_session.dart';
-import '../booking_result_page.dart';
 import '../pelada_live/pelada_live_page.dart';
 import '../pelada_live/pelada_live_widgets.dart';
 import '../widgets/booking_story/booking_result_card.dart';
@@ -103,6 +107,9 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
   Timer? _debounce;
   String _search = '';
   bool _resumeChecked = false;
+
+  /// Primeiro nome de quem mandou o placar que abriu preenchido.
+  String? _suggestedBy;
 
   String get _bookingId => widget.args.bookingId.trim();
   String get _draftKey => peladaLiveDraftKey(widget.args.bookingId);
@@ -211,6 +218,43 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     return ok == true;
   }
 
+  /// Convidado: manda para quem reservou conferir e enviar (fase 2).
+  Future<void> _suggest(BookingResult r) async {
+    await ref.read(bookingResultRepositoryProvider).suggest(_bookingId, r);
+    await ref.read(peladaLiveDraftStoreProvider).clear(_draftKey);
+    ref.invalidate(peladaLiveDraftProvider(widget.args.bookingId));
+  }
+
+  /// "Convidar quem não tem conta": o link de convite da reserva (cadastro e
+  /// entrada no jogo pelo nexaGO). Jogo encerrado ou lotado: um convite para
+  /// baixar o app e mandar o @.
+  Future<void> _inviteByLink() async {
+    final args = widget.args;
+    final source = ref.read(bookingStorySourceProvider(args.bookingId));
+    final confirmed = source?.confirmed.length ?? 0;
+    String message;
+    try {
+      final inviteId =
+          await ref.read(bookingInviteServiceProvider).inviteLinkId(_bookingId);
+      message = bookingInviteShareMessage(
+        arenaName: args.arenaName,
+        startAt: DateTime.tryParse('${args.dateKey}T${args.startTime}:00') ??
+            DateTime.now(),
+        inviteId: inviteId,
+        openSlots: (3 - confirmed).clamp(0, 3),
+      );
+    } catch (_) {
+      final arena = args.arenaName.trim().isEmpty
+          ? 'nossa pelada'
+          : 'a pelada da ${args.arenaName.trim()}';
+      message = 'Bora registrar $arena no nexaGO? Baixa o app '
+          '(${AppShareLinks.appDownload}), cria sua conta e me manda seu @ '
+          'pra eu te pôr no placar.';
+    }
+    if (!mounted) return;
+    await nexaShareText(context, message);
+  }
+
   /// Grava (a callable confere tudo de novo) e apaga a marcação ao vivo.
   Future<void> _save(BookingResult r) async {
     if (!await _confirmResave()) throw const PeladaLiveSendCancelled();
@@ -223,7 +267,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
   // girar a tela) — depois que esta tela já saiu. Nada de `ref` neles: tudo
   // é lido antes de abrir a rota.
 
-  void _done(BookingResult r) {
+  void _done(BookingResult r, {bool toOwner = false}) {
     final confirmers = lancarConfirmers(r, _ownerId);
     final sport = _sport;
     final args = widget.args;
@@ -236,28 +280,10 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
           confirmers: confirmers,
           sport: sport,
           fromStoryEditor: fromStoryEditor,
+          toOwner: toOwner,
         ),
       ),
-      result: LancarPlacarSent(r),
-    );
-  }
-
-  void _art(BookingResult r) {
-    if (widget.fromStoryEditor) {
-      Navigator.of(context).pop(LancarPlacarArt(r));
-      return;
-    }
-    final sport = _sport;
-    final args = widget.args;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => BookingResultPage(
-          args: args,
-          presetResult: r,
-          presetSport: sport,
-        ),
-      ),
-      result: LancarPlacarArt(r),
+      result: toOwner ? LancarPlacarArt(r) : LancarPlacarSent(r),
     );
   }
 
@@ -283,7 +309,9 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     final draftKey = _draftKey;
     final sportLabel = SportCatalog.labelOf(_sport);
     final sportKey = _sportKey;
-    final sendLabel = canSave ? _sendLabel(session.toResult()) : null;
+    // Convidado também manda: vai para quem reservou conferir e enviar.
+    final sendLabel =
+        canSave ? _sendLabel(session.toResult()) : 'Mandar para quem reservou';
     final exit = await Navigator.of(context).push<PeladaLiveExit>(
       MaterialPageRoute(
         builder: (_) => PeladaLivePage(
@@ -292,7 +320,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
           draftKey: draftKey,
           sportLabel: sportLabel,
           sport: sportKey,
-          onSend: canSave ? _save : null,
+          onSend: canSave ? _save : _suggest,
           sendLabel: sendLabel,
         ),
       ),
@@ -301,7 +329,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     if (!mounted || exit == null) return;
     switch (exit) {
       case PeladaLiveSent(:final result):
-        _done(result);
+        _done(result, toOwner: !canSave);
       case PeladaLiveReview(:final result):
         setState(() => _r = result);
         await _runTyped(result);
@@ -311,7 +339,8 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
   Future<void> _runTyped(BookingResult r) async {
     final canSave = _canSave;
     final sport = _sport;
-    final submitLabel = canSave ? _sendLabel(r) : 'Gerar arte do story';
+    final submitLabel =
+        canSave ? _sendLabel(r) : 'Mandar para quem reservou enviar';
     BookingResult? finished;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -322,12 +351,10 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
           submitLabel: submitLabel,
           onChanged: (next) => _r = next,
           onSubmit: (result) async {
-            if (canSave) {
-              try {
-                await _save(result);
-              } on PeladaLiveSendCancelled {
-                return;
-              }
+            try {
+              await (canSave ? _save(result) : _suggest(result));
+            } on PeladaLiveSendCancelled {
+              return;
             }
             finished = result;
             if (pageContext.mounted) Navigator.of(pageContext).pop();
@@ -339,7 +366,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     setState(() {});
     final result = finished;
     if (result == null) return;
-    canSave ? _done(result) : _art(result);
+    _done(result, toOwner: !canSave);
   }
 
   // Tela --------------------------------------------------------------------
@@ -376,6 +403,12 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     final unlock = ref.watch(bookingSocialUnlockProvider(args.bookingId));
     final loaded = ref.watch(myBookingResultsLoadedProvider);
     final saved = ref.watch(savedBookingResultProvider(args.bookingId));
+    final canSaveNow = args.bookingId.trim().isNotEmpty &&
+        (source?.ownerUid == null || source!.ownerUid == uid);
+    // Quem reservou: o placar que o convidado mandou abre já preenchido.
+    final suggestionAsync = canSaveNow
+        ? ref.watch(bookingResultSuggestionProvider(args.bookingId))
+        : const AsyncValue<BookingResultSuggestion?>.data(null);
     final draft = _mode == LancarPlacarMode.live
         ? ref.watch(peladaLiveDraftProvider(args.bookingId))
         : const AsyncValue<PeladaLiveSession?>.data(null);
@@ -391,7 +424,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     final ready = unlock != null &&
         loaded &&
         profileAsync.hasValue &&
-        (_r != null || !draft.isLoading);
+        (_r != null || (!draft.isLoading && !suggestionAsync.isLoading));
     if (!ready) {
       return Scaffold(
         backgroundColor: colors.canvas,
@@ -402,7 +435,13 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     }
 
     // Uma vez: o placar salvo ou a galera da reserva dividida em dois times.
-    _r ??= saved?.result ?? initialBookingResult(_candidates());
+    if (_r == null) {
+      final suggestion = suggestionAsync.valueOrNull;
+      _suggestedBy = suggestion?.suggestedByFirstName;
+      _r = suggestion?.result ??
+          saved?.result ??
+          initialBookingResult(_candidates());
+    }
     final r = _r!;
 
     // Marcação ao vivo guardada: continua de onde parou, sem o passo 1.
@@ -466,6 +505,36 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
         children: [
           const LancarPlacarSteps(step: 1),
           const SizedBox(height: 6),
+          if (_suggestedBy != null)
+            Container(
+              key: const Key('lancar-placar-suggested'),
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.win.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.win.withValues(alpha: 0.45)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.scoreboard_outlined, size: 18, color: colors.win),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '$_suggestedBy marcou o placar e mandou para você. '
+                      'Confira os times e o placar e envie para todos '
+                      'confirmarem.',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.4,
+                        color: colors.onSurface.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           _TeamsBoard(
             result: r,
             onRemove: (p, teamId) => _assign(p, teamId),
@@ -554,9 +623,32 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
                 ),
               ),
             ),
+          if (canSaveNow)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: SizedBox(
+                height: 48,
+                child: OutlinedButton.icon(
+                  key: const Key('lancar-placar-invite'),
+                  onPressed: _inviteByLink,
+                  icon: const Icon(Icons.ios_share_rounded, size: 18),
+                  label: const Text('Convidar quem não tem conta'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colors.onSurface,
+                    side: BorderSide(
+                      color: colors.onSurface.withValues(alpha: 0.16),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           const PeladaLiveNote(
             'Todo mundo do placar precisa ter conta no nexaGO: cada um '
-            'confirma o resultado.',
+            'confirma o resultado. Quem não tem entra pelo link do convite '
+            '(pelo WhatsApp) e aparece aqui.',
           ),
         ],
       ),

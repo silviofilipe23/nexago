@@ -39,6 +39,16 @@ final myBookingResultsLoadedProvider = Provider.autoDispose<bool>(
   (ref) => ref.watch(myBookingResultsProvider).hasValue,
 );
 
+/// O placar que o convidado mandou para quem está logado conferir e enviar
+/// (só quem reservou recebe). `null` sem sugestão.
+final bookingResultSuggestionProvider = StreamProvider.autoDispose
+    .family<BookingResultSuggestion?, String>((ref, bookingId) {
+  final uid = ref.watch(bookingResultUidProvider);
+  return ref
+      .watch(bookingResultRepositoryProvider)
+      .watchSuggestion(bookingId, uid);
+});
+
 /// Uma pelada pelo id (detalhe 10c), ao vivo. `null` sem doc ou sem acesso.
 final peladaProvider = StreamProvider.autoDispose
     .family<SavedBookingResult?, String>((ref, bookingId) {

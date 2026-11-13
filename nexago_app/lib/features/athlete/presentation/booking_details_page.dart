@@ -10,6 +10,7 @@ import '../../../core/formatting/app_date_format.dart';
 import '../../../core/formatting/app_currency_format.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/ui/app_snackbar.dart';
 import '../../arena/domain/arena_booking_labels.dart';
 import '../../arena_orders/presentation/arena_app_orders_catalog_page.dart';
 import '../../arenas/domain/arena_booking_cancellation_policy.dart';
@@ -20,6 +21,9 @@ import '../../arenas/domain/booking_court_qr.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/presentation/widgets/booking_cancellation_confirm_dialog.dart';
+import '../../arenas/domain/booking_reschedule.dart';
+import '../../arenas/presentation/booking_reschedule_page.dart';
+import '../../weather/domain/weather_booking_rules.dart' show weatherBookingWindow;
 import '../../weather/domain/weather_models.dart' show WeatherRelease;
 import '../../weather/presentation/widgets/booking_weather_section.dart';
 import '../domain/arena_review_eligibility.dart';
@@ -94,12 +98,22 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     super.dispose();
   }
 
+  /// Horário do doc vivo (a reserva pode ser remarcada com a tela aberta); sem doc, o que abriu a tela.
+  ({DateTime start, DateTime end})? get _liveWindow {
+    final data =
+        ref.read(arenaBookingDocProvider(widget.bookingId)).valueOrNull?.data();
+    return data == null ? null : weatherBookingWindow(data);
+  }
+
+  DateTime get _startAt => _liveWindow?.start ?? widget.startAt;
+  DateTime get _endAt => _liveWindow?.end ?? widget.endAt;
+
   /// Jogo encerrado (5 min depois do fim, ou concluído) e não cancelado: oferece avaliar.
   bool _canReview(String rawStatus) {
     final status = rawStatus.trim().toLowerCase();
     if (status == 'canceled' || status == 'cancelled') return false;
     if (status == 'completed' || status == 'finalizado') return true;
-    return _now.isAfter(widget.endAt.add(arenaReviewDelayAfterEnd));
+    return _now.isAfter(_endAt.add(arenaReviewDelayAfterEnd));
   }
 
   @override
@@ -118,8 +132,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     final rawStatus = bookingDetailsLiveStatus(widget.status, bookingData);
     final detailsStatus = bookingDetailsStatus(
       _now,
-      widget.startAt,
-      widget.endAt,
+      _startAt,
+      _endAt,
       rawStatus,
     );
     // Doc vivo manda na quadra: o check-in pelo QR (ou a recepção) pode defini-la com a tela aberta.
@@ -136,8 +150,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       bookingId: widget.bookingId,
       arenaName: widget.arenaName,
       courtName: liveCourtName,
-      startAt: widget.startAt,
-      endAt: widget.endAt,
+      startAt: _startAt,
+      endAt: _endAt,
       rawStatus: rawStatus,
       cancelReason: bookingData?['cancelReason'] is String
           ? bookingData!['cancelReason'] as String
@@ -194,13 +208,13 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         ? const BookingCourtQrState(BookingCourtQrStage.hidden)
         : bookingCourtQrState(
             bookingData,
-            startAt: widget.startAt,
-            endAt: widget.endAt,
+            startAt: _startAt,
+            endAt: _endAt,
             now: _now,
           );
 
     final cancellation = ArenaBookingCancellationPolicy.athleteCancellation(
-      bookingStart: widget.startAt,
+      bookingStart: _startAt,
       now: _now,
       rawStatus: rawStatus,
       isRecurring: isRecurring,
@@ -208,6 +222,15 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       weatherChoicePending: weatherChoicePending,
     );
     final canCancel = cancellation == AthleteBookingCancellation.allowed;
+    final rescheduleBlock = bookingData == null || isGuest
+        ? null
+        : bookingRescheduleBlockReason(
+            bookingData,
+            actor: BookingRescheduleActor.athlete,
+            uid: viewerUid,
+            now: _now,
+          );
+    final canReschedule = bookingData != null && !isGuest && rescheduleBlock == null;
     final actionsEnabled = bookingDetailsActionsEnabled(detailsStatus);
 
     return Scaffold(
@@ -253,14 +276,14 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             BookingDetailsCourtQrCard(
               bookingId: widget.bookingId,
               state: courtQr,
-              startAt: widget.startAt,
+              startAt: _startAt,
             ),
           ],
           const SizedBox(height: 14),
           BookingDetailsTeamSection(
             bookingId: widget.bookingId,
             arenaName: widget.arenaName,
-            startAt: widget.startAt,
+            startAt: _startAt,
             inviteEnabled: actionsEnabled,
             onLeft: () => Navigator.of(context).maybePop(),
           ),
@@ -273,8 +296,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
           if (!isGuest) ...[
             const SizedBox(height: 14),
             BookingDetailsPaymentSection(
-              startAt: widget.startAt,
-              endAt: widget.endAt,
+              startAt: _startAt,
+              endAt: _endAt,
               amountLabel: paymentLabel,
               paymentMethodLabel: paymentMethod,
               showSplitCard: showSplit,
@@ -284,7 +307,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             BookingDetailsAttendanceContent(
               attendance: attendance,
               bookingStatus: detailsStatus,
-              startAt: widget.startAt,
+              startAt: _startAt,
               confirmedParticipantsFallback: widget.confirmedParticipants,
               confirmingAttendance: _confirmingAttendance,
               checkingIn: _checkingIn,
@@ -312,6 +335,11 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             onDirections: () => _openMaps(address),
             onShare: _shareBooking,
             onCancel: canCancel ? _cancelBooking : null,
+            onReschedule: canReschedule ? _reschedule : null,
+            rescheduleHint: rescheduleBlock != null &&
+                    bookingRescheduleHintWorthShowing(rescheduleBlock)
+                ? rescheduleBlock
+                : null,
             onOrderAtCourt:
                 widget.arenaId == null || isGuest ? null : _openOrderAtCourt,
             shareLoading: _sharing,
@@ -433,13 +461,13 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       final dateLabel = DateFormat(
         "d 'de' MMMM",
         'pt_BR',
-      ).format(widget.startAt);
+      ).format(_startAt);
       final text = ArenaBookingSuccessActions.buildBookingShareMessage(
         arenaName: widget.arenaName,
         courtName: widget.courtName,
         dateLabel: dateLabel,
         timeRangeLabel:
-            '${DateFormat('HH:mm', 'pt_BR').format(widget.startAt)} - ${DateFormat('HH:mm', 'pt_BR').format(widget.endAt)}',
+            '${DateFormat('HH:mm', 'pt_BR').format(_startAt)} - ${DateFormat('HH:mm', 'pt_BR').format(_endAt)}',
         bookingId: widget.bookingId,
       );
       if (!mounted) return;
@@ -450,12 +478,12 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
   }
 
   Future<void> _addToCalendar() async {
-    final dateKey = calendarDateKey(widget.startAt);
+    final dateKey = calendarDateKey(_startAt);
     final url = ArenaBookingSuccessActions.buildGoogleCalendarEventUrl(
       title: 'Reserva · ${widget.arenaName}',
       dateKey: dateKey,
-      startTime: DateFormat('HH:mm').format(widget.startAt),
-      endTime: DateFormat('HH:mm').format(widget.endAt),
+      startTime: DateFormat('HH:mm').format(_startAt),
+      endTime: DateFormat('HH:mm').format(_endAt),
       details:
           'Código ${ArenaBookingSuccessActions.formatBookingDisplayCode(widget.bookingId)}',
       location: widget.arenaName,
@@ -478,6 +506,23 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  Future<void> _reschedule() async {
+    final data =
+        ref.read(arenaBookingDocProvider(widget.bookingId)).valueOrNull?.data();
+    if (data == null) return;
+    final result = await BookingReschedulePage.open(
+      context,
+      bookingId: widget.bookingId,
+      booking: data,
+      actor: BookingRescheduleActor.athlete,
+    );
+    if (result == null || !mounted) return;
+    showAppSnackBar(
+      context,
+      bookingRescheduledMessage(result, actor: BookingRescheduleActor.athlete),
+    );
+  }
+
   Future<void> _cancelBooking() async {
     final uid = ref.read(authProvider).valueOrNull?.uid;
     if (uid == null || uid.isEmpty) return;
@@ -488,7 +533,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       policy: AthleteCancelPolicy.fromBooking(booking?.data()),
       arenaName: widget.arenaName,
       courtName: widget.courtName,
-      startAt: widget.startAt,
+      startAt: _startAt,
     );
     if (!confirmed || !mounted) return;
     try {

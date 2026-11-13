@@ -78,6 +78,10 @@ export interface ArenaBooking {
   courtHistory?: BookingCourtChange[];
   /** Hora do check-in (`checkedInAt`) — pelo QR da quadra ou pela recepção. */
   checkedInAt?: Date | null;
+  /** Minutos que vieram do plano de horário no modo livre (`scheduleFlexMinutes`): não remarca. */
+  scheduleFlexMinutes?: number;
+  /** A arena liberou o horário por chuva e o atleta ainda não escolheu (`weatherRelease.status`). */
+  weatherPendingChoice?: boolean;
 }
 
 export interface BookingParticipant {
@@ -192,6 +196,8 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     participants: participantsFrom(d['participants']),
     courtHistory: courtHistoryFrom(d['courtHistory']),
     checkedInAt: toDate(d['checkedInAt']),
+    scheduleFlexMinutes: typeof d['scheduleFlexMinutes'] === 'number' ? d['scheduleFlexMinutes'] : 0,
+    weatherPendingChoice: (d['weatherRelease'] as Record<string, unknown> | undefined)?.['status'] === 'pending_choice',
   };
 }
 

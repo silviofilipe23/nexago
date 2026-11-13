@@ -2,6 +2,9 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, injec
 import { Location } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { bookingCanCheckInNow, bookingCanMarkNoShow } from '../agenda/capacity-hours';
+import { applyBookingsOverlay } from '../agenda/arena-schedule-grouping';
+import type { ArenaSlot } from '../agenda/arena-slot.model';
+import { fetchCourtsRaw, watchArenaDaySlots } from '../agenda/schedule-repository';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
@@ -32,6 +35,17 @@ import {
 import { bookingContactsKey, bookingWhatsappText, fetchBookingContacts, whatsappLink } from './booking-contacts';
 import { bookingCanChangeCourt, changeBookingCourt, clubSessionDayLabel, courtAssignOptions } from './booking-court-change';
 import {
+  bookingCanReschedule,
+  bookingDurationMinutes,
+  mergeStartOptions,
+  RESCHEDULE_HORIZON_DAYS,
+  rescheduleBooking,
+  rescheduleCourtOptions,
+  rescheduleDateBounds,
+  rescheduleStartOptions,
+  rescheduleSuccessMessage,
+} from './booking-reschedule';
+import {
   BOOKING_MAX_PLAYERS,
   bookingKindLabel,
   bookingLiveState,
@@ -50,6 +64,7 @@ import {
   resolveAthleteProfile,
   restoreBookingByManager,
   watchBooking,
+  watchBookingsForArenaInRange,
 } from './bookings-repository';
 
 /** Jogador no card "Jogadores": o responsável primeiro, depois quem entrou por convite/link. */
@@ -192,6 +207,12 @@ export function bookingChannelLabel(channel: string | null): string {
                       <button type="button" class="ar-mini-btn act" [class.ar-mini-btn-primary]="definable() && !showCheckIn()" [disabled]="readOnly()" (click)="openCourtChange()">
                         <ar-icon name="courts" [size]="15" />
                         {{ definable() ? 'Definir quadra' : 'Trocar quadra' }}
+                      </button>
+                    }
+                    @if (canReschedule()) {
+                      <button type="button" class="ar-mini-btn act" (click)="openReschedule()">
+                        <ar-icon name="calendar" [size]="15" />
+                        Remarcar
                       </button>
                     }
                     @if (canMarkNoShow()) {
@@ -433,6 +454,95 @@ export function bookingChannelLabel(channel: string | null): string {
         </ar-modal>
       }
 
+      @if (showReschedule()) {
+        <ar-modal (close)="closeReschedule()">
+          <h2 class="confirm-title">Remarcar reserva</h2>
+          <p class="confirm-body modal-sub">
+            Hoje: {{ rescheduleCurrentLabel() }} · {{ customerLabel() }}. A duração e o valor da reserva continuam os mesmos.
+          </p>
+
+          <div class="field-label">Novo dia</div>
+          <input
+            type="date"
+            class="input-box"
+            data-testid="reschedule-date"
+            [min]="rescheduleBounds().min"
+            [max]="rescheduleBounds().max"
+            [value]="rescheduleDate()"
+            (change)="setRescheduleDate($any($event.target).value)"
+          />
+
+          @if (!unassigned()) {
+            <div class="field-label">Quadra</div>
+            <select class="input-box" data-testid="reschedule-court" (change)="setRescheduleCourt($any($event.target).value)">
+              @for (court of rescheduleCourts(); track court.id) {
+                <option [value]="court.id" [selected]="court.id === rescheduleCourtId()">
+                  {{ court.name }}{{ court.id === booking()!.courtId ? ' (atual)' : '' }}
+                </option>
+              }
+            </select>
+          }
+
+          <div class="field-label">Horário</div>
+          @if (rescheduleSlotsLoading()) {
+            <p class="modal-hint">Carregando horários…</p>
+          } @else if (rescheduleOptions().length === 0) {
+            <p class="modal-hint">Nenhum horário livre nesse dia{{ unassigned() ? '' : ' nesta quadra' }}. Escolha outro dia{{ unassigned() ? '' : ' ou outra quadra' }}.</p>
+          } @else {
+            <div class="court-grid time-grid" role="radiogroup" aria-label="Novo horário">
+              @for (option of rescheduleOptions(); track option.startTime) {
+                <label class="court-tile" [class.selected]="rescheduleStart() === option.startTime">
+                  <input
+                    type="radio"
+                    name="reschedule-start"
+                    [value]="option.startTime"
+                    [checked]="rescheduleStart() === option.startTime"
+                    (change)="rescheduleStart.set(option.startTime)"
+                  />
+                  <span class="tile-name">{{ option.startTime }}–{{ option.endTime }}</span>
+                </label>
+              }
+            </div>
+            <p class="modal-hint">
+              {{ unassigned() ? 'A quadra continua a definir: o sistema escolhe uma livre no novo horário.' : 'Se o horário for ocupado nesse meio-tempo, o sistema avisa ao confirmar.' }}
+            </p>
+          }
+
+          <div class="field-label">Motivo (opcional)</div>
+          <textarea
+            class="input-box textarea-box"
+            rows="2"
+            placeholder="Ex.: cliente pediu por WhatsApp"
+            [value]="rescheduleReason()"
+            (input)="rescheduleReason.set($any($event.target).value)"
+          ></textarea>
+
+          @if (booking()!.athleteId) {
+            <p class="notice notice-info">
+              <ar-icon name="bell" [size]="14" />
+              <span>O atleta recebe um aviso com o novo horário.</span>
+            </p>
+          }
+
+          @if (rescheduleError(); as err) {
+            <div class="error-banner modal-error">{{ err }}</div>
+          }
+
+          <div class="confirm-actions">
+            <button type="button" class="ar-ghost-btn" [disabled]="rescheduling()" (click)="closeReschedule()">Voltar</button>
+            <button
+              type="button"
+              class="ar-mini-btn ar-mini-btn-primary confirm-btn"
+              [disabled]="rescheduling() || !rescheduleChosen()"
+              (click)="reschedule()"
+            >
+              <ar-icon name="check" [size]="14" />
+              {{ rescheduling() ? 'Salvando…' : rescheduleChosen() ? 'Remarcar para ' + rescheduleChosen()!.startTime : 'Remarcar' }}
+            </button>
+          </div>
+        </ar-modal>
+      }
+
       @if (showCancelConfirm()) {
         <ar-modal (close)="showCancelConfirm.set(false)">
           <h2 class="confirm-title">Cancelar reserva?</h2>
@@ -563,6 +673,20 @@ export function bookingChannelLabel(channel: string | null): string {
 
     .court-tile.selected .tile-tag {
       color: rgba(10, 10, 10, 0.7);
+    }
+
+    .time-grid {
+      grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+      max-height: 232px;
+      overflow: auto;
+      padding: 2px;
+    }
+
+    .textarea-box {
+      height: auto;
+      min-height: 64px;
+      padding: 10px 14px;
+      resize: vertical;
     }
 
     .modal-hint {
@@ -1249,8 +1373,23 @@ export class PanelBookingDetailComponent {
   protected readonly changingCourt = signal(false);
   protected readonly courtChangeError = signal<string | null>(null);
 
+  protected readonly showReschedule = signal(false);
+  protected readonly rescheduleDate = signal('');
+  protected readonly rescheduleCourtId = signal<string | null>(null);
+  protected readonly rescheduleStart = signal<string | null>(null);
+  protected readonly rescheduleReason = signal('');
+  protected readonly rescheduling = signal(false);
+  protected readonly rescheduleError = signal<string | null>(null);
+  /** Grade do dia escolhido no modal (slots + reservas do dia), só enquanto o modal está aberto. */
+  private readonly rescheduleSlots = signal<ArenaSlot[] | null>(null);
+  private readonly rescheduleDayBookings = signal<ArenaBooking[] | null>(null);
+  /** Quadras com os dados crus (horário de funcionamento, duração do slot) para a grade. */
+  private readonly courtsRaw = signal<{ id: string; data: Record<string, unknown> }[] | null>(null);
+
   protected readonly undoDeadlineMs = signal<number | null>(null);
   protected readonly nowTick = signal(Date.now());
+  /** Relógio de minuto: o que só muda de minuto em minuto não recalcula a cada segundo. */
+  private readonly nowMinute = computed(() => Math.floor(this.nowTick() / 60_000));
 
   private unsubscribeBooking: (() => void) | null = null;
   private undoInterval: ReturnType<typeof setInterval> | null = null;
@@ -1274,6 +1413,56 @@ export class PanelBookingDetailComponent {
   protected readonly canChangeCourt = computed(() => {
     const b = this.booking();
     return b != null && bookingCanChangeCourt(b) && this.undoDeadlineMs() == null;
+  });
+
+  /** Remarcar: só reserva avulsa e equipe com escrita na agenda (o servidor confere de novo). */
+  protected readonly canReschedule = computed(() => {
+    const b = this.booking();
+    return (
+      b != null &&
+      !this.readOnly() &&
+      this.undoDeadlineMs() == null &&
+      bookingCanReschedule(b, this.nowMinute() * 60_000)
+    );
+  });
+
+  protected readonly rescheduleBounds = computed(() => rescheduleDateBounds(new Date(this.nowMinute() * 60_000)));
+  protected readonly rescheduleCourts = computed(() => {
+    const b = this.booking();
+    return b ? rescheduleCourtOptions(b, this.courts()) : [];
+  });
+  protected readonly rescheduleCurrentLabel = computed(() => {
+    const b = this.booking();
+    return b ? `${clubSessionDayLabel(b.dateKey)}, ${b.startTime}–${b.endTime}` : '';
+  });
+  protected readonly rescheduleSlotsLoading = computed(
+    () => this.rescheduleSlots() == null || this.rescheduleDayBookings() == null,
+  );
+
+  /** Inícios livres no dia escolhido. Reserva sem quadra definida: qualquer quadra do esporte
+   *  serve (o servidor escolhe); com quadra: só a escolhida no select. */
+  protected readonly rescheduleOptions = computed(() => {
+    const b = this.booking();
+    const slots = this.rescheduleSlots();
+    const dayBookings = this.rescheduleDayBookings();
+    const dateKey = this.rescheduleDate();
+    const duration = b ? bookingDurationMinutes(b) : null;
+    if (!b || !slots || !dayBookings || !dateKey || duration == null) return [];
+    const overlaid = applyBookingsOverlay(slots, dayBookings);
+    const now = new Date(this.nowMinute() * 60_000);
+    const courtIds = this.unassigned()
+      ? this.rescheduleCourts().map((c) => c.id)
+      : [this.rescheduleCourtId() ?? b.courtId];
+    return mergeStartOptions(
+      courtIds.map((courtId) =>
+        rescheduleStartOptions({ slots: overlaid, courtId, dateKey, durationMinutes: duration, booking: b, now }),
+      ),
+    );
+  });
+
+  protected readonly rescheduleChosen = computed(() => {
+    const start = this.rescheduleStart();
+    return this.rescheduleOptions().find((o) => o.startTime === start) ?? null;
   });
 
   /** Reserva no modo "a arena define a quadra" ainda sem quadra definida. */
@@ -1342,7 +1531,7 @@ export class PanelBookingDetailComponent {
     return b != null && this.undoDeadlineMs() == null && bookingCanMarkNoShow(b, new Date(this.nowTick()));
   });
   protected readonly hasActions = computed(
-    () => this.showCheckIn() || this.canChangeCourt() || this.canMarkNoShow() || this.canCancel() || !!this.booking()?.classSessionId,
+    () => this.showCheckIn() || this.canChangeCourt() || this.canReschedule() || this.canMarkNoShow() || this.canCancel() || !!this.booking()?.classSessionId,
   );
   protected readonly takesGuests = computed(() => {
     const b = this.booking();
@@ -1480,8 +1669,35 @@ export class PanelBookingDetailComponent {
       });
     });
 
+    // Grade do dia escolhido no modal "Remarcar": slots das quadras + reservas do dia, ao vivo.
+    let unsubscribeRescheduleSlots: (() => void) | null = null;
+    let unsubscribeRescheduleBookings: (() => void) | null = null;
+    effect(() => {
+      const open = this.showReschedule();
+      const arenaId = this.arenaContext.arenaId();
+      const dateKey = this.rescheduleDate();
+      const courts = this.courtsRaw();
+      unsubscribeRescheduleSlots?.();
+      unsubscribeRescheduleBookings?.();
+      unsubscribeRescheduleSlots = null;
+      unsubscribeRescheduleBookings = null;
+      this.rescheduleSlots.set(null);
+      this.rescheduleDayBookings.set(null);
+      const [y, m, d] = dateKey.split('-').map(Number);
+      if (!open || !arenaId || !courts || !y || !m || !d) return;
+      const db = arenaFirestore();
+      unsubscribeRescheduleSlots = watchArenaDaySlots(db, arenaId, new Date(y, m - 1, d), dateKey, courts, (slots) =>
+        this.rescheduleSlots.set(slots),
+      );
+      unsubscribeRescheduleBookings = watchBookingsForArenaInRange(db, arenaId, { fromKey: dateKey, toKey: dateKey }, (list) =>
+        this.rescheduleDayBookings.set(list),
+      );
+    });
+
     this.undoInterval = setInterval(() => this.nowTick.set(Date.now()), 1000);
     this.destroyRef.onDestroy(() => {
+      unsubscribeRescheduleSlots?.();
+      unsubscribeRescheduleBookings?.();
       this.unsubscribeBooking?.();
       if (this.undoInterval) clearInterval(this.undoInterval);
     });
@@ -1613,6 +1829,71 @@ export class PanelBookingDetailComponent {
       this.courtChangeError.set(err instanceof Error ? err.message : 'Não foi possível trocar a quadra.');
     } finally {
       this.changingCourt.set(false);
+    }
+  }
+
+  protected openReschedule(): void {
+    const b = this.booking();
+    const arenaId = this.arenaContext.arenaId();
+    if (!b || !arenaId || this.readOnly()) return;
+    if (this.courtsRaw() == null) {
+      void fetchCourtsRaw(arenaFirestore(), arenaId)
+        .then((list) => this.courtsRaw.set(list))
+        .catch(() => this.rescheduleError.set('Não foi possível carregar as quadras.'));
+    }
+    const { min } = this.rescheduleBounds();
+    this.rescheduleDate.set(b.dateKey >= min ? b.dateKey : min);
+    this.rescheduleCourtId.set(b.courtId || null);
+    this.rescheduleStart.set(null);
+    this.rescheduleReason.set('');
+    this.rescheduleError.set(null);
+    this.successMessage.set(null);
+    this.showReschedule.set(true);
+  }
+
+  protected closeReschedule(): void {
+    if (this.rescheduling()) return;
+    this.showReschedule.set(false);
+  }
+
+  protected setRescheduleDate(value: string): void {
+    const { min, max } = this.rescheduleBounds();
+    if (!value || value < min || value > max) {
+      this.rescheduleError.set(`Escolha um dia de hoje até ${RESCHEDULE_HORIZON_DAYS} dias à frente.`);
+      return;
+    }
+    this.rescheduleError.set(null);
+    this.rescheduleDate.set(value);
+    this.rescheduleStart.set(null);
+  }
+
+  protected setRescheduleCourt(courtId: string): void {
+    this.rescheduleCourtId.set(courtId || null);
+    this.rescheduleStart.set(null);
+  }
+
+  protected async reschedule(): Promise<void> {
+    const b = this.booking();
+    const chosen = this.rescheduleChosen();
+    if (!b || !chosen || this.readOnly()) return;
+    const courtId = this.rescheduleCourtId();
+    this.rescheduling.set(true);
+    this.rescheduleError.set(null);
+    try {
+      const result = await rescheduleBooking(arenaFunctions(), {
+        bookingId: b.id,
+        date: this.rescheduleDate(),
+        startTime: chosen.startTime,
+        ...(!this.unassigned() && courtId && courtId !== b.courtId ? { courtId } : {}),
+        ...(this.rescheduleReason().trim() ? { reason: this.rescheduleReason().trim() } : {}),
+      });
+      this.showReschedule.set(false);
+      const done = rescheduleSuccessMessage(result);
+      this.successMessage.set(b.athleteId ? `${done} O atleta foi avisado.` : done);
+    } catch (err) {
+      this.rescheduleError.set(err instanceof Error ? err.message : 'Não foi possível remarcar a reserva.');
+    } finally {
+      this.rescheduling.set(false);
     }
   }
 

@@ -1,0 +1,83 @@
+<div class="brs-backdrop" (click)="dismiss()" aria-hidden="true"></div>
+
+<div class="brs-dialog" role="dialog" aria-modal="true" aria-labelledby="brs-title">
+  <div class="brs-head">
+    <div class="brs-head-text">
+      <span class="brs-eyebrow">Atual: {{ currentLabel() }}</span>
+      <h2 id="brs-title" class="brs-title">Remarcar reserva</h2>
+    </div>
+    <button type="button" class="brs-close" aria-label="Fechar" [disabled]="submitting()" (click)="dismiss()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+    </button>
+  </div>
+
+  <p class="brs-note">{{ noteText }}</p>
+
+  <section class="brs-section">
+    <p class="brs-section-label">Novo dia</p>
+    <div class="brs-days" role="listbox" aria-label="Novo dia">
+      @for (d of days(); track d.key) {
+        <button
+          type="button"
+          class="brs-day"
+          role="option"
+          [class.brs-day--selected]="d.key === selectedKey()"
+          [class.brs-day--empty]="!loading() && d.openCount === 0"
+          [attr.aria-selected]="d.key === selectedKey()"
+          [disabled]="submitting()"
+          (click)="selectDay(d.key)"
+        >
+          <span class="brs-day-week">{{ d.weekday }}</span>
+          <span class="brs-day-date">{{ d.dayMonth }}</span>
+        </button>
+      }
+    </div>
+  </section>
+
+  <section class="brs-section">
+    <p class="brs-section-label">Novo horário</p>
+    @if (loading()) {
+      <div class="brs-loading">
+        <app-nx-spinner [size]="22" />
+        <span>Buscando horários livres…</span>
+      </div>
+    } @else if (loadError(); as message) {
+      <p class="brs-empty">{{ message }}</p>
+    } @else if (times().length === 0) {
+      <p class="brs-empty">Nenhum horário livre com a mesma duração neste dia.</p>
+    } @else {
+      <div class="brs-times">
+        @for (t of times(); track t.startTime) {
+          <button
+            type="button"
+            class="brs-time"
+            [class.brs-time--selected]="t.startTime === pickedStart() && !t.pricier"
+            [class.brs-time--pricier]="t.pricier"
+            [disabled]="t.pricier || submitting()"
+            [attr.aria-pressed]="t.startTime === pickedStart()"
+            (click)="selectTime(t)"
+          >
+            <span class="brs-time-range">{{ t.startTime }}–{{ t.endTime }}</span>
+            @if (timePriceLabel(t); as price) {
+              <span class="brs-time-price">{{ price }}</span>
+            }
+          </button>
+        }
+      </div>
+    }
+  </section>
+
+  @if (error(); as message) {
+    <p class="brs-error" role="alert">{{ message }}</p>
+  }
+
+  <div class="brs-actions">
+    <button type="button" class="brs-btn brs-btn--ghost" [disabled]="submitting()" (click)="dismiss()">Voltar</button>
+    <button type="button" class="brs-btn brs-btn--primary" [disabled]="!picked() || submitting()" (click)="confirm()">
+      @if (submitting()) {
+        <app-nx-spinner [size]="16" tone="dark" />
+      }
+      {{ confirmLabel() }}
+    </button>
+  </div>
+</div>

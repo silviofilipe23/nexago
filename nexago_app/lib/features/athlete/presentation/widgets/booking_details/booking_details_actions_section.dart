@@ -10,6 +10,8 @@ class BookingDetailsActionsSection extends StatelessWidget {
     required this.onDirections,
     required this.onShare,
     required this.onCancel,
+    this.onReschedule,
+    this.rescheduleHint,
     this.onOrderAtCourt,
     this.shareLoading = false,
     this.canCancel = true,
@@ -21,6 +23,12 @@ class BookingDetailsActionsSection extends StatelessWidget {
   final VoidCallback onDirections;
   final VoidCallback onShare;
   final VoidCallback? onCancel;
+
+  /// Remarcar (outro dia/horário) — `null` esconde o botão.
+  final VoidCallback? onReschedule;
+
+  /// Por que não dá para remarcar pelo app (prazo ou já remarcou) — sem botão.
+  final String? rescheduleHint;
   /// Peça na quadra — `null` quando a reserva não tem `arenaId` conhecido.
   final VoidCallback? onOrderAtCourt;
   final bool shareLoading;
@@ -67,6 +75,24 @@ class BookingDetailsActionsSection extends StatelessWidget {
           icon: Icons.ios_share_rounded,
           onTap: actionsEnabled && !shareLoading ? onShare : null,
         ),
+        if (onReschedule != null) ...[
+          const SizedBox(height: 8),
+          _ActionButton(
+            label: 'Remarcar reserva',
+            icon: Icons.event_repeat_rounded,
+            onTap: onReschedule,
+          ),
+        ] else if (rescheduleHint != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            rescheduleHint!,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.themeColors.onSurfaceMuted,
+                  height: 1.35,
+                ),
+          ),
+        ],
         if (showCancel) ...[
           const SizedBox(height: 8),
           _ActionButton(

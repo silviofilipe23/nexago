@@ -114,7 +114,7 @@ export function courtChangeBlockReason(booking: DocumentData, nowMs: number): st
 }
 
 /** Reserva de outra quadra no dia que encosta no horário — `arenaSlots` `booked` SEM trava (legado). */
-async function hasBookedSlotOverlap(
+export async function hasBookedSlotOverlap(
   db: Firestore,
   params: {arenaId: string; courtId: string; dateKey: string; startTime: string; endTime: string; bookingId: string},
 ): Promise<boolean> {

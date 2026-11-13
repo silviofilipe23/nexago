@@ -5,7 +5,15 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { fetchArenaById, arenaListItemImageUrl, courtSportLabel, type ArenaListItem } from '@nexago/arena-discovery';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
-import { cancelBooking, canceledBookingNotice, cancelPolicyOutcomeText, fetchArenaBooking, watchArenaBooking, type ArenaBookingDoc } from '../../data/arena-bookings-repository';
+import {
+  cancelBooking,
+  canceledBookingNotice,
+  cancelPolicyOutcomeText,
+  fetchArenaBooking,
+  watchArenaBooking,
+  type ArenaBookingDoc,
+  type RescheduleMyBookingResult,
+} from '../../data/arena-bookings-repository';
 import { formatMemberHours } from '../../reservar/member-hours';
 import { REVIEW_ALREADY_SENT_MESSAGE } from '../../data/arena-reviews-repository';
 import { BOOKING_MAX_PLAYERS, type BookingInvite } from '../../data/booking-invite-model';
@@ -24,6 +32,8 @@ import { NxToastService } from '../../shared/feedback';
 import { LocationMapComponent } from '../../shared/location-map/location-map.component';
 import { ArenaReviewDialogComponent } from '../review/arena-review-dialog.component';
 import { BookingInviteDialogComponent } from './booking-invite-dialog.component';
+import { BookingRescheduleDialogComponent } from './booking-reschedule-dialog.component';
+import { rescheduleEligibility, rescheduledNotice } from './booking-reschedule';
 import { buildBookingTeam, initialsOf, viewerIsBookingOwner, type BookingTeamMember, type LegacyBookingGuest } from './booking-team';
 
 /** Vagas fixas por reserva (organizador + convidados) — espelha `kBookingTeamSlots` (Flutter). */
@@ -108,7 +118,14 @@ function bookingLifecycle(now: Date, start: Date, end: Date, rawStatus: string):
 @Component({
   selector: 'app-athlete-booking-detail',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, LocationMapComponent, ArenaReviewDialogComponent, BookingInviteDialogComponent],
+  imports: [
+    RouterLink,
+    AtPanelShellComponent,
+    LocationMapComponent,
+    ArenaReviewDialogComponent,
+    BookingInviteDialogComponent,
+    BookingRescheduleDialogComponent,
+  ],
   templateUrl: './athlete-booking-detail.component.html',
   styleUrl: './athlete-booking-detail.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -220,6 +237,19 @@ export class AthleteBookingDetailComponent {
   protected readonly canCancel = computed(
     () => this.isOwner() && this.lifecycle() === 'future' && !this.isRecurring(),
   );
+
+  /** Remarcar (só o dono, reserva avulsa, até 6h antes, uma vez) — ou a dica do prazo/limite. */
+  protected readonly rescheduleState = computed(() => {
+    const b = this.booking();
+    return b ? rescheduleEligibility(b, this.viewerUid(), this.now()) : { allowed: false as const, hint: null };
+  });
+
+  protected readonly rescheduleHint = computed(() => {
+    const state = this.rescheduleState();
+    return state.allowed ? null : state.hint;
+  });
+
+  protected readonly rescheduleDialogOpen = signal(false);
 
   /** Entrar, sair, tirar e convidar valem até o FIM do horário (futura ou em andamento). */
   protected readonly gameOpen = computed(() => {
@@ -623,6 +653,32 @@ export class AthleteBookingDetailComponent {
     } catch {
       // usuário bloqueou a área de transferência — nada a fazer
     }
+  }
+
+  protected openRescheduleDialog(): void {
+    this.now.set(new Date());
+    if (this.rescheduleState().allowed) this.rescheduleDialogOpen.set(true);
+  }
+
+  protected closeRescheduleDialog(): void {
+    this.rescheduleDialogOpen.set(false);
+  }
+
+  /** O listener ao vivo traz o doc novo; até ele chegar, a tela já mostra o horário novo. */
+  protected onRescheduled(result: RescheduleMyBookingResult): void {
+    const b = this.booking();
+    if (b) {
+      this.booking.set({
+        ...b,
+        dateKey: result.date,
+        startTime: result.startTime,
+        endTime: result.endTime || b.endTime,
+        athleteRescheduleCount: (b.athleteRescheduleCount ?? 0) + 1,
+      });
+    }
+    this.now.set(new Date());
+    this.rescheduleDialogOpen.set(false);
+    this.showNotice(rescheduledNotice(result.date, result.startTime));
   }
 
   protected startCancelConfirmation(): void {

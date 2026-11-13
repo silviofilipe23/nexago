@@ -14,6 +14,7 @@ class ArenaBookingDetailActions extends StatelessWidget {
     required this.onUnblock,
     required this.blockInfo,
     required this.onCancel,
+    this.onReschedule,
   });
 
   final VoidCallback? onContact;
@@ -21,6 +22,9 @@ class ArenaBookingDetailActions extends StatelessWidget {
   final VoidCallback? onUnblock;
   final ArenaAthleteBlockInfo? blockInfo;
   final VoidCallback? onCancel;
+
+  /// Remarcar (outro dia/horário/quadra) — `null` esconde (reserva não avulsa, só leitura…).
+  final VoidCallback? onReschedule;
 
   static const _itemGap = 10.0;
   static const _destructive = Color(0xFFE57373);
@@ -45,6 +49,15 @@ class ArenaBookingDetailActions extends StatelessWidget {
               ),
             ),
             SizedBox(height: 14),
+            if (onReschedule != null) ...[
+              _ActionRowTile(
+                label: 'Remarcar reserva',
+                icon: Icons.event_repeat_rounded,
+                iconColor: AppColors.brand,
+                onTap: onReschedule,
+              ),
+              SizedBox(height: _itemGap),
+            ],
             _ActionRowTile(
               label: 'Falar com atleta',
               icon: Icons.chat_bubble_outline_rounded,

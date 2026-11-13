@@ -177,6 +177,10 @@ Future<void> enviar(WidgetTester tester) async {
   await navegar(tester);
 }
 
+/// Quantos jogadores o time da posição [i] tem (a linha compacta do passo 1).
+String _teamCount(WidgetTester tester, int i) =>
+    tester.widget<Text>(find.byKey(Key('lancar-team-$i-count'))).data!;
+
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('pt_BR');
@@ -240,8 +244,8 @@ void main() {
 
     await lancar(tester);
     // A galera da reserva já vem nos times, com você no A.
-    expect(find.text('TIME A · 2'), findsOneWidget);
-    expect(find.text('TIME B · 2'), findsOneWidget);
+    expect(_teamCount(tester, 0), '2');
+    expect(_teamCount(tester, 1), '2');
     await proximo(tester);
     expect(find.text('Falta o placar do set 1'), findsOneWidget);
 
@@ -370,7 +374,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.byKey(const Key('lancar-assign-u6-2')));
       await tester.pump();
-      expect(find.text('TIME C · 2'), findsOneWidget);
+      expect(_teamCount(tester, 2), '2');
 
       await proximo(tester);
       expect(find.text('JOGO 1'), findsOneWidget);
@@ -408,8 +412,8 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const Key('lancar-assign-u3-0')));
     await tester.pump();
-    expect(find.text('TIME A · 2'), findsOneWidget);
-    expect(find.text('TIME B · 2'), findsOneWidget);
+    expect(_teamCount(tester, 0), '2');
+    expect(_teamCount(tester, 1), '2');
     expect(find.textContaining('Já em'), findsNothing);
 
     await proximo(tester);
@@ -430,7 +434,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const Key('lancar-assign-u4-1')));
     await tester.pump();
-    expect(find.text('TIME B · 0'), findsOneWidget);
+    expect(_teamCount(tester, 1), '0');
     expect(find.text('Falta escolher quem jogou no Time B'), findsOneWidget);
     final next = tester.widget<FilledButton>(
       find.byKey(const Key('lancar-placar-next')),
@@ -457,15 +461,17 @@ void main() {
     expect(find.text('no nexaGO'), findsOneWidget);
     await tester.tap(find.byKey(const Key('lancar-assign-u7-0')));
     await tester.pump();
-    expect(find.text('TIME A · 3'), findsOneWidget);
+    expect(_teamCount(tester, 0), '3');
   });
 
-  testWidgets('renomear um time pelo cabeçalho vai para a arte', (
+  testWidgets('renomear um time pelo menu vai para a arte', (
     tester,
   ) async {
     await abrir(tester);
 
     await lancar(tester);
+    await tester.tap(find.byKey(const Key('lancar-team-1-menu')));
+    await navegar(tester);
     await tester.tap(find.byKey(const Key('lancar-team-1-rename')));
     await navegar(tester);
     await tester.enterText(

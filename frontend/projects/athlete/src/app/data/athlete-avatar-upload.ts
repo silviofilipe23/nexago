@@ -39,26 +39,37 @@ export async function prepareAvatarJpeg(file: File, maxSide = 1024): Promise<Blo
   }
 }
 
-/** Upload em `profiles/{uid}/avatar.jpg` (storage.rules) e retorna a URL pública. */
+/**
+ * Caminho de uma foto do perfil (`avatar` ou `cover`) — nome NOVO a cada envio, igual ao app
+ * (`profileImageFileName`). Sobrescrever o mesmo `avatar.jpg` trocava o token de download na hora:
+ * a URL antiga, ainda gravada no perfil, passava a responder 403, e se a nova não chegasse ao
+ * Firestore o atleta ficava sem foto em todo lugar. Com um nome por envio, a antiga segue válida
+ * até a nova ser gravada.
+ */
+export function profileImagePath(uid: string, kind: 'avatar' | 'cover', now = Date.now()): string {
+  return `profiles/${uid}/${kind}-${now}.jpg`;
+}
+
+/** Upload em `profiles/{uid}/avatar-{ms}.jpg` (storage.rules) e retorna a URL pública. */
 export async function uploadAthleteAvatar(
   storage: FirebaseStorage,
   uid: string,
   bytes: Blob,
   contentType = 'image/jpeg',
 ): Promise<string> {
-  const fileRef = ref(storage, `profiles/${uid}/avatar.jpg`);
+  const fileRef = ref(storage, profileImagePath(uid, 'avatar'));
   await uploadBytes(fileRef, bytes, { contentType });
   return getDownloadURL(fileRef);
 }
 
-/** Upload em `profiles/{uid}/cover.jpg` (mesma regra de storage.rules do avatar) e retorna a URL pública. */
+/** Upload em `profiles/{uid}/cover-{ms}.jpg` (mesma regra de storage.rules do avatar) e retorna a URL pública. */
 export async function uploadAthleteCoverPhoto(
   storage: FirebaseStorage,
   uid: string,
   bytes: Blob,
   contentType = 'image/jpeg',
 ): Promise<string> {
-  const fileRef = ref(storage, `profiles/${uid}/cover.jpg`);
+  const fileRef = ref(storage, profileImagePath(uid, 'cover'));
   await uploadBytes(fileRef, bytes, { contentType });
   return getDownloadURL(fileRef);
 }

@@ -14,6 +14,7 @@ import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_options.dart';
 import '../domain/profile_access.dart';
 import '../domain/profile_completion_models.dart';
+import '../domain/profile_image_file_name.dart';
 import '../../../core/firebase/functions_region.dart';
 
 /// Limites de rede do "Concluir cadastro". Sem eles o atleta fica
@@ -299,11 +300,11 @@ class AthleteProfileRepository {
         .call<void>();
   }
 
-  /// Upload em `profiles/{uid}/avatar.jpg` (regras do Storage) e retorna a URL.
+  /// Upload em `profiles/{uid}/avatar-{ms}.jpg` (regras do Storage) e retorna
+  /// a URL. Nome novo a cada envio: ver [profileImageFileName].
   ///
   /// Estourado o [timeout], a tarefa é cancelada de verdade — senão o SDK
-  /// continua tentando por até 10 minutos por baixo e um novo upload da mesma
-  /// foto disputa o mesmo caminho.
+  /// continua tentando por até 10 minutos por baixo.
   Future<String> uploadAvatar({
     required String uid,
     required Uint8List bytes,
@@ -315,7 +316,7 @@ class AthleteProfileRepository {
         .ref()
         .child('profiles')
         .child(uid)
-        .child('avatar.jpg');
+        .child(profileImageFileName('avatar', DateTime.now()));
     final task = ref.putData(
       bytes,
       SettableMetadata(contentType: contentType),
@@ -329,7 +330,8 @@ class AthleteProfileRepository {
     return ref.getDownloadURL().timeout(limit);
   }
 
-  /// Upload em `profiles/{uid}/cover.jpg` e retorna a URL de download.
+  /// Upload em `profiles/{uid}/cover-{ms}.jpg` e retorna a URL de download.
+  /// Nome novo a cada envio, pelo mesmo motivo da foto: [profileImageFileName].
   ///
   /// Mesmo teto de tempo (e mesmo cancelamento de verdade) do [uploadAvatar]:
   /// agora que a capa sobe sozinha ao ser trocada, o atleta fica olhando um
@@ -346,7 +348,7 @@ class AthleteProfileRepository {
         .ref()
         .child('profiles')
         .child(uid)
-        .child('cover.jpg');
+        .child(profileImageFileName('cover', DateTime.now()));
     final task = ref.putData(
       bytes,
       SettableMetadata(contentType: contentType),

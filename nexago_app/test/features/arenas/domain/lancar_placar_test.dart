@@ -119,4 +119,46 @@ void main() {
       ['u2', 'u3', 'u4'],
     );
   });
+
+  group('convite do lançar placar', () {
+    test('fala de entrar no placar, não de confirmar vaga', () {
+      final m = lancarInviteMessage(
+        arenaName: 'Arena Teste',
+        when: 'sexta, 13/11 às 09:00',
+        url: 'https://x/convite/abc',
+      );
+      expect(
+        m,
+        'Bora pôr nosso jogo na Arena Teste (sexta, 13/11 às 09:00) no '
+        'nexaGO? Entra por este link pra ficar no placar e nas suas '
+        'estatísticas: https://x/convite/abc',
+      );
+      expect(m, isNot(contains('vaga')));
+    });
+
+    test('sem nome da arena e sem link', () {
+      expect(
+        lancarInviteMessage(arenaName: ' ', when: 'hoje às 20:00', url: 'u'),
+        startsWith('Bora pôr nosso jogo (hoje às 20:00)'),
+      );
+      expect(
+        lancarInviteFallbackMessage(arenaName: '', downloadUrl: 'd'),
+        'Bora registrar nossa pelada no nexaGO? Baixa o app (d), cria sua '
+        'conta e me manda seu @ pra eu te pôr no placar.',
+      );
+    });
+  });
+
+  test('convidado: botão e rodapé com o nome de quem reservou', () {
+    expect(lancarGuestSendLabel('Maria Alves'), 'Mandar para Maria conferir');
+    expect(lancarGuestSendLabel(null), 'Mandar para quem reservou');
+    expect(
+      lancarGuestSendNote(' Maria Alves '),
+      'Maria confere e envia para todos confirmarem.',
+    );
+    expect(
+      lancarGuestSendNote(''),
+      'Quem reservou confere e envia para todos confirmarem.',
+    );
+  });
 }

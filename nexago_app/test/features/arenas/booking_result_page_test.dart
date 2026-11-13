@@ -496,12 +496,11 @@ void main() {
       expect(find.byKey(const Key('lancar-placar-invite')), findsNothing);
       await proximo(tester);
       expect(
-        find.text('Só quem reservou envia o placar. Este vai para a arte do '
-            'story.'),
+        find.text('Quem reservou confere e envia para todos confirmarem.'),
         findsOneWidget,
       );
       await placar(tester, 0, 21, 19);
-      expect(find.text('Mandar para quem reservou enviar'), findsOneWidget);
+      expect(find.text('Mandar para quem reservou'), findsOneWidget);
       await enviar(tester);
 
       expect(repo.saves, isEmpty);

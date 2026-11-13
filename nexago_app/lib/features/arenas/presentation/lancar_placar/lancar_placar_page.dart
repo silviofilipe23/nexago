@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/deep_link/app_domains.dart';
+import '../../../../core/profiles/app_user_profile.dart';
+import '../../../../core/profiles/users_repository.dart';
 import '../../../../core/ui/nexa_share.dart';
 import '../../../athlete/domain/booking_invite_links.dart';
 import '../../../athlete/domain/booking_invite_providers.dart';
@@ -24,6 +26,7 @@ import '../../domain/booking_result_record_providers.dart';
 import '../../domain/booking_social_unlock.dart';
 import '../../domain/booking_story.dart';
 import '../../domain/booking_story_providers.dart';
+import '../../domain/my_booking_confirmed_athlete.dart';
 import '../../domain/lancar_placar.dart';
 import '../../domain/pelada_live/pelada_live_rules.dart';
 import '../../domain/pelada_live/pelada_live_session.dart';
@@ -230,26 +233,23 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
   /// baixar o app e mandar o @.
   Future<void> _inviteByLink() async {
     final args = widget.args;
-    final source = ref.read(bookingStorySourceProvider(args.bookingId));
-    final confirmed = source?.confirmed.length ?? 0;
     String message;
     try {
       final inviteId =
           await ref.read(bookingInviteServiceProvider).inviteLinkId(_bookingId);
-      message = bookingInviteShareMessage(
+      final startAt =
+          DateTime.tryParse('${args.dateKey}T${args.startTime}:00') ??
+              DateTime.now();
+      message = lancarInviteMessage(
         arenaName: args.arenaName,
-        startAt: DateTime.tryParse('${args.dateKey}T${args.startTime}:00') ??
-            DateTime.now(),
-        inviteId: inviteId,
-        openSlots: (3 - confirmed).clamp(0, 3),
+        when: bookingInviteWhenLabel(startAt),
+        url: bookingInviteUrl(inviteId),
       );
     } catch (_) {
-      final arena = args.arenaName.trim().isEmpty
-          ? 'nossa pelada'
-          : 'a pelada da ${args.arenaName.trim()}';
-      message = 'Bora registrar $arena no nexaGO? Baixa o app '
-          '(${AppShareLinks.appDownload}), cria sua conta e me manda seu @ '
-          'pra eu te pôr no placar.';
+      message = lancarInviteFallbackMessage(
+        arenaName: args.arenaName,
+        downloadUrl: AppShareLinks.appDownload,
+      );
     }
     if (!mounted) return;
     await nexaShareText(context, message);
@@ -310,8 +310,10 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     final sportLabel = SportCatalog.labelOf(_sport);
     final sportKey = _sportKey;
     // Convidado também manda: vai para quem reservou conferir e enviar.
-    final sendLabel =
-        canSave ? _sendLabel(session.toResult()) : 'Mandar para quem reservou';
+    final hostName = _hostName();
+    final sendLabel = canSave
+        ? _sendLabel(session.toResult())
+        : lancarGuestSendLabel(hostName);
     final exit = await Navigator.of(context).push<PeladaLiveExit>(
       MaterialPageRoute(
         builder: (_) => PeladaLivePage(
@@ -322,6 +324,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
           sport: sportKey,
           onSend: canSave ? _save : _suggest,
           sendLabel: sendLabel,
+          sendNote: canSave ? null : lancarGuestSendNote(hostName),
         ),
       ),
     );
@@ -339,8 +342,9 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
   Future<void> _runTyped(BookingResult r) async {
     final canSave = _canSave;
     final sport = _sport;
+    final hostName = _hostName();
     final submitLabel =
-        canSave ? _sendLabel(r) : 'Mandar para quem reservou enviar';
+        canSave ? _sendLabel(r) : lancarGuestSendLabel(hostName);
     BookingResult? finished;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -348,6 +352,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
           initial: r,
           sport: sport,
           canSend: canSave,
+          guestNote: canSave ? null : lancarGuestSendNote(hostName),
           submitLabel: submitLabel,
           onChanged: (next) => _r = next,
           onSubmit: (result) async {
@@ -371,15 +376,45 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
 
   // Tela --------------------------------------------------------------------
 
+  /// Quem reservou, quando quem lança é um convidado (`null` para o dono).
+  AppUserProfile? _host() {
+    final hostUid = _hostUid();
+    if (hostUid == null) return null;
+    return ref.read(appUserPublicProfileProvider(hostUid)).valueOrNull;
+  }
+
+  String? _hostName() {
+    final host = _host();
+    return host == null ? null : appUserDisplayName(host);
+  }
+
+  String? _hostUid() {
+    final ownerUid =
+        ref.read(bookingStorySourceProvider(widget.args.bookingId))?.ownerUid;
+    final uid = ref.read(bookingResultUidProvider);
+    if (ownerUid == null || ownerUid.isEmpty || ownerUid == uid) return null;
+    return ownerUid;
+  }
+
   List<ResultPlayer> _candidates() {
     final profile = ref.read(athleteProfileProvider).valueOrNull;
     final source = ref.read(bookingStorySourceProvider(widget.args.bookingId));
+    // Convidado lançando: quem reservou também jogou e entra logo depois dele.
+    final host = _host();
     final crew = bookingResultCrew(
       ownerUid: profile?.id ?? source?.ownerUid,
       ownerName:
           profile == null ? null : athleteDisplayName(profile, fallback: ''),
       ownerAvatarUrl: profile?.avatarUrl,
-      confirmed: source?.confirmed ?? const [],
+      confirmed: [
+        if (host != null)
+          MyBookingConfirmedAthlete(
+            userId: host.uid,
+            displayName: appUserDisplayName(host),
+            avatarUrl: host.profilePhotoUrl,
+          ),
+        ...?source?.confirmed,
+      ],
     );
     final out = [...crew];
     void add(ResultPlayer p) {
@@ -409,6 +444,11 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     final suggestionAsync = canSaveNow
         ? ref.watch(bookingResultSuggestionProvider(args.bookingId))
         : const AsyncValue<BookingResultSuggestion?>.data(null);
+    // Convidado: o perfil de quem reservou entra nos times iniciais.
+    final hostUid = canSaveNow ? null : source?.ownerUid;
+    final hostAsync = hostUid == null
+        ? const AsyncValue<AppUserProfile?>.data(null)
+        : ref.watch(appUserPublicProfileProvider(hostUid));
     final draft = _mode == LancarPlacarMode.live
         ? ref.watch(peladaLiveDraftProvider(args.bookingId))
         : const AsyncValue<PeladaLiveSession?>.data(null);
@@ -424,7 +464,10 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     final ready = unlock != null &&
         loaded &&
         profileAsync.hasValue &&
-        (_r != null || (!draft.isLoading && !suggestionAsync.isLoading));
+        (_r != null ||
+            (!draft.isLoading &&
+                !suggestionAsync.isLoading &&
+                !hostAsync.isLoading));
     if (!ready) {
       return Scaffold(
         backgroundColor: colors.canvas,
@@ -567,9 +610,11 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
               first: i == 0,
               subtitle: p.id == uid
                   ? 'você'
-                  : _extra.contains(p)
-                      ? 'adicionado pela busca'
-                      : 'na reserva',
+                  : p.id == hostUid
+                      ? 'reservou a quadra'
+                      : _extra.contains(p)
+                          ? 'adicionado pela busca'
+                          : 'na reserva',
               result: r,
               onAssign: (teamId) => _assign(p, teamId),
             ),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/users_repository.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/data/pelada_live_draft_store.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result.dart';
@@ -56,6 +58,7 @@ Future<(FakeBookingResultRepository, _MemoryStore)> _abrir(
   _MemoryStore? store,
   LancarPlacarMode mode = LancarPlacarMode.live,
   FakeBookingResultRepository? repo,
+  bool ownerInConfirmed = true,
 }) async {
   repo ??= FakeBookingResultRepository();
   final drafts = store ?? _MemoryStore();
@@ -77,16 +80,18 @@ Future<(FakeBookingResultRepository, _MemoryStore)> _abrir(
           ),
         ),
         bookingStorySourceProvider('b1').overrideWith(
-          (ref) => const BookingStorySource(
+          (ref) => BookingStorySource(
             sport: 'beachVolleyball',
             ownerUid: 'u1',
             confirmed: [
-              MyBookingConfirmedAthlete(
-                  userId: 'u1', displayName: 'Maria Alves'),
-              MyBookingConfirmedAthlete(userId: 'u2', displayName: 'Enzo Lima'),
-              MyBookingConfirmedAthlete(
+              if (ownerInConfirmed)
+                const MyBookingConfirmedAthlete(
+                    userId: 'u1', displayName: 'Maria Alves'),
+              const MyBookingConfirmedAthlete(
+                  userId: 'u2', displayName: 'Enzo Lima'),
+              const MyBookingConfirmedAthlete(
                   userId: 'u3', displayName: 'Rafael Souza'),
-              MyBookingConfirmedAthlete(
+              const MyBookingConfirmedAthlete(
                   userId: 'u4', displayName: 'Lia Martins'),
             ],
           ),
@@ -102,6 +107,11 @@ Future<(FakeBookingResultRepository, _MemoryStore)> _abrir(
         bookingResultRepositoryProvider.overrideWithValue(repo),
         bookingResultUidProvider.overrideWithValue(uid),
         peladaLiveDraftStoreProvider.overrideWithValue(drafts),
+        appUserPublicProfileProvider.overrideWith(
+          (ref, id) async => id == 'u1'
+              ? const AppUserProfile(uid: 'u1', fullName: 'Maria Alves')
+              : null,
+        ),
       ],
       child: MaterialApp(
         theme: AppTheme.dark,
@@ -260,13 +270,32 @@ void main() {
     await _setPara(tester, LiveSide.a);
     await _setPara(tester, LiveSide.a);
 
-    expect(find.text('Mandar para quem reservou'), findsOneWidget);
+    expect(find.text('Mandar para Maria conferir'), findsOneWidget);
+    expect(
+      find.text('Maria confere e envia para todos confirmarem.'),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const Key('pelada-live-send')));
     await tester.pumpAndSettle();
     expect(find.byType(PlacarEnviadoPage), findsOneWidget);
     expect(find.text('Placar mandado'), findsOneWidget);
     expect(repo.saves, isEmpty);
     expect(repo.suggestions.single.$2.games.length, 2);
+  });
+
+  testWidgets('convidado vê quem reservou na lista, já num time', (
+    tester,
+  ) async {
+    await _abrir(
+      tester,
+      uid: 'u3',
+      mode: LancarPlacarMode.typed,
+      ownerInConfirmed: false,
+    );
+    expect(find.byKey(const Key('lancar-player-u1')), findsOneWidget);
+    expect(find.text('reservou a quadra'), findsOneWidget);
+    expect(find.text('TIME A · 2'), findsOneWidget);
+    expect(find.text('TIME B · 2'), findsOneWidget);
   });
 
   testWidgets('quem reservou abre com o placar que o convidado mandou e envia',

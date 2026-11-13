@@ -59,6 +59,7 @@ class PeladaLivePage extends StatefulWidget {
     this.sport,
     this.onSend,
     this.sendLabel,
+    this.sendNote,
     this.clock = DateTime.now,
     this.keepAwake = true,
   });
@@ -78,6 +79,10 @@ class PeladaLivePage extends StatefulWidget {
 
   /// "Enviar para Enzo, Rafael e Lia".
   final String? sendLabel;
+
+  /// Rodapé do fim no lugar do "os outros jogadores recebem para confirmar"
+  /// (convidado: "Maria confere e envia…").
+  final String? sendNote;
   final DateTime Function() clock;
 
   /// Mantém a tela acesa enquanto marca (desligado nos testes).
@@ -306,6 +311,7 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
       builder: (_) => _FinishSheet(
         session: _s,
         sendLabel: widget.onSend == null ? null : widget.sendLabel,
+        sendNote: widget.sendNote,
       ),
     );
     _sheetOpen = false;
@@ -1131,12 +1137,17 @@ class _Toast extends StatelessWidget {
 
 /// Folha de fim de jogo: quem venceu, os sets e o que fazer agora.
 class _FinishSheet extends StatelessWidget {
-  const _FinishSheet({required this.session, this.sendLabel});
+  const _FinishSheet({
+    required this.session,
+    this.sendLabel,
+    this.sendNote,
+  });
 
   final PeladaLiveSession session;
 
   /// "Enviar para …"; `null` quando quem marca não envia.
   final String? sendLabel;
+  final String? sendNote;
 
   Widget _primary(
     BuildContext context, {
@@ -1350,9 +1361,10 @@ class _FinishSheet extends StatelessWidget {
                       'do story.'
                   : rotation
                       ? 'Siga com o próximo jogo ou encerre e envie todos.'
-                      : 'Ao enviar, os outros jogadores recebem para '
-                          'confirmar. Sem contestação em 48h, confirma '
-                          'sozinho.',
+                      : sendNote ??
+                          'Ao enviar, os outros jogadores recebem para '
+                              'confirmar. Sem contestação em 48h, confirma '
+                              'sozinho.',
               style: TextStyle(
                 fontSize: 13,
                 height: 1.5,

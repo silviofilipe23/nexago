@@ -194,3 +194,46 @@ String lancarNamesLine(List<ResultPlayer> players, {int max = 3}) {
   if (names.length == 1) return names.single;
   return '${names.sublist(0, names.length - 1).join(', ')} e ${names.last}';
 }
+
+/// "Convidar quem não tem conta" no lançar placar: o convite é para entrar
+/// no placar do jogo, não para "confirmar vaga" (o texto do convite de antes
+/// do jogo). [when] = "sexta, 13/11 às 09:00".
+String lancarInviteMessage({
+  required String arenaName,
+  required String when,
+  required String url,
+}) {
+  final arena = arenaName.trim();
+  final where = arena.isEmpty ? '' : ' na $arena';
+  return 'Bora pôr nosso jogo$where ($when) no nexaGO? Entra por este link '
+      'pra ficar no placar e nas suas estatísticas: $url';
+}
+
+/// Sem link de convite (jogo encerrado ou lotado): baixar o app e mandar o @.
+String lancarInviteFallbackMessage({
+  required String arenaName,
+  required String downloadUrl,
+}) {
+  final arena = arenaName.trim();
+  final pelada = arena.isEmpty ? 'nossa pelada' : 'a pelada da $arena';
+  return 'Bora registrar $pelada no nexaGO? Baixa o app ($downloadUrl), cria '
+      'sua conta e me manda seu @ pra eu te pôr no placar.';
+}
+
+String _firstName(String? name) =>
+    (name ?? '').trim().split(RegExp(r'\s+')).first;
+
+/// Botão do convidado: o placar vai para quem reservou conferir.
+String lancarGuestSendLabel(String? hostName) {
+  final first = _firstName(hostName);
+  return first.isEmpty
+      ? 'Mandar para quem reservou'
+      : 'Mandar para $first conferir';
+}
+
+/// Rodapé do convidado: o que acontece depois de mandar.
+String lancarGuestSendNote(String? hostName) {
+  final first = _firstName(hostName);
+  return '${first.isEmpty ? 'Quem reservou' : first} confere e envia para '
+      'todos confirmarem.';
+}

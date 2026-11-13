@@ -24,6 +24,7 @@ class PlacarDigitadoPage extends StatefulWidget {
     required this.onSubmit,
     this.sport,
     this.canSend = true,
+    this.guestNote,
     this.onChanged,
   });
 
@@ -38,6 +39,9 @@ class PlacarDigitadoPage extends StatefulWidget {
 
   /// Quem reservou envia para confirmação; o convidado só gera a arte.
   final bool canSend;
+
+  /// Rodapé do convidado ("Maria confere e envia…"); `null` = genérico.
+  final String? guestNote;
 
   /// A cada mudança — o passo 1 guarda o placar se o atleta voltar.
   final ValueChanged<BookingResult>? onChanged;
@@ -176,8 +180,7 @@ class _PlacarDigitadoPageState extends State<PlacarDigitadoPage> {
         caption: widget.canSend
             ? 'Eles confirmam em até 48h · conta nas estatísticas, não no '
                 'ranking'
-            : 'Só quem reservou envia o placar. Este vai para a arte do '
-                'story.',
+            : widget.guestNote ?? lancarGuestSendNote(null),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),

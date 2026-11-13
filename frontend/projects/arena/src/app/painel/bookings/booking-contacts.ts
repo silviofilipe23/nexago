@@ -12,10 +12,12 @@ export async function fetchBookingContacts(functions: Functions, bookingId: stri
   return new Map(contacts.map((c) => [c.uid, c.whatsapp]));
 }
 
-/** Uids que a callable olha (dono + convidados): muda quando alguém entra, e aí vale buscar de novo. */
-export function bookingContactsKey(b: Pick<ArenaBooking, 'id' | 'athleteId' | 'participants'> | null): string | null {
+/** Uids que a callable olha (dono + convidados + placar): muda quando alguém entra, e aí vale buscar de novo. */
+export function bookingContactsKey(
+  b: Pick<ArenaBooking, 'id' | 'athleteId' | 'participants' | 'resultPlayers'> | null,
+): string | null {
   if (!b?.athleteId) return null;
-  return [b.id, b.athleteId, ...(b.participants ?? []).map((p) => p.uid)].join('|');
+  return [b.id, b.athleteId, ...(b.participants ?? []).map((p) => p.uid), ...(b.resultPlayers ?? []).map((p) => p.uid)].join('|');
 }
 
 const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];

@@ -47,6 +47,7 @@ import {
 } from './booking-reschedule';
 import {
   BOOKING_MAX_PLAYERS,
+  bookingGuests,
   bookingKindLabel,
   bookingLiveState,
   bookingTakesGuests,
@@ -1569,14 +1570,17 @@ export class PanelBookingDetailComponent {
           zoomMeta: where,
           whatsappUrl: null,
         };
-    const guests = (b.participants ?? []).map<BookingPlayer>((p) => ({
+    const guests = bookingGuests(b).map<BookingPlayer>((p) => ({
       key: p.uid,
       name: p.name,
       photoUrl: p.avatarUrl ?? this.guestPhotos().get(p.uid) ?? null,
       owner: false,
-      role: 'Convidado',
-      meta: `${p.via === 'link' ? 'Entrou pelo link' : 'Convidado'}${p.joinedAt ? ` · ${timelineWhen(p.joinedAt).replace(' · ', ' às ')}` : ''}`,
-      zoomMeta: `${where} · ${p.via === 'link' ? 'entrou pelo link' : 'convidado'}`,
+      role: p.source === 'result' ? 'Jogador' : 'Convidado',
+      meta:
+        p.source === 'result'
+          ? 'Adicionado no placar do jogo'
+          : `${p.source === 'link' ? 'Entrou pelo link' : 'Convidado'}${p.joinedAt ? ` · ${timelineWhen(p.joinedAt).replace(' · ', ' às ')}` : ''}`,
+      zoomMeta: `${where} · ${p.source === 'result' ? 'no placar' : p.source === 'link' ? 'entrou pelo link' : 'convidado'}`,
       whatsappUrl: wa(p.uid, p.name),
     }));
     return [owner, ...guests];
@@ -1756,7 +1760,7 @@ export class PanelBookingDetailComponent {
   }
 
   private resolveGuestPhotos(db: ReturnType<typeof arenaFirestore>, booking: ArenaBooking | null): void {
-    const missing = (booking?.participants ?? []).filter((p) => !p.avatarUrl && !this.guestPhotos().has(p.uid));
+    const missing = (booking ? bookingGuests(booking) : []).filter((p) => !p.avatarUrl && !this.guestPhotos().has(p.uid));
     for (const p of missing) {
       void resolveAthleteProfile(db, p.uid).then((profile) => {
         this.guestPhotos.update((m) => new Map(m).set(p.uid, profile.photoUrl));

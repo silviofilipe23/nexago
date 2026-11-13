@@ -186,6 +186,34 @@ export function resultParticipants(
   return {playerUids, opponentUids, creatorTeamId: creatorTeam?.id ?? null};
 }
 
+/** Atleta do placar espelhado na reserva (`arenaBookings.resultPlayers`). */
+export interface BookingResultPlayer {
+  uid: string;
+  name: string;
+  avatarUrl?: string;
+}
+
+/**
+ * Quem está no placar, sem o dono e sem repetir, na ordem dos times: o espelho que a reserva
+ * guarda em `resultPlayers` para listar quem jogou ao lado de quem entrou por convite
+ * (`participants`). Reescrito a cada salvamento — sai da lista quem saiu do placar.
+ */
+export function bookingResultPlayers(
+  teams: {players: {id: string; name: string; avatarUrl: string | null}[]}[],
+  ownerUid: string,
+): BookingResultPlayer[] {
+  const seen = new Set<string>([ownerUid]);
+  const out: BookingResultPlayer[] = [];
+  for (const team of teams) {
+    for (const p of team.players) {
+      if (!p.id || seen.has(p.id)) continue;
+      seen.add(p.id);
+      out.push({uid: p.id, name: p.name, ...(p.avatarUrl ? {avatarUrl: p.avatarUrl} : {})});
+    }
+  }
+  return out;
+}
+
 /** Dois times = sets entre duplas; três ou mais = rei da quadra (quem vence fica). */
 export function resultFormat(teamCount: number): BookingResultFormat {
   return teamCount > 2 ? "king_of_court" : "duo_vs_duo";

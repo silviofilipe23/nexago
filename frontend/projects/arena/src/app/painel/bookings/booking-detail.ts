@@ -135,6 +135,33 @@ export function bookingTakesGuests(b: Pick<ArenaBooking, 'athleteId' | 'classSes
 }
 
 /** Valor por jogador, quando faz sentido dividir (valor > 0 e mais de um confirmado). */
+/** Quem joga além do dono, e por onde entrou: convite direto, link ou o placar do pós-jogo. */
+export interface BookingGuest {
+  uid: string;
+  name: string;
+  avatarUrl: string | null;
+  source: 'direct' | 'link' | 'result';
+  joinedAt: Date | null;
+}
+
+/** Convidados (`participants`) primeiro, depois quem só está no placar (`resultPlayers`). O mesmo
+ *  uid aparece uma vez — quem foi convidado e também jogou fica como convidado — e o dono não entra. */
+export function bookingGuests(b: Pick<ArenaBooking, 'athleteId' | 'participants' | 'resultPlayers'>): BookingGuest[] {
+  const seen = new Set<string>(b.athleteId ? [b.athleteId] : []);
+  const out: BookingGuest[] = [];
+  for (const p of b.participants ?? []) {
+    if (seen.has(p.uid)) continue;
+    seen.add(p.uid);
+    out.push({ uid: p.uid, name: p.name, avatarUrl: p.avatarUrl, source: p.via, joinedAt: p.joinedAt });
+  }
+  for (const p of b.resultPlayers ?? []) {
+    if (seen.has(p.uid)) continue;
+    seen.add(p.uid);
+    out.push({ uid: p.uid, name: p.name, avatarUrl: p.avatarUrl, source: 'result', joinedAt: null });
+  }
+  return out;
+}
+
 export function perPlayerLabel(amountReais: number | null, players: number): string | null {
   if (amountReais == null || amountReais <= 0 || players < 2) return null;
   return formatBRL(Math.round((amountReais / players) * 100) / 100);

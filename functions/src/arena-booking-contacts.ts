@@ -2,9 +2,10 @@
  * WhatsApp dos jogadores de uma reserva, pro detalhe da reserva no portal da arena.
  *
  * O telefone do atleta é privado: não está no doc da reserva nem no perfil público, e as
- * rules não deixam a arena ler `users/{uid}`. Esta callable lê só o dono (`athleteId`) e os
- * convidados (`participants`) da reserva pedida, depois de conferir que quem chama é equipe
- * da arena com leitura na área `agenda` (a mesma regra do CRM, que já mostra esses números).
+ * rules não deixam a arena ler `users/{uid}`. Esta callable lê só o dono (`athleteId`), os
+ * convidados (`participants`) e quem está no placar (`resultPlayers`) da reserva pedida, depois
+ * de conferir que quem chama é equipe da arena com leitura na área `agenda` (a mesma regra do
+ * CRM, que já mostra esses números).
  * Devolve só os dígitos prontos pro `wa.me` — nada do resto do perfil.
  */
 import {onCall, HttpsError} from "firebase-functions/v2/https";
@@ -25,7 +26,7 @@ export interface ArenaBookingContactsPayload {
   contacts: BookingContact[];
 }
 
-/** Dono primeiro, depois os convidados, sem repetir. */
+/** Dono primeiro, depois os convidados e quem está no placar, sem repetir. */
 export function bookingPlayerUids(booking: Data): string[] {
   const uids: string[] = [];
   const add = (v: unknown) => {
@@ -33,9 +34,12 @@ export function bookingPlayerUids(booking: Data): string[] {
     if (uid && !uids.includes(uid)) uids.push(uid);
   };
   add(booking["athleteId"]);
-  const participants = Array.isArray(booking["participants"]) ? booking["participants"] : [];
-  for (const p of participants) {
-    if (p && typeof p === "object") add((p as Data)["uid"]);
+  // Convidados (`participants`) e quem entrou pelo placar (`resultPlayers`): a mesma lista do card.
+  for (const field of ["participants", "resultPlayers"]) {
+    const list = Array.isArray(booking[field]) ? booking[field] as unknown[] : [];
+    for (const p of list) {
+      if (p && typeof p === "object") add((p as Data)["uid"]);
+    }
   }
   return uids;
 }

@@ -1,5 +1,6 @@
 import type { ArenaBooking } from './arena-booking.model';
 import {
+  bookingGuests,
   bookingKindLabel,
   bookingLiveState,
   bookingTakesGuests,
@@ -64,6 +65,23 @@ describe('detalhe da reserva', () => {
     expect(bookingTakesGuests(booking({ athleteId: '' }))).toBeFalse();
     expect(bookingTakesGuests(booking({ clubSessionId: 'c1' }))).toBeFalse();
     expect(bookingTakesGuests(booking({ status: 'pending_payment' }))).toBeFalse();
+  });
+
+  it('jogadores: convidados e depois quem só está no placar, sem o dono e sem repetir', () => {
+    const b = booking({
+      athleteId: 'dono',
+      participants: [{ uid: 'u2', name: 'Lia', avatarUrl: null, via: 'link', joinedAt: at(8, 15, 10) }],
+      resultPlayers: [
+        { uid: 'dono', name: 'Marina', avatarUrl: null },
+        { uid: 'u2', name: 'Lia', avatarUrl: null },
+        { uid: 'u3', name: 'Rafa', avatarUrl: 'https://x/r.jpg' },
+      ],
+    });
+    expect(bookingGuests(b).map((g) => [g.uid, g.source])).toEqual([
+      ['u2', 'link'],
+      ['u3', 'result'],
+    ]);
+    expect(bookingGuests(booking({ athleteId: 'dono' }))).toEqual([]);
   });
 
   it('valor por jogador só com mais de um e valor > 0', () => {

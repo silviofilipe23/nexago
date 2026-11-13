@@ -40,6 +40,10 @@ describe("bookingPlayerUids", () => {
   it("dono primeiro, convidados depois, sem repetir nem lixo", () => {
     assert.deepEqual(bookingPlayerUids({athleteId: "u1", participants: [{uid: "u2"}, {uid: "u1"}, {uid: " "}, "x", null]}), ["u1", "u2"]);
     assert.deepEqual(bookingPlayerUids({}), []);
+    assert.deepEqual(
+      bookingPlayerUids({athleteId: "u1", participants: [{uid: "u2"}], resultPlayers: [{uid: "u2"}, {uid: "u3"}, {uid: "u1"}]}),
+      ["u1", "u2", "u3"],
+    );
   });
 });
 

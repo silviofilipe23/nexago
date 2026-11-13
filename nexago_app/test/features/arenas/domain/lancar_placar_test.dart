@@ -161,4 +161,65 @@ void main() {
       'Quem reservou confere e envia para todos confirmarem.',
     );
   });
+
+  group('passo 1 v2', () {
+    test('"Quem vai jogar?" até o fim do horário, de São Paulo', () {
+      bool up(String now, {String start = '09:00', String end = '10:30'}) =>
+          lancarIsUpcoming(
+            dateKey: '2026-11-13',
+            startTime: start,
+            endTime: end,
+            now: DateTime.parse(now),
+          );
+      expect(up('2026-11-13T08:00:00-03:00'), isTrue);
+      expect(up('2026-11-13T10:29:00-03:00'), isTrue);
+      expect(up('2026-11-13T10:30:00-03:00'), isFalse);
+      // Passa da meia-noite: 23h–01h ainda rola à 00h30 do dia seguinte.
+      expect(
+        up('2026-11-14T00:30:00-03:00', start: '23:00', end: '01:00'),
+        isTrue,
+      );
+      expect(lancarStepTitle(upcoming: true), 'Quem vai jogar?');
+      expect(lancarStepTitle(upcoming: false), 'Quem jogou?');
+    });
+
+    test('o que falta fala no tempo certo', () {
+      final r = _two().addEmptyTeam();
+      expect(lancarTeamsMissing(r), 'Falta escolher quem jogou no Time C');
+      expect(
+        lancarTeamsMissing(r, upcoming: true),
+        'Falta escolher quem joga no Time C',
+      );
+    });
+
+    test('ordem do rei da quadra: quem abre e a fila; com dois times, nada',
+        () {
+      expect(lancarRotationOrder(_two()), isNull);
+      final order = lancarRotationOrder(_two().addEmptyTeam().addEmptyTeam())!;
+      expect(order.opening, 'A × B abrem · quem vence fica');
+      expect(order.queue, 'Fila: C → D');
+    });
+
+    test('mover time muda a sequência e o primeiro jogo, com os jogadores', () {
+      final r = _two().addEmptyTeam();
+      final c = r.teams[2].id;
+      final moved = r.moveTeam(2, 0);
+      expect(moved.teams.first.id, c);
+      expect(moved.teams[1].players, [_maria, _enzo]);
+      expect(moved.games.single.teamA, c);
+      expect(moved.games.single.teamB, r.teams[0].id);
+      // Fora do intervalo não muda nada.
+      expect(r.moveTeam(5, 0), same(r));
+    });
+
+    test('com placar lançado, mover só muda a fila dos próximos jogos', () {
+      final r = BookingResult(
+        teams: _two().addEmptyTeam().teams,
+        games: const [ResultGame(teamA: 0, teamB: 1, scoreA: 2, scoreB: 1)],
+      );
+      final moved = r.moveTeam(2, 1);
+      expect(moved.games, r.games);
+      expect(moved.teams.map((t) => t.id), [0, 2, 1]);
+    });
+  });
 }

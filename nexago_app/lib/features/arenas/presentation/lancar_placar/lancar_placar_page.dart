@@ -91,12 +91,16 @@ class LancarPlacarPage extends ConsumerStatefulWidget {
     this.mode = LancarPlacarMode.typed,
     this.presetSport,
     this.fromStoryEditor = false,
+    this.clock = DateTime.now,
   });
 
   final BookingStoryArgs args;
   final LancarPlacarMode mode;
   final String? presetSport;
   final bool fromStoryEditor;
+
+  /// "Agora" para decidir entre "Quem vai jogar?" e "Quem jogou?" (testes).
+  final DateTime Function() clock;
 
   @override
   ConsumerState<LancarPlacarPage> createState() => _LancarPlacarPageState();
@@ -115,6 +119,14 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
   String? _suggestedBy;
 
   String get _bookingId => widget.args.bookingId.trim();
+
+  /// O horário ainda não acabou: o passo 1 fala no futuro ("Quem vai jogar?").
+  bool get _upcoming => lancarIsUpcoming(
+        dateKey: widget.args.dateKey,
+        startTime: widget.args.startTime,
+        endTime: widget.args.endTime,
+        now: widget.clock(),
+      );
   String get _draftKey => peladaLiveDraftKey(widget.args.bookingId);
 
   @override
@@ -289,7 +301,9 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
 
   Future<void> _next() async {
     final r = _r;
-    if (r == null || lancarTeamsMissing(r) != null) return;
+    if (r == null || lancarTeamsMissing(r, upcoming: _upcoming) != null) {
+      return;
+    }
     if (_mode == LancarPlacarMode.live) {
       final store = ref.read(peladaLiveDraftStoreProvider);
       final rules =
@@ -514,7 +528,8 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
       for (final p in remote.valueOrNull ?? const <ResultPlayer>[])
         if (!candidates.contains(p)) p,
     ];
-    final missing = lancarTeamsMissing(r);
+    final upcoming = _upcoming;
+    final missing = lancarTeamsMissing(r, upcoming: upcoming);
     final live = _mode == LancarPlacarMode.live;
 
     return Scaffold(
@@ -525,7 +540,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
         elevation: 0,
         centerTitle: true,
         title: LancarPlacarTitle(
-          title: 'Quem jogou?',
+          title: lancarStepTitle(upcoming: upcoming),
           subtitle: live ? '1 de 2 · antes de marcar' : '1 de 2 · times',
         ),
       ),
@@ -578,11 +593,12 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
                 ],
               ),
             ),
-          _TeamsBoard(
+          _TeamsList(
             result: r,
-            onRemove: (p, teamId) => _assign(p, teamId),
+            upcoming: upcoming,
             onRename: _rename,
             onDrop: (id) => setState(() => _r = r.dropTeam(id)),
+            onMove: (from, to) => setState(() => _r = r.moveTeam(from, to)),
           ),
           if (r.teams.length < kLancarMaxTeams)
             Align(
@@ -701,65 +717,129 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
   }
 }
 
-/// Os times lado a lado (dois por linha), com quem já está em cada um.
-class _TeamsBoard extends StatelessWidget {
-  const _TeamsBoard({
+/// Os times, um por linha (canvas "Passo 1 v2"). No rei da quadra a lista é a
+/// ordem de entrada — A × B abrem e a fila segue a lista — e cada linha tem
+/// a alça para arrastar; a letra é a posição.
+class _TeamsList extends StatelessWidget {
+  const _TeamsList({
     required this.result,
-    required this.onRemove,
+    required this.upcoming,
     required this.onRename,
     required this.onDrop,
+    required this.onMove,
   });
 
   final BookingResult result;
-  final void Function(ResultPlayer player, int teamId) onRemove;
+  final bool upcoming;
   final void Function(ResultTeam team, int index) onRename;
   final ValueChanged<int> onDrop;
+  final void Function(int from, int to) onMove;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const gap = 10.0;
-        final width = (constraints.maxWidth - gap) / 2;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (final (i, t) in result.teams.indexed)
-              SizedBox(
-                width: width,
-                child: _TeamColumn(
-                  key: Key('lancar-team-$i'),
-                  team: t,
-                  index: i,
-                  canDrop: result.teams.length > 2,
-                  onRemove: (p) => onRemove(p, t.id),
-                  onRename: () => onRename(t, i),
-                  onDrop: () => onDrop(t.id),
+    final colors = context.themeColors;
+    final rotation = result.isRotation;
+    Widget row(int i) {
+      final t = result.teams[i];
+      return _TeamRow(
+        key: Key('lancar-team-$i'),
+        team: t,
+        index: i,
+        upcoming: upcoming,
+        draggable: rotation,
+        canDrop: result.teams.length > 2,
+        onRename: () => onRename(t, i),
+        onDrop: () => onDrop(t.id),
+      );
+    }
+
+    final order = lancarRotationOrder(result);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PeladaLiveLabel(
+          rotation ? 'Ordem de entrada' : 'Times',
+          trailing: rotation ? 'arraste para mudar' : null,
+        ),
+        if (order != null)
+          Container(
+            key: const Key('lancar-team-order'),
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: AppColors.brand.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.brand.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  order.opening,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w700,
+                    color: colors.brandText,
+                  ),
                 ),
-              ),
-          ],
-        );
-      },
+                Text(
+                  order.queue,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                    color: colors.onSurface.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (rotation)
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            itemCount: result.teams.length,
+            onReorderItem: onMove,
+            proxyDecorator: (child, _, __) =>
+                Material(color: Colors.transparent, child: child),
+            itemBuilder: (context, i) => Padding(
+              key: ValueKey('lancar-team-slot-${result.teams[i].id}'),
+              padding: const EdgeInsets.only(bottom: 6),
+              child: row(i),
+            ),
+          )
+        else
+          for (var i = 0; i < result.teams.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: row(i),
+            ),
+      ],
     );
   }
 }
 
-class _TeamColumn extends StatelessWidget {
-  const _TeamColumn({
+/// Um time numa linha só: letra na cor, quem está nele, quantos, a alça (rei
+/// da quadra) e o menu (renomear, tirar). Tirar jogador é na lista de baixo.
+class _TeamRow extends StatelessWidget {
+  const _TeamRow({
     super.key,
     required this.team,
     required this.index,
+    required this.upcoming,
+    required this.draggable,
     required this.canDrop,
-    required this.onRemove,
     required this.onRename,
     required this.onDrop,
   });
 
   final ResultTeam team;
   final int index;
+  final bool upcoming;
+  final bool draggable;
   final bool canDrop;
-  final ValueChanged<ResultPlayer> onRemove;
   final VoidCallback onRename;
   final VoidCallback onDrop;
 
@@ -767,131 +847,129 @@ class _TeamColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final fill = lancarTeamFill(index);
-    final ink = lancarTeamColor(context, index);
+    final letter = lancarTeamLetter(index);
+    final custom = team.customName?.trim() ?? '';
+    final names = [for (final p in team.players) p.firstName].join(', ');
+    final empty = team.players.isEmpty;
+    final canRename = !empty;
     return Container(
-      constraints: const BoxConstraints(minHeight: 112),
-      padding: const EdgeInsets.fromLTRB(10, 6, 6, 10),
+      height: 48,
       decoration: BoxDecoration(
-        color: fill.withValues(alpha: colors.isDark ? 0.10 : 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: fill.withValues(alpha: 0.55), width: 1.5),
+        color: fill.withValues(alpha: colors.isDark ? 0.08 : 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: fill.withValues(alpha: 0.45)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.only(left: 10),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  key: Key('lancar-team-$index-rename'),
-                  onTap: team.players.isEmpty ? null : onRename,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
+          LancarTeamBadge(index: index, size: 24),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Row(
+              children: [
+                // Nome do time (renomeado) em destaque; os jogadores ao lado.
+                if (custom.isNotEmpty && !empty) ...[
+                  Flexible(
                     child: Text(
-                      'TIME ${lancarTeamLetter(index)} · ${team.players.length}',
-                      style: AppTypography.mono(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.3,
-                        color: ink,
+                      custom,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    ' · ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colors.onSurface.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ],
+                Flexible(
+                  child: Text(
+                    empty
+                        ? 'Toque $letter ao lado de quem '
+                            '${upcoming ? 'joga' : 'jogou'}'
+                        : names,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: empty ? FontWeight.w500 : FontWeight.w600,
+                      color: colors.onSurface.withValues(
+                        alpha: empty || custom.isNotEmpty ? 0.6 : 1,
                       ),
                     ),
                   ),
                 ),
-              ),
-              if (canDrop)
-                SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: IconButton(
-                    key: Key('lancar-team-$index-drop'),
-                    tooltip: 'Tirar o Time ${lancarTeamLetter(index)}',
-                    padding: EdgeInsets.zero,
-                    onPressed: onDrop,
-                    icon: Icon(
-                      Icons.close_rounded,
-                      size: 16,
-                      color: colors.onSurface.withValues(alpha: 0.5),
-                    ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '${team.players.length}',
+            key: Key('lancar-team-$index-count'),
+            style: AppTypography.mono(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: colors.onSurface.withValues(alpha: 0.55),
+            ),
+          ),
+          if (draggable)
+            ReorderableDragStartListener(
+              index: index,
+              child: Semantics(
+                label: 'Arrastar o Time $letter para mudar a ordem',
+                child: SizedBox(
+                  key: Key('lancar-team-$index-drag'),
+                  width: 40,
+                  height: 48,
+                  child: Icon(
+                    Icons.drag_indicator_rounded,
+                    size: 20,
+                    color: colors.onSurface.withValues(alpha: 0.5),
                   ),
                 ),
-            ],
-          ),
-          if (team.customName != null && team.customName!.trim().isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                team.customName!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.soraRegular(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: colors.onSurface,
-                ),
               ),
-            ),
-          if (team.players.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 6, right: 4),
-              child: Text(
-                'Toque ${lancarTeamLetter(index)} ao lado de quem jogou',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.35,
+            )
+          else
+            const SizedBox(width: 6),
+          if (canRename || canDrop)
+            SizedBox(
+              width: 40,
+              height: 48,
+              child: PopupMenuButton<String>(
+                key: Key('lancar-team-$index-menu'),
+                tooltip: 'Opções do Time $letter',
+                padding: EdgeInsets.zero,
+                icon: Icon(
+                  Icons.more_horiz_rounded,
+                  size: 20,
                   color: colors.onSurface.withValues(alpha: 0.6),
                 ),
-              ),
-            ),
-          for (final p in team.players)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Material(
-                color: colors.canvas.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(12),
-                child: InkWell(
-                  key: Key('lancar-team-$index-remove-${p.id}'),
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => onRemove(p),
-                  child: SizedBox(
-                    height: 40,
-                    child: Row(
-                      children: [
-                        const SizedBox(width: 6),
-                        ResultTeamAvatars(
-                          players: [p],
-                          size: 24,
-                          borderColor: Colors.transparent,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            p.firstName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: colors.onSurface,
-                            ),
-                          ),
-                        ),
-                        Semantics(
-                          label: 'Tirar ${p.firstName} do time',
-                          child: Icon(
-                            Icons.close_rounded,
-                            size: 16,
-                            color: colors.onSurface.withValues(alpha: 0.5),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
+                onSelected: (v) => v == 'rename' ? onRename() : onDrop(),
+                itemBuilder: (_) => [
+                  if (canRename)
+                    PopupMenuItem(
+                      key: Key('lancar-team-$index-rename'),
+                      value: 'rename',
+                      child: const Text('Renomear'),
                     ),
-                  ),
-                ),
+                  if (canDrop)
+                    PopupMenuItem(
+                      key: Key('lancar-team-$index-drop'),
+                      value: 'drop',
+                      child: Text('Tirar o Time $letter'),
+                    ),
+                ],
               ),
-            ),
+            )
+          else
+            const SizedBox(width: 4),
         ],
       ),
     );
@@ -920,65 +998,88 @@ class _PlayerAssignRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final current = result.teamIdOf(player.id);
+    // Até 3 times os botões cabem ao lado do nome; com mais, vão para uma
+    // linha embaixo (o nome nunca é espremido).
+    final below = result.teams.length > _kInlineTeamButtons;
+    final buttons = Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final (i, t) in result.teams.indexed)
+          _TeamButton(
+            key: Key('lancar-assign-${player.id}-$i'),
+            index: i,
+            selected: current == t.id,
+            playerName: player.firstName,
+            size: below ? 40 : 44,
+            onTap: () => onAssign(t.id),
+          ),
+      ],
+    );
+    final who = Row(
+      children: [
+        ResultTeamAvatars(
+          players: [player],
+          size: 36,
+          borderColor: colors.canvas,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                player.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.soraRegular(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colors.onSurface,
+                ),
+              ),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: colors.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (!below) ...[const SizedBox(width: 8), buttons],
+      ],
+    );
     return Column(
       children: [
         if (!first)
           Divider(height: 1, color: colors.onSurface.withValues(alpha: 0.06)),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            children: [
-              ResultTeamAvatars(
-                players: [player],
-                size: 36,
-                borderColor: colors.canvas,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
+          child: below
+              ? Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      player.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.soraRegular(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: colors.onSurface.withValues(alpha: 0.6),
-                      ),
+                    who,
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 46),
+                      child: buttons,
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Wrap(
-                spacing: 6,
-                children: [
-                  for (final (i, t) in result.teams.indexed)
-                    _TeamButton(
-                      key: Key('lancar-assign-${player.id}-$i'),
-                      index: i,
-                      selected: current == t.id,
-                      playerName: player.firstName,
-                      onTap: () => onAssign(t.id),
-                    ),
-                ],
-              ),
-            ],
-          ),
+                )
+              : who,
         ),
       ],
     );
   }
 }
+
+/// Quantos times cabem com os botões ao lado do nome.
+const int _kInlineTeamButtons = 3;
 
 class _TeamButton extends StatelessWidget {
   const _TeamButton({
@@ -987,12 +1088,14 @@ class _TeamButton extends StatelessWidget {
     required this.selected,
     required this.playerName,
     required this.onTap,
+    this.size = 44,
   });
 
   final int index;
   final bool selected;
   final String playerName;
   final VoidCallback onTap;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -1018,8 +1121,8 @@ class _TeamButton extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(10),
           child: SizedBox(
-            width: 44,
-            height: 44,
+            width: size,
+            height: size,
             child: Center(
               child: Text(
                 letter,

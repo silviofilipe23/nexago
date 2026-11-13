@@ -52,6 +52,10 @@ const _args = BookingStoryArgs(
   endTime: '10:30',
 );
 
+/// A reserva de [_args] é 09:00–10:30 de 13/11 (São Paulo).
+DateTime _depoisDoJogo() => DateTime.parse('2026-11-13T12:00:00-03:00');
+DateTime _duranteOJogo() => DateTime.parse('2026-11-13T09:40:00-03:00');
+
 Future<(FakeBookingResultRepository, _MemoryStore)> _abrir(
   WidgetTester tester, {
   String uid = 'u1',
@@ -59,6 +63,7 @@ Future<(FakeBookingResultRepository, _MemoryStore)> _abrir(
   LancarPlacarMode mode = LancarPlacarMode.live,
   FakeBookingResultRepository? repo,
   bool ownerInConfirmed = true,
+  DateTime Function() clock = _depoisDoJogo,
 }) async {
   repo ??= FakeBookingResultRepository();
   final drafts = store ?? _MemoryStore();
@@ -115,7 +120,7 @@ Future<(FakeBookingResultRepository, _MemoryStore)> _abrir(
       ],
       child: MaterialApp(
         theme: AppTheme.dark,
-        home: LancarPlacarPage(args: _args, mode: mode),
+        home: LancarPlacarPage(args: _args, mode: mode, clock: clock),
       ),
     ),
   );
@@ -137,6 +142,10 @@ Future<void> _setPara(WidgetTester tester, LiveSide side) async {
   await _pontos(tester, side, 21);
   await tester.pumpAndSettle();
 }
+
+/// Quantos jogadores o time da posição [i] tem (a linha compacta do passo 1).
+String _teamCount(WidgetTester tester, int i) =>
+    tester.widget<Text>(find.byKey(Key('lancar-team-$i-count'))).data!;
 
 void main() {
   setUpAll(() async {
@@ -294,8 +303,8 @@ void main() {
     );
     expect(find.byKey(const Key('lancar-player-u1')), findsOneWidget);
     expect(find.text('reservou a quadra'), findsOneWidget);
-    expect(find.text('TIME A · 2'), findsOneWidget);
-    expect(find.text('TIME B · 2'), findsOneWidget);
+    expect(_teamCount(tester, 0), '2');
+    expect(_teamCount(tester, 1), '2');
   });
 
   testWidgets('quem reservou abre com o placar que o convidado mandou e envia',
@@ -326,7 +335,7 @@ void main() {
     expect(find.byKey(const Key('lancar-placar-suggested')), findsOneWidget);
     expect(find.textContaining('Rafael marcou o placar'), findsOneWidget);
     // Os times vêm da sugestão: Rafael no A.
-    expect(find.text('TIME A · 2'), findsOneWidget);
+    expect(_teamCount(tester, 0), '2');
     await tester.tap(find.byKey(const Key('lancar-placar-next')));
     await tester.pumpAndSettle();
     expect(find.text('Maria & Rafael vencem 1–0'), findsOneWidget);
@@ -354,5 +363,42 @@ void main() {
     await tester.tap(find.byKey(const Key('lancar-placar-switch-mode')));
     await tester.pump();
     expect(find.text('Começar a marcar'), findsOneWidget);
+  });
+
+  group('passo 1 v2 (sequência e times compactos)', () {
+    testWidgets('durante o horário pergunta "Quem vai jogar?"', (tester) async {
+      await _abrir(tester, clock: _duranteOJogo);
+      expect(find.text('Quem vai jogar?'), findsOneWidget);
+      expect(find.text('Quem jogou?'), findsNothing);
+      await tester.tap(find.byKey(const Key('lancar-placar-add-team')));
+      await tester.pump();
+      expect(find.text('Falta escolher quem joga no Time C'), findsOneWidget);
+      expect(find.text('Toque C ao lado de quem joga'), findsOneWidget);
+    });
+
+    testWidgets('depois do horário volta a ser "Quem jogou?"', (tester) async {
+      await _abrir(tester);
+      expect(find.text('Quem jogou?'), findsOneWidget);
+    });
+
+    testWidgets(
+        'rei da quadra mostra a ordem de entrada e, com muitos times, os '
+        'botões vão para baixo do nome', (tester) async {
+      await _abrir(tester, mode: LancarPlacarMode.typed);
+      expect(find.byKey(const Key('lancar-team-order')), findsNothing);
+      for (var i = 0; i < 4; i++) {
+        await tester.tap(find.byKey(const Key('lancar-placar-add-team')));
+        await tester.pump();
+      }
+      expect(find.text('A × B abrem · quem vence fica'), findsOneWidget);
+      expect(find.text('Fila: C → D → E → F'), findsOneWidget);
+      expect(find.byKey(const Key('lancar-team-5-drag')), findsOneWidget);
+      // Nada estoura com 6 times, e o nome fica acima dos botões.
+      expect(tester.takeException(), isNull);
+      final name = tester.getBottomLeft(find.text('Maria Alves'));
+      final button =
+          tester.getTopLeft(find.byKey(const Key('lancar-assign-u1-5')));
+      expect(button.dy, greaterThan(name.dy));
+    });
   });
 }

@@ -77,6 +77,23 @@ extension LancarPlacarTeams on BookingResult {
     return removeTeam(teamId);
   }
 
+  /// Muda a ordem dos times (a sequência do rei da quadra): a letra é a
+  /// posição, então quem sobe vira "A" e os jogadores vão junto. Sem placar
+  /// lançado, o primeiro jogo passa a ser entre os dois primeiros da lista.
+  BookingResult moveTeam(int from, int to) {
+    if (from < 0 || from >= teams.length) return this;
+    final target = to.clamp(0, teams.length - 1);
+    if (from == target) return this;
+    final next = [...teams];
+    next.insert(target, next.removeAt(from));
+    return BookingResult(
+      teams: next,
+      games: scoredGames.isEmpty && next.length >= 2
+          ? [ResultGame(teamA: next[0].id, teamB: next[1].id)]
+          : games,
+    );
+  }
+
   /// Jogos com placar (o 0×0 é "ainda não lançado").
   List<ResultGame> get scoredGames => [
         for (final g in games)
@@ -85,13 +102,50 @@ extension LancarPlacarTeams on BookingResult {
 }
 
 /// Por que o passo "Quem jogou?" ainda não avança — `null` quando avança.
-String? lancarTeamsMissing(BookingResult result) {
+String? lancarTeamsMissing(BookingResult result, {bool upcoming = false}) {
   for (var i = 0; i < result.teams.length; i++) {
     if (result.teams[i].players.isEmpty) {
-      return 'Falta escolher quem jogou no Time ${lancarTeamLetter(i)}';
+      return 'Falta escolher quem ${upcoming ? 'joga' : 'jogou'} no Time '
+          '${lancarTeamLetter(i)}';
     }
   }
   return null;
+}
+
+/// O horário da reserva ainda não acabou: o passo 1 pergunta "Quem vai
+/// jogar?" (antes e durante o jogo); depois do fim, "Quem jogou?". Hora da
+/// parede de São Paulo; fim antes do início = passa da meia-noite.
+bool lancarIsUpcoming({
+  required String dateKey,
+  required String startTime,
+  required String endTime,
+  required DateTime now,
+}) {
+  DateTime? at(String hhmm) => DateTime.tryParse(
+        '${dateKey.length >= 10 ? dateKey.substring(0, 10) : dateKey}'
+        'T${hhmm.length >= 5 ? hhmm.substring(0, 5) : hhmm}:00-03:00',
+      );
+  final start = at(startTime);
+  var end = at(endTime);
+  if (start == null || end == null) return false;
+  if (!end.isAfter(start)) end = end.add(const Duration(days: 1));
+  return now.isBefore(end);
+}
+
+String lancarStepTitle({required bool upcoming}) =>
+    upcoming ? 'Quem vai jogar?' : 'Quem jogou?';
+
+/// A sequência do rei da quadra em duas linhas: quem abre ("A × B abrem ·
+/// quem vence fica") e a fila ("Fila: C → D → E"). `null` com dois times.
+({String opening, String queue})? lancarRotationOrder(BookingResult result) {
+  if (!result.isRotation) return null;
+  final letters = [
+    for (var i = 0; i < result.teams.length; i++) lancarTeamLetter(i),
+  ];
+  return (
+    opening: '${letters[0]} × ${letters[1]} abrem · quem vence fica',
+    queue: 'Fila: ${letters.skip(2).join(' → ')}',
+  );
 }
 
 /// Por que o placar ainda não pode ser enviado — `null` quando pode. O

@@ -190,7 +190,19 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     if (!_extra.contains(player) && !_candidates().contains(player)) {
       _extra.add(player);
     }
-    setState(() => _r = next);
+    // Escolheu o time de alguém da busca: limpa o campo e fecha o teclado,
+    // e a lista volta inteira (com quem acabou de entrar).
+    final clearSearch = outcome == LancarAssignOutcome.assigned &&
+        _query.text.trim().isNotEmpty;
+    if (clearSearch) {
+      _debounce?.cancel();
+      _query.clear();
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
+    setState(() {
+      _r = next;
+      if (clearSearch) _search = '';
+    });
   }
 
   Future<void> _rename(ResultTeam team, int index) async {

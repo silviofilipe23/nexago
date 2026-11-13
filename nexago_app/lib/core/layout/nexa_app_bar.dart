@@ -96,6 +96,7 @@ class _NexaAppBarState extends State<NexaAppBar> {
   _NativeNexaAppBarConfig? _buildNativeConfig(BuildContext context) {
     if (widget.forceMaterial ||
         !nexaUseNativeLiquidGlass ||
+        !_nativeTitleMatchesTheme(context) ||
         widget.bottom != null ||
         widget.flexibleSpace != null) {
       return null;
@@ -150,6 +151,14 @@ class _NexaAppBarState extends State<NexaAppBar> {
       titleTextStyle: widget.titleTextStyle ?? _extractTitleStyle(widget.title),
     );
   }
+
+  /// A `UINavigationBar` pinta o título com a aparência da janela iOS, não
+  /// com o `Theme` (o plugin não aceita cor de título). O app alinha a janela
+  /// ao tema via `syncNativeInterfaceStyle`, e o Flutter enxerga isso em
+  /// `platformBrightness`. Se ainda divergir (canal ausente, troca em curso),
+  /// a AppBar do Flutter desenha o título com a cor certa.
+  bool _nativeTitleMatchesTheme(BuildContext context) =>
+      Theme.of(context).brightness == MediaQuery.platformBrightnessOf(context);
 
   String? _extractTitle(Widget? titleWidget) {
     if (titleWidget == null) return null;

@@ -1,6 +1,7 @@
 import { amenitiesFromFirestore, ARENA_AMENITIES_EMPTY, courtTypeCodesFor } from '@nexago/arena-discovery';
 import { deleteField, doc, setDoc, type Firestore } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
+import { arenaImagePath } from '../data/arena-image-path';
 import { validateArenaBasicInfo, validateArenaContacts, type ArenaProfile } from '../data/arena-profile.model';
 import { PICKED_IMAGE_MAX_BYTES, shrinkImageFile, type ImageTarget } from '../data/image-shrink';
 
@@ -108,12 +109,14 @@ export async function uploadArenaImageFile(storage: FirebaseStorage, path: strin
   return getDownloadURL(fileRef);
 }
 
-/** Sobe a capa/logo para `arenas/{arenaId}/{cover|logo}` (storage.rules libera escrita para o
- *  dono da arena e para o gestor ativo com plano em dia) e retorna a download URL. Nome fixo
- *  por tipo: cada novo upload sobrescreve o anterior, sem acumular arquivos órfãos. A URL
- *  retornada ainda precisa ser salva no Firestore via `saveArenaBasicInfo` para valer no perfil. */
+/** Sobe a capa/logo para `arenas/{arenaId}/{cover|logo}-{ms}` (storage.rules libera escrita para
+ *  o dono da arena e para o gestor ativo com plano em dia) e retorna a download URL. Nome novo a
+ *  cada envio (`arenaImagePath`): o upload acontece ao ESCOLHER a imagem, mas a URL só vai pro
+ *  Firestore no "Salvar" (`saveArenaBasicInfo`). Sobrescrever o arquivo trocaria o token e
+ *  quebraria a capa publicada de quem escolhe outra e sai sem salvar. O arquivo anterior fica no
+ *  Storage: o espelho da equipe e o mini-site publicado guardam cópias da URL. */
 export async function uploadArenaImage(storage: FirebaseStorage, arenaId: string, kind: ArenaImageKind, file: File): Promise<string> {
-  return uploadArenaImageFile(storage, `arenas/${arenaId}/${kind}`, file, kind === 'logo' ? 'logo' : 'wide');
+  return uploadArenaImageFile(storage, arenaImagePath(arenaId, kind), file, kind === 'logo' ? 'logo' : 'wide');
 }
 
 export type ArenaContactsInput = Pick<ArenaProfile, 'phone' | 'whatsapp'>;

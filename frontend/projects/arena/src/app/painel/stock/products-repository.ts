@@ -17,6 +17,7 @@ import {
   type WriteBatch,
 } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
+import { productImagePath, replacedProductImagePath } from '../data/arena-image-path';
 import { shrinkImageFile } from '../data/image-shrink';
 import { validateArenaImageFile } from '../profile/arena-profile-repository';
 import {
@@ -253,12 +254,6 @@ export async function restoreProduct(db: Firestore, arenaId: string, product: Ar
   await batch.commit();
 }
 
-/** Mesmo caminho do app (`ArenaProductsRepository.uploadProductImage`): um arquivo por
- *  produto, sobrescrito a cada troca — sem acumular fotos órfãs. storage.rules libera o dono
- *  e a equipe que grava o estoque (gestor/manutenção, com plano em dia). */
-function productImageRef(storage: FirebaseStorage, arenaId: string, productId: string) {
-  return ref(storage, `arenas/${arenaId}/products/${productId}.jpg`);
-}
 
 /** Sobe a foto do produto e devolve a download URL — ela ainda precisa ir pro doc do produto. */
 export async function uploadProductImage(
@@ -273,7 +268,10 @@ export async function uploadProductImage(
   }
   // Reduz antes de subir: fora do try abaixo, pra mensagem de "não abriu a imagem" chegar inteira.
   const blob = await shrinkImageFile(file, 'product');
-  const fileRef = productImageRef(storage, arenaId, productId);
+  // Nome novo a cada envio, igual ao app (`productImagePath`): sobrescrever trocaria o token e a
+  // foto salva no produto responderia 403 até a nova ser gravada. storage.rules libera o dono e a
+  // equipe que grava o estoque (gestor/manutenção, com plano em dia).
+  const fileRef = ref(storage, productImagePath(arenaId, productId));
   try {
     await uploadBytes(fileRef, blob, { contentType: blob.type || file.type });
   } catch (err) {
@@ -285,11 +283,21 @@ export async function uploadProductImage(
   return getDownloadURL(fileRef);
 }
 
-/** Apaga o arquivo da foto. Melhor esforço: o doc já não aponta mais pra ele, então uma
- *  falha aqui só deixa um arquivo sobrando, não quebra nada na tela. */
-export async function deleteProductImage(storage: FirebaseStorage, arenaId: string, productId: string): Promise<void> {
+/** Apaga a foto antiga do produto DEPOIS que o doc passou a apontar para a nova (ou para
+ *  nenhuma). Só arquivo da pasta de produtos desta arena (`replacedProductImagePath`). Melhor
+ *  esforço: o doc já não aponta mais pra ele, então uma falha só deixa um arquivo sobrando. */
+export async function deleteReplacedProductImage(
+  storage: FirebaseStorage,
+  arenaId: string,
+  previousUrl: string | null | undefined,
+  nextUrl: string | null | undefined,
+): Promise<void> {
+  const path = replacedProductImagePath(arenaId, previousUrl, nextUrl);
+  if (!path) {
+    return;
+  }
   try {
-    await deleteObject(productImageRef(storage, arenaId, productId));
+    await deleteObject(ref(storage, path));
   } catch {
     // arquivo inexistente ou sem permissão — nada a fazer
   }

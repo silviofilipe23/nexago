@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import '../domain/arena_image_storage_path.dart';
 import '../domain/products/arena_product.dart';
 import '../domain/products/arena_product_logic.dart';
 import '../domain/products/arena_stock_movement.dart';
@@ -40,11 +41,7 @@ class ArenaProductsRepository {
     final id = arenaId.trim();
     if (id.isEmpty) return Stream.value(const []);
 
-    return _products(id)
-        .orderBy('nameLower')
-        .limit(100)
-        .snapshots()
-        .map(
+    return _products(id).orderBy('nameLower').limit(100).snapshots().map(
           (snap) => snap.docs.map(ArenaProduct.fromFirestore).toList(),
         );
   }
@@ -200,12 +197,16 @@ class ArenaProductsRepository {
     required Uint8List bytes,
     required String contentType,
   }) async {
-    final ref = _storage
-        .ref()
-        .child('arenas')
-        .child(arenaId.trim())
-        .child('products')
-        .child('${productId.trim()}.jpg');
+    // Nome novo a cada envio (`arenaProductImageStoragePath`): sobrescrever
+    // trocaria o token e a foto salva no produto daria 403 até a nova ser
+    // gravada. A antiga sai em [deleteReplacedProductImage], depois do save.
+    final ref = _storage.ref(
+      arenaProductImageStoragePath(
+        arenaId.trim(),
+        productId.trim(),
+        DateTime.now(),
+      ),
+    );
 
     try {
       await ref.putData(bytes, SettableMetadata(contentType: contentType));
@@ -223,5 +224,39 @@ class ArenaProductsRepository {
       rethrow;
     }
     return ref.getDownloadURL();
+  }
+
+  /// Apaga a foto antiga do produto DEPOIS que o doc passou a apontar para a
+  /// nova. Só arquivo da pasta de produtos desta arena
+  /// (`isReplacedArenaProductImage`). Melhor esforço: o doc já não aponta mais
+  /// pra ele, então uma falha só deixa um arquivo sobrando.
+  Future<void> deleteReplacedProductImage({
+    required String arenaId,
+    required String? previousUrl,
+    required String? nextUrl,
+  }) async {
+    try {
+      final previous = _pathFromUrl(previousUrl);
+      if (!isReplacedArenaProductImage(
+        arenaId: arenaId.trim(),
+        previousPath: previous,
+        nextPath: _pathFromUrl(nextUrl),
+      )) {
+        return;
+      }
+      await _storage.ref(previous).delete();
+    } catch (_) {
+      // arquivo inexistente ou sem permissão: nada a fazer
+    }
+  }
+
+  String? _pathFromUrl(String? url) {
+    final u = url?.trim() ?? '';
+    if (u.isEmpty) return null;
+    try {
+      return _storage.refFromURL(u).fullPath;
+    } catch (_) {
+      return null; // URL externa
+    }
   }
 }

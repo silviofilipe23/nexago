@@ -164,6 +164,20 @@ void main() {
     );
   });
 
+  test('capa sobe com nome novo a cada envio, nunca no `cover` fixo', () async {
+    final storage = _RejectingStorage('retry-limit-exceeded');
+    final service = ArenaProfileEditService(_CapturingFirestore(), storage);
+    await expectLater(
+      service.uploadCover(
+        arenaId: ' a1 ',
+        bytes: Uint8List(8),
+        contentType: 'image/jpeg',
+      ),
+      throwsA(isA<FirebaseException>()),
+    );
+    expect(storage.paths.single, matches(RegExp(r'^arenas/a1/cover-\d+$')));
+  });
+
   test('capa: outra falha do Storage sobe crua', () async {
     await expectLater(
       uploadCoverRejectedWith('retry-limit-exceeded'),
@@ -179,8 +193,14 @@ class _RejectingStorage implements FirebaseStorage {
 
   final String code;
 
+  /// Caminho que o serviço pediu ao Storage (o nome do arquivo enviado).
+  final paths = <String?>[];
+
   @override
-  Reference ref([String? path]) => _RejectingRef(code);
+  Reference ref([String? path]) {
+    paths.add(path);
+    return _RejectingRef(code);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

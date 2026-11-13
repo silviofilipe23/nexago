@@ -152,12 +152,15 @@ service firebase.storage {
     // Capa e logo da arena (Perfil do portal da arena e do app). Soma-se ao bloco
     // `arenas/{arenaId}/**`, que segue valendo para o dono e as claims: aqui entra o membro da
     // equipe que já edita o perfil no Firestore (`arenaCanWrite(arenaId, 'perfil')`).
+    // Nome: `cover-{ms}`/`logo-{ms}` (um arquivo por envio: sobrescrever troca o token e a URL
+    // salva no Firestore passa a dar 403) e, por retrocompatibilidade com os builds antigos do
+    // app, o `cover`/`logo` fixo.
     match /arenas/{arenaId}/{image} {
       // Cargos com escrita em `perfil` no `arenaWriteAreas` (o teste confere a paridade).
       function arenaPerfilRoles() {
         return ['gestor'];
       }
-      allow write: if request.auth != null && image in ['cover', 'logo'] &&
+      allow write: if request.auth != null && image.matches('(cover|logo)(-[0-9]{1,15})?') &&
         arenaStaffWrites(arenaId, arenaPerfilRoles()) && arenaStaffImage();
     }
 

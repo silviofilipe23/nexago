@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -152,6 +154,15 @@ class _ArenaProductFormPageState extends ConsumerState<ArenaProductFormPage> {
           toSave = product.copyWith(imageUrl: url);
         }
         await repo.updateProduct(arenaId: arenaId, product: toSave);
+        // Só depois de o doc apontar pra foto nova: apagar antes deixaria o
+        // produto com uma URL morta se a gravação falhasse.
+        if (toSave.imageUrl != _imageUrl) {
+          unawaited(repo.deleteReplacedProductImage(
+            arenaId: arenaId,
+            previousUrl: _imageUrl,
+            nextUrl: toSave.imageUrl,
+          ));
+        }
       } else {
         final newId = await repo.createProduct(
           arenaId: arenaId,

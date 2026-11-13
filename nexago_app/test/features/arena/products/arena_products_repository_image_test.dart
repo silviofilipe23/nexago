@@ -37,6 +37,61 @@ void main() {
     );
   });
 
+  test('foto sobe com nome novo a cada envio, nunca no `{id}.jpg` fixo',
+      () async {
+    final storage = _RejectingStorage('retry-limit-exceeded');
+    final repo =
+        ArenaProductsRepository(_UnusedFirestore(), _UnusedAuth(), storage);
+    await expectLater(
+      repo.uploadProductImage(
+        arenaId: 'a1',
+        productId: 'p1',
+        bytes: Uint8List(8),
+        contentType: 'image/jpeg',
+      ),
+      throwsA(isA<FirebaseException>()),
+    );
+    expect(
+      storage.paths.single,
+      matches(RegExp(r'^arenas/a1/products/p1-\d+\.jpg$')),
+    );
+  });
+
+  group('deleteReplacedProductImage', () {
+    Future<List<String>> deletedAfter(String? previous, String? next) async {
+      final storage = _DeletingStorage();
+      final repo =
+          ArenaProductsRepository(_UnusedFirestore(), _UnusedAuth(), storage);
+      await repo.deleteReplacedProductImage(
+        arenaId: 'a1',
+        previousUrl: previous,
+        nextUrl: next,
+      );
+      return storage.deleted;
+    }
+
+    const old = 'gs://b/arenas/a1/products/p1.jpg';
+    const next = 'gs://b/arenas/a1/products/p1-9.jpg';
+
+    test('foto trocada: apaga a antiga depois do save', () async {
+      expect(await deletedAfter(old, next), ['arenas/a1/products/p1.jpg']);
+    });
+
+    test('mesma foto, sem foto antiga ou URL externa: não apaga', () async {
+      expect(await deletedAfter(next, next), isEmpty);
+      expect(await deletedAfter(null, next), isEmpty);
+      expect(await deletedAfter('https://example.com/x.jpg', next), isEmpty);
+    });
+
+    test('nunca apaga fora da pasta de produtos desta arena', () async {
+      expect(await deletedAfter('gs://b/arenas/a1/cover-1', next), isEmpty);
+      expect(
+        await deletedAfter('gs://b/arenas/a2/products/p1.jpg', next),
+        isEmpty,
+      );
+    });
+  });
+
   test('foto: outra falha do Storage sobe crua', () async {
     await expectLater(
       uploadRejectedWith('retry-limit-exceeded'),
@@ -62,8 +117,14 @@ class _RejectingStorage implements FirebaseStorage {
 
   final String code;
 
+  /// Caminho que o serviço pediu ao Storage (o nome do arquivo enviado).
+  final paths = <String?>[];
+
   @override
-  Reference ref([String? path]) => _RejectingRef(code);
+  Reference ref([String? path]) {
+    paths.add(path);
+    return _RejectingRef(code);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -81,6 +142,40 @@ class _RejectingRef implements Reference {
   UploadTask putData(Uint8List data, [SettableMetadata? metadata]) {
     throw FirebaseException(plugin: 'firebase_storage', code: code);
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// [FirebaseStorage] que entende `gs://b/{path}` e registra o que foi apagado.
+class _DeletingStorage implements FirebaseStorage {
+  final deleted = <String>[];
+
+  @override
+  Reference refFromURL(String url) {
+    if (!url.startsWith('gs://b/')) {
+      throw ArgumentError('URL externa');
+    }
+    return _DeletingRef(this, url.substring('gs://b/'.length));
+  }
+
+  @override
+  Reference ref([String? path]) => _DeletingRef(this, path ?? '');
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _DeletingRef implements Reference {
+  _DeletingRef(this.storage, this.fullPath);
+
+  final _DeletingStorage storage;
+
+  @override
+  final String fullPath;
+
+  @override
+  Future<void> delete() async => storage.deleted.add(fullPath);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

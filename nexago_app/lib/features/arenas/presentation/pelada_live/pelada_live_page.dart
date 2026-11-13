@@ -1209,35 +1209,40 @@ class _FinishSheet extends StatelessWidget {
     final colors = context.themeColors;
     final m = session.match;
     final winnerSide = m.winner ?? LiveSide.a;
-    final winner = winnerSide == LiveSide.a ? session.teamOnA : session.teamOnB;
+    final loserSide = winnerSide == LiveSide.a ? LiveSide.b : LiveSide.a;
+    ResultTeam? teamOf(LiveSide side) =>
+        side == LiveSide.a ? session.teamOnA : session.teamOnB;
+    final winner = teamOf(winnerSide);
+    final loser = teamOf(loserSide);
     final scores = m.toScores();
     final rotation = session.isRotation;
     final setsMode = session.rules.usesSets && scores.length > 1;
     final ws = m.setsWon;
-    final line = setsMode
-        ? (winnerSide == LiveSide.a ? '${ws.a}–${ws.b}' : '${ws.b}–${ws.a}')
-        : (winnerSide == LiveSide.a
-            ? '${m.current.a}–${m.current.b}'
-            : '${m.current.b}–${m.current.a}');
-    final players = winner?.players.length ?? 2;
-    final verb = rotation
-        ? (players == 1 ? 'ganhou' : 'ganharam')
-        : (players == 1 ? 'venceu' : 'venceram');
-    // Rascunho reaberto do zero (sem placar) ainda mostra a folha: evita
-    // "venceram 0–0".
-    final title = scores.isEmpty
-        ? 'Fim de jogo'
-        : '${winner?.name ?? 'Time'} $verb $line';
+    int scoreOf(LiveSide side) => setsMode
+        ? (side == LiveSide.a ? ws.a : ws.b)
+        : (side == LiveSide.a ? m.current.a : m.current.b);
+    // Sets do ponto de vista de quem venceu: "21–18 · 17–21 · 15–12".
+    final setsLine = [
+      for (final x in scores)
+        winnerSide == LiveSide.a ? '${x.a}–${x.b}' : '${x.b}–${x.a}',
+    ].join(' · ');
+    final accent = rotation ? colors.pending : colors.win;
 
     // Próximo jogo (rei da quadra) ou mais um set/partida (dois times).
     final after = session.nextGame(now: DateTime.now());
+    final stays =
+        after.teamOnA?.id == winner?.id ? after.teamOnA : after.teamOnB;
+    final enters =
+        after.teamOnA?.id == winner?.id ? after.teamOnB : after.teamOnA;
     final nextLabel = rotation
-        ? 'Próximo jogo · ${after.teamOnA?.name} × ${after.teamOnB?.name}'
+        ? 'Começar o jogo ${after.gameNumber}'
         : (session.rules.usesSets
             ? (session.rules.bestOf > 1
                 ? 'Jogar outra partida'
                 : 'Jogar mais um set')
             : 'Jogar mais um jogo');
+    final games = session.gamesCount;
+    final gamesLabel = games == 1 ? '1 jogo' : '$games jogos';
 
     return SafeArea(
       top: false,
@@ -1260,98 +1265,70 @@ class _FinishSheet extends StatelessWidget {
             const SizedBox(height: 14),
             Row(
               children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: (rotation ? colors.pending : colors.win)
-                        .withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: (rotation ? colors.pending : colors.win)
-                          .withValues(alpha: 0.45),
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.emoji_events_outlined,
-                    color: rotation ? colors.pending : colors.win,
-                    size: 26,
-                  ),
+                PeladaLivePill(
+                  rotation ? 'fica na quadra' : 'fim de jogo',
+                  color: accent,
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      PeladaLivePill(
-                        rotation ? 'fica na quadra' : 'fim de jogo',
-                        color: rotation ? colors.pending : colors.win,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        title,
-                        key: const Key('pelada-live-finish-title'),
-                        style: AppTypography.soraRegular(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
-                          color: colors.onSurface,
-                        ),
-                      ),
-                    ],
+                const Spacer(),
+                Text(
+                  (rotation || !session.rules.usesSets
+                          ? 'jogo ${session.gameNumber}'
+                          : 'partida')
+                      .toUpperCase(),
+                  style: AppTypography.mono(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 1.4,
+                    color: colors.onSurface.withValues(alpha: 0.5),
                   ),
                 ),
               ],
             ),
-            if (setsMode) ...[
-              const SizedBox(height: 14),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                decoration: BoxDecoration(
-                  color: colors.surfaceCard,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                      color: colors.onSurface.withValues(alpha: 0.08)),
-                ),
-                child: Column(
-                  children: [
-                    for (final (i, s) in scores.indexed) ...[
-                      if (i > 0)
-                        Divider(
-                            height: 1,
-                            color: colors.onSurface.withValues(alpha: 0.06)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 9),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 52,
-                              child: Text(
-                                'SET ${i + 1}',
-                                style: AppTypography.mono(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                  letterSpacing: 1,
-                                  color:
-                                      colors.onSurface.withValues(alpha: 0.6),
-                                ),
-                              ),
-                            ),
-                            Text(
-                              '${s.a}–${s.b}',
-                              style: AppTypography.mono(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: colors.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+            const SizedBox(height: 12),
+            // O placar do jogo: avatares, nome inteiro e o número grande.
+            Container(
+              key: const Key('pelada-live-finish-result'),
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: colors.surfaceCard,
+                borderRadius: BorderRadius.circular(18),
+                border:
+                    Border.all(color: colors.onSurface.withValues(alpha: 0.08)),
+              ),
+              child: Column(
+                children: [
+                  _FinishTeamRow(
+                    key: const Key('pelada-live-finish-winner'),
+                    team: winner,
+                    score: scores.isEmpty ? null : scoreOf(winnerSide),
+                    won: scores.isNotEmpty,
+                    accent: accent,
+                    caption: rotation
+                        ? 'fica na quadra'
+                        : (setsMode ? setsLine : null),
+                  ),
+                  Divider(
+                    height: 1,
+                    color: colors.onSurface.withValues(alpha: 0.06),
+                  ),
+                  _FinishTeamRow(
+                    key: const Key('pelada-live-finish-loser'),
+                    team: loser,
+                    score: scores.isEmpty ? null : scoreOf(loserSide),
+                    won: false,
+                    accent: accent,
+                    caption: rotation ? 'vai para o fim da fila' : null,
+                  ),
+                ],
+              ),
+            ),
+            if (rotation) ...[
+              const SizedBox(height: 10),
+              _NextGameCard(
+                gameNumber: after.gameNumber,
+                stays: stays,
+                enters: enters,
+                queue: after.queue,
               ),
             ],
             const SizedBox(height: 12),
@@ -1360,7 +1337,7 @@ class _FinishSheet extends StatelessWidget {
                   ? 'Só quem reservou envia o placar. Este vai para a arte '
                       'do story.'
                   : rotation
-                      ? 'Siga com o próximo jogo ou encerre e envie todos.'
+                      ? 'Siga com o próximo jogo ou encerre e envie o placar.'
                       : sendNote ??
                           'Ao enviar, os outros jogadores recebem para '
                               'confirmar. Sem contestação em 48h, confirma '
@@ -1390,8 +1367,8 @@ class _FinishSheet extends StatelessWidget {
                 context,
                 key: const Key('pelada-live-end'),
                 label: sendLabel != null
-                    ? 'Encerrar e enviar · ${session.gamesCount} jogos'
-                    : 'Encerrar e usar no placar · ${session.gamesCount} jogos',
+                    ? 'Encerrar e enviar · $gamesLabel'
+                    : 'Encerrar e usar no placar · $gamesLabel',
                 action: sendLabel != null
                     ? _FinishAction.send
                     : _FinishAction.review,
@@ -1433,6 +1410,238 @@ class _FinishSheet extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Uma linha do placar do fim de jogo: avatares, nome inteiro do time (até
+/// duas linhas), o que acontece com ele e o número. Quem perdeu fica apagado.
+class _FinishTeamRow extends StatelessWidget {
+  const _FinishTeamRow({
+    super.key,
+    required this.team,
+    required this.score,
+    required this.won,
+    required this.accent,
+    this.caption,
+  });
+
+  final ResultTeam? team;
+  final int? score;
+  final bool won;
+  final Color accent;
+  final String? caption;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final ink = colors.onSurface.withValues(alpha: won ? 1 : 0.62);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
+      decoration: won
+          ? BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  accent.withValues(alpha: 0.12),
+                  accent.withValues(alpha: 0),
+                ],
+                stops: const [0, 0.75],
+              ),
+            )
+          : null,
+      child: Row(
+        children: [
+          Opacity(
+            opacity: won ? 1 : 0.7,
+            child: ResultTeamAvatars(
+              players: team?.players ?? const [],
+              size: 32,
+              borderColor: colors.surfaceCard,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(text: team?.name ?? 'Time'),
+                      if (won)
+                        WidgetSpan(
+                          alignment: PlaceholderAlignment.middle,
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.emoji_events_rounded,
+                                  size: 13,
+                                  color: accent,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'VENCEU',
+                                  style: AppTypography.mono(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.2,
+                                    color: accent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.soraRegular(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                    color: ink,
+                  ),
+                ),
+                if (caption != null && caption!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    caption!,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: colors.onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (score != null) ...[
+            const SizedBox(width: 10),
+            Text(
+              '$score',
+              style: AppTypography.mono(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1,
+                color: won ? accent : ink,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Rei da quadra: quem fica × quem entra, frente a frente, e a fila depois.
+class _NextGameCard extends StatelessWidget {
+  const _NextGameCard({
+    required this.gameNumber,
+    required this.stays,
+    required this.enters,
+    required this.queue,
+  });
+
+  final int gameNumber;
+  final ResultTeam? stays;
+  final ResultTeam? enters;
+  final List<ResultTeam> queue;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final label = AppTypography.mono(
+      fontSize: 9.5,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 1.5,
+      color: colors.brandText,
+    );
+    Widget side(ResultTeam? t, String role) => Expanded(
+          child: Column(
+            children: [
+              ResultTeamAvatars(
+                players: t?.players ?? const [],
+                size: 34,
+                borderColor: colors.surfaceSheet,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                t?.name ?? 'Time',
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.soraRegular(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  height: 1.25,
+                  color: colors.onSurface,
+                ),
+              ),
+              Text(
+                role,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colors.onSurface.withValues(alpha: 0.55),
+                ),
+              ),
+            ],
+          ),
+        );
+    return Container(
+      key: const Key('pelada-live-finish-next'),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: AppColors.brand.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text('PRÓXIMO JOGO', style: label),
+              const Spacer(),
+              Text('JOGO $gameNumber', style: label),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              side(stays, 'fica'),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                child: Text(
+                  '×',
+                  style: AppTypography.soraRegular(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: colors.onSurface.withValues(alpha: 0.45),
+                  ),
+                ),
+              ),
+              side(enters, 'entra'),
+            ],
+          ),
+          if (queue.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Fila depois: ${[for (final t in queue) t.name].join(' → ')}',
+              key: const Key('pelada-live-finish-queue'),
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.4,
+                color: colors.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

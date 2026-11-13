@@ -372,6 +372,13 @@ void main() {
       expect(find.textContaining('avulso'), findsNothing);
       await tester.tap(find.byKey(const Key('lancar-assign-u5-2')));
       await tester.pump();
+      // Escolher limpa a busca: a próxima pessoa é outra busca.
+      await tester.enterText(
+        find.byKey(const Key('lancar-placar-search')),
+        'Car',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('lancar-assign-u6-2')));
       await tester.pump();
       expect(_teamCount(tester, 2), '2');
@@ -462,6 +469,13 @@ void main() {
     await tester.tap(find.byKey(const Key('lancar-assign-u7-0')));
     await tester.pump();
     expect(_teamCount(tester, 0), '3');
+    // Escolheu: a busca limpa e quem entrou fica na lista da reserva.
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('lancar-placar-search')),
+    );
+    expect(field.controller!.text, isEmpty);
+    expect(find.text('adicionado pela busca'), findsOneWidget);
+    expect(find.text('Gabi Rocha'), findsOneWidget);
   });
 
   testWidgets('renomear um time pelo menu vai para a arte', (

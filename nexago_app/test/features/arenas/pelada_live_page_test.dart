@@ -210,7 +210,19 @@ void main() {
     expect(find.text('GOL DE OURO'), findsWidgets);
     await tester.tap(find.byKey(const Key('pelada-live-half-b')));
     await tester.pumpAndSettle();
-    expect(find.text('Gui & Théo ganharam 1–0'), findsOneWidget);
+    // Placar com quem venceu (e o número), quem fica × quem entra e a fila.
+    final winner = find.byKey(const Key('pelada-live-finish-winner'));
+    expect(
+      find.descendant(of: winner, matching: find.textContaining('Gui & Théo')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: winner, matching: find.text('1')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('pelada-live-finish-next')), findsOneWidget);
+    expect(find.text('Começar o jogo 2'), findsOneWidget);
+    expect(find.text('Encerrar e usar no placar · 1 jogo'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('pelada-live-next')));
     await tester.pumpAndSettle();

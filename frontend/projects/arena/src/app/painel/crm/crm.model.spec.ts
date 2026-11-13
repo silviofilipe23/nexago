@@ -5,6 +5,8 @@ import {
   contractSummary,
   customerInsight,
   customersCsv,
+  gamesSummary,
+  monthGames,
   followUpLine,
   formatPhone,
   installmentStrip,
@@ -145,7 +147,15 @@ describe('crm.model', () => {
 
   it('CSV com separador ; e texto entre aspas quando precisa', () => {
     const csv = customersCsv([customer({ name: 'Moura; Rafael' })]).split('\n');
-    expect(csv[0]).toBe('Cliente;Telefone;Status;Plano;Período;Vencimento;Mensal;Horas/semana (contrato);Horas/semana (jogadas);Reservas 6 meses;Último jogo');
-    expect(csv[1]).toBe('"Moura; Rafael";(62) 9 8241-5530;Ativo;Noite 2x;Mensal;dia 5;260,00;2;2;48;09/11/26');
+    expect(csv[0]).toBe('Cliente;Telefone;Status;Plano;Período;Vencimento;Mensal;Horas/semana (contrato);Horas/semana (jogadas);Reservas 6 meses;Jogos como convidado 6 meses;Último jogo');
+    expect(csv[1]).toBe('"Moura; Rafael";(62) 9 8241-5530;Ativo;Noite 2x;Mensal;dia 5;260,00;2;2;48;0;09/11/26');
+  });
+
+  it('quem jogou na reserva de outra pessoa: jogos do mês e resumo', () => {
+    expect(monthGames({ month: '2026-11', total: 2, plan: 1, avulso: 1, avulsoReais: 50, played: 3 })).toBe(5);
+    expect(monthGames({ month: '2026-11', total: 2, plan: 1, avulso: 1, avulsoReais: 50 })).toBe(2);
+    expect(gamesSummary({ bookings6m: 7, played6m: 2 })).toBe('7 reservas e 2 jogos como convidado em 6 meses');
+    expect(gamesSummary({ bookings6m: 0, played6m: 1 })).toBe('1 jogo como convidado em 6 meses');
+    expect(gamesSummary({ bookings6m: 1 })).toBe('1 reserva em 6 meses');
   });
 });

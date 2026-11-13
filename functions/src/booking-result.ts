@@ -214,6 +214,19 @@ export function bookingResultPlayers(
   return out;
 }
 
+/**
+ * O que `saveBookingResult` grava na reserva: a lista com nomes e os uids à parte, porque o
+ * Firestore não consulta `array-contains` em lista de objetos (a ficha do cliente no CRM da
+ * arena busca as reservas em que o atleta jogou por `resultPlayerUids`).
+ */
+export function bookingResultPlayersPatch(
+  teams: {players: {id: string; name: string; avatarUrl: string | null}[]}[],
+  ownerUid: string,
+): {resultPlayers: BookingResultPlayer[]; resultPlayerUids: string[]} {
+  const resultPlayers = bookingResultPlayers(teams, ownerUid);
+  return {resultPlayers, resultPlayerUids: resultPlayers.map((p) => p.uid)};
+}
+
 /** Dois times = sets entre duplas; três ou mais = rei da quadra (quem vence fica). */
 export function resultFormat(teamCount: number): BookingResultFormat {
   return teamCount > 2 ? "king_of_court" : "duo_vs_duo";

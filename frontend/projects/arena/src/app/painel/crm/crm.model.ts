@@ -55,10 +55,18 @@ export interface CrmOnlineLink {
 
 export interface CrmMonth {
   month: string;
+  /** Reservas dele (plano + avulso). */
   total: number;
   plan: number;
   avulso: number;
   avulsoReais: number;
+  /** Jogos na reserva de outra pessoa (convite ou placar). Ausente em backend antigo. */
+  played?: number;
+}
+
+/** Jogos do mês: as reservas dele e as de outras pessoas em que jogou. */
+export function monthGames(m: CrmMonth): number {
+  return m.total + (m.played ?? 0);
 }
 
 export interface CrmPatternSlot {
@@ -101,6 +109,8 @@ export interface CrmCustomer {
   contract: CrmContractView | null;
   months: CrmMonth[];
   bookings6m: number;
+  /** Jogos na reserva de outra pessoa nos 6 meses (convite ou placar). */
+  played6m?: number;
   avulsoReais6m: number;
   firstDate: string | null;
   lastVisitDate: string | null;
@@ -220,7 +230,11 @@ export interface CrmCustomerDetail {
   contracts: Array<CrmContractView & { customerName: string; customerPhone: string | null; cancelReason: string | null }>;
   payments: CrmPayment[];
   contacts: CrmContact[];
-  recentBookings: Array<{ date: string; startTime: string; endTime: string; courtName: string; amountReais: number; plan: boolean; attendance: string }>;
+  recentBookings: Array<{
+    date: string; startTime: string; endTime: string; courtName: string; amountReais: number; plan: boolean; attendance: string;
+    /** Jogou na reserva de outra pessoa; `bookedBy` = quem reservou. */
+    guest?: boolean; bookedBy?: string | null;
+  }>;
   reminders: Array<{ kind: ReminderKind; sentAt: string; title: string; body: string }>;
 }
 
@@ -563,7 +577,7 @@ function csvCell(v: string | number | null | undefined): string {
 
 /** CSV (separador `;`, como o Excel em pt-BR abre) da lista filtrada. */
 export function customersCsv(customers: readonly CrmCustomer[]): string {
-  const head = ['Cliente', 'Telefone', 'Status', 'Plano', 'Período', 'Vencimento', 'Mensal', 'Horas/semana (contrato)', 'Horas/semana (jogadas)', 'Reservas 6 meses', 'Último jogo'];
+  const head = ['Cliente', 'Telefone', 'Status', 'Plano', 'Período', 'Vencimento', 'Mensal', 'Horas/semana (contrato)', 'Horas/semana (jogadas)', 'Reservas 6 meses', 'Jogos como convidado 6 meses', 'Último jogo'];
   const lines = customers.map((c) => [
     c.name,
     formatPhone(c.phone) ?? '',
@@ -575,6 +589,7 @@ export function customersCsv(customers: readonly CrmCustomer[]): string {
     c.contract ? c.contract.weeklyHours.toString().replace('.', ',') : '',
     (c.hoursPerWeek ?? 0).toString().replace('.', ','),
     c.bookings6m,
+    c.played6m ?? 0,
     c.lastVisitDate ? shortDate(c.lastVisitDate) : '',
   ].map(csvCell).join(';'));
   return [head.join(';'), ...lines].join('\n');
@@ -661,4 +676,13 @@ export function cacheLabel(builtAt: string | null | undefined): string {
   const d = new Date(builtAt);
   if (Number.isNaN(d.getTime())) return '';
   return `reservas de ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+/** "7 reservas · 2 jogos como convidado" — o resumo de jogos dos 6 meses. */
+export function gamesSummary(c: Pick<CrmCustomer, 'bookings6m' | 'played6m'>): string {
+  const played = c.played6m ?? 0;
+  const own = c.bookings6m === 1 ? '1 reserva' : `${c.bookings6m} reservas`;
+  if (!played) return `${own} em 6 meses`;
+  const guest = played === 1 ? '1 jogo como convidado' : `${played} jogos como convidado`;
+  return c.bookings6m ? `${own} e ${guest} em 6 meses` : `${guest} em 6 meses`;
 }

@@ -16,6 +16,17 @@ Layout: canvas do Claude Design "NexaGO", página **Arena**, seção **CRM da ar
 Cliente = atleta do app (`a:<uid>`) ou cliente só com nome (`n:<nome normalizado>`, sem acento e
 caixa). Reserva de aula, clubinho, torneio e reserva feita como professor ficam de fora.
 
+**Quem jogou também é cliente.** O atleta que jogou na reserva de outra pessoa, por convite
+(`participants`) ou pelo placar do pós-jogo (`resultPlayers`), entra na base mesmo sem nunca ter
+reservado. Só atleta com conta (uid); quem reservou não conta duas vezes. Esse jogo conta como
+**visita** (primeira e última visita, frequência, "mensalista sumido") e aparece à parte
+(`months[].played`, `played6m`, "jogos como convidado"). **Não** conta receita, horas do banco de
+horas nem a oferta de plano: isso é de quem reservou e pagou. Falta na reserva (`no_show`) = ninguém
+veio. A ficha do cliente lista essas reservas com `guest: true`, o nome de quem reservou e valor 0;
+as do placar são achadas por `arenaBookings.resultPlayerUids` (espelho dos uids que
+`saveBookingResult` grava junto de `resultPlayers`; backfill em
+`functions/scripts/backfill-booking-result-players.js`).
+
 ## Contrato
 
 - **Plano**: livre ou um dos Planos de horário (sugere preço e horas: vezes × duração do plano).

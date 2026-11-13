@@ -336,6 +336,8 @@ describe("saveBookingResultCore", () => {
       {uid: "rafael", name: "Rafael T."},
       {uid: "bia", name: "Bia"},
     ]);
+    // Os uids à parte: o CRM da arena consulta por `array-contains`.
+    assert.deepEqual(booking["resultPlayerUids"], ["enzo", "rafael", "bia"]);
     // Convite continua sendo a lista do convite: o placar não ocupa vaga nem vira convidado.
     assert.deepEqual(booking["participantUids"], ["enzo"]);
     assert.equal(booking["confirmedParticipants"], 2);
@@ -351,6 +353,7 @@ describe("saveBookingResultCore", () => {
       (fake.store.get("arenaBookings/bk1")!["resultPlayers"] as {uid: string}[]).map((p) => p.uid),
       ["enzo", "rafael", "zé"],
     );
+    assert.deepEqual(fake.store.get("arenaBookings/bk1")!["resultPlayerUids"], ["enzo", "rafael", "zé"]);
   });
 });
 

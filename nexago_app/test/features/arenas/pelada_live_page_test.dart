@@ -186,6 +186,41 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('vôlei de praia: "Troquem de lado" fica até o próximo ponto',
+      (tester) async {
+    _phone(tester);
+    final session = PeladaLiveSession.start(
+      _two(),
+      PeladaLiveRules.forSport('beachVolleyball'),
+      now: DateTime(2026, 11, 12),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: PeladaLivePage(
+          session: session,
+          store: _MemoryStore(),
+          draftKey: 'b1',
+          keepAwake: false,
+        ),
+      ),
+    );
+    final a = find.byKey(const Key('pelada-live-half-a'));
+    // 7 pontos somados no set de 21: troca de lado.
+    await _tapN(tester, a, 7);
+    expect(find.text('Troquem de lado'), findsOneWidget);
+
+    // Sem prazo: a troca leva o tempo que levar.
+    await tester.pump(const Duration(seconds: 30));
+    expect(find.text('Troquem de lado'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('pelada-live-half-b')));
+    await tester.pump();
+    expect(find.text('Troquem de lado'), findsNothing);
+    expect(_score(tester, LiveSide.b), '1');
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('basquete 3x3: botões +1 e +2, sem tocar na metade',
       (tester) async {
     _phone(tester);

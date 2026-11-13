@@ -67,6 +67,12 @@ class BookingResultCard extends StatelessWidget {
     final showDuration =
         infos.contains(BookingResultInfo.duration) && art.duration.isNotEmpty;
     final showPlace = infos.contains(BookingResultInfo.arenaDate);
+    final showScore = infos.contains(BookingResultInfo.score);
+    // Placar de cada jogo: em colunas ao lado dos nomes (dois times, até 5
+    // sets) ou numa grade abaixo (rei da quadra, ou sets demais).
+    final showGames = infos.contains(BookingResultInfo.sets) &&
+        result.games.any((g) => g.scoreA > 0 || g.scoreB > 0);
+    final gamesInGrid = showGames && bookingResultGamesInGrid(result);
 
     final blocks = <Widget>[
       Text(
@@ -79,15 +85,22 @@ class BookingResultCard extends StatelessWidget {
           color: ink,
         ),
       ),
-      if (infos.contains(BookingResultInfo.score))
+      if (showScore)
         _ScoreRows(
           result: result,
-          showSets:
-              infos.contains(BookingResultInfo.sets) && !result.isRotation,
+          showSets: showGames && !gamesInGrid,
           light: light,
           ink: ink,
           sub: sub,
           accent: accent,
+        ),
+      if (gamesInGrid)
+        _GamesGrid(
+          result: result,
+          maxGames: bookingResultGridMax(result, withStandings: showScore),
+          light: light,
+          ink: ink,
+          sub: sub,
         ),
       if (showDuration || showPlace)
         Container(
@@ -235,6 +248,178 @@ class _ScoreRows extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Os placares vão para a grade abaixo dos times (e não em colunas ao lado
+/// dos nomes): rei da quadra, ou mais sets do que cabem.
+bool bookingResultGamesInGrid(BookingResult result) =>
+    result.isRotation || result.games.length > BookingResultCard.maxSetColumns;
+
+/// Quantos jogos a grade mostra; o resto vira "+N no app". Rei da quadra: 2
+/// por linha, 3 linhas (2 com 4 times na classificação, para caber). Sets:
+/// 4 por linha, 2 linhas.
+int bookingResultGridMax(BookingResult result, {required bool withStandings}) {
+  if (!result.isRotation) return 8;
+  final standingRows = withStandings
+      ? result.teams.length.clamp(0, BookingResultCard.maxStandingRows)
+      : 0;
+  return standingRows >= BookingResultCard.maxStandingRows ? 4 : 6;
+}
+
+/// Canvas "Pelada · placares dos jogos no card" (14 e 15): cada jogo do rei
+/// da quadra com os rostos dos dois times e o placar, ou cada set em "S1
+/// 21–18" (placar do time de cima primeiro). Vencedor em destaque.
+class _GamesGrid extends StatelessWidget {
+  const _GamesGrid({
+    required this.result,
+    required this.maxGames,
+    required this.light,
+    required this.ink,
+    required this.sub,
+  });
+
+  final BookingResult result;
+  final int maxGames;
+  final bool light;
+  final Color ink;
+  final Color sub;
+
+  @override
+  Widget build(BuildContext context) {
+    final rotation = result.isRotation;
+    final games = [
+      for (final g in result.games)
+        if (g.scoreA > 0 || g.scoreB > 0) g,
+    ];
+    final shown = games.take(maxGames).toList();
+    final hidden = games.length - shown.length;
+    final columns = rotation ? 2 : 4;
+    const gap = 6.0;
+    final unit = rotation ? 'jogo' : 'set';
+    final chipFill =
+        light ? const Color(0x14140A03) : Colors.white.withValues(alpha: 0.07);
+    final chipLine =
+        light ? const Color(0x24140A03) : Colors.white.withValues(alpha: 0.10);
+    final avatarBorder =
+        light ? const Color(0xFFD8B686) : const Color(0xFF141417);
+    final firstTeam = result.teams.first.id;
+
+    Widget score(int a, int b, {required bool aWon}) => Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: '$a',
+                style: TextStyle(
+                  fontWeight: aWon ? FontWeight.w800 : FontWeight.w500,
+                  color: aWon ? ink : sub,
+                ),
+              ),
+              TextSpan(text: '–', style: TextStyle(color: sub)),
+              TextSpan(
+                text: '$b',
+                style: TextStyle(
+                  fontWeight: aWon ? FontWeight.w500 : FontWeight.w800,
+                  color: aWon ? sub : ink,
+                ),
+              ),
+            ],
+          ),
+          style: AppTypography.mono(fontSize: 12, fontWeight: FontWeight.w500),
+        );
+
+    Widget tag(String text) => Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: Text(
+            text,
+            style: AppTypography.mono(
+              fontSize: 8.5,
+              fontWeight: FontWeight.w500,
+              color: sub,
+            ),
+          ),
+        );
+
+    Widget chip(int index, ResultGame g) {
+      final List<Widget> content;
+      if (rotation) {
+        final aWon = g.winner == g.teamA;
+        Widget faces(int teamId, bool lost) => Opacity(
+              opacity: lost ? 0.55 : 1,
+              child: ResultTeamAvatars(
+                players: result.teamById(teamId)?.players ?? const [],
+                size: 14,
+                borderColor: avatarBorder,
+              ),
+            );
+        content = [
+          tag('J${index + 1}'),
+          faces(g.teamA, !aWon),
+          const SizedBox(width: 6),
+          score(g.scoreA, g.scoreB, aWon: aWon),
+          const SizedBox(width: 6),
+          faces(g.teamB, aWon),
+        ];
+      } else {
+        final top = g.teamA == firstTeam;
+        final a = top ? g.scoreA : g.scoreB;
+        final b = top ? g.scoreB : g.scoreA;
+        content = [tag('S${index + 1}'), score(a, b, aWon: a > b)];
+      }
+      return Container(
+        height: 26,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        decoration: BoxDecoration(
+          color: chipFill,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: chipLine),
+        ),
+        alignment: Alignment.center,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(mainAxisSize: MainAxisSize.min, children: content),
+        ),
+      );
+    }
+
+    final label = AppTypography.mono(
+      fontSize: 8.5,
+      fontWeight: FontWeight.w500,
+      letterSpacing: 1.3,
+      color: sub,
+    );
+    return Column(
+      key: const Key('booking-result-games-grid'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${rotation ? 'JOGOS' : 'SETS'} · ${games.length}',
+          style: label,
+        ),
+        const SizedBox(height: 6),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width =
+                (constraints.maxWidth - gap * (columns - 1)) / columns;
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                for (final (i, g) in shown.indexed)
+                  SizedBox(width: width, child: chip(i, g)),
+              ],
+            );
+          },
+        ),
+        if (hidden > 0) ...[
+          const SizedBox(height: 5),
+          Text(
+            '+$hidden ${hidden == 1 ? unit : '${unit}s'} no app',
+            style: label.copyWith(letterSpacing: 0.4),
           ),
         ],
       ],

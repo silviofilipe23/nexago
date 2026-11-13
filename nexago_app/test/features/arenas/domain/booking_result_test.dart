@@ -89,6 +89,25 @@ void main() {
       expect((r.games.last.teamA, r.games.last.teamB), (2, 1));
     });
 
+    test(
+        'fila de verdade: quem perdeu vai para o fim, depois de quem nem jogou',
+        () {
+      // A, B, C, D. Jogo 1: A vence B. Jogo 2: C vence A.
+      final quatro = rotacao().addTeam([p('u7', 'Duda'), p('u8', 'Teo')]);
+      var r = quatro.addGame();
+      expect((r.games.last.teamA, r.games.last.teamB), (0, 2));
+      r = r.updateGame(1, r.games[1].copyWith(scoreA: 10, scoreB: 15));
+      // Entra D (nunca jogou), não B (acabou de perder).
+      r = r.addGame();
+      expect((r.games.last.teamA, r.games.last.teamB), (2, 3));
+      expect([
+        for (final t in r.rotationQueue(onCourt: {2, 3})) t.id
+      ], [
+        1,
+        0
+      ]);
+    });
+
     test('classificação: vitórias, depois saldo', () {
       var r = rotacao().addGame();
       r = r.updateGame(1, r.games[1].copyWith(scoreA: 13, scoreB: 15));

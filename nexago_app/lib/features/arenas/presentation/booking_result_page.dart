@@ -19,9 +19,17 @@ import 'widgets/booking_story/booking_social_locked_view.dart';
 import 'widgets/booking_story/booking_story_editor.dart';
 
 /// Abre o pós-jogo por cima de tudo (fora do shell com a barra).
-Future<void> openBookingResult(BuildContext context, BookingStoryArgs args) {
+/// [startLive]: o "Marcar ao vivo" da Agenda — abre o Editar placar já
+/// seguindo para o placar ao vivo (regras ou "Continuar").
+Future<void> openBookingResult(
+  BuildContext context,
+  BookingStoryArgs args, {
+  bool startLive = false,
+}) {
   return Navigator.of(context, rootNavigator: true).push(
-    MaterialPageRoute<void>(builder: (_) => BookingResultPage(args: args)),
+    MaterialPageRoute<void>(
+      builder: (_) => BookingResultPage(args: args, startLive: startLive),
+    ),
   );
 }
 
@@ -35,9 +43,14 @@ class BookingResultPage extends ConsumerStatefulWidget {
     required this.args,
     this.presetResult,
     this.presetSport,
+    this.startLive = false,
   });
 
   final BookingStoryArgs args;
+
+  /// Abre direto no placar ao vivo assim que a reserva, o perfil e o placar
+  /// salvo carregam.
+  final bool startLive;
 
   /// "Compartilhar resultado" do detalhe da pelada: só a arte deste placar,
   /// sem editar (serve também a quem não está nele).
@@ -56,6 +69,9 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
   BookingResult? _edited;
   final Set<BookingResultInfo> _hidden = {};
 
+  /// O "Marcar ao vivo" da Agenda já abriu (uma vez só).
+  bool _liveLaunched = false;
+
   void _toggleInfo(BookingResultInfo info) {
     setState(() {
       if (!_hidden.remove(info)) _hidden.add(info);
@@ -68,6 +84,7 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
     String? ownerId, {
     required bool canSave,
     bool resave = false,
+    bool startLive = false,
   }) async {
     final bookingId = widget.args.bookingId.trim();
     final repository = ref.read(bookingResultRepositoryProvider);
@@ -77,6 +94,7 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
           initial: result,
           candidates: crew,
           ownerPlayerId: ownerId,
+          autoStartLive: startLive,
           sport: widget.presetSport ??
               ref
                   .read(bookingStorySourceProvider(widget.args.bookingId))
@@ -170,6 +188,24 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
       for (final info in available)
         if (!_hidden.contains(info)) info,
     };
+    // "Marcar ao vivo" da Agenda: espera a galera e o placar salvo para os
+    // times saírem certos, e abre o Editar placar já indo para o ao vivo.
+    final ready = ref.watch(myBookingResultsLoadedProvider) &&
+        ref.watch(athleteProfileProvider).hasValue;
+    if (widget.startLive && !_liveLaunched && !shareOnly && ready) {
+      _liveLaunched = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _editScore(
+          result,
+          crew,
+          ownerId,
+          canSave: canSave,
+          resave: saved != null,
+          startLive: true,
+        );
+      });
+    }
     void edit() {
       if (shareOnly) return;
       _editScore(

@@ -136,11 +136,33 @@ void main() {
     );
 
     expect(find.byKey(const Key('agenda-booking-story-b1')), findsNothing);
+    // Jogo encerrado: sem "Marcar ao vivo".
+    expect(find.byKey(const Key('agenda-booking-live-b1')), findsNothing);
     await tester.tap(find.byKey(const Key('agenda-booking-result-b1')));
     await tester.pumpAndSettle();
 
     expect(find.byType(BookingResultPage), findsOneWidget);
     expect(find.text('Pós-jogo'), findsOneWidget);
+  });
+
+  testWidgets(
+      'aluguel em andamento: "Marcar ao vivo" abre o pós-jogo indo direto '
+      'para o placar ao vivo', (tester) async {
+    await abrirAgenda(
+      tester,
+      aluguel(status: 'confirmed', stage: AthleteAgendaBookingStage.current),
+    );
+
+    expect(find.byKey(const Key('agenda-booking-result-b1')), findsOneWidget);
+    expect(find.text('Marcar ao vivo'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('agenda-booking-live-b1')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    final page = tester.widget<BookingResultPage>(
+      find.byType(BookingResultPage),
+    );
+    expect(page.startLive, isTrue);
   });
 
   testWidgets('aluguel passado cancelado: sem pós-jogo', (tester) async {

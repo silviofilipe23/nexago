@@ -35,7 +35,11 @@ class BookingResultScorePage extends StatefulWidget {
     this.sport,
     this.bookingId = '',
     this.liveStore,
+    this.autoStartLive = false,
   });
+
+  /// Abre o "Marcar ao vivo" assim que a tela aparece (vindo da Agenda).
+  final bool autoStartLive;
 
   final BookingResult initial;
 
@@ -85,12 +89,14 @@ class _BookingResultScorePageState extends State<BookingResultScorePage> {
   @override
   void initState() {
     super.initState();
-    _loadDraft();
+    _loadDraft(open: widget.autoStartLive);
   }
 
-  Future<void> _loadDraft() async {
+  Future<void> _loadDraft({bool open = false}) async {
     final draft = await _liveStore.load(_draftKey);
-    if (mounted) setState(() => _draft = draft);
+    if (!mounted) return;
+    setState(() => _draft = draft);
+    if (open) await _openLive();
   }
 
   String? get _sportLabel => SportCatalog.labelOf(widget.sport);

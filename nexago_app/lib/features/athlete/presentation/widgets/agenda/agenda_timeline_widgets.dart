@@ -619,11 +619,60 @@ class _RentalCard extends ConsumerWidget {
               ],
               if (showResult) ...[
                 const SizedBox(height: 14),
-                _ShareActionButton(
-                  key: Key('agenda-booking-result-${rental.bookingId}'),
-                  icon: Icons.scoreboard_outlined,
-                  label: 'Postar resultado',
-                  onPressed: () => openBookingResult(context, storyArgs),
+                Row(
+                  children: [
+                    // Durante o jogo: marcar ponto a ponto, direto.
+                    if (stage == AthleteAgendaBookingStage.current) ...[
+                      Expanded(
+                        flex: 5,
+                        child: FilledButton.icon(
+                          key: Key('agenda-booking-live-${rental.bookingId}'),
+                          onPressed: () => openBookingResult(
+                            context,
+                            storyArgs,
+                            startLive: true,
+                          ),
+                          icon: const Icon(
+                            Icons.scoreboard_outlined,
+                            size: 18,
+                            color: AppColors.black,
+                          ),
+                          label: const Text(
+                            'Marcar ao vivo',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: AppColors.black,
+                            ),
+                          ),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(44),
+                            backgroundColor: AppColors.brand,
+                            foregroundColor: AppColors.black,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      flex: 4,
+                      child: _ShareActionButton(
+                        key: Key('agenda-booking-result-${rental.bookingId}'),
+                        icon: Icons.emoji_events_outlined,
+                        label: 'Postar resultado',
+                        onPressed: () => openBookingResult(context, storyArgs),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ],

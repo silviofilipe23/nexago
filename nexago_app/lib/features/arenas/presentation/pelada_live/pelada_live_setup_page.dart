@@ -543,19 +543,33 @@ class _TeamsCard extends StatelessWidget {
                 ),
               ),
             ),
-          if (onSwap != null)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                key: const Key('pelada-live-swap'),
-                onPressed: onSwap,
-                icon: const Icon(Icons.swap_vert_rounded, size: 18),
-                label: const Text('Trocar lados'),
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            children: [
+              // Os times se montam no Editar placar, de onde esta tela abre.
+              TextButton.icon(
+                key: const Key('pelada-live-edit-teams'),
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.group_outlined, size: 18),
+                label: const Text('Ajustar times'),
                 style: TextButton.styleFrom(
                   foregroundColor: colors.brandText,
                 ),
               ),
-            ),
+              if (onSwap != null)
+                TextButton.icon(
+                  key: const Key('pelada-live-swap'),
+                  onPressed: onSwap,
+                  icon: const Icon(Icons.swap_vert_rounded, size: 18),
+                  label: const Text('Trocar lados'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.brandText,
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );

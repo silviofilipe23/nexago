@@ -31,6 +31,7 @@ import {
   type BoardTile,
 } from './capacity-hours';
 import { fetchCourtsRaw, watchArenaDaySlots } from './schedule-repository';
+import { ManualBookingModalComponent } from '../bookings/manual-booking-modal.component';
 import { DatePickerComponent } from '../ui/date-picker.component';
 import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
@@ -57,6 +58,7 @@ type HoursTab = 'Lista' | 'Quadro';
     IconComponent,
     ModalComponent,
     DatePickerComponent,
+    ManualBookingModalComponent,
   ],
   template: `
     <ar-panel-shell>
@@ -73,6 +75,16 @@ type HoursTab = 'Lista' | 'Quadro';
           <ar-date-picker [selected]="dateKey()" (dateChange)="onDateKeySelected($event)" />
           <button type="button" class="ar-ghost-btn nav-btn icon-btn" aria-label="Próximo dia" (click)="shiftDay(1)">
             <ar-icon name="chevron-right" [size]="14" />
+          </button>
+          <button
+            type="button"
+            class="ar-mini-btn ar-mini-btn-primary"
+            [disabled]="readOnly()"
+            [title]="readOnly() ? 'Seu cargo não permite criar reservas' : 'Criar reserva de balcão no horário selecionado'"
+            (click)="openManualBooking()"
+          >
+            <ar-icon name="plus" [size]="14" />
+            Nova reserva
           </button>
         </div>
       </ar-page-header>
@@ -309,6 +321,18 @@ type HoursTab = 'Lista' | 'Quadro';
           </div>
         </ar-modal>
       }
+
+      @if (manualBookingOpen()) {
+        <ar-manual-booking-modal
+          [arenaId]="arenaContext.arenaId() ?? ''"
+          [courts]="courts()"
+          [dateKey]="dateKey()"
+          [startTime]="manualStartTime()"
+          [endTime]="manualEndTime()"
+          (close)="manualBookingOpen.set(false)"
+          (created)="manualBookingOpen.set(false)"
+        />
+      }
     </ar-panel-shell>
   `,
   styles: `
@@ -435,7 +459,10 @@ export class PanelAgendaHoursComponent {
   protected readonly tab = signal<HoursTab>('Quadro');
 
   protected readonly loading = signal(true);
-  private readonly courts = signal<ArenaCourt[]>([]);
+  protected readonly manualBookingOpen = signal(false);
+  protected readonly manualStartTime = signal<string | null>(null);
+  protected readonly manualEndTime = signal<string | null>(null);
+  protected readonly courts = signal<ArenaCourt[]>([]);
   private readonly courtsRaw = signal<{ id: string; data: Record<string, unknown> }[] | null>(null);
   private readonly bookings = signal<ArenaBooking[]>([]);
   private readonly slots = signal<ArenaSlot[]>([]);
@@ -658,6 +685,15 @@ export class PanelAgendaHoursComponent {
     if (!y || !m || !d) return;
     this.selectedDate.set(new Date(y, m - 1, d));
     this.selectedHour.set(null);
+  }
+
+  /** Reserva de balcão já no dia e no horário selecionados; a quadra o gestor escolhe no modal. */
+  protected openManualBooking(): void {
+    if (this.readOnly()) return;
+    const hour = this.active();
+    this.manualStartTime.set(hour?.startTime ?? null);
+    this.manualEndTime.set(hour?.endTime ?? null);
+    this.manualBookingOpen.set(true);
   }
 
   // ── Definir / trocar quadra ───────────────────────────────────────────────

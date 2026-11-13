@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -24,6 +25,9 @@ import {
 import { resolveAthleteLabel, watchBookingsForArenaInRange } from './bookings-repository';
 import { bookingsListRange } from './bookings-window';
 import { fetchCourtsList } from '../courts/courts-repository';
+import type { ArenaCourt } from '../courts/court.model';
+import { IconComponent } from '../ui/icon.component';
+import { ManualBookingModalComponent } from './manual-booking-modal.component';
 
 const VIEW_MODES: ArenaBookingViewMode[] = ['today', 'tomorrow', 'upcoming', 'past'];
 
@@ -56,13 +60,31 @@ function tomorrowKey(): string {
 @Component({
   selector: 'ar-panel-bookings',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent],
+  imports: [
+    RouterLink,
+    PanelShellComponent,
+    PageHeaderComponent,
+    PanelCardComponent,
+    PillComponent,
+    IconComponent,
+    ManualBookingModalComponent,
+  ],
   template: `
     <ar-panel-shell>
       <ar-page-header title="Reservas" [subtitle]="headerSubtitle()">
         <a class="ar-ghost-btn" routerLink="/painel/agenda/cancelamento" title="O que o atleta recebe quando cancela no prazo">
           Política de cancelamento
         </a>
+        <button
+          type="button"
+          class="ar-mini-btn ar-mini-btn-primary"
+          [disabled]="readOnly()"
+          [title]="readOnly() ? 'Seu cargo não permite criar reservas' : 'Criar reserva de balcão'"
+          (click)="openManualBooking()"
+        >
+          <ar-icon name="plus" [size]="14" />
+          Nova reserva
+        </button>
       </ar-page-header>
 
       <div class="body">
@@ -176,6 +198,16 @@ function tomorrowKey(): string {
           </ar-panel-card>
         }
       </div>
+
+      @if (manualBookingOpen()) {
+        <ar-manual-booking-modal
+          [arenaId]="arenaContext.arenaId() ?? ''"
+          [courts]="courts()"
+          [dateKey]="manualDateKey()"
+          (close)="manualBookingOpen.set(false)"
+          (created)="manualBookingOpen.set(false)"
+        />
+      }
     </ar-panel-shell>
   `,
   styles: `
@@ -393,7 +425,13 @@ function tomorrowKey(): string {
 })
 export class PanelBookingsComponent {
   private readonly router = inject(Router);
-  private readonly arenaContext = inject(ArenaContextService);
+  protected readonly arenaContext = inject(ArenaContextService);
+  private readonly access = inject(ArenaAccessService);
+
+  protected readonly readOnly = computed(() => !this.access.canWrite('agenda'));
+  protected readonly courts = signal<ArenaCourt[]>([]);
+  protected readonly manualBookingOpen = signal(false);
+  protected readonly manualDateKey = signal('');
 
   protected readonly viewModes = VIEW_MODES;
   protected readonly modeLabel = BOOKING_VIEW_MODE_LABEL;
@@ -478,6 +516,7 @@ export class PanelBookingsComponent {
       this.loading.set(true);
       const db = arenaFirestore();
       void fetchCourtsList(db, arenaId).then((courts) => {
+        this.courts.set(courts);
         this.courtNames.set(new Map(courts.map((c) => [c.id, c.name])));
       });
       // Janela por data (um mês para trás, dois à frente) no lugar do `limit(256)` sem data.
@@ -487,6 +526,13 @@ export class PanelBookingsComponent {
         this.resolveMissingAthleteLabels(list);
       });
     });
+  }
+
+  /** Reserva de balcão: abre no dia da aba (Amanhã → amanhã; as demais → hoje). */
+  protected openManualBooking(): void {
+    if (this.readOnly()) return;
+    this.manualDateKey.set(this.mode() === 'tomorrow' ? tomorrowKey() : todayKey());
+    this.manualBookingOpen.set(true);
   }
 
   private sortByStartTime = (a: ArenaBooking, b: ArenaBooking): number => a.startTime.localeCompare(b.startTime);

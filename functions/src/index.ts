@@ -9,6 +9,7 @@ import {
   createArenaManualBooking,
 } from "./arena-manual-booking";
 import {changeArenaBookingCourt} from "./arena-booking-court-change";
+import {rescheduleArenaBooking} from "./arena-booking-reschedule";
 import {setArenaBookingAllocation} from "./arena-booking-allocation";
 import {setArenaAthletePricing, setArenaAthletePricingMember} from "./arena-athlete-pricing";
 import {setArenaMemberHoursPolicy} from "./arena-member-hours";
@@ -545,6 +546,7 @@ export {
   quoteArenaManualBooking,
   createArenaManualBooking,
   changeArenaBookingCourt,
+  rescheduleArenaBooking,
   setArenaBookingAllocation,
   setArenaAthletePricing,
   setArenaAthletePricingMember,

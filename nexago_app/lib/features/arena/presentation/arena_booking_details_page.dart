@@ -10,7 +10,10 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/layout/nexa_page_header.dart';
+import '../../../core/ui/app_snackbar.dart';
 import '../../arenas/domain/booking_providers.dart';
+import '../../arenas/domain/booking_reschedule.dart';
+import '../../arenas/presentation/booking_reschedule_page.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/arena_access_providers.dart';
 import '../domain/arena_booking_canceled_args.dart';
@@ -92,7 +95,11 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
       );
     }
 
-    var booking = initialBooking ??
+    // Doc vivo carregado manda (a reserva pode ser remarcada com a tela aberta).
+    var booking = (live != null && merged != null
+            ? _bookingFromMerged(id, merged)
+            : null) ??
+        initialBooking ??
         (merged != null ? _bookingFromMerged(id, merged) : null);
     if (booking == null) {
       return _pageShell(
@@ -225,6 +232,16 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
           ),
           SizedBox(height: 14),
           ArenaBookingDetailActions(
+            onReschedule: canWrite &&
+                    bookingRescheduleBlockReason(
+                          data,
+                          actor: BookingRescheduleActor.arena,
+                          uid: null,
+                          now: DateTime.now(),
+                        ) ==
+                        null
+                ? () => _reschedule(context, bookingId: id, data: data)
+                : null,
             onContact: athleteId.isEmpty
                 ? null
                 : () => _contactAthlete(context, ref, athleteId),
@@ -435,6 +452,25 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
             content: Text('Não foi possível abrir o app de contato.')),
       );
     }
+  }
+
+  static Future<void> _reschedule(
+    BuildContext context, {
+    required String bookingId,
+    required Map<String, dynamic> data,
+  }) async {
+    final result = await BookingReschedulePage.open(
+      context,
+      bookingId: bookingId,
+      booking: data,
+      actor: BookingRescheduleActor.arena,
+    );
+    if (result == null || !context.mounted) return;
+    showAppSnackBar(
+      context,
+      bookingRescheduledMessage(result, actor: BookingRescheduleActor.arena),
+      duration: const Duration(seconds: 6),
+    );
   }
 
   static Future<void> _confirmCancel(

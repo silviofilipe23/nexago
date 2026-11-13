@@ -791,6 +791,51 @@ export async function closeInvitesOfCanceledBookingCore(
 }
 
 // ---------------------------------------------------------------------------
+// Reserva remarcada → convites em aberto levam o horário novo, quem ia jogar é avisado
+// ---------------------------------------------------------------------------
+
+/**
+ * `booking` já com o horário novo. Atualiza a cópia dos convites ainda vivos e avisa os
+ * participantes (menos quem remarcou). Chamado pela remarcação depois de gravar.
+ */
+export async function refreshInvitesOfRescheduledBookingCore(
+  db: Firestore,
+  bookingId: string,
+  booking: Data,
+  actorUid: string,
+  nowMs: number = Date.now(),
+): Promise<void> {
+  const window = bookingWindowMs(booking);
+  const invites = await db.collection(INVITES).where("bookingId", "==", bookingId).get();
+  const batch = db.batch();
+  let writes = 0;
+  for (const doc of invites.docs) {
+    const status = (doc.data() as Data).status;
+    if (status === "pending" || status === "open" || status === "accepted") {
+      batch.update(doc.ref, {
+        ...bookingCopy(bookingId, booking, window?.endMs ?? nowMs),
+        updatedAt: Timestamp.fromMillis(nowMs),
+      });
+      writes += 1;
+    }
+  }
+  if (writes > 0) await batch.commit();
+
+  const where = `${arenaNameOf(booking)} · ${bookingWhenLabel(booking)}`;
+  const notifications = participantsOf(booking)
+    .filter((p) => p.uid !== actorUid)
+    .map((p) => bookingNotification(
+      p.uid,
+      "booking_rescheduled_participant",
+      "Jogo remarcado",
+      `A reserva mudou para ${where}.`,
+      bookingId,
+      booking,
+    ));
+  await deliverAll(notifications);
+}
+
+// ---------------------------------------------------------------------------
 // Wrappers
 // ---------------------------------------------------------------------------
 

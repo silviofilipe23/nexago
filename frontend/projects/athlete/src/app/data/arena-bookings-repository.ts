@@ -184,6 +184,38 @@ export interface ArenaBookingDoc {
   /** Minutos e desconto que saíram do banco de horas (0 sem banco). */
   memberHoursMinutes?: number;
   memberHoursDiscountReais?: number;
+  /** Série a que a reserva pertence (aula, plano de horário, horário fixo, clubinho, horas
+   *  flexíveis do plano) — nenhuma delas é remarcada pelo app. `null` = reserva avulsa. */
+  seriesKind?: BookingSeriesKind | null;
+  /** A arena liberou o horário por chuva e espera a escolha do atleta. */
+  weatherPendingChoice?: boolean;
+  /** `checked_in` / `no_show` depois que a presença foi registrada. */
+  attendanceStatus?: string | null;
+  /** Quantas vezes o atleta já remarcou esta reserva pelo app. */
+  athleteRescheduleCount?: number;
+  /** Preço de tabela que a reserva pagou (soma de `pricingLineItems.finalSlotPriceReais`,
+   *  promoção incluída; sem itens, `amountReais`) — o teto do horário novo na remarcação. */
+  tablePriceReais?: number;
+}
+
+export type BookingSeriesKind = 'class' | 'schedule_plan' | 'recurring' | 'club' | 'plan_flex';
+
+/** Mesma ordem de `rescheduleBlockReason` (functions). */
+export function bookingSeriesKindOf(data: Record<string, unknown>): BookingSeriesKind | null {
+  if (data['isClassSession'] === true || optionalStr(data['classSessionId'])) return 'class';
+  if (optionalStr(data['scheduleSubscriptionId'])) return 'schedule_plan';
+  if (data['isRecurring'] === true || optionalStr(data['recurringBookingId'])) return 'recurring';
+  if (optionalStr(data['clubSessionId'])) return 'club';
+  if ((Number(data['scheduleFlexMinutes']) || 0) > 0) return 'plan_flex';
+  return null;
+}
+
+function bookingTablePriceOf(data: Record<string, unknown>): number {
+  const items = Array.isArray(data['pricingLineItems']) ? (data['pricingLineItems'] as unknown[]) : [];
+  const total = items.length > 0
+    ? items.reduce<number>((sum, item) => sum + (Number((item as Record<string, unknown> | null)?.['finalSlotPriceReais']) || 0), 0)
+    : Number(data['amountReais']) || 0;
+  return Math.round(total * 100) / 100;
 }
 
 export class ArenaBookingError extends Error {
@@ -653,6 +685,60 @@ export async function cancelBooking(functions: Functions, bookingId: string): Pr
   }
 }
 
+export interface RescheduleMyBookingInput {
+  bookingId: string;
+  /** Dia novo, `YYYY-MM-DD`. */
+  date: string;
+  /** Início novo, `HH:MM` (o fim sai da duração da reserva). */
+  startTime: string;
+}
+
+export interface RescheduleMyBookingResult {
+  bookingId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  courtId: string;
+  courtName: string;
+  courtChanged: boolean;
+  tablePriceDiffReais: number;
+}
+
+/** Remarca a reserva avulsa do atleta pela callable `rescheduleArenaBooking` (`as: 'athlete'`).
+ *  A quadra fica a mesma (na reserva sem quadra definida, o servidor escolhe) e o valor não muda.
+ *  As recusas (prazo, limite, horário mais caro, ocupado) já vêm em português do servidor. */
+export async function rescheduleMyBooking(
+  functions: Functions,
+  input: RescheduleMyBookingInput,
+): Promise<RescheduleMyBookingResult> {
+  const bookingId = input.bookingId.trim();
+  if (!bookingId || !input.date || !input.startTime) {
+    throw new ArenaBookingError('Escolha o novo dia e horário.');
+  }
+  try {
+    const result = await httpsCallable<Record<string, unknown>, Partial<RescheduleMyBookingResult>>(
+      functions,
+      'rescheduleArenaBooking',
+    )({ bookingId, date: input.date, startTime: input.startTime, as: 'athlete' });
+    const d = result.data ?? {};
+    return {
+      bookingId,
+      date: typeof d.date === 'string' ? d.date : input.date,
+      startTime: typeof d.startTime === 'string' ? d.startTime : input.startTime,
+      endTime: typeof d.endTime === 'string' ? d.endTime : '',
+      courtId: typeof d.courtId === 'string' ? d.courtId : '',
+      courtName: typeof d.courtName === 'string' ? d.courtName : '',
+      courtChanged: d.courtChanged === true,
+      tablePriceDiffReais: Number(d.tablePriceDiffReais) || 0,
+    };
+  } catch (err) {
+    const fb = err as { code?: string; message?: string };
+    const detail = typeof fb.message === 'string' && fb.message.trim() ? fb.message.trim() : null;
+    if (detail && !(fb.code ?? '').endsWith('internal')) throw new ArenaBookingError(detail);
+    throw mapCallableError(err);
+  }
+}
+
 /** Aviso depois do cancelamento: o estorno (valor e quando chega) ou o crédito na arena. */
 export function canceledBookingNotice(outcome: CancelBookingOutcome): string {
   const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -742,6 +828,11 @@ export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): Arena
     coveredByMemberHours: data['coveredByMemberHours'] === true,
     memberHoursMinutes: Math.max(0, Number(data['memberHoursMinutes']) || 0),
     memberHoursDiscountReais: Math.max(0, Number(data['memberHoursDiscountReais']) || 0),
+    seriesKind: bookingSeriesKindOf(data),
+    weatherPendingChoice: (data['weatherRelease'] as Record<string, unknown> | undefined)?.['status'] === 'pending_choice',
+    attendanceStatus: optionalStr(data['attendanceStatus']),
+    athleteRescheduleCount: Math.max(0, Number(data['athleteRescheduleCount']) || 0),
+    tablePriceReais: bookingTablePriceOf(data),
   };
 }
 

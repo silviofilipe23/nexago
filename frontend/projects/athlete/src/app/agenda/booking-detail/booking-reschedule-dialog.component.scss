@@ -1,0 +1,293 @@
+// Mesmo visual do `BookingInviteDialogComponent` (biv-*).
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.brs-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.brs-dialog {
+  position: relative;
+  width: min(520px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-5);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  @media (max-width: 640px) {
+    padding: 18px 16px;
+  }
+}
+
+.brs-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.brs-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.brs-eyebrow {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-orange-500);
+}
+
+.brs-title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  color: var(--nx-text);
+}
+
+.brs-close {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text-mute);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--nx-text);
+  }
+
+  @media (max-width: 640px) {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+.brs-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line-strong);
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+}
+
+.brs-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brs-section-label {
+  margin: 0;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+// ── Dias ─────────────────────────────────────────────────────
+.brs-days {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.brs-day {
+  flex: none;
+  width: 60px;
+  padding: 8px 0;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.brs-day--empty {
+  opacity: 0.45;
+}
+
+.brs-day--selected {
+  opacity: 1;
+  background: var(--nx-orange-tint);
+  border-color: var(--nx-orange-500);
+}
+
+.brs-day-week {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.brs-day-date {
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+// ── Horários ─────────────────────────────────────────────────
+.brs-times {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px;
+}
+
+.brs-time {
+  min-height: 52px;
+  padding: 8px 10px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  text-align: left;
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.brs-time--selected {
+  background: var(--nx-orange-tint);
+  border-color: var(--nx-orange-500);
+}
+
+.brs-time--pricier {
+  opacity: 0.5;
+}
+
+.brs-time-range {
+  font-family: var(--nx-font-display);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.brs-time-price {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  color: var(--nx-text-mute);
+}
+
+.brs-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.brs-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.brs-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--nx-r-2);
+  background: rgba(255, 59, 48, 0.08);
+  border: 1px solid rgba(255, 59, 48, 0.24);
+  font-size: 13px;
+  color: var(--nx-text);
+}
+
+// ── Ações ────────────────────────────────────────────────────
+.brs-actions {
+  display: flex;
+  gap: 10px;
+
+  .brs-btn--primary {
+    flex: 1;
+  }
+}
+
+.brs-btn {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: var(--nx-r-2);
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  @media (max-width: 640px) {
+    height: 44px;
+    white-space: normal;
+  }
+}
+
+.brs-btn--primary {
+  background: var(--nx-orange-500);
+  border: none;
+  color: var(--nx-text-on-orange);
+
+  &:hover:not(:disabled) {
+    background: var(--nx-orange-400);
+  }
+}
+
+.brs-btn--ghost {
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line-strong);
+  color: var(--nx-text);
+}

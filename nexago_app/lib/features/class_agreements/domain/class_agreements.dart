@@ -721,6 +721,81 @@ String countdownLabel(DateTime? until, DateTime now) {
   return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
 }
 
+// ── cancelamento ────────────────────────────────────────────────────────
+
+const cancelReasons = <({String id, String label})>[
+  (id: 'routine', label: 'Mudança de rotina ou horário'),
+  (id: 'price', label: 'Valor do plano'),
+  (id: 'health', label: 'Lesão ou saúde'),
+  (id: 'moved', label: 'Mudei de cidade'),
+  (id: 'other', label: 'Outro motivo'),
+];
+
+/// Como fica o cancelamento: última aula, fidelidade e multa (conta do servidor).
+class ClassCancellationQuote {
+  const ClassCancellationQuote({
+    required this.kind,
+    required this.endsOn,
+    this.requestedOn = '',
+    this.noticeDays = 0,
+    this.commitmentEndsOn,
+    this.remainingMonths = 0,
+    this.monthlyPriceReais = 0,
+    this.penaltyKind = 'none',
+    this.penaltyPercent,
+    this.penaltyReais = 0,
+    this.penaltyDueDate,
+    this.planName = '',
+    this.penaltyChargeId,
+    this.penaltyOnline = false,
+  });
+
+  factory ClassCancellationQuote.fromMap(Map<String, dynamic> m) {
+    final p = m['penalty'] is Map ? spMap(m['penalty']) : const <String, dynamic>{};
+    return ClassCancellationQuote(
+      kind: _s(m['kind']).isEmpty ? 'monthly' : _s(m['kind']),
+      endsOn: _s(m['endsOn']),
+      requestedOn: _s(m['requestedOn']),
+      noticeDays: _i(m['noticeDays']) ?? 0,
+      commitmentEndsOn: _sn(m['commitmentEndsOn']),
+      remainingMonths: _i(m['remainingMonths']) ?? 0,
+      monthlyPriceReais: _d(m['monthlyPriceReais']),
+      penaltyKind: _s(p['kind']).isEmpty ? 'none' : _s(p['kind']),
+      penaltyPercent: _i(p['percent']),
+      penaltyReais: _d(p['amountReais']),
+      penaltyDueDate: _sn(m['penaltyDueDate']),
+      planName: _s(m['planName']),
+      penaltyChargeId: _sn(m['penaltyChargeId']),
+      penaltyOnline: m['penaltyOnline'] == true,
+    );
+  }
+
+  /// `monthly`, `commitment`, `prepaid` ou `package`.
+  final String kind;
+  final String endsOn;
+  final String requestedOn;
+  final int noticeDays;
+  final String? commitmentEndsOn;
+  final int remainingMonths;
+  final double monthlyPriceReais;
+  final String penaltyKind;
+  final int? penaltyPercent;
+  final double penaltyReais;
+  final String? penaltyDueDate;
+  final String planName;
+  final String? penaltyChargeId;
+  final bool penaltyOnline;
+
+  bool get hasPenalty => penaltyReais > 0;
+  bool get isPrepaid => kind == 'prepaid';
+
+  /// "2 × R$ 234,00 × 50%" (a conta da multa) ou "valor fixo".
+  String penaltyFormula(String Function(num) brl) {
+    if (penaltyKind == 'fixed') return 'valor fixo do plano';
+    return '$remainingMonths × ${brl(monthlyPriceReais)} × ${penaltyPercent ?? 0}%';
+  }
+}
+
 // ── contratos ───────────────────────────────────────────────────────────
 
 enum ClassAgreementStatus { pending, signed, ended, canceled }

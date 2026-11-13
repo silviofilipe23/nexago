@@ -497,6 +497,9 @@ abstract final class AppRoutes {
   /// Contratos de aulas do atleta (aluno) e do professor, os dois juntos.
   static const String classAgreements = '/contratos-aulas';
 
+  /// Cancelar plano de aula (aviso prévio e multa). Fora de `/athlete/`.
+  static const String classCancel = '/aulas/cancelar/:enrollmentId';
+
   /// Um contrato: leitura, comprovante e (professor) assinatura. Destino do
   /// push `professor_agreement_pending`.
   static const String classAgreement = '/contratos-aulas/:agreementId';
@@ -1318,6 +1321,7 @@ abstract final class AppRouteNames {
   static const String myArenaContract = 'myArenaContract';
   static const String classPlanSignup = 'classPlanSignup';
   static const String classAgreements = 'classAgreements';
+  static const String classCancel = 'classCancel';
   static const String classAgreement = 'classAgreement';
   static const String athleteBilling = 'athleteBilling';
   static const String savedPaymentCard = 'savedPaymentCard';

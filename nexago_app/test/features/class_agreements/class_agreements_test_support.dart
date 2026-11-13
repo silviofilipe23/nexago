@@ -10,6 +10,7 @@ import 'package:nexago_app/features/class_agreements/application/class_agreement
 import 'package:nexago_app/features/class_agreements/domain/class_agreements.dart';
 import 'package:nexago_app/features/class_agreements/infrastructure/class_agreements_repository.dart';
 import 'package:nexago_app/features/class_agreements/presentation/class_agreements_pages.dart';
+import 'package:nexago_app/features/class_agreements/presentation/class_cancel_page.dart';
 import 'package:nexago_app/features/class_agreements/presentation/class_plan_signup_page.dart';
 
 /// Texto longo o bastante para não caber numa tela de 800px.
@@ -246,6 +247,16 @@ class FakeClassAgreementsRepository implements ClassAgreementsRepository {
   ];
   final paymentCalls = <Map<String, Object?>>[];
 
+  /// Cancelamento: a conta devolvida pela prévia e pela confirmação.
+  Map<String, Object?> cancelQuote = const {
+    'kind': 'commitment', 'endsOn': '2027-01-04', 'requestedOn': '2026-12-05', 'noticeDays': 30,
+    'commitmentEndsOn': '2027-02-18', 'remainingMonths': 2, 'monthlyPriceReais': 234,
+    'penalty': {'kind': 'percent', 'percent': 50, 'amountReais': 234}, 'penaltyDueDate': '2026-12-08',
+    'planName': 'Vôlei 2x',
+  };
+  Map<String, Object?>? lastCancel;
+  bool cancelPenaltyOnline = true;
+
   final calls = <String>[];
   final previewCalls = <Map<String, Object?>>[];
   Map<String, Object?>? lastEnroll;
@@ -340,11 +351,30 @@ class FakeClassAgreementsRepository implements ClassAgreementsRepository {
   }
 
   @override
+  Future<ClassCancellationQuote> previewCancellation(String enrollmentId) async =>
+      ClassCancellationQuote.fromMap(cancelQuote);
+
+  @override
+  Future<ClassCancellationQuote> cancel({
+    required String enrollmentId,
+    required String reason,
+    String? note,
+  }) async {
+    lastCancel = {'enrollmentId': enrollmentId, 'reason': reason, 'note': note};
+    return ClassCancellationQuote.fromMap({
+      ...cancelQuote,
+      'penaltyChargeId': '${enrollmentId}_penalty',
+      'penaltyOnline': cancelPenaltyOnline,
+    });
+  }
+
+  @override
   Future<ClassEnrollmentPayment> enrollmentPayment({
     required String enrollmentId,
     required String method,
+    String kind = 'signup',
   }) async {
-    paymentCalls.add({'enrollmentId': enrollmentId, 'method': method});
+    paymentCalls.add({'enrollmentId': enrollmentId, 'method': method, if (kind != 'signup') 'kind': kind});
     final i = (paymentCalls.length - 1).clamp(0, paymentResponses.length - 1);
     return ClassEnrollmentPayment.fromMap(paymentResponses[i]);
   }
@@ -444,6 +474,15 @@ Future<GoRouter> pumpClassAgreementsApp(
         name: AppRouteNames.classAgreement,
         builder: (_, s) =>
             ClassAgreementPage(agreementId: s.pathParameters['agreementId']!),
+      ),
+      GoRoute(
+        path: AppRoutes.classCancel,
+        name: AppRouteNames.classCancel,
+        builder: (_, s) => ClassCancelPage(enrollmentId: s.pathParameters['enrollmentId']!),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteTrainingPlans,
+        builder: (_, __) => _stub('meus planos'),
       ),
       GoRoute(
         path: '/cobrancas',

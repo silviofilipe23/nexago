@@ -70,6 +70,7 @@ import {
 } from "./arena-class";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {ARENA_AGREEMENTS, isSignupPlan, parsePlanTeacherIds} from "./arena-agreements-model";
+import {parseCancellationPolicy, penaltyChargeId, validateCancellationPolicy, type CancellationPolicy} from "./arena-class-cancellation-model";
 
 const MONTH_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -388,6 +389,7 @@ export const upsertArenaClassPlan = onCall({region: CLIENT_FACING_REGIONS}, asyn
     ...await validatePlanAppFields(db, arenaId, input),
     ...validatePlanCycles(input, plan.kind),
     ...validatePlanBilling(input),
+    ...validateCancellationPolicy(input),
   };
   const col = db.collection("arenas").doc(arenaId).collection(CLASS_PLANS);
   if (planId == null) {
@@ -602,7 +604,7 @@ function proratedMonthCharge(
 }
 
 /** Doc de uma cobrança em aberto da matrícula (`groupId` = cobrança online no grupo Asaas). */
-function openChargeData(
+export function openChargeData(
   enrollmentId: string,
   owner: {arenaId: unknown; studentId: unknown; athleteId: unknown; name: unknown; phone: unknown; paymentMethod: unknown},
   c: PlannedCharge,
@@ -687,6 +689,8 @@ export interface EnrollmentPlan {
   /** Com o valor por mês do ciclo escolhido em `priceReais`. */
   plan: ClassPlanData;
   cycle: ClassPlanCycle;
+  /** Regras de cancelamento do plano, congeladas na matrícula (vale o que estava no contrato). */
+  cancellation: CancellationPolicy;
   rules: ClassRules;
   classes: Map<string, {data: Record<string, unknown>; name: string; startTime: string; teacherId: string}>;
   slots: Array<EnrollmentSlot & {className: string; startTime: string; teacherId: string}>;
@@ -760,7 +764,7 @@ export async function planEnrollment(
     }
     slots.push({...slot, className: cls.name, startTime: cls.startTime, teacherId: cls.teacherId});
   }
-  return {plan, cycle: req.cycle, rules, classes, slots};
+  return {plan, cycle: req.cycle, cancellation: parseCancellationPolicy(rawPlan["cancellation"]), rules, classes, slots};
 }
 
 /**
@@ -864,6 +868,7 @@ export async function createEnrollmentCore(
       /** Fim da fidelidade (trimestral/semestral/anual); null no mensal. */
       commitmentEndsOn: commitmentEndsOn(planned.cycle, todayKey),
       paymentForm: req.paymentForm,
+      cancellationPolicy: planned.cancellation,
       slots: planned.slots,
       status: "active",
       dueDay: req.dueDay,
@@ -1075,7 +1080,7 @@ export async function setEnrollmentStatusCore(
     const voidGroups = new Set<string>();
     for (const c of openCharges?.docs ?? []) {
       // Cancelar a matrícula não perdoa o que já venceu — só o que ainda ia vencer.
-      if (c.data()["status"] === "open" && String(c.data()["dueDate"] ?? "") > todayKey) {
+      if (c.data()["status"] === "open" && String(c.data()["dueDate"] ?? "") > todayKey && c.id !== penaltyChargeId(enrollmentId)) {
         tx.set(c.ref, {status: "canceled", canceledAt: FieldValue.serverTimestamp()}, {merge: true});
         canceledCharges += 1;
         const groupId = liveGroupIdOf(c.data());
@@ -1277,6 +1282,14 @@ export async function runMonthlyBilling(db: Firestore, todayKey: string): Promis
   for (const doc of enrollments.docs) {
     const data = doc.data() as Record<string, unknown>;
     const plan = (data["plan"] ?? {}) as Record<string, unknown>;
+    // Cancelamento pedido pelo aluno: acabou o aviso (ou o período pago) → sai da turma.
+    const endsOn = typeof data["endsOn"] === "string" ? data["endsOn"] : null;
+    if (endsOn && endsOn < todayKey) {
+      await setEnrollmentStatusCore(db, doc.id, "canceled", todayKey);
+      await doc.ref.set({status: "ended", endedReason: "canceled_by_request"}, {merge: true});
+      ended += 1;
+      continue;
+    }
     if (plan["kind"] === "monthly") {
       const dueDay = Number(data["dueDay"] ?? 5);
       const months = monthsToBill(
@@ -1290,6 +1303,8 @@ export async function runMonthlyBilling(db: Firestore, todayKey: string): Promis
         PREPAID_MONTHS[cycle];
       const starts = cycleMonths === 1 ? months : cycleStarts(months, cycleMonths);
       for (const month of starts) {
+        // Com cancelamento pedido, nenhuma mensalidade de mês que começa depois da última aula.
+        if (endsOn && `${month}-01` > endsOn) break;
         const last = addMonthsKey(month, cycleMonths - 1);
         const chargeId = `${doc.id}_${month}`;
         const ref = db.collection(ARENA_CLASS_CHARGES).doc(chargeId);

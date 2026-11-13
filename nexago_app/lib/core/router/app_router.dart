@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../layout/nexa_native_liquid_glass.dart';
 import '../../features/class_agreements/presentation/class_agreements_pages.dart';
+import '../../features/class_agreements/presentation/class_cancel_page.dart';
 import '../../features/class_agreements/presentation/class_plan_signup_page.dart';
 import '../../features/arenas/presentation/arena_booking_confirm_page.dart';
 import '../../features/arenas/presentation/arena_booking_pix_page.dart';
@@ -3533,6 +3534,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.classAgreement,
         builder: (context, state) => ClassAgreementPage(
           agreementId: state.pathParameters['agreementId']?.trim() ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.classCancel,
+        name: AppRouteNames.classCancel,
+        builder: (context, state) => ClassCancelPage(
+          enrollmentId: state.pathParameters['enrollmentId']?.trim() ?? '',
         ),
       ),
       GoRoute(

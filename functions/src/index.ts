@@ -213,6 +213,13 @@ export {
   onArenaClassChargePaidActivateEnrollment,
   expireArenaClassPendingEnrollments,
 } from "./arena-class-signup-payment";
+// Cancelamento do plano de aula pelo aluno (aviso prévio + multa) e ações da arena.
+export {
+  previewMyClassCancellation,
+  cancelMyClassEnrollment,
+  waiveClassCancellationPenalty,
+  undoClassCancellation,
+} from "./arena-class-cancellation";
 export {
   addArenaClassExtra,
   removeArenaClassExtra,

@@ -1,5 +1,6 @@
 import { usableCredits } from './aula-extra-modal.component';
 import {
+  DEFAULT_CANCELLATION_POLICY,
   billingTotals,
   chargeInvoiceUrl,
   chargeState,
@@ -71,6 +72,11 @@ function enrollment(over: Partial<Enrollment>): Enrollment {
     expiresOn: null,
     createdAt: null,
     canceledAt: null,
+    cycle: 'monthly',
+    commitmentEndsOn: null,
+    endsOn: null,
+    cancelRequest: null,
+    cancellationPolicy: DEFAULT_CANCELLATION_POLICY,
     ...over,
   };
 }

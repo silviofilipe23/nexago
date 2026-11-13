@@ -124,11 +124,40 @@ class ClassAgreementsRepository {
   Future<ClassEnrollmentPayment> enrollmentPayment({
     required String enrollmentId,
     required String method,
+    String kind = 'signup',
   }) async =>
       ClassEnrollmentPayment.fromMap(await _call(
         'getMyClassEnrollmentPayment',
-        {'enrollmentId': enrollmentId, 'method': method},
+        {
+          'enrollmentId': enrollmentId,
+          'method': method,
+          if (kind != 'signup') 'kind': kind,
+        },
         'Não foi possível abrir o pagamento.',
+      ));
+
+  /// Como fica o cancelamento (sem mudar nada).
+  Future<ClassCancellationQuote> previewCancellation(String enrollmentId) async =>
+      ClassCancellationQuote.fromMap(await _call(
+        'previewMyClassCancellation',
+        {'enrollmentId': enrollmentId},
+        'Não foi possível calcular o cancelamento.',
+      ));
+
+  /// Cancela: agenda a última aula e, com multa, cria a cobrança dela.
+  Future<ClassCancellationQuote> cancel({
+    required String enrollmentId,
+    required String reason,
+    String? note,
+  }) async =>
+      ClassCancellationQuote.fromMap(await _call(
+        'cancelMyClassEnrollment',
+        {
+          'enrollmentId': enrollmentId,
+          'reason': reason,
+          if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        },
+        'Não foi possível cancelar o plano.',
       ));
 
   Future<List<ClassAgreement>> myAgreements() async => parseAgreements(

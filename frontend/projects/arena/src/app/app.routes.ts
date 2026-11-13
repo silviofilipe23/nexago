@@ -287,6 +287,15 @@ export const routes: Routes = [
       import('./painel/aulas/panel-aulas-students.component').then((m) => m.PanelAulasStudentsComponent),
   },
   {
+    // Pedidos de cancelamento do plano de aula feitos pelo app (aviso prévio e multa); o push
+    // "aluno pediu para sair" abre aqui.
+    path: 'painel/aulas/cancelamentos',
+    title: 'Cancelamentos de aulas — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],
+    loadComponent: () =>
+      import('./painel/aulas/panel-aulas-cancellations.component').then((m) => m.PanelAulasCancellationsComponent),
+  },
+  {
     path: 'painel/aulas/alunos/:enrollmentId',
     title: 'Aluno — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard, arenaAreaGuard('agenda')],

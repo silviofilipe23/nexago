@@ -41,6 +41,8 @@ export interface ClassPlan {
   cycles: PlanCycles;
   /** Formas aceitas e vencimento (fixo, das Regras ou à escolha do atleta). */
   billing: PlanBilling;
+  /** Aviso prévio e multa por sair antes da fidelidade (ausente no doc = 30 dias e 50%). */
+  cancellation: CancellationPolicy;
 }
 
 export type PlanCycle = 'monthly' | 'quarterly' | 'semiannual' | 'annual';
@@ -163,6 +165,81 @@ export function parsePlanBilling(raw: unknown): PlanBilling {
   };
 }
 
+// ── Cancelamento (espelha `functions/src/arena-class-cancellation-model.ts`) ──
+
+export type PenaltyKind = 'none' | 'percent' | 'fixed';
+const PENALTY_KINDS: readonly PenaltyKind[] = ['none', 'percent', 'fixed'];
+
+export interface CancellationPolicy {
+  /** Dias de aviso prévio (0–90): aulas e mensalidades seguem até o fim do aviso. */
+  noticeDays: number;
+  /** Multa por sair antes do fim da fidelidade: % das mensalidades que faltariam, ou valor fixo. */
+  penalty: { kind: PenaltyKind; percent: number | null; amountReais: number | null };
+}
+
+/** Plano sem regra gravada: 30 dias de aviso e 50% das mensalidades que faltam. */
+export const DEFAULT_CANCELLATION_POLICY: CancellationPolicy = {
+  noticeDays: 30,
+  penalty: { kind: 'percent', percent: 50, amountReais: null },
+};
+
+export function parseCancellationPolicy(raw: unknown): CancellationPolicy {
+  const d = raw != null && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+  if (!d) return { ...DEFAULT_CANCELLATION_POLICY, penalty: { ...DEFAULT_CANCELLATION_POLICY.penalty } };
+  const notice = Number(d['noticeDays']);
+  const p = (d['penalty'] ?? {}) as Record<string, unknown>;
+  const kind = oneOf(p['kind'], PENALTY_KINDS, 'none');
+  const percent = Number(p['percent']);
+  const amount = Number(p['amountReais']);
+  return {
+    noticeDays: Number.isInteger(notice) && notice >= 0 && notice <= 90 ? notice : DEFAULT_CANCELLATION_POLICY.noticeDays,
+    penalty: {
+      kind,
+      percent: kind === 'percent' && Number.isFinite(percent) && percent > 0 && percent <= 100 ? Math.round(percent) : null,
+      amountReais: kind === 'fixed' && Number.isFinite(amount) && amount > 0 ? round2(amount) : null,
+    },
+  };
+}
+
+export type CancelReason = 'routine' | 'price' | 'health' | 'moved' | 'other';
+export const CANCEL_REASONS: readonly CancelReason[] = ['routine', 'price', 'health', 'moved', 'other'];
+/** `monthly` sem fidelidade · `commitment` trimestral/semestral · `prepaid` anual à vista · `package`. */
+export type CancelKind = 'monthly' | 'commitment' | 'prepaid' | 'package';
+export type PenaltyStatus = 'open' | 'paid' | 'waived' | 'none';
+
+/** Pedido de cancelamento do aluno (matrícula segue até `endsOn`). */
+export interface CancelRequest {
+  requestedAt: Date | null;
+  requestedOn: string;
+  by: string;
+  reason: CancelReason;
+  note: string | null;
+  kind: CancelKind;
+  remainingMonths: number;
+  penaltyReais: number;
+  penaltyStatus: PenaltyStatus;
+  waivedReason: string | null;
+}
+
+export function parseCancelRequest(raw: unknown): CancelRequest | null {
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const d = raw as Record<string, unknown>;
+  const requestedOn = str(d['requestedOn']);
+  if (!requestedOn) return null;
+  return {
+    requestedAt: toDate(d['requestedAt']),
+    requestedOn,
+    by: str(d['by'], 'athlete'),
+    reason: oneOf(d['reason'], CANCEL_REASONS, 'other'),
+    note: optStr(d['note']),
+    kind: oneOf(d['kind'], ['monthly', 'commitment', 'prepaid', 'package'] as const, 'monthly'),
+    remainingMonths: optNum(d['remainingMonths']) ?? 0,
+    penaltyReais: optNum(d['penaltyReais']) ?? 0,
+    penaltyStatus: oneOf(d['penaltyStatus'], ['open', 'paid', 'waived', 'none'] as const, 'none'),
+    waivedReason: optStr(d['waivedReason']),
+  };
+}
+
 export interface ClassRules {
   makeupValidityDays: number;
   excusedGeneratesCredit: boolean;
@@ -205,7 +282,7 @@ export interface Enrollment {
   phone: string | null;
   /** Foto do atleta NexaGO no momento da matrícula. */
   photoUrl: string | null;
-  plan: Omit<ClassPlan, 'id' | 'status' | 'teacherIds' | 'availableInApp' | 'cycles' | 'billing'> & { planId: string };
+  plan: Omit<ClassPlan, 'id' | 'status' | 'teacherIds' | 'availableInApp' | 'cycles' | 'billing' | 'cancellation'> & { planId: string };
   slots: EnrollmentSlot[];
   status: EnrollmentStatus;
   dueDay: number;
@@ -218,6 +295,15 @@ export interface Enrollment {
   expiresOn: string | null;
   createdAt: Date | null;
   canceledAt: Date | null;
+  /** Ciclo contratado (fidelidade 3/6/12 meses; anual à vista). */
+  cycle: PlanCycle;
+  /** Fim da fidelidade (trimestral/semestral/anual); `null` no mensal. */
+  commitmentEndsOn: string | null;
+  /** Última aula de quem pediu para sair (fim do aviso ou do período pago); `null` = sem cancelamento. */
+  endsOn: string | null;
+  cancelRequest: CancelRequest | null;
+  /** Regras de cancelamento congeladas na matrícula (antiga sem regra = padrão). */
+  cancellationPolicy: CancellationPolicy;
 }
 
 export interface Charge {
@@ -479,6 +565,7 @@ export function planFromDoc(doc: Snap): ClassPlan {
     availableInApp: d['availableInApp'] === true,
     cycles: parsePlanCycles(d['cycles']),
     billing: parsePlanBilling(d['billing']),
+    cancellation: parseCancellationPolicy(d['cancellation']),
   };
 }
 
@@ -536,6 +623,11 @@ export function enrollmentFromDoc(doc: Snap): Enrollment {
     expiresOn: optStr(d['expiresOn']),
     createdAt: toDate(d['createdAt']),
     canceledAt: toDate(d['canceledAt']),
+    cycle: oneOf(d['cycle'], PLAN_CYCLES, 'monthly'),
+    commitmentEndsOn: optStr(d['commitmentEndsOn']),
+    endsOn: optStr(d['endsOn']),
+    cancelRequest: parseCancelRequest(d['cancelRequest']),
+    cancellationPolicy: parseCancellationPolicy(d['cancellationPolicy']),
   };
 }
 

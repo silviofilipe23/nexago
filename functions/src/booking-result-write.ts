@@ -28,7 +28,7 @@ import {
   bookingEndAt,
   bookingOwnerUid,
   bookingResultOpenError,
-  bookingResultPlayers,
+  bookingResultPlayersPatch,
   bookingStartAt,
   confirmationsAfterResponse,
   confirmationsOf,
@@ -180,7 +180,7 @@ export async function saveBookingResultCore(
     });
     // A reserva lista quem jogou: convidados (`participants`) + quem está no placar. Só o servidor
     // grava este campo (fora das allow-lists de update do dono e da equipe nas rules).
-    tx.update(db.collection("arenaBookings").doc(input.bookingId), {resultPlayers: bookingResultPlayers(teams, uid)});
+    tx.update(db.collection("arenaBookings").doc(input.bookingId), bookingResultPlayersPatch(teams, uid));
     const prevPlayers = Array.isArray(prev?.["playerUids"]) ? (prev!["playerUids"] as unknown[]) : [];
     return {
       version: next,

@@ -16,6 +16,9 @@ import {
   customersCsv,
   type CrmCustomer,
   type CrmCustomerStatus,
+  monthGames,
+  gamesSummary,
+  type CrmMonth,
 } from './crm.model';
 import { CrmUiService } from './crm-ui.service';
 import { CrmStore } from './crm.store';
@@ -89,14 +92,14 @@ const STATUS_FILTERS: ReadonlyArray<{ id: Filter; label: string; color?: string 
                   @if (c.contract; as v) {
                     <span class="name sm">{{ v.planName }}</span><span class="sub">{{ periodLabel[v.period] }} · {{ endLine(v) }}</span>
                   } @else {
-                    <span class="name sm mute">Avulso</span><span class="sub">{{ c.conversion?.avulso90d ?? c.bookings6m }} reservas {{ c.conversion ? 'em 90 dias' : 'em 6 meses' }}</span>
+                    <span class="name sm mute">Avulso</span><span class="sub">{{ c.conversion ? c.conversion.avulso90d + ' reservas em 90 dias' : games6m(c) }}</span>
                   }
                 </span>
                 <span><span class="due" [class.off]="!c.contract">{{ c.contract ? pad(c.contract.dueDay) : '—' }}</span></span>
                 <span class="freq">
                   <span class="mini" aria-hidden="true">
                     @for (m of c.months; track m.month) {
-                      <i [style.height.%]="bar(m.total)"><b [style.height.%]="m.total ? (m.plan / m.total) * 100 : 0"></b></i>
+                      <i [style.height.%]="bar(games(m))"><b [style.height.%]="games(m) ? (m.plan / games(m)) * 100 : 0"></b></i>
                     }
                   </span>
                   <span class="mono" [class.warn]="low(c)">{{ hoursLabel(c.hoursPerWeek ?? 0) }}<small>/sem{{ c.contract ? ' · de ' + hoursLabel(c.contract.weeklyHours) : '' }}</small></span>
@@ -195,7 +198,7 @@ export class CrmCustomersComponent {
   protected readonly query = signal('');
   protected readonly limit = signal(100);
 
-  private readonly maxMonth = computed(() => Math.max(1, ...this.store.customers().flatMap((c) => c.months.map((m) => m.total))));
+  private readonly maxMonth = computed(() => Math.max(1, ...this.store.customers().flatMap((c) => c.months.map(monthGames))));
 
   protected readonly counts = computed(() => {
     const out = Object.fromEntries(STATUS_FILTERS.map((f) => [f.id, 0])) as Record<Filter, number>;
@@ -224,6 +227,14 @@ export class CrmCustomersComponent {
 
   protected pad(n: number): string {
     return String(n).padStart(2, '0');
+  }
+
+  protected games(m: CrmMonth): number {
+    return monthGames(m);
+  }
+
+  protected games6m(c: CrmCustomer): string {
+    return gamesSummary(c);
   }
 
   protected bar(total: number): number {

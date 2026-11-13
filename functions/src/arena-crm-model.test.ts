@@ -210,6 +210,34 @@ describe("aggregateBookings", () => {
     assert.equal(stats.get("n:joao silva")?.months[5]?.total, 2);
   });
 
+  it("quem jogou na reserva de outra pessoa vira cliente: visita, sem receita nem horas", () => {
+    const players = {
+      participants: [{uid: "u3", name: "Enzo Lima"}, {uid: "u2", name: "Dono repetido"}],
+      resultPlayers: [{uid: "u3", name: "Enzo"}, {uid: "u4", name: "Lia Martins"}, {name: "Sem conta"}],
+    };
+    const stats = aggregateBookings([
+      booking({date: "2026-11-03", ...players}),
+      booking({date: "2026-11-05", attendanceStatus: "no_show", ...players}),
+      booking({date: "2026-11-06", status: "cancelled", ...players}),
+    ], TODAY);
+    const enzo = stats.get("a:u3")!;
+    const nov = enzo.months[enzo.months.length - 1]!;
+    assert.equal(nov.played, 2);
+    assert.equal(nov.total, 0);
+    assert.equal(nov.avulsoReais, 0);
+    assert.equal(enzo.name, "Enzo Lima");
+    assert.equal(enzo.firstDate, "2026-11-03");
+    assert.equal(enzo.lastVisitDate, "2026-11-03"); // a falta da reserva não conta como visita
+    assert.equal(enzo.visits28d, 1);
+    assert.equal(enzo.avulso90d, 0);
+    assert.deepEqual(enzo.weekHours.filter((h) => h > 0), []);
+    assert.ok(stats.get("a:u4"));
+    // O dono não conta duas vezes; quem não tem conta não vira cliente.
+    assert.equal(stats.get("a:u2")!.months[5]!.played, 0);
+    assert.equal(stats.get("a:u2")!.months[5]!.total, 2);
+    assert.equal(stats.size, 3);
+  });
+
   it("detecta o horário que se repete nas últimas 8 semanas", () => {
     const s = aggregateBookings(tuesdays(7), TODAY).get("a:u2")!;
     assert.deepEqual(s.pattern, [{weekday: 2, startTime: "19:00", weeks: 7}]);

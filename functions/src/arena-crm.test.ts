@@ -68,6 +68,52 @@ describe("getArenaCrmOverviewCore", () => {
   });
 });
 
+describe("quem jogou é cliente da arena", () => {
+  function withGuest(): FakeFirestore {
+    const fake = seed();
+    fake.seedDoc("users/u5", {fullName: "Lia Martins", profilePhotoUrl: "https://x/l.jpg"});
+    // Lia jogou com o Rafael: uma vez por convite, outra só pelo placar.
+    fake.seedDoc("arenaBookings/b0", {
+      ...fake.store.get("arenaBookings/b0"),
+      customerName: "Rafael Moura",
+      participants: [{uid: "u5", name: "Lia"}], participantUids: ["u5"],
+    });
+    fake.seedDoc("arenaBookings/b1", {
+      ...fake.store.get("arenaBookings/b1"),
+      customerName: "Rafael Moura",
+      resultPlayers: [{uid: "u5", name: "Lia"}], resultPlayerUids: ["u5"],
+    });
+    // Em outra arena não entra.
+    fake.seedDoc("arenaBookings/other", {
+      ...fake.store.get("arenaBookings/other"),
+      participants: [{uid: "u5", name: "Lia"}], participantUids: ["u5"],
+    });
+    return fake;
+  }
+
+  it("aparece na visão geral com nome, foto e os jogos como convidada", async () => {
+    const overview = await getArenaCrmOverviewCore(db(withGuest()), "owner", {arenaId: "arena1"}, NOW);
+    const lia = overview.customers.find((c) => c.key === "a:u5")!;
+    assert.equal(lia.name, "Lia Martins");
+    assert.equal(lia.photoUrl, "https://x/l.jpg");
+    assert.equal(lia.status, "walk_in");
+    assert.equal(lia.played6m, 2);
+    assert.equal(lia.bookings6m, 0);
+    assert.equal(lia.avulsoReais6m, 0);
+    assert.equal(lia.conversion, null);
+    // Quem reservou segue igual.
+    const rafael = overview.customers.find((c) => c.key === "a:u1")!;
+    assert.equal(rafael.played6m, 0);
+    assert.equal(rafael.bookings6m, 7);
+  });
+
+  it("a ficha lista as reservas em que jogou, sem o valor de quem pagou", async () => {
+    const detail = await getArenaCrmCustomerCore(db(withGuest()), "owner", {arenaId: "arena1", customerKey: "a:u5"}, NOW);
+    assert.equal(detail.recentBookings.length, 2);
+    assert.ok(detail.recentBookings.every((b) => b.guest && b.amountReais === 0 && b.bookedBy === "Rafael Moura"));
+  });
+});
+
 describe("updateArenaCrmCore", () => {
   it("valida vencimento 5/15/25 e período", async () => {
     const fake = seed();

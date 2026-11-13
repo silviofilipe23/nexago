@@ -31,6 +31,7 @@ import {
   CRM_SETTINGS_DOC,
   addDays,
   aggregateBookings,
+  bookingPlayersOf,
   buildOverview,
   contractView,
   customerKeyOf,
@@ -76,6 +77,8 @@ const DEFAULT_MONTHLY_GOAL = 5;
 const BOOKING_FIELDS = [
   "athleteId", "customerName", "date", "startTime", "endTime", "status", "attendanceStatus", "amountReais",
   "isRecurring", "coveredByPlan", "scheduleSubscriptionId", "source", "bookedAs",
+  // Quem jogou (convite e placar) também é cliente da arena.
+  "participants", "resultPlayers",
 ] as const;
 
 type Data = Record<string, unknown>;
@@ -304,7 +307,10 @@ export async function loadArenaCrmOverview(db: Firestore, arenaId: string, now: 
       const bookings = bookingsSnap.docs.map((d) => d.data() as CrmBookingRecord);
       return {
         stats: aggregateBookings(bookings, today),
-        identities: await loadIdentities(db, bookings.map((b) => str(b.athleteId))),
+        identities: await loadIdentities(db, bookings.flatMap((b) => [
+          str(b.athleteId),
+          ...bookingPlayersOf(b).map((p) => p.uid),
+        ])),
       };
     }),
   ]);
@@ -347,7 +353,11 @@ export interface CrmCustomerDetail {
   contracts: Array<ReturnType<typeof contractView> & {customerName: string; customerPhone: string | null; cancelReason: string | null}>;
   payments: Array<{id: string; contractId: string; amountReais: number; method: string; paidOn: string; installments: number; byName: string | null}>;
   contacts: CrmContactRecord[];
-  recentBookings: Array<{date: string; startTime: string; endTime: string; courtName: string; amountReais: number; plan: boolean; attendance: string}>;
+  /** `guest`: jogou na reserva de outra pessoa (convite ou placar); `bookedBy` = quem reservou. */
+  recentBookings: Array<{
+    date: string; startTime: string; endTime: string; courtName: string; amountReais: number; plan: boolean; attendance: string;
+    guest: boolean; bookedBy: string | null;
+  }>;
   reminders: Array<{kind: ReminderKind; sentAt: string; title: string; body: string}>;
 }
 
@@ -359,13 +369,20 @@ export async function getArenaCrmCustomerCore(db: Firestore, uid: string, raw: u
   const today = dayKeyFromEventDate(now);
   const athleteId = customerKey.startsWith("a:") ? customerKey.slice(2) : null;
 
-  const [contractsSnap, contactsSnap, bookingsSnap, remindersSnap] = await Promise.all([
+  // Reservas dele e as de outras pessoas em que jogou (convite ou placar). Estas duas não filtram
+  // a arena na consulta (o índice de array-contains é o automático): filtra em memória.
+  const asGuest = (field: string) => athleteId ?
+    db.collection(ARENA_BOOKINGS).where(field, "array-contains", athleteId).get() :
+    Promise.resolve(null);
+  const [contractsSnap, contactsSnap, bookingsSnap, remindersSnap, invitedSnap, scoredSnap] = await Promise.all([
     db.collection(CRM_CONTRACTS).where("arenaId", "==", arenaId).where("customerKey", "==", customerKey).get(),
     db.collection(CRM_CONTACTS).where("arenaId", "==", arenaId).where("customerKey", "==", customerKey).get(),
     athleteId ?
       db.collection(ARENA_BOOKINGS).where("arenaId", "==", arenaId).where("athleteId", "==", athleteId).get() :
       Promise.resolve(null),
     db.collection(CRM_REMINDERS).where("arenaId", "==", arenaId).where("customerKey", "==", customerKey).get(),
+    asGuest("participantUids"),
+    asGuest("resultPlayerUids"),
   ]);
 
   const records = contractsSnap.docs.map((d) => contractFromDoc(d.id, d.data() as Data));
@@ -383,8 +400,13 @@ export async function getArenaCrmCustomerCore(db: Firestore, uid: string, raw: u
     };
   })).sort((a, b) => b.paidOn.localeCompare(a.paidOn));
 
-  const recentBookings = (bookingsSnap?.docs ?? [])
-    .map((d) => d.data() as Data)
+  const bookingDocs = new Map<string, Data>();
+  for (const d of bookingsSnap?.docs ?? []) bookingDocs.set(d.id, d.data() as Data);
+  for (const d of [...(invitedSnap?.docs ?? []), ...(scoredSnap?.docs ?? [])]) {
+    const b = d.data() as Data;
+    if (str(b["arenaId"]) === arenaId && !bookingDocs.has(d.id)) bookingDocs.set(d.id, b);
+  }
+  const recentBookings = [...bookingDocs.values()]
     .filter((b) => !["cancelled", "canceled"].includes(str(b["status"]).toLowerCase()) && str(b["date"]) <= addDays(today, 30))
     .sort((a, b) => `${str(b["date"])}${str(b["startTime"])}`.localeCompare(`${str(a["date"])}${str(a["startTime"])}`))
     .slice(0, 20)
@@ -393,9 +415,12 @@ export async function getArenaCrmCustomerCore(db: Firestore, uid: string, raw: u
       startTime: str(b["startTime"]).slice(0, 5),
       endTime: str(b["endTime"]).slice(0, 5),
       courtName: str(b["courtName"]) || "Quadra",
-      amountReais: num(b["amountReais"]),
+      // Convidado não pagou a reserva: o valor é de quem reservou.
+      amountReais: str(b["athleteId"]) !== athleteId ? 0 : num(b["amountReais"]),
       plan: b["isRecurring"] === true || b["coveredByPlan"] === true,
       attendance: str(b["attendanceStatus"]) || "pending",
+      guest: str(b["athleteId"]) !== athleteId,
+      bookedBy: str(b["athleteId"]) !== athleteId ? optStr(b["customerName"]) : null,
     }));
 
   return {

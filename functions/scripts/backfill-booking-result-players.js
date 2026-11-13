@@ -1,6 +1,7 @@
 /* eslint-disable */
 /**
- * Grava `arenaBookings/{id}.resultPlayers` (quem está no placar do pós-jogo, sem o dono) nas
+ * Grava `arenaBookings/{id}.resultPlayers` + `resultPlayerUids` (quem está no placar do pós-jogo,
+ * sem o dono; os uids à parte para o CRM da arena consultar) nas
  * reservas cujos placares (`bookingResults/{bookingId}`) foram salvos antes de
  * `saveBookingResult` passar a espelhar a lista na reserva. Daqui pra frente quem mantém é a
  * callable. Só escreve quando a lista muda: idempotente.
@@ -24,7 +25,7 @@ if (!projectId) {
 }
 const apply = process.argv.includes("--yes");
 admin.initializeApp({projectId});
-const {bookingOwnerUid, bookingResultPlayers} = require("../lib/booking-result");
+const {bookingOwnerUid, bookingResultPlayersPatch} = require("../lib/booking-result");
 
 async function main() {
   const db = admin.firestore();
@@ -47,15 +48,15 @@ async function main() {
         avatarUrl: typeof p?.avatarUrl === "string" && p.avatarUrl.trim() ? p.avatarUrl.trim() : null,
       })),
     }));
-    const next = bookingResultPlayers(normalized, bookingOwnerUid(booking.data()));
-    const current = booking.get("resultPlayers");
-    if (JSON.stringify(current ?? null) === JSON.stringify(next)) {
+    const next = bookingResultPlayersPatch(normalized, bookingOwnerUid(booking.data()));
+    const current = {resultPlayers: booking.get("resultPlayers"), resultPlayerUids: booking.get("resultPlayerUids")};
+    if (JSON.stringify(current) === JSON.stringify(next)) {
       console.log(`= ${r.id}`);
       continue;
     }
     changed++;
-    console.log(`+ ${r.id}: ${next.map((p) => p.uid).join(", ") || "(ninguém além do dono)"}`);
-    if (apply) await bookingRef.update({resultPlayers: next});
+    console.log(`+ ${r.id}: ${next.resultPlayerUids.join(", ") || "(ninguém além do dono)"}`);
+    if (apply) await bookingRef.update(next);
   }
   console.log(apply
     ? `${results.size} placar(es); ${changed} reserva(s) atualizada(s); ${missing} sem reserva.`

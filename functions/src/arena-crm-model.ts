@@ -402,14 +402,47 @@ export interface CrmBookingRecord {
   scheduleSubscriptionId?: unknown;
   source?: unknown;
   bookedAs?: unknown;
+  /** Convidados da reserva (`{uid, name}`). */
+  participants?: unknown;
+  /** Quem está no placar do pós-jogo, sem o dono (`{uid, name}`). */
+  resultPlayers?: unknown;
 }
 
 export interface CrmMonth {
   month: string;
+  /** Reservas dele (plano + avulso). */
   total: number;
   plan: number;
   avulso: number;
   avulsoReais: number;
+  /** Jogos na reserva de outra pessoa (convite ou placar): visita, sem receita. */
+  played: number;
+}
+
+export interface CrmBookingPlayer {
+  uid: string;
+  name: string | null;
+}
+
+/**
+ * Quem jogou na reserva além de quem reservou: convidados (`participants`) e quem está no
+ * placar (`resultPlayers`). Só atleta com conta (uid), sem repetir e sem o dono.
+ */
+export function bookingPlayersOf(b: CrmBookingRecord): CrmBookingPlayer[] {
+  const owner = str(b.athleteId);
+  const seen = new Set<string>(owner ? [owner] : []);
+  const out: CrmBookingPlayer[] = [];
+  for (const list of [b.participants, b.resultPlayers]) {
+    if (!Array.isArray(list)) continue;
+    for (const entry of list) {
+      if (!entry || typeof entry !== "object") continue;
+      const uid = str((entry as {uid?: unknown}).uid);
+      if (!uid || seen.has(uid)) continue;
+      seen.add(uid);
+      out.push({uid, name: str((entry as {name?: unknown}).name) || null});
+    }
+  }
+  return out;
 }
 
 export interface CrmPatternSlot {
@@ -505,21 +538,12 @@ export function aggregateBookings(bookings: CrmBookingRecord[], today: string): 
   const weeksFrom = addDays(today, -(PATTERN_WEEKS * 7 - 1));
   const calendarFrom = addDays(weekStartOf(today), -7 * (PATTERN_WEEKS - 1));
   const out = new Map<string, CrmBookingStats & {slotWeeks: Map<string, Set<number>>}>();
-
-  for (const b of bookings) {
-    if (!customerBooking(b, today)) continue;
-    const date = str(b.date);
-    if (date < from) continue;
-    const athleteId = str(b.athleteId) || null;
-    const name = str(b.customerName) || null;
-    const key = customerKeyOf(athleteId, name);
-    if (!key) continue;
-
+  const statsOf = (key: string, athleteId: string | null, name: string | null) => {
     let s = out.get(key);
     if (!s) {
       s = {
         key, athleteId, name,
-        months: months.map((month) => ({month, total: 0, plan: 0, avulso: 0, avulsoReais: 0})),
+        months: months.map((month) => ({month, total: 0, plan: 0, avulso: 0, avulsoReais: 0, played: 0})),
         firstDate: null, lastVisitDate: null, visits28d: 0, avulso90d: 0, avulsoReais90d: 0,
         weekHits: Array.from({length: PATTERN_WEEKS}, () => false), pattern: [],
         weekHours: Array.from({length: PATTERN_WEEKS}, () => 0), avulsoHours90d: 0,
@@ -528,6 +552,33 @@ export function aggregateBookings(bookings: CrmBookingRecord[], today: string): 
       out.set(key, s);
     }
     if (!s.name && name) s.name = name;
+    return s;
+  };
+
+  for (const b of bookings) {
+    if (!customerBooking(b, today)) continue;
+    const date = str(b.date);
+    if (date < from) continue;
+    const noShow = str(b.attendanceStatus).toLowerCase() === "no_show";
+
+    // Quem jogou na reserva de outra pessoa também é cliente: conta a visita, não a receita
+    // nem as horas do banco (essas são de quem reservou). Falta da reserva = ninguém veio.
+    for (const p of bookingPlayersOf(b)) {
+      const ps = statsOf(`a:${p.uid}`, p.uid, p.name);
+      const pm = ps.months[months.indexOf(monthOf(date))];
+      if (pm) pm.played += 1;
+      if (!ps.firstDate || date < ps.firstDate) ps.firstDate = date;
+      if (!noShow) {
+        if (!ps.lastVisitDate || date > ps.lastVisitDate) ps.lastVisitDate = date;
+        if (date >= d28) ps.visits28d += 1;
+      }
+    }
+
+    const athleteId = str(b.athleteId) || null;
+    const name = str(b.customerName) || null;
+    const key = customerKeyOf(athleteId, name);
+    if (!key) continue;
+    const s = statsOf(key, athleteId, name);
 
     const plan = isPlanBooking(b);
     const amount = num(b.amountReais);
@@ -542,7 +593,6 @@ export function aggregateBookings(bookings: CrmBookingRecord[], today: string): 
     }
     if (!s.firstDate || date < s.firstDate) s.firstDate = date;
 
-    const noShow = str(b.attendanceStatus).toLowerCase() === "no_show";
     if (!noShow) {
       if (!s.lastVisitDate || date > s.lastVisitDate) s.lastVisitDate = date;
       if (date >= d28) s.visits28d += 1;
@@ -683,6 +733,8 @@ export interface CrmCustomer {
   contract: CrmContractView | null;
   months: CrmMonth[];
   bookings6m: number;
+  /** Jogos na reserva de outra pessoa nos 6 meses (convite ou placar). */
+  played6m: number;
   avulsoReais6m: number;
   firstDate: string | null;
   lastVisitDate: string | null;
@@ -829,7 +881,7 @@ export function buildOverview(input: BuildOverviewInput): CrmOverview {
   }
 
   const keys = new Set<string>([...stats.keys(), ...viewsByKey.keys()]);
-  const emptyMonths = historyMonths(today).map((month) => ({month, total: 0, plan: 0, avulso: 0, avulsoReais: 0}));
+  const emptyMonths = historyMonths(today).map((month) => ({month, total: 0, plan: 0, avulso: 0, avulsoReais: 0, played: 0}));
   const customers: CrmCustomer[] = [];
 
   for (const key of keys) {
@@ -859,6 +911,7 @@ export function buildOverview(input: BuildOverviewInput): CrmOverview {
       contract,
       months: st?.months ?? emptyMonths,
       bookings6m: st ? st.months.reduce((s, m) => s + m.total, 0) : 0,
+      played6m: st ? st.months.reduce((s, m) => s + (m.played ?? 0), 0) : 0,
       avulsoReais6m: st ? round2(st.months.reduce((s, m) => s + m.avulsoReais, 0)) : 0,
       firstDate: st?.firstDate ?? null,
       lastVisitDate,

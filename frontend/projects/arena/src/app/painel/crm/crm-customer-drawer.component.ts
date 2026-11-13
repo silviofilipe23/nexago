@@ -19,6 +19,9 @@ import {
   installmentStrip,
   money,
   monthShort,
+  monthGames,
+  type CrmMonth,
+  gamesSummary,
   monthYear,
   patternLabel,
   hoursLabel,
@@ -161,18 +164,22 @@ interface TimelineEntry {
             }
 
             <section class="card inner" aria-labelledby="hist-t">
-              <div class="c-h"><h3 class="card-title" id="hist-t">Reservas por mês</h3><span class="label">Últimos 6 meses</span></div>
+              <div class="c-h"><h3 class="card-title" id="hist-t">Jogos por mês</h3><span class="label">Últimos 6 meses</span></div>
               <div class="chart" role="img" [attr.aria-label]="chartLabel(c)">
                 @for (m of c.months; track m.month) {
                   <div class="col-bar">
-                    <span class="n">{{ m.total }}</span>
+                    <span class="n">{{ games(m) }}</span>
+                    @if (m.played) { <i class="g" [style.height.%]="h(m.played)"></i> }
                     @if (m.avulso) { <i class="a" [style.height.%]="h(m.avulso)"></i> }
                     @if (m.plan) { <i class="p" [style.height.%]="h(m.plan)"></i> }
                   </div>
                 }
               </div>
               <div class="months">@for (m of c.months; track m.month) { <span>{{ monthShort(m.month) }}</span> }</div>
-              <div class="legend"><span><i class="sw p"></i>Pelo contrato</span><span><i class="sw a"></i>Avulsas · {{ money(c.avulsoReais6m) }}</span></div>
+              <div class="legend">
+                <span><i class="sw p"></i>Pelo contrato</span><span><i class="sw a"></i>Avulsas · {{ money(c.avulsoReais6m) }}</span>
+                @if (c.played6m) { <span><i class="sw g"></i>Como convidado</span> }
+              </div>
               @if (insight(); as text) {
                 <div class="insight"><ar-icon name="alert-triangle" [size]="16" /><span>{{ text }}</span></div>
               }
@@ -284,6 +291,7 @@ interface TimelineEntry {
     .col-bar i { display: block; border-radius: 4px; min-height: 3px; }
     .col-bar .p { background: var(--nx-win); }
     .col-bar .a { background: rgba(255,106,26,.55); }
+    .col-bar .g { background: var(--nx-text-dim); opacity: .55; }
     .n { font: 10px var(--nx-font-mono); text-align: center; color: var(--nx-text-mute); margin-bottom: 4px; }
     .months { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 6px; }
     .months span { font: 9.5px var(--nx-font-mono); letter-spacing: .1em; text-transform: uppercase; text-align: center; color: var(--nx-text-dim); }
@@ -292,6 +300,7 @@ interface TimelineEntry {
     .sw { width: 10px; height: 10px; border-radius: 2px; }
     .sw.p { background: var(--nx-win); }
     .sw.a { background: rgba(255,106,26,.55); }
+    .sw.g { background: var(--nx-text-dim); opacity: .55; }
     .insight { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; background: rgba(244,197,67,.06); border: 1px solid rgba(244,197,67,.3); font-size: 12.5px; color: var(--nx-text-mute); line-height: 1.5; margin-top: 14px; color: var(--nx-pending); }
     .insight span { color: var(--nx-text-mute); }
     .kv { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; padding: 7px 0; color: var(--nx-text-mute); border-bottom: 1px solid var(--nx-line); }
@@ -379,7 +388,7 @@ export class CrmCustomerDrawerComponent {
     const c = this.customer();
     return c ? customerInsight(c, this.store.today()) : null;
   });
-  private readonly maxMonth = computed(() => Math.max(1, ...(this.customer()?.months.map((m) => m.total) ?? [1])));
+  private readonly maxMonth = computed(() => Math.max(1, ...(this.customer()?.months.map(monthGames) ?? [1])));
 
   protected readonly timeline = computed<TimelineEntry[]>(() => {
     const d = this.detail();
@@ -430,7 +439,7 @@ export class CrmCustomerDrawerComponent {
 
   protected meta(c: CrmCustomer): string {
     const since = [c.firstDate, c.contract?.startDate].filter((d): d is string => !!d).sort()[0];
-    const parts = [`Cliente desde ${monthYear(since)}`, `${c.bookings6m} jogos em 6 meses`];
+    const parts = [`Cliente desde ${monthYear(since)}`, gamesSummary(c)];
     if (c.avulsoReais6m > 0) parts.push(`${money(c.avulsoReais6m)} em avulso`);
     return parts.join(' · ');
   }
@@ -448,12 +457,16 @@ export class CrmCustomerDrawerComponent {
     return String(n).padStart(2, '0');
   }
 
+  protected games(m: CrmMonth): number {
+    return monthGames(m);
+  }
+
   protected h(n: number): number {
     return Math.max(4, (n / this.maxMonth()) * 82);
   }
 
   protected chartLabel(c: CrmCustomer): string {
-    return `Jogos por mês: ${c.months.map((m) => `${monthShort(m.month)} ${m.total}`).join(', ')}`;
+    return `Jogos por mês: ${c.months.map((m) => `${monthShort(m.month)} ${monthGames(m)}`).join(', ')}`;
   }
 
   protected waHint(c: CrmCustomer): string {

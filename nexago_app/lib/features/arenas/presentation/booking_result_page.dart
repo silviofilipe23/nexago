@@ -73,10 +73,6 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
   /// O "Marcar ao vivo" da Agenda já abriu (uma vez só).
   bool _liveLaunched = false;
 
-  /// A capa da arena já virou o fundo padrão (uma vez só: depois vale o que
-  /// o atleta escolher).
-  bool _coverApplied = false;
-
   void _toggleInfo(BookingResultInfo info) {
     setState(() {
       if (!_hidden.remove(info)) _hidden.add(info);
@@ -173,25 +169,13 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
       endTime: args.endTime,
     );
     // Capa e logo da arena (canvas "Pelada · placares…", 17 e 18): a capa
-    // abre como fundo e fica na "Foto de fundo"; o logo vai ao lado do nome.
+    // fica como opção na "Foto de fundo" (o fundo padrão segue Brasa); o
+    // logo vai ao lado do nome.
     final arenaId = (widget.args.arenaId ?? source?.arenaId ?? '').trim();
     final arenaArt = arenaId.isEmpty
         ? null
         : ref.watch(bookingArenaArtProvider(arenaId)).valueOrNull;
-    final cover = arenaArt?.cover;
-    arenaCoverPhoto = cover;
-    if (cover != null && !_coverApplied) {
-      _coverApplied = true;
-      if (storyPhoto == null && storyTheme == BookingStoryTheme.ember) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted || storyPhoto != null) return;
-          setState(() {
-            storyPhoto = cover;
-            storyTheme = BookingStoryTheme.photo;
-          });
-        });
-      }
-    }
+    arenaCoverPhoto = arenaArt?.cover;
     final art = BookingResultArtData(
       arenaLogo: arenaArt?.logo,
       headline: bookingResultHeadline(widget.presetSport ?? source?.sport),

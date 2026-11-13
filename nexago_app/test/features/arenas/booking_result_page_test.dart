@@ -231,28 +231,23 @@ void main() {
   });
 
   testWidgets(
-      'arena com capa e logo: a capa abre de fundo, o logo vai ao lado do '
-      'nome e "Foto da arena" volta a ela', (tester) async {
+      'arena com capa e logo: abre em Brasa com o logo ao lado do nome; '
+      '"Foto da arena" põe a capa de fundo', (tester) async {
     await abrir(tester, arena: BookingArenaArt(cover: pixel, logo: pixel));
     await tester.pumpAndSettle();
 
     BookingResultCard card() =>
         tester.widget<BookingResultCard>(find.byType(BookingResultCard));
-    expect(card().theme, BookingStoryTheme.photo);
-    expect(card().photo, same(pixel));
+    // A capa não vira o fundo sozinha.
+    expect(card().theme, BookingStoryTheme.ember);
+    expect(card().photo, isNull);
     expect(
       inCard(find.byKey(const Key('booking-result-arena-logo'))),
       findsOneWidget,
     );
 
-    await tester.tap(find.byKey(const Key('booking-story-theme-ember')));
-    await tester.pump();
-    expect(card().theme, BookingStoryTheme.ember);
-
-    // Tocar na arte em "Foto" abre a folha; a capa é a primeira opção.
+    // "Foto" sem foto abre a folha; a capa é a primeira opção.
     await tester.tap(find.byKey(const Key('booking-story-theme-photo')));
-    await tester.pump();
-    await tester.tap(find.byType(BookingResultCard));
     await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const ValueKey('booking-story-photo-source-arena')),

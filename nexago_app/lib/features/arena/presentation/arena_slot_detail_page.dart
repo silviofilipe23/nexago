@@ -26,6 +26,7 @@ import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_booking_class_block_card.dart';
 import 'widgets/arena_dashboard_tokens.dart';
+import 'widgets/arena_manual_booking_sheet.dart';
 import 'widgets/arena_schedule_block_sheet.dart';
 
 /// Detalhe de um horário da agenda do gestor.
@@ -464,8 +465,18 @@ class _QuickActionsGrid extends ConsumerWidget {
                 icon: Icons.person_add_outlined,
                 title: 'Criar reserva',
                 subtitle: 'walk-in ou nome',
-                onTap: () =>
-                    showAppSnackBar(context, 'Criar reserva em breve.'),
+                enabled: slot.isAvailable,
+                onTap: () async {
+                  final ok = await ArenaManualBookingSheet.show(
+                    context,
+                    slot: slot,
+                    courtName: courtName,
+                  );
+                  if (ok && context.mounted) {
+                    showAppSnackBar(context, 'Reserva criada.');
+                    context.pop();
+                  }
+                },
               ),
               _ActionCard(
                 icon: Icons.block_outlined,

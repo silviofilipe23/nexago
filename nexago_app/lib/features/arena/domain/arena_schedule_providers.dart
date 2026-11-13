@@ -4,6 +4,7 @@ import '../../arenas/domain/arena_list_item.dart';
 import '../../arenas/domain/arena_slot.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/slots_providers.dart';
+import '../data/manual_booking_service.dart';
 import '../data/slot_service.dart';
 import 'arena_access_providers.dart';
 import 'arena_bookings_providers.dart';
@@ -130,6 +131,10 @@ final managedArenaDetailProvider =
     error: (_, __) => Stream<ArenaListItem?>.value(null),
   );
 });
+
+/// Reserva de balcão (walk-in) criada pelo gestor no detalhe do horário.
+final arenaManualBookingServiceProvider =
+    Provider<ArenaManualBookingService>((ref) => ArenaManualBookingService());
 
 final slotServiceProvider = Provider<SlotService>((ref) {
   return SlotService(

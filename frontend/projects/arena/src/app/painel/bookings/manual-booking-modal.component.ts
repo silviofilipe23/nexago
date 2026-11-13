@@ -80,7 +80,7 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
       } @else {
         <div class="row">
         <div class="col">
-        <ar-athlete-search-field [arenaId]="arenaId()" (selected)="onAthleteSelected($event)" />
+        <ar-athlete-search-field [arenaId]="arenaId()" searchPlatform (selected)="onAthleteSelected($event)" />
         </div>
         <div class="col">
         <div class="field-label">Ou nome do cliente</div>

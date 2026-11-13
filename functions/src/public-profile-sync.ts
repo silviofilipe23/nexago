@@ -6,6 +6,7 @@ import * as logger from "firebase-functions/logger";
 import {hasRoleInClaims} from "./auth-roles";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {syncUserPhoneKey} from "./athlete-twin-account-lookup";
+import {professorDisplayChange, syncProfessorCopies} from "./professor-display-sync";
 
 /**
  * Espelho público de perfis: `public_profiles/{uid}` contém APENAS campos de
@@ -93,6 +94,17 @@ export const onUserWrittenSyncPublicProfile = onDocumentWritten(
     }).catch((error) => {
       logger.error("Phone key sync failed", {userId, error: String(error)});
     });
+
+    // Nome/foto copiados nas arenas (professor vinculado, de aulas, vitrine pública):
+    // só consulta quando um dos dois mudou de fato.
+    const professorDisplay = professorDisplayChange(event.data?.before?.data(), after?.data());
+    if (professorDisplay) {
+      await syncProfessorCopies(db, userId, professorDisplay).then((updated) => {
+        if (updated) logger.info("Professor copies synced", {userId, updated});
+      }).catch((error) => {
+        logger.error("Professor copies sync failed", {userId, error: String(error)});
+      });
+    }
 
     if (!after?.exists) {
       await mirrorRef.delete();

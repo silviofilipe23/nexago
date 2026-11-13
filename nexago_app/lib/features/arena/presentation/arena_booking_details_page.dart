@@ -461,6 +461,14 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
         athleteNames: athleteName,
         slotHighlight: ArenaBookingsGrouping.cancelSlotHighlight(booking),
         slotTimeRange: ArenaBookingsGrouping.cancelSlotTimeRange(booking),
+        releasedSlot: arenaReleasedSlot(
+          arenaId: arenaId,
+          courtId: booking.courtId,
+          dateKey: booking.dateKey,
+          startTime: booking.startTime,
+          endTime: booking.endTime,
+        ),
+        courtName: booking.courtName,
       ),
     );
   }

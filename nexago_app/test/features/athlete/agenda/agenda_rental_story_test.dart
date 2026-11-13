@@ -155,6 +155,15 @@ void main() {
 
     expect(find.byKey(const Key('agenda-booking-result-b1')), findsOneWidget);
     expect(find.text('Marcar ao vivo'), findsOneWidget);
+    // Um botão por linha, com a largura toda: lado a lado o texto cortava.
+    final live =
+        tester.getRect(find.byKey(const Key('agenda-booking-live-b1')));
+    final result = tester.getRect(
+      find.byKey(const Key('agenda-booking-result-b1')),
+    );
+    expect(result.top, greaterThan(live.bottom));
+    expect(result.width, live.width);
+    expect(live.left, result.left);
     await tester.tap(find.byKey(const Key('agenda-booking-live-b1')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));

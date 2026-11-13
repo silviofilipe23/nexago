@@ -570,160 +570,171 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
           child: Text(live ? 'ou digitar o placar' : 'ou marcar ao vivo'),
         ),
       ),
-      body: ListView(
+      // Coluna inteira, não ListView: o "Buscar mais atletas" com foco fora
+      // da tela, num item preguiçoso que mudou de lugar (a busca filtra as
+      // linhas de cima), ficava sem posição e o cursor estourava ao tentar
+      // aparecer (Null check em getOffsetToReveal). A tela é curta: montar
+      // tudo de uma vez não pesa.
+      body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-        children: [
-          const LancarPlacarSteps(step: 1),
-          const SizedBox(height: 6),
-          if (_suggestedBy != null)
-            Container(
-              key: const Key('lancar-placar-suggested'),
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colors.win.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: colors.win.withValues(alpha: 0.45)),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const LancarPlacarSteps(step: 1),
+            const SizedBox(height: 6),
+            if (_suggestedBy != null)
+              Container(
+                key: const Key('lancar-placar-suggested'),
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.win.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: colors.win.withValues(alpha: 0.45)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.scoreboard_outlined,
+                        size: 18, color: colors.win),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '$_suggestedBy marcou o placar e mandou para você. '
+                        'Confira os times e o placar e envie para todos '
+                        'confirmarem.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          color: colors.onSurface.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.scoreboard_outlined, size: 18, color: colors.win),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '$_suggestedBy marcou o placar e mandou para você. '
-                      'Confira os times e o placar e envie para todos '
-                      'confirmarem.',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        height: 1.4,
-                        color: colors.onSurface.withValues(alpha: 0.85),
+            _TeamsList(
+              result: r,
+              upcoming: upcoming,
+              onRename: _rename,
+              onDrop: (id) => setState(() => _r = r.dropTeam(id)),
+              onMove: (from, to) => setState(() => _r = r.moveTeam(from, to)),
+            ),
+            if (r.teams.length < kLancarMaxTeams)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: const Key('lancar-placar-add-team'),
+                  onPressed: () => setState(() => _r = r.addEmptyTeam()),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: Text(
+                    r.isRotation
+                        ? 'Mais um time'
+                        : 'Mais um time (rei da quadra)',
+                  ),
+                  style:
+                      TextButton.styleFrom(foregroundColor: colors.brandText),
+                ),
+              ),
+            PeladaLiveLabel(
+              typed.isEmpty ? 'Da reserva' : 'Jogadores',
+              trailing: 'toque no time',
+            ),
+            for (final (i, p) in listed.indexed)
+              _PlayerAssignRow(
+                key: Key('lancar-player-${p.id}'),
+                player: p,
+                first: i == 0,
+                subtitle: p.id == uid
+                    ? 'você'
+                    : p.id == hostUid
+                        ? 'reservou a quadra'
+                        : _extra.contains(p)
+                            ? 'adicionado pela busca'
+                            : 'na reserva',
+                result: r,
+                onAssign: (teamId) => _assign(p, teamId),
+              ),
+            const SizedBox(height: 14),
+            TextField(
+              key: const Key('lancar-placar-search'),
+              controller: _query,
+              onChanged: _onQuery,
+              textCapitalization: TextCapitalization.words,
+              style: TextStyle(fontSize: 14, color: colors.onSurface),
+              decoration: InputDecoration(
+                labelText: 'Buscar mais atletas',
+                hintText: 'Nome ou @ (pelo menos 3 letras)',
+                prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                isDense: true,
+                filled: true,
+                fillColor: colors.onSurface.withValues(alpha: 0.03),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            if (remote.isLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ),
+            for (final (i, p) in found.indexed)
+              _PlayerAssignRow(
+                key: Key('lancar-player-${p.id}'),
+                player: p,
+                first: i == 0,
+                subtitle: 'no nexaGO',
+                result: r,
+                onAssign: (teamId) => _assign(p, teamId),
+              ),
+            if (searching && !remote.isLoading && found.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  'Ninguém com esse nome no nexaGO.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: colors.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+            if (canSaveNow)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: SizedBox(
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    key: const Key('lancar-placar-invite'),
+                    onPressed: _inviteByLink,
+                    icon: const Icon(Icons.ios_share_rounded, size: 18),
+                    label: const Text('Convidar quem não tem conta'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colors.onSurface,
+                      side: BorderSide(
+                        color: colors.onSurface.withValues(alpha: 0.16),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-          _TeamsList(
-            result: r,
-            upcoming: upcoming,
-            onRename: _rename,
-            onDrop: (id) => setState(() => _r = r.dropTeam(id)),
-            onMove: (from, to) => setState(() => _r = r.moveTeam(from, to)),
-          ),
-          if (r.teams.length < kLancarMaxTeams)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                key: const Key('lancar-placar-add-team'),
-                onPressed: () => setState(() => _r = r.addEmptyTeam()),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: Text(
-                  r.isRotation
-                      ? 'Mais um time'
-                      : 'Mais um time (rei da quadra)',
-                ),
-                style: TextButton.styleFrom(foregroundColor: colors.brandText),
-              ),
-            ),
-          PeladaLiveLabel(
-            typed.isEmpty ? 'Da reserva' : 'Jogadores',
-            trailing: 'toque no time',
-          ),
-          for (final (i, p) in listed.indexed)
-            _PlayerAssignRow(
-              key: Key('lancar-player-${p.id}'),
-              player: p,
-              first: i == 0,
-              subtitle: p.id == uid
-                  ? 'você'
-                  : p.id == hostUid
-                      ? 'reservou a quadra'
-                      : _extra.contains(p)
-                          ? 'adicionado pela busca'
-                          : 'na reserva',
-              result: r,
-              onAssign: (teamId) => _assign(p, teamId),
-            ),
-          const SizedBox(height: 14),
-          TextField(
-            key: const Key('lancar-placar-search'),
-            controller: _query,
-            onChanged: _onQuery,
-            textCapitalization: TextCapitalization.words,
-            style: TextStyle(fontSize: 14, color: colors.onSurface),
-            decoration: InputDecoration(
-              labelText: 'Buscar mais atletas',
-              hintText: 'Nome ou @ (pelo menos 3 letras)',
-              prefixIcon: const Icon(Icons.search_rounded, size: 20),
-              isDense: true,
-              filled: true,
-              fillColor: colors.onSurface.withValues(alpha: 0.03),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          if (remote.isLoading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
+            const PeladaLiveNote(
+              'Todo mundo do placar precisa ter conta no nexaGO: cada um '
+              'confirma o resultado. Quem não tem entra pelo link do convite '
+              '(pelo WhatsApp) e aparece aqui.',
             ),
-          for (final (i, p) in found.indexed)
-            _PlayerAssignRow(
-              key: Key('lancar-player-${p.id}'),
-              player: p,
-              first: i == 0,
-              subtitle: 'no nexaGO',
-              result: r,
-              onAssign: (teamId) => _assign(p, teamId),
-            ),
-          if (searching && !remote.isLoading && found.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Text(
-                'Ninguém com esse nome no nexaGO.',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  color: colors.onSurface.withValues(alpha: 0.6),
-                ),
-              ),
-            ),
-          if (canSaveNow)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: SizedBox(
-                height: 48,
-                child: OutlinedButton.icon(
-                  key: const Key('lancar-placar-invite'),
-                  onPressed: _inviteByLink,
-                  icon: const Icon(Icons.ios_share_rounded, size: 18),
-                  label: const Text('Convidar quem não tem conta'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: colors.onSurface,
-                    side: BorderSide(
-                      color: colors.onSurface.withValues(alpha: 0.16),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          const PeladaLiveNote(
-            'Todo mundo do placar precisa ter conta no nexaGO: cada um '
-            'confirma o resultado. Quem não tem entra pelo link do convite '
-            '(pelo WhatsApp) e aparece aqui.',
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

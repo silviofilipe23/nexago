@@ -64,6 +64,7 @@ Future<(FakeBookingResultRepository, _MemoryStore)> _abrir(
   FakeBookingResultRepository? repo,
   bool ownerInConfirmed = true,
   DateTime Function() clock = _depoisDoJogo,
+  bool searchResults = false,
 }) async {
   repo ??= FakeBookingResultRepository();
   final drafts = store ?? _MemoryStore();
@@ -108,7 +109,14 @@ Future<(FakeBookingResultRepository, _MemoryStore)> _abrir(
             totalReais: 120,
           ),
         ),
-        bookingResultPlayerSearchProvider.overrideWith((ref, q) async => []),
+        bookingResultPlayerSearchProvider.overrideWith(
+          (ref, q) async => searchResults
+              ? [
+                  for (var i = 0; i < 6; i++)
+                    ResultPlayer(id: 'b$i', name: '$q Atleta $i'),
+                ]
+              : [],
+        ),
         bookingResultRepositoryProvider.overrideWithValue(repo),
         bookingResultUidProvider.overrideWithValue(uid),
         peladaLiveDraftStoreProvider.overrideWithValue(drafts),
@@ -400,5 +408,40 @@ void main() {
           tester.getTopLeft(find.byKey(const Key('lancar-assign-u1-5')));
       expect(button.dy, greaterThan(name.dy));
     });
+  });
+
+  testWidgets(
+      'digitar na busca com o campo fora da tela não estoura (Null check em '
+      'getOffsetToReveal)', (tester) async {
+    await _abrir(tester, mode: LancarPlacarMode.typed, searchResults: true);
+    for (var i = 0; i < 4; i++) {
+      await tester.tap(find.byKey(const Key('lancar-placar-add-team')));
+      await tester.pump();
+    }
+    final page = find.byType(Scrollable).first;
+    final field = find.byKey(const Key('lancar-placar-search'));
+    // Teclado aberto, como no aparelho.
+    tester.view.viewInsets = const FakeViewPadding(bottom: 336 * 3);
+    await tester.pump();
+    await tester.dragUntilVisible(field, page, const Offset(0, -150));
+    await tester.pumpAndSettle();
+    await tester.showKeyboard(field);
+    tester.testTextInput.enterText('Gabi');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // O campo sai da tela (rolou para cima) e o atleta segue digitando: a
+    // busca filtra as linhas de cima e o cursor tenta aparecer.
+    for (final dy in [600.0, 3000.0]) {
+      await tester.drag(page, Offset(0, dy));
+      await tester.pumpAndSettle();
+      for (final q in ['Ma', 'Gabi', '']) {
+        tester.testTextInput.enterText(q);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(tester.takeException(), isNull,
+            reason: 'rolou $dy, digitou "$q"');
+      }
+    }
   });
 }

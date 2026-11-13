@@ -10,6 +10,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/feedback/feedback_page.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../domain/arena_booking_canceled_args.dart';
+import 'widgets/arena_manual_booking_sheet.dart';
 
 /// Tela pós-cancelamento com undo (mock 06).
 class ArenaBookingCanceledPage extends ConsumerStatefulWidget {
@@ -70,10 +71,9 @@ class _ArenaBookingCanceledPageState
           SizedBox(height: 14),
           _SlotReleasedCard(
             slotTimeRange: widget.args.slotTimeRange,
-            onCreateBooking: () => showAppSnackBar(
-              context,
-              'Criar reserva em breve.',
-            ),
+            onCreateBooking: widget.args.releasedSlot == null || _restoring
+                ? null
+                : _createBooking,
             onPromoFlash: () => showAppSnackBar(
               context,
               'Promo flash em breve.',
@@ -97,6 +97,21 @@ class _ArenaBookingCanceledPageState
     return plural
         ? '$trimmed foram notificados'
         : '$trimmed foi notificado';
+  }
+
+  /// Reserva de novo o horário liberado (balcão). Sair da tela encerra o
+  /// desfazer: restaurar a reserva cancelada brigaria pelo mesmo horário.
+  Future<void> _createBooking() async {
+    final slot = widget.args.releasedSlot;
+    if (slot == null) return;
+    final ok = await ArenaManualBookingSheet.show(
+      context,
+      slot: slot,
+      courtName: widget.args.courtName,
+    );
+    if (!ok || !mounted) return;
+    showAppSnackBar(context, 'Reserva criada.');
+    context.pop();
   }
 
   Future<void> _restore() async {
@@ -256,7 +271,9 @@ class _SlotReleasedCard extends StatelessWidget {
   });
 
   final String slotTimeRange;
-  final VoidCallback onCreateBooking;
+
+  /// `null` = horário sem quadra (reserva antiga): botão desabilitado.
+  final VoidCallback? onCreateBooking;
   final VoidCallback onPromoFlash;
 
   @override

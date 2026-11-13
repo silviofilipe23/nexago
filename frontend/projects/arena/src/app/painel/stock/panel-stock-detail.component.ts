@@ -36,7 +36,7 @@ import { ProductImageFieldComponent } from './product-image-field.component';
 import {
   deactivateProduct,
   deleteProduct,
-  deleteProductImage,
+  deleteReplacedProductImage,
   fetchMovements,
   fetchProductWithCost,
   registerStockMovement,
@@ -725,8 +725,10 @@ export class PanelStockDetailComponent {
         emoji: this.emoji().trim() || undefined,
         imageUrl,
       });
-      if (removeImage) {
-        void deleteProductImage(arenaStorage(), arenaId, p.id);
+      // Só depois de o doc apontar pra foto nova (ou pra nenhuma): apagar antes deixaria o
+      // produto com uma URL morta se a gravação falhasse.
+      if (imageUrl !== undefined) {
+        void deleteReplacedProductImage(arenaStorage(), arenaId, p.imageUrl, imageUrl);
       }
       this.imageFile.set(null);
       void this.router.navigate(['/painel/estoque']);

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 import '../../arenas/domain/arena_amenities.dart';
+import '../domain/arena_image_storage_path.dart';
 import '../../arenas/domain/arena_list_item.dart';
 import '../../arenas/domain/arena_sport_codes.dart';
 
@@ -46,10 +47,13 @@ class ArenaProfileEditService {
   /// do envio (os testes do `saveProfile` não sobem Firebase).
   final FirebaseStorage? _storage;
 
-  /// Sobe a capa para `arenas/{arenaId}/cover` — o MESMO arquivo que o Perfil do
-  /// portal da arena grava (`uploadArenaImage`): nome fixo, cada envio substitui
-  /// o anterior sem acumular órfãos. A URL devolvida só vale para o atleta
-  /// depois de gravada em `coverUrl` pelo [saveProfile].
+  /// Sobe a capa para `arenas/{arenaId}/cover-{ms}`, o mesmo formato do Perfil
+  /// do portal da arena (`uploadArenaImage`). Nome novo a cada envio
+  /// (`arenaCoverStoragePath`): sobrescrever trocaria o token e a capa já
+  /// publicada daria 403 até o [saveProfile] gravar a nova. O arquivo anterior
+  /// fica no Storage, porque o espelho da equipe e o mini-site publicado guardam
+  /// cópias da URL. A URL devolvida só vale para o atleta depois de gravada em
+  /// `coverUrl` pelo [saveProfile].
   Future<String> uploadCover({
     required String arenaId,
     required Uint8List bytes,
@@ -59,7 +63,8 @@ class ArenaProfileEditService {
     if (id.isEmpty) {
       throw ArenaProfileEditException('Arena inválida.');
     }
-    final ref = (_storage ?? FirebaseStorage.instance).ref('arenas/$id/cover');
+    final ref = (_storage ?? FirebaseStorage.instance)
+        .ref(arenaCoverStoragePath(id, DateTime.now()));
     try {
       await ref.putData(bytes, SettableMetadata(contentType: contentType));
     } on FirebaseException catch (e) {

@@ -1,4 +1,4 @@
-// Capa e logo da arena no Storage (`arenas/{arenaId}/cover|logo`): além do dono, o gestor ativo
+// Capa e logo da arena no Storage (`arenas/{arenaId}/cover|logo`, e `cover-{ms}`/`logo-{ms}`): além do dono, o gestor ativo
 // da equipe sobe a foto, com a mesma titularidade de plano que o Firestore exige pra editar o
 // perfil (`arenaCanWrite(arenaId, 'perfil')`). Foto de produto (`arenas/{arenaId}/products/*`):
 // gestor e manutenção, os cargos que gravam o produto (`arenaCanWrite(arenaId, 'estoque')`).
@@ -85,6 +85,29 @@ test('gestor ativo de arena com plano sobe capa e logo (jpeg, png, webp)', async
   await assertSucceeds(put(s, 'arenas/arena-pro/cover', { contentType: 'image/webp' }));
 });
 
+test('gestor sobe capa e logo com nome por envio (`cover-{ms}`, `logo-{ms}`)', async () => {
+  const s = storageAs(GESTOR);
+  await assertSucceeds(put(s, 'arenas/arena-pro/cover-1731500000000'));
+  await assertSucceeds(put(s, 'arenas/arena-pro/logo-1731500000000', { contentType: 'image/png' }));
+  await assertSucceeds(storageAs(GESTOR).ref('arenas/arena-pro/cover-1731500000000').delete());
+});
+
+test('gestor: o nome por envio é só `cover-` ou `logo-` seguido do instante', async () => {
+  const s = storageAs(GESTOR);
+  for (const name of ['cover-', 'cover-abc', 'cover-1-2', 'xcover-1', 'cover-1.jpg', 'site-hero-1', 'classes-cover-1', 'logo1']) {
+    await assertFails(put(s, `arenas/arena-pro/${name}`), name);
+  }
+});
+
+test('nome por envio segue o mesmo gate: cargo, vínculo e plano', async () => {
+  for (const uid of [RECEPCAO, FINANCEIRO, MANUTENCAO, EX_GESTOR, ESTRANHO]) {
+    await assertFails(put(storageAs(uid), 'arenas/arena-pro/cover-1731500000000'));
+  }
+  await assertFails(put(storageAs(GESTOR), 'arenas/arena-starter/cover-1731500000000'));
+  await assertFails(put(storageAs(GESTOR), 'arenas/arena-vencida/logo-1731500000000'));
+  await assertSucceeds(put(storageAs(OWNER), 'arenas/arena-sem-plano/cover-1731500000000'));
+});
+
 test('gestor: só imagem jpeg/png/webp de até 5 MB', async () => {
   const s = storageAs(GESTOR);
   await assertFails(put(s, 'arenas/arena-pro/cover', { bytes: 5 * 1024 * 1024 + 1 }));
@@ -135,6 +158,13 @@ test('o dono segue como antes: sobe em qualquer arena dele, com ou sem plano', a
 test('a capa é pública', async () => {
   await assertSucceeds(put(storageAs(OWNER), 'arenas/arena-pro/cover'));
   await assertSucceeds(testEnv.unauthenticatedContext().storage().ref('arenas/arena-pro/cover').getMetadata());
+});
+
+test('foto de produto com nome por envio (`{productId}-{ms}.jpg`)', async () => {
+  for (const uid of [GESTOR, MANUTENCAO]) {
+    await assertSucceeds(put(storageAs(uid), 'arenas/arena-pro/products/p1-1731500000000.jpg'));
+  }
+  await assertFails(put(storageAs(RECEPCAO), 'arenas/arena-pro/products/p1-1731500000000.jpg'));
 });
 
 test('gestor e manutenção ativos de arena com plano sobem foto de produto (jpeg, png, webp)', async () => {

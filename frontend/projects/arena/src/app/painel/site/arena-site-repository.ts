@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, serverTimestamp, type Firestore } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
 import { type FirebaseStorage } from 'firebase/storage';
+import { arenaImagePath } from '../data/arena-image-path';
 import { uploadArenaImageFile } from '../profile/arena-profile-repository';
 import {
   ARENA_SITE_EMPTY,
@@ -184,15 +185,16 @@ export async function saveArenaSiteDraft(db: Firestore, arenaId: string, draft: 
 
 export type ArenaSiteImageKind = 'site-hero' | 'site-about-1' | 'site-about-2' | 'site-about-3';
 
-/** Sobe imagem do mini-site para `arenas/{arenaId}/{kind}` (nome fixo: novo upload
- *  sobrescreve, sem órfãos; storage.rules já libera escrita pro gestor). */
+/** Sobe imagem do mini-site para `arenas/{arenaId}/{kind}-{ms}`. Nome novo a cada envio
+ *  (`arenaImagePath`): sobrescrever trocaria o token e quebraria a imagem do site PUBLICADO, que
+ *  guarda a URL antiga até a próxima publicação. Por isso o arquivo anterior também fica. */
 export async function uploadArenaSiteImage(
   storage: FirebaseStorage,
   arenaId: string,
   kind: ArenaSiteImageKind,
   file: File,
 ): Promise<string> {
-  return uploadArenaImageFile(storage, `arenas/${arenaId}/${kind}`, file, 'wide');
+  return uploadArenaImageFile(storage, arenaImagePath(arenaId, kind), file, 'wide');
 }
 
 /** Fotos da galeria usam nome único (timestamp): remover uma foto do site não

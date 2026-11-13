@@ -30,7 +30,7 @@ function initialsOfName(name: string): string {
  *  superfícies, comodidades, pagamento, capa/logo), editáveis inline. Avaliação/avaliações são
  *  agregadas por Cloud Function (só leitura). Sem "seguidores"/"visitas da semana"/"completude
  *  do perfil" — não existe nenhum desses campos no backend, eram só protótipo. Capa/logo sobem
- *  direto para o Storage (`arenas/{arenaId}/cover|logo`, ver storage.rules) assim que o arquivo é
+ *  direto para o Storage (`arenas/{arenaId}/{cover|logo}-{ms}`, ver storage.rules) assim que o arquivo é
  *  escolhido; a URL retornada só é persistida no Firestore quando o gestor clica em
  *  "Salvar alterações", igual aos demais campos desta tela. */
 @Component({

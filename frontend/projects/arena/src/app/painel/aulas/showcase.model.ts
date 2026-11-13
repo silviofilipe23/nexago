@@ -1,6 +1,7 @@
 import { doc, getDoc, type Firestore } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
 import { type FirebaseStorage } from 'firebase/storage';
+import { arenaImagePath } from '../data/arena-image-path';
 import { uploadArenaImageFile } from '../profile/arena-profile-repository';
 
 /** Vitrine das aulas no app do atleta (Hub › Aulas e treinos). Espelha `class-showcase.ts`:
@@ -91,7 +92,8 @@ export async function saveShowcase(functions: Functions, arenaId: string, s: Cla
   }
 }
 
-/** Capa da vitrine em `arenas/{arenaId}/classes-cover` (nome fixo: o novo upload substitui). */
+/** Capa da vitrine em `arenas/{arenaId}/classes-cover-{ms}`: nome novo a cada envio
+ *  (`arenaImagePath`), pra a capa salva seguir válida até a nova ser gravada. */
 export async function uploadShowcaseCover(storage: FirebaseStorage, arenaId: string, file: File): Promise<string> {
-  return uploadArenaImageFile(storage, `arenas/${arenaId}/classes-cover`, file, 'wide');
+  return uploadArenaImageFile(storage, arenaImagePath(arenaId, 'classes-cover'), file, 'wide');
 }

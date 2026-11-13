@@ -275,6 +275,24 @@ class BookingResult {
         ],
       );
 
+  /// Rei da quadra: quem espera para entrar, na ordem da fila. Quem nunca
+  /// jogou vem primeiro (na ordem da lista); depois, quem saiu de quadra há
+  /// mais tempo. [onCourt] = quem está (ou vai estar) jogando.
+  List<ResultTeam> rotationQueue({Set<int> onCourt = const {}}) {
+    final lastGame = <int, int>{};
+    for (var i = 0; i < games.length; i++) {
+      lastGame[games[i].teamA] = i;
+      lastGame[games[i].teamB] = i;
+    }
+    final waiting = [
+      for (final (i, t) in teams.indexed)
+        if (!onCourt.contains(t.id))
+          (team: t, last: lastGame[t.id] ?? -1, i: i),
+    ]..sort((x, y) =>
+        x.last != y.last ? x.last.compareTo(y.last) : x.i.compareTo(y.i));
+    return [for (final w in waiting) w.team];
+  }
+
   /// Novo set com os mesmos dois times; na rotação, quem venceu o último
   /// fica e enfrenta o próximo que estava fora (rei da quadra).
   BookingResult addGame() {
@@ -285,18 +303,13 @@ class BookingResult {
     final last = games.isEmpty ? null : games.last;
     if (last != null && isRotation) {
       final stays = last.scoreA >= last.scoreB ? last.teamA : last.teamB;
-      final left = last.teamA == stays ? last.teamB : last.teamA;
-      // Próximo da fila depois de quem saiu, pulando quem fica.
-      final start = ids.indexOf(left);
+      // Quem vence fica e enfrenta o primeiro da fila (quem perdeu acabou de
+      // ir para o fim dela).
+      final queue = rotationQueue(onCourt: {stays});
       a = stays;
-      b = left;
-      for (var step = 1; step < ids.length; step++) {
-        final candidate = ids[(start + step) % ids.length];
-        if (candidate != stays) {
-          b = candidate;
-          break;
-        }
-      }
+      b = queue.isEmpty
+          ? (last.teamA == stays ? last.teamB : last.teamA)
+          : queue.first.id;
     } else if (last != null) {
       a = last.teamA;
       b = last.teamB;

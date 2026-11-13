@@ -98,6 +98,10 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
   Timer? _toastTimer;
   String? _toast;
   bool _sheetOpen = false;
+
+  /// Rei da quadra: o time que a galera escolheu para entrar no próximo jogo
+  /// (no card de fim de jogo); `null` = o primeiro da fila.
+  int? _nextChallengerId;
   bool _sending = false;
 
   @override
@@ -299,6 +303,7 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
   Future<void> _finish() async {
     if (_sheetOpen || !mounted) return;
     _sheetOpen = true;
+    _nextChallengerId = null;
     final action = await showModalBottomSheet<_FinishAction>(
       context: context,
       isDismissible: false,
@@ -308,10 +313,11 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (_) => _FinishSheet(
+      builder: (_) => _FinishSheetHost(
         session: _s,
         sendLabel: widget.onSend == null ? null : widget.sendLabel,
         sendNote: widget.sendNote,
+        onChallenger: (id) => _nextChallengerId = id,
       ),
     );
     _sheetOpen = false;
@@ -323,7 +329,10 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
         _review();
       case _FinishAction.next:
         setState(() {
-          _s = _s.nextGame(now: widget.clock());
+          _s = _s.nextGame(
+            now: widget.clock(),
+            challengerId: _nextChallengerId,
+          );
           _toast = null;
         });
         _persist();
@@ -1141,9 +1150,17 @@ class _FinishSheet extends StatelessWidget {
     required this.session,
     this.sendLabel,
     this.sendNote,
+    this.challengerId,
+    this.onSwap,
   });
 
   final PeladaLiveSession session;
+
+  /// Rei da quadra: quem a galera escolheu para entrar; `null` = o da vez.
+  final int? challengerId;
+
+  /// "Trocar" quem entra; `null` = não há outro time para escolher.
+  final VoidCallback? onSwap;
 
   /// "Enviar para …"; `null` quando quem marca não envia.
   final String? sendLabel;
@@ -1229,7 +1246,8 @@ class _FinishSheet extends StatelessWidget {
     final accent = rotation ? colors.pending : colors.win;
 
     // Próximo jogo (rei da quadra) ou mais um set/partida (dois times).
-    final after = session.nextGame(now: DateTime.now());
+    final after =
+        session.nextGame(now: DateTime.now(), challengerId: challengerId);
     final stays =
         after.teamOnA?.id == winner?.id ? after.teamOnA : after.teamOnB;
     final enters =
@@ -1329,6 +1347,7 @@ class _FinishSheet extends StatelessWidget {
                 stays: stays,
                 enters: enters,
                 queue: after.queue,
+                onSwap: onSwap,
               ),
             ],
             const SizedBox(height: 12),
@@ -1545,12 +1564,16 @@ class _NextGameCard extends StatelessWidget {
     required this.stays,
     required this.enters,
     required this.queue,
+    this.onSwap,
   });
 
   final int gameNumber;
   final ResultTeam? stays;
   final ResultTeam? enters;
   final List<ResultTeam> queue;
+
+  /// Abre a escolha de quem entra; `null` = só há um time na fila.
+  final VoidCallback? onSwap;
 
   @override
   Widget build(BuildContext context) {
@@ -1561,7 +1584,7 @@ class _NextGameCard extends StatelessWidget {
       letterSpacing: 1.5,
       color: colors.brandText,
     );
-    Widget side(ResultTeam? t, String role) => Expanded(
+    Widget side(ResultTeam? t, String role, {Widget? action}) => Expanded(
           child: Column(
             children: [
               ResultTeamAvatars(
@@ -1589,6 +1612,7 @@ class _NextGameCard extends StatelessWidget {
                   color: colors.onSurface.withValues(alpha: 0.55),
                 ),
               ),
+              if (action != null) ...[const SizedBox(height: 6), action],
             ],
           ),
         );
@@ -1626,7 +1650,36 @@ class _NextGameCard extends StatelessWidget {
                   ),
                 ),
               ),
-              side(enters, 'entra'),
+              side(
+                enters,
+                'entra',
+                action: onSwap == null
+                    ? null
+                    : SizedBox(
+                        height: 34,
+                        child: OutlinedButton.icon(
+                          key: const Key('pelada-live-swap'),
+                          onPressed: onSwap,
+                          icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                          label: const Text('Trocar'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colors.brandText,
+                            backgroundColor:
+                                AppColors.brand.withValues(alpha: 0.10),
+                            side: BorderSide(
+                              color: AppColors.brand.withValues(alpha: 0.55),
+                            ),
+                            shape: const StadiumBorder(),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            visualDensity: VisualDensity.compact,
+                            textStyle: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
             ],
           ),
           if (queue.isNotEmpty) ...[
@@ -1642,6 +1695,267 @@ class _NextGameCard extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Guarda a troca de quem entra enquanto o card de fim de jogo está aberto
+/// e avisa a página (que aplica no "Começar o jogo").
+class _FinishSheetHost extends StatefulWidget {
+  const _FinishSheetHost({
+    required this.session,
+    required this.onChallenger,
+    this.sendLabel,
+    this.sendNote,
+  });
+
+  final PeladaLiveSession session;
+  final ValueChanged<int?> onChallenger;
+  final String? sendLabel;
+  final String? sendNote;
+
+  @override
+  State<_FinishSheetHost> createState() => _FinishSheetHostState();
+}
+
+class _FinishSheetHostState extends State<_FinishSheetHost> {
+  int? _challenger;
+
+  Future<void> _pick(List<ResultTeam> options) async {
+    final s = widget.session;
+    final winner = s.match.winner;
+    final stays = winner == LiveSide.b ? s.teamOnB : s.teamOnA;
+    final loser = winner == LiveSide.b ? s.teamOnA : s.teamOnB;
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.themeColors.surfaceSheet,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (_) => _ChallengerPicker(
+        options: options,
+        selectedId: _challenger ?? options.first.id,
+        stays: stays,
+        loser: loser,
+        gameNumber: s.nextGame(now: DateTime.now()).gameNumber,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    final id = picked == options.first.id ? null : picked;
+    setState(() => _challenger = id);
+    widget.onChallenger(id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final options = widget.session.nextChallengers(now: DateTime.now());
+    return _FinishSheet(
+      session: widget.session,
+      sendLabel: widget.sendLabel,
+      sendNote: widget.sendNote,
+      challengerId: _challenger,
+      onSwap: options.length > 1 ? () => _pick(options) : null,
+    );
+  }
+}
+
+/// "Quem entra no jogo N?": a fila, na ordem, com avatares. Quem for pulado
+/// continua na frente; quem acabou de perder não aparece (vai para o fim).
+class _ChallengerPicker extends StatefulWidget {
+  const _ChallengerPicker({
+    required this.options,
+    required this.selectedId,
+    required this.gameNumber,
+    this.stays,
+    this.loser,
+  });
+
+  final List<ResultTeam> options;
+  final int selectedId;
+  final int gameNumber;
+  final ResultTeam? stays;
+  final ResultTeam? loser;
+
+  @override
+  State<_ChallengerPicker> createState() => _ChallengerPickerState();
+}
+
+class _ChallengerPickerState extends State<_ChallengerPicker> {
+  late int _selected = widget.selectedId;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final note = TextStyle(
+      fontSize: 13,
+      height: 1.45,
+      color: colors.onSurface.withValues(alpha: 0.7),
+    );
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: colors.onSurface.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Quem entra no jogo ${widget.gameNumber}?',
+              style: AppTypography.soraRegular(
+                fontSize: 19,
+                fontWeight: FontWeight.w700,
+                color: colors.onSurface,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${widget.stays == null ? 'Enfrenta quem ficou' : 'Enfrenta ${widget.stays!.name}'}. '
+              'Quem for pulado continua na frente da fila.',
+              style: note,
+            ),
+            const SizedBox(height: 14),
+            for (final (i, t) in widget.options.indexed) ...[
+              if (i > 0) const SizedBox(height: 8),
+              _ChallengerOption(
+                key: Key('pelada-live-challenger-${t.id}'),
+                team: t,
+                caption: i == 0
+                    ? '1º da fila · a vez é deste time'
+                    : '${i + 1}º da fila',
+                selected: t.id == _selected,
+                onTap: () => setState(() => _selected = t.id),
+              ),
+            ],
+            if (widget.loser != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                '${widget.loser!.name} acabou de perder: vai para o fim da '
+                'fila e não entra agora.',
+                style: note.copyWith(fontSize: 12),
+              ),
+            ],
+            const SizedBox(height: 14),
+            SizedBox(
+              height: 54,
+              child: FilledButton(
+                key: const Key('pelada-live-challenger-confirm'),
+                onPressed: () => Navigator.pop(context, _selected),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: const Color(0xFF0A0A0A),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  textStyle: AppTypography.soraRegular(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                child: const Text('Confirmar'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChallengerOption extends StatelessWidget {
+  const _ChallengerOption({
+    super.key,
+    required this.team,
+    required this.caption,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ResultTeam team;
+  final String caption;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: selected
+            ? AppColors.brand.withValues(alpha: 0.08)
+            : colors.surfaceCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: selected
+                ? AppColors.brand
+                : colors.onSurface.withValues(alpha: 0.08),
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                ResultTeamAvatars(
+                  players: team.players,
+                  size: 32,
+                  borderColor: colors.surfaceCard,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        team.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.soraRegular(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                      Text(
+                        caption,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: colors.onSurface.withValues(alpha: 0.55),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_off_rounded,
+                  color: selected
+                      ? AppColors.brand
+                      : colors.onSurface.withValues(alpha: 0.35),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

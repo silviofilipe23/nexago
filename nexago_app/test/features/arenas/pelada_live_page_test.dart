@@ -235,4 +235,69 @@ void main() {
     );
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets('rei da quadra: trocar quem entra no próximo jogo', (
+    tester,
+  ) async {
+    _phone(tester);
+    final now = DateTime(2026, 11, 12, 18);
+    final store = _MemoryStore();
+    final four = BookingResult(
+      teams: [..._three().teams, _team(3, 'Duda', 'Teo')],
+      games: const [ResultGame(teamA: 0, teamB: 1)],
+    );
+    final session = PeladaLiveSession.start(
+      four,
+      PeladaLiveRules.forSport('football').copyWith(limit: () => 2),
+      now: now,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: PeladaLivePage(
+          session: session,
+          store: store,
+          draftKey: 'b1',
+          clock: () => now,
+          keepAwake: false,
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('pelada-live-half-b')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('pelada-live-half-b')));
+    await tester.pumpAndSettle();
+
+    // A vez é de Mateus & Nico; a galera troca para Duda & Teo.
+    final next = find.byKey(const Key('pelada-live-finish-next'));
+    expect(
+      find.descendant(of: next, matching: find.text('Mateus & Nico')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('pelada-live-swap')));
+    await tester.pumpAndSettle();
+    expect(find.text('Quem entra no jogo 2?'), findsOneWidget);
+    // Quem acabou de perder não aparece para escolher.
+    expect(find.byKey(const Key('pelada-live-challenger-0')), findsNothing);
+    await tester.tap(find.byKey(const Key('pelada-live-challenger-3')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('pelada-live-challenger-confirm')));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: next, matching: find.text('Duda & Teo')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: next,
+        matching: find.textContaining('Fila depois: Mateus & Nico'),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('pelada-live-next')));
+    await tester.pumpAndSettle();
+    expect({store.drafts['b1']!.teamA, store.drafts['b1']!.teamB}, {1, 3});
+    await tester.pumpWidget(const SizedBox());
+  });
 }

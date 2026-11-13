@@ -322,6 +322,39 @@ void main() {
       expect(r.standings.first.team.id, 1);
     });
 
+    test(
+        'rei da quadra: a galera troca quem entra; quem foi pulado fica na '
+        'frente e quem perdeu não volta direto', () {
+      final four = BookingResult(
+        teams: [..._three().teams, _team(3, 'Teo')],
+        games: const [ResultGame(teamA: 0, teamB: 1)],
+      );
+      var s = PeladaLiveSession.start(
+        four,
+        PeladaLiveRules.forSport('football'),
+        now: _t0,
+      );
+      s = s.point(LiveSide.b, now: _t0).point(LiveSide.b, now: _t0);
+      // Gui (1) venceu Pedro (0): a vez é de Mateus (2); Teo (3) pode entrar
+      // no lugar; Pedro, que perdeu, não aparece.
+      expect(s.nextChallengers(now: _t0).map((t) => t.id), [2, 3]);
+
+      s = s.nextGame(now: _t0, challengerId: 3);
+      expect({s.teamA, s.teamB}, {1, 3});
+      expect(s.queue.map((t) => t.id), [2, 0]);
+
+      // Gui vence de novo: entra Mateus, que tinha sido pulado.
+      final gui = s.teamA == 1 ? LiveSide.a : LiveSide.b;
+      s = s.point(gui, now: _t0).point(gui, now: _t0);
+      // Escolher quem fica ou um time que não existe cai no da vez.
+      for (final id in [1, 99]) {
+        final n = s.nextGame(now: _t0, challengerId: id);
+        expect({n.teamA, n.teamB}, {1, 2});
+      }
+      s = s.nextGame(now: _t0);
+      expect({s.teamA, s.teamB}, {1, 2});
+    });
+
     test('rei da quadra força 1 set', () {
       final s = PeladaLiveSession.start(
         _three(),

@@ -165,13 +165,21 @@ class PeladaLiveSession {
       ];
 
   /// Fecha a partida atual e começa a próxima (próximo set livre, ou o
-  /// próximo jogo do rei da quadra).
-  PeladaLiveSession nextGame({required DateTime now}) {
+  /// próximo jogo do rei da quadra). [challengerId] (rei da quadra): a galera
+  /// trocou quem entra — um time da fila no lugar do primeiro dela; quem foi
+  /// pulado continua na frente para o jogo seguinte.
+  PeladaLiveSession nextGame({required DateTime now, int? challengerId}) {
     final closed = BookingResult(
       teams: base.teams,
       games: [...base.games, ..._currentGames()],
     );
-    final pairing = _nextPairing(closed);
+    var pairing = _nextPairing(closed);
+    if (challengerId != null &&
+        isRotation &&
+        challengerId != pairing.a &&
+        closed.teamById(challengerId) != null) {
+      pairing = (a: pairing.a, b: challengerId);
+    }
     var next = PeladaLiveMatch(rules: rules);
     if (rules.timed) next = next.resume(now);
     // Quem estava em cima continua em cima, se seguir em quadra.
@@ -217,19 +225,26 @@ class PeladaLiveSession {
   }
 
   /// Quem espera na fila do rei da quadra, na ordem em que entra.
-  List<ResultTeam> get queue {
+  List<ResultTeam> get queue =>
+      isRotation ? base.rotationQueue(onCourt: {teamA, teamB}) : const [];
+
+  /// Rei da quadra, no fim de um jogo: quem pode entrar no próximo — a fila
+  /// toda, menos quem acabou de perder (vai para o fim). O primeiro é o da
+  /// vez.
+  List<ResultTeam> nextChallengers({required DateTime now}) {
     if (!isRotation) return const [];
-    final ids = [for (final t in base.teams) t.id];
-    final out = <ResultTeam>[];
-    // A fila anda a partir de quem está em quadra no lado que sai.
-    final start = ids.indexOf(teamB);
-    for (var step = 1; step < ids.length; step++) {
-      final id = ids[(start + step) % ids.length];
-      if (id == teamA || id == teamB) continue;
-      final team = base.teamById(id);
-      if (team != null) out.add(team);
-    }
-    return out;
+    final after = nextGame(now: now);
+    // O lado de cada um pode trocar no próximo jogo: quem fica é quem venceu.
+    final winner = match.winner;
+    final stays = winner == LiveSide.b ? teamB : teamA;
+    final loser = winner == null ? null : (stays == teamA ? teamB : teamA);
+    final firstId = after.teamA == stays ? after.teamB : after.teamA;
+    final first = after.base.teamById(firstId);
+    return [
+      if (first != null) first,
+      for (final t in after.base.rotationQueue(onCourt: {stays, firstId}))
+        if (t.id != loser) t,
+    ];
   }
 
   // Rascunho -----------------------------------------------------------------

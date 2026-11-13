@@ -6,6 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/data/booking_arena_art.dart';
+import 'package:nexago_app/features/arenas/data/pelada_live_draft_store.dart';
+import 'package:nexago_app/features/arenas/domain/pelada_live/pelada_live_rules.dart';
+import 'package:nexago_app/features/arenas/domain/pelada_live/pelada_live_session.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record_providers.dart';
@@ -14,8 +17,9 @@ import 'package:nexago_app/features/arenas/domain/booking_social_unlock.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story_providers.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_confirmed_athlete.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_page.dart';
-import 'package:nexago_app/features/arenas/presentation/booking_result_score_page.dart';
-import 'package:nexago_app/features/arenas/presentation/booking_result_team_page.dart';
+import 'package:nexago_app/features/arenas/presentation/lancar_placar/lancar_placar_page.dart';
+import 'package:nexago_app/features/arenas/presentation/lancar_placar/placar_digitado_page.dart';
+import 'package:nexago_app/features/arenas/presentation/lancar_placar/placar_enviado_page.dart';
 import 'package:nexago_app/features/arenas/presentation/pelada_detail_page.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/booking_story/booking_result_card.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
@@ -61,6 +65,20 @@ const liberada = BookingSocialUnlock(
   totalReais: 120,
 );
 
+/// Sem marcação ao vivo guardada (o de verdade é o `SharedPreferences`).
+class _SemRascunho implements PeladaLiveDraftStore {
+  @override
+  Future<void> clear(String key) async {}
+  @override
+  Future<PeladaLiveSession?> load(String key) async => null;
+  @override
+  Future<void> save(String key, PeladaLiveSession session) async {}
+  @override
+  Future<PeladaLiveRules?> lastRules(String sportKey) async => null;
+  @override
+  Future<void> saveRules(String sportKey, PeladaLiveRules rules) async {}
+}
+
 Finder rich(String text) => find.textContaining(text, findRichText: true);
 
 Finder inCard(Finder f) =>
@@ -100,6 +118,7 @@ Future<FakeBookingResultRepository> abrir(
         if (arena != null)
           bookingArenaArtProvider('a1').overrideWith((ref) async => arena),
         bookingSocialUnlockProvider('b1').overrideWith((ref) => unlock),
+        peladaLiveDraftStoreProvider.overrideWithValue(_SemRascunho()),
         bookingResultPlayerSearchProvider.overrideWith(
           (ref, query) async => busca,
         ),
@@ -119,6 +138,44 @@ Future<FakeBookingResultRepository> abrir(
 /// Espera a transição de rota terminar: tocar durante a saída de uma tela
 /// cai na barreira dela. Estas telas não têm animação infinita.
 Future<void> navegar(WidgetTester tester) => tester.pumpAndSettle();
+
+/// Pós-jogo → "Lançar placar" (passo 1, Quem jogou?).
+Future<void> lancar(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('booking-result-edit')));
+  await navegar(tester);
+  expect(find.byType(LancarPlacarPage), findsOneWidget);
+}
+
+/// Passo 1 → passo 2 (placar digitado).
+Future<void> proximo(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('lancar-placar-next')));
+  await navegar(tester);
+  expect(find.byType(PlacarDigitadoPage), findsOneWidget);
+}
+
+/// Digita [valor] no teclado aberto e confirma.
+Future<void> teclar(WidgetTester tester, int valor) async {
+  for (final d in '$valor'.split('')) {
+    await tester.tap(find.byKey(Key('placar-keypad-$d')));
+    await tester.pump();
+  }
+  await tester.tap(find.byKey(const Key('placar-keypad-ok')));
+  await navegar(tester);
+}
+
+/// O placar do jogo [i]: o lado de cima e, com o teclado que abre sozinho
+/// para o outro lado, o de baixo.
+Future<void> placar(WidgetTester tester, int i, int a, int b) async {
+  await tester.tap(find.byKey(Key('placar-box-$i-a')));
+  await navegar(tester);
+  await teclar(tester, a);
+  await teclar(tester, b);
+}
+
+Future<void> enviar(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('placar-submit')));
+  await navegar(tester);
+}
 
 void main() {
   setUpAll(() async {
@@ -175,29 +232,33 @@ void main() {
     expect(find.text('Toque para lançar o placar'), findsOneWidget);
   });
 
-  testWidgets('lança o placar: o resumo e a arte mostram os sets', (
+  testWidgets('lança o placar em 2 passos: digita, envia e a arte mostra o set',
+      (
     tester,
   ) async {
-    await abrir(tester);
+    final repo = await abrir(tester);
 
-    await tester.tap(find.byKey(const Key('booking-result-edit')));
-    await navegar(tester);
-    expect(find.byType(BookingResultScorePage), findsOneWidget);
+    await lancar(tester);
+    // A galera da reserva já vem nos times, com você no A.
+    expect(find.text('TIME A · 2'), findsOneWidget);
+    expect(find.text('TIME B · 2'), findsOneWidget);
+    await proximo(tester);
+    expect(find.text('Falta o placar do set 1'), findsOneWidget);
 
-    // Três toques seguidos sem quadro no meio: nenhum pode se perder.
-    for (var i = 0; i < 3; i++) {
-      await tester.tap(find.byKey(const Key('SET 1-a-plus')));
-    }
-    await tester.tap(find.byKey(const Key('SET 1-b-plus')));
-    await tester.pump();
-    await tester.tap(find.byKey(const Key('booking-result-save')));
+    await placar(tester, 0, 21, 18);
+    expect(find.text('Maria & Enzo vencem 1–0'), findsOneWidget);
+    expect(find.text('Enviar para Enzo, Rafael e Lia'), findsOneWidget);
+    await enviar(tester);
+
+    expect(find.byType(PlacarEnviadoPage), findsOneWidget);
+    expect(repo.saves.single.$2.games.single.scoreA, 21);
+    expect(repo.saves.single.$2.games.single.scoreB, 18);
+    await tester.tap(find.byKey(const Key('placar-enviado-story')));
     await navegar(tester);
 
     expect(find.byType(BookingResultPage), findsOneWidget);
-    expect(find.text('1–0'), findsOneWidget);
-    expect(find.text('3–1'), findsOneWidget);
-    expect(find.text('VITÓRIA'), findsOneWidget);
-    expect(cardResult(tester).games.single.scoreA, 3);
+    expect(find.text('21–18'), findsWidgets);
+    expect(cardResult(tester).games.single.scoreA, 21);
   });
 
   testWidgets('chip "Sets" desligado tira os sets; "Placar" tira o bloco', (
@@ -210,11 +271,11 @@ void main() {
     expect(find.byKey(const Key('booking-result-info-sets')), findsNothing);
     expect(inCard(find.text('0')), findsNWidgets(2));
 
-    await tester.tap(find.byKey(const Key('booking-result-edit')));
-    await navegar(tester);
-    await tester.tap(find.byKey(const Key('SET 1-a-plus')));
-    await tester.pump();
-    await tester.tap(find.byKey(const Key('booking-result-save')));
+    await lancar(tester);
+    await proximo(tester);
+    await placar(tester, 0, 1, 0);
+    await enviar(tester);
+    await tester.tap(find.byKey(const Key('placar-enviado-story')));
     await navegar(tester);
 
     // O set 1×0 entra em colunas ao lado dos nomes.
@@ -282,9 +343,9 @@ void main() {
   });
 
   testWidgets(
-    'terceira dupla pela busca vira rotação: classificação, jogos e chip Jogos',
+    'terceiro time pela busca vira rei da quadra: classificação e chip Jogos',
     (tester) async {
-      await abrir(
+      final repo = await abrir(
         tester,
         busca: const [
           ResultPlayer(id: 'u5', name: 'Bruno Lima'),
@@ -292,35 +353,31 @@ void main() {
         ],
       );
 
-      await tester.tap(find.byKey(const Key('booking-result-edit')));
-      await navegar(tester);
-      await tester.tap(find.byKey(const Key('booking-result-add-team')));
-      await navegar(tester);
-      expect(find.byType(BookingResultTeamPage), findsOneWidget);
-      expect(find.text('Escolha mais 2'), findsOneWidget);
+      await lancar(tester);
+      await tester.tap(find.byKey(const Key('lancar-placar-add-team')));
+      await tester.pump();
+      expect(find.text('Falta escolher quem jogou no Time C'), findsOneWidget);
 
       await tester.enterText(
-        find.byKey(const Key('booking-result-team-search')),
+        find.byKey(const Key('lancar-placar-search')),
         'Bru',
       );
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump();
-      // Pelada não tem avulso: nem o atalho de nome solto aparece.
+      // Pelada não tem avulso: só atleta com conta.
       expect(find.textContaining('avulso'), findsNothing);
-      await tester.tap(find.byKey(const Key('booking-result-player-u5')));
+      await tester.tap(find.byKey(const Key('lancar-assign-u5-2')));
       await tester.pump();
-      await tester.tap(find.byKey(const Key('booking-result-player-u6')));
+      await tester.tap(find.byKey(const Key('lancar-assign-u6-2')));
       await tester.pump();
-      expect(find.text('Bruno & Carol'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('booking-result-team-done')));
-      await navegar(tester);
+      expect(find.text('TIME C · 2'), findsOneWidget);
 
-      expect(find.text('CLASSIFICAÇÃO'), findsOneWidget);
-      expect(find.text('JOGOS'), findsOneWidget);
-      // Jogo empatado (0×0) não grava: o servidor recusaria.
-      await tester.tap(find.byKey(const Key('JOGO 1-a-plus')));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('booking-result-save')));
+      await proximo(tester);
+      expect(find.text('JOGO 1'), findsOneWidget);
+      await placar(tester, 0, 1, 0);
+      await enviar(tester);
+      expect(repo.saves.single.$2.isRotation, isTrue);
+      await tester.tap(find.byKey(const Key('placar-enviado-story')));
       await navegar(tester);
 
       expect(cardResult(tester).isRotation, isTrue);
@@ -340,68 +397,89 @@ void main() {
     },
   );
 
-  testWidgets('montar time: quem já joga em outro time não dá para escolher', (
+  testWidgets('trocar um jogador de time é um toque (sem "Já em …")', (
+    tester,
+  ) async {
+    final repo = await abrir(tester);
+
+    await lancar(tester);
+    // Enzo (A) troca com Rafael (B).
+    await tester.tap(find.byKey(const Key('lancar-assign-u2-1')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('lancar-assign-u3-0')));
+    await tester.pump();
+    expect(find.text('TIME A · 2'), findsOneWidget);
+    expect(find.text('TIME B · 2'), findsOneWidget);
+    expect(find.textContaining('Já em'), findsNothing);
+
+    await proximo(tester);
+    await placar(tester, 0, 21, 15);
+    await enviar(tester);
+    final teams = repo.saves.single.$2.teams;
+    expect([for (final p in teams[0].players) p.id], ['u1', 'u3']);
+    expect([for (final p in teams[1].players) p.id], ['u4', 'u2']);
+  });
+
+  testWidgets('tocar o time em que o jogador já está o tira do placar', (
     tester,
   ) async {
     await abrir(tester);
 
-    await tester.tap(find.byKey(const Key('booking-result-edit')));
-    await navegar(tester);
-    await tester.tap(find.byKey(const Key('booking-result-add-team')));
-    await navegar(tester);
-
-    expect(find.text('Já em Maria & Enzo'), findsNWidgets(2));
-    await tester.tap(find.byKey(const Key('booking-result-player-u2')));
+    await lancar(tester);
+    await tester.tap(find.byKey(const Key('lancar-assign-u3-1')));
     await tester.pump();
-    expect(find.text('Escolha mais 2'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('lancar-assign-u4-1')));
+    await tester.pump();
+    expect(find.text('TIME B · 0'), findsOneWidget);
+    expect(find.text('Falta escolher quem jogou no Time B'), findsOneWidget);
+    final next = tester.widget<FilledButton>(
+      find.byKey(const Key('lancar-placar-next')),
+    );
+    expect(next.onPressed, isNull);
   });
 
-  testWidgets('montar time: busca de atletas do app entra na lista', (
+  testWidgets('busca de atletas do app entra na lista com os times', (
     tester,
   ) async {
     await abrir(
       tester,
-      busca: const [ResultPlayer(id: 'u9', name: 'Gabi Rocha')],
+      busca: const [ResultPlayer(id: 'u7', name: 'Gabi Rocha')],
     );
 
-    await tester.tap(find.byKey(const Key('booking-result-edit')));
-    await navegar(tester);
-    await tester.tap(find.byKey(const Key('booking-result-add-team')));
-    await navegar(tester);
-
+    await lancar(tester);
     await tester.enterText(
-      find.byKey(const Key('booking-result-team-search')),
+      find.byKey(const Key('lancar-placar-search')),
       'Gab',
     );
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump();
-
     expect(find.text('Gabi Rocha'), findsOneWidget);
-    expect(find.text('Atleta nexaGO'), findsOneWidget);
+    expect(find.text('no nexaGO'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('lancar-assign-u7-0')));
+    await tester.pump();
+    expect(find.text('TIME A · 3'), findsOneWidget);
   });
 
-  testWidgets('editar um time pela classificação e renomear', (tester) async {
+  testWidgets('renomear um time pelo cabeçalho vai para a arte', (
+    tester,
+  ) async {
     await abrir(tester);
 
-    await tester.tap(find.byKey(const Key('booking-result-edit')));
+    await lancar(tester);
+    await tester.tap(find.byKey(const Key('lancar-team-1-rename')));
     await navegar(tester);
-    await tester.tap(find.byKey(const Key('booking-result-team-1')));
-    await navegar(tester);
-    expect(find.text('Editar time'), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('booking-result-team-rename')));
-    await tester.pumpAndSettle();
     await tester.enterText(
-      find.byKey(const Key('booking-result-team-name-field')),
+      find.byKey(const Key('lancar-team-name-field')),
       'As brabas',
     );
-    await tester.tap(find.text('Salvar'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('booking-result-team-done')));
+    await tester.tap(find.byKey(const Key('lancar-team-name-save')));
     await navegar(tester);
-    await tester.tap(find.byKey(const Key('SET 1-b-plus')));
-    await tester.pump();
-    await tester.tap(find.byKey(const Key('booking-result-save')));
+    expect(find.text('As brabas'), findsOneWidget);
+
+    await proximo(tester);
+    await placar(tester, 0, 18, 21);
+    await enviar(tester);
+    await tester.tap(find.byKey(const Key('placar-enviado-story')));
     await navegar(tester);
 
     expect(inCard(find.text('As brabas')), findsOneWidget);
@@ -413,18 +491,20 @@ void main() {
     ) async {
       final repo = await abrir(tester, uid: 'u3');
 
-      await tester.tap(find.byKey(const Key('booking-result-edit')));
-      await navegar(tester);
-      expect(rich('Só quem reservou a quadra salva o placar'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('SET 1-a-plus')));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('booking-result-save')));
-      await navegar(tester);
+      await lancar(tester);
+      await proximo(tester);
+      expect(
+        find.text('Só quem reservou envia o placar. Este vai para a arte do '
+            'story.'),
+        findsOneWidget,
+      );
+      await placar(tester, 0, 21, 19);
+      expect(find.text('Gerar arte do story'), findsOneWidget);
+      await enviar(tester);
 
       expect(find.byType(BookingResultPage), findsOneWidget);
       expect(repo.saves, isEmpty);
-      expect(cardResult(tester).games.single.scoreA, 1);
+      expect(cardResult(tester).games.single.scoreA, 21);
     });
 
     testWidgets('adversário com placar pendente vê o atalho para conferir', (
@@ -442,82 +522,95 @@ void main() {
   });
 
   group('placar salvo', () {
-    testWidgets('o aviso cita quem confirma e o Salvar grava o placar', (
-      tester,
-    ) async {
+    testWidgets('o botão diz para quem vai e a tela final cita quem confirma',
+        (tester) async {
       final repo = await abrir(tester);
 
-      await tester.tap(find.byKey(const Key('booking-result-edit')));
-      await navegar(tester);
-      // Todo mundo do placar confirma, companheiro também.
-      expect(
-        rich('Enzo, Rafael +1 recebem o placar para confirmar. Sem '
-            'contestação em 48h, ele confirma sozinho.'),
-        findsOneWidget,
-      );
+      await lancar(tester);
+      await proximo(tester);
+      await placar(tester, 0, 1, 0);
+      expect(find.text('Enviar para Enzo, Rafael e Lia'), findsOneWidget);
+      await enviar(tester);
 
-      await tester.tap(find.byKey(const Key('SET 1-a-plus')));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('booking-result-save')));
-      await navegar(tester);
-
-      expect(find.byType(BookingResultPage), findsOneWidget);
       expect(repo.saves.single.$1, 'b1');
       expect(repo.saves.single.$2.games.single.scoreA, 1);
       expect(
         [for (final p in repo.saves.single.$2.teams[1].players) p.id],
         ['u3', 'u4'],
       );
+      // Todo mundo do placar confirma, companheiro também.
+      expect(
+        rich('Enzo, Rafael +1 recebem o placar para confirmar. Sem '
+            'contestação em 48h, ele confirma sozinho.'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('placar-enviado-close')));
+      await navegar(tester);
+      expect(find.byType(BookingResultPage), findsOneWidget);
     });
 
-    testWidgets('sozinho na reserva: pede para montar o outro time', (
+    testWidgets('sozinho na reserva: o passo 1 pede o outro time', (
       tester,
     ) async {
       final repo = await abrir(tester, source: null);
 
-      await tester.tap(find.byKey(const Key('booking-result-edit')));
+      await lancar(tester);
+      expect(find.text('Falta escolher quem jogou no Time B'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('lancar-placar-next')));
       await navegar(tester);
-      expect(rich('Monte os times com quem jogou'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('SET 1-a-plus')));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('booking-result-save')));
-      await tester.pump();
+      expect(find.byType(PlacarDigitadoPage), findsNothing);
       expect(repo.saves, isEmpty);
-      expect(
-          find.text('Monte todos os times antes de salvar.'), findsOneWidget);
     });
 
-    testWidgets('set empatado (0×0) não grava e a tela fica', (tester) async {
+    testWidgets('set sem placar ou empatado: o botão diz o que falta', (
+      tester,
+    ) async {
       final repo = await abrir(tester);
 
-      await tester.tap(find.byKey(const Key('booking-result-edit')));
+      await lancar(tester);
+      await proximo(tester);
+      expect(find.text('Falta o placar do set 1'), findsOneWidget);
+      await placar(tester, 0, 5, 5);
+      expect(find.text('O set 1 está empatado'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('placar-submit')));
       await navegar(tester);
-      await tester.tap(find.byKey(const Key('booking-result-save')));
-      await tester.pump();
-
       expect(repo.saves, isEmpty);
-      expect(find.byType(BookingResultScorePage), findsOneWidget);
-      expect(
-        find.text('O set 1 está empatado: ajuste o placar.'),
-        findsOneWidget,
-      );
+      expect(find.byType(PlacarDigitadoPage), findsOneWidget);
     });
 
-    testWidgets('erro do servidor mantém o editor aberto com a mensagem', (
+    testWidgets('mais um set e o atalho do esporte no teclado', (tester) async {
+      final repo = await abrir(tester);
+
+      await lancar(tester);
+      await proximo(tester);
+      await placar(tester, 0, 21, 18);
+      await tester.tap(find.byKey(const Key('placar-add-game')));
+      await tester.pump();
+      // Vôlei de praia: o teclado oferece 21 como atalho.
+      await tester.tap(find.byKey(const Key('placar-box-1-b')));
+      await navegar(tester);
+      await tester.tap(find.byKey(const Key('placar-keypad-quick-21')));
+      await navegar(tester);
+      await teclar(tester, 17);
+      expect(find.text('Enviar para Enzo, Rafael e Lia'), findsOneWidget);
+      await enviar(tester);
+      final games = repo.saves.single.$2.games;
+      expect(games.length, 2);
+      expect((games[1].scoreA, games[1].scoreB), (17, 21));
+    });
+
+    testWidgets('erro do servidor mantém o placar aberto com a mensagem', (
       tester,
     ) async {
       final repo = await abrir(tester);
       repo.saveError = 'O placar abre quando a partida começar.';
 
-      await tester.tap(find.byKey(const Key('booking-result-edit')));
-      await navegar(tester);
-      await tester.tap(find.byKey(const Key('SET 1-a-plus')));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('booking-result-save')));
-      await tester.pump();
+      await lancar(tester);
+      await proximo(tester);
+      await placar(tester, 0, 1, 0);
+      await enviar(tester);
 
-      expect(find.byType(BookingResultScorePage), findsOneWidget);
+      expect(find.byType(PlacarDigitadoPage), findsOneWidget);
       expect(
           find.text('O placar abre quando a partida começar.'), findsOneWidget);
     });
@@ -547,12 +640,15 @@ void main() {
       await tester.pump();
 
       expect(find.text('Confirmado por todos os jogadores'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('booking-result-edit')));
+      await lancar(tester);
+      await proximo(tester);
+      await tester.tap(find.byKey(const Key('placar-box-0-a')));
       await navegar(tester);
-      await tester.tap(find.byKey(const Key('SET 1-a-plus')));
+      await teclar(tester, 22);
+      await tester.tap(find.byKey(const Key('placar-submit')));
+      // O botão fica girando enquanto a pergunta está aberta: sem settle.
       await tester.pump();
-      await tester.tap(find.byKey(const Key('booking-result-save')));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 400));
 
       expect(
         find.text(
@@ -560,7 +656,7 @@ void main() {
         findsOneWidget,
       );
       expect(repo.saves, isEmpty);
-      await tester.tap(find.byKey(const Key('booking-result-save-confirm')));
+      await tester.tap(find.byKey(const Key('lancar-placar-resave-confirm')));
       await navegar(tester);
       expect(repo.saves.single.$2.games.first.scoreA, 22);
     });
@@ -578,10 +674,9 @@ void main() {
       await tester.pump();
 
       expect(find.text('Rafael contestou: Dupla errada'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('booking-result-edit')));
-      await navegar(tester);
-      expect(find.byType(BookingResultScorePage), findsOneWidget);
-      // O editor parte do placar gravado (21–18, 17–21, 15–12).
+      await lancar(tester);
+      await proximo(tester);
+      // O placar parte do gravado (21–18, 17–21, 15–12).
       expect(find.text('18'), findsOneWidget);
       expect(find.text('SET 3'), findsOneWidget);
     });

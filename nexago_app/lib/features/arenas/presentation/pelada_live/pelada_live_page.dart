@@ -12,17 +12,43 @@ import '../../domain/booking_result.dart';
 import '../../domain/pelada_live/pelada_live_match.dart';
 import '../../domain/pelada_live/pelada_live_rules.dart';
 import '../../domain/pelada_live/pelada_live_session.dart';
+import '../../../../core/ui/app_snackbar.dart';
 import '../widgets/booking_story/booking_result_card.dart';
+import 'pelada_live_setup_page.dart';
 import 'pelada_live_widgets.dart';
 
 /// O que a folha de fim de jogo escolheu.
-enum _FinishAction { useScore, next, undo }
+enum _FinishAction { send, review, next, undo }
+
+/// Como a marcação ao vivo terminou (o que a rota devolve).
+sealed class PeladaLiveExit {
+  const PeladaLiveExit(this.result);
+
+  final BookingResult result;
+}
+
+/// [PeladaLivePage.onSend] lança isto quando o atleta desiste na pergunta
+/// antes de enviar: a tela fica como estava, sem mensagem de erro.
+class PeladaLiveSendCancelled implements Exception {
+  const PeladaLiveSendCancelled();
+}
+
+/// "Enviar": o placar já foi gravado por [PeladaLivePage.onSend].
+final class PeladaLiveSent extends PeladaLiveExit {
+  const PeladaLiveSent(super.result);
+}
+
+/// "Revisar placar" / "Usar no placar": o placar volta para ser conferido
+/// (ou, sem [PeladaLivePage.onSend], para a arte do story).
+final class PeladaLiveReview extends PeladaLiveExit {
+  const PeladaLiveReview(super.result);
+}
 
 /// Placar ao vivo da pelada (canvas "Pelada · marcar ao vivo", 06–11): cada
 /// metade é um time, tocar nela marca o ponto. Fecha game, set e partida pela
 /// regra do esporte, avisa set point, troca de lado e fim do tempo. Cada lance
-/// vai para o rascunho do aparelho; "Usar no placar" devolve o
-/// [BookingResult] para o Editar placar.
+/// vai para o rascunho do aparelho. No fim, "Enviar" grava pelo [onSend] e a
+/// rota devolve [PeladaLiveSent]; "Revisar placar" devolve [PeladaLiveReview].
 class PeladaLivePage extends StatefulWidget {
   const PeladaLivePage({
     super.key,
@@ -30,6 +56,9 @@ class PeladaLivePage extends StatefulWidget {
     required this.store,
     required this.draftKey,
     this.sportLabel,
+    this.sport,
+    this.onSend,
+    this.sendLabel,
     this.clock = DateTime.now,
     this.keepAwake = true,
   });
@@ -38,6 +67,17 @@ class PeladaLivePage extends StatefulWidget {
   final PeladaLiveDraftStore store;
   final String draftKey;
   final String? sportLabel;
+
+  /// Esporte da reserva: mostra o chip das regras com "Mudar". `null` = sem
+  /// chip.
+  final String? sport;
+
+  /// Grava o placar ("Enviar para…"); erro mantém a tela com a mensagem.
+  /// `null` = quem marca não envia (convidado): o fim é "Usar no placar".
+  final Future<void> Function(BookingResult result)? onSend;
+
+  /// "Enviar para Enzo, Rafael e Lia".
+  final String? sendLabel;
   final DateTime Function() clock;
 
   /// Mantém a tela acesa enquanto marca (desligado nos testes).
@@ -53,6 +93,7 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
   Timer? _toastTimer;
   String? _toast;
   bool _sheetOpen = false;
+  bool _sending = false;
 
   @override
   void initState() {
@@ -176,8 +217,78 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
     _update(_s.withMatch(m.running ? m.pause(now) : m.resume(now)));
   }
 
-  void _useScore() {
-    Navigator.of(context).pop<BookingResult>(_s.toResult());
+  void _review() {
+    Navigator.of(context).pop<PeladaLiveExit>(PeladaLiveReview(_s.toResult()));
+  }
+
+  Future<void> _send() async {
+    final send = widget.onSend;
+    if (send == null) return _review();
+    if (_sending) return;
+    setState(() => _sending = true);
+    final result = _s.toResult();
+    try {
+      await send(result);
+    } on PeladaLiveSendCancelled {
+      if (mounted) setState(() => _sending = false);
+      return;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      showAppErrorSnackBar(context, e);
+      return;
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop<PeladaLiveExit>(PeladaLiveSent(result));
+  }
+
+  /// "Mudar" do chip das regras: a folha de regras do esporte. Com ponto
+  /// marcado, a marcação recomeça (pede antes).
+  Future<void> _changeRules() async {
+    final sport = widget.sport;
+    if (sport == null) return;
+    final started = _s.canUndo || _s.base.games.isNotEmpty;
+    if (started) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Mudar as regras?'),
+          content: const Text(
+            'A marcação recomeça do zero com as regras novas.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Voltar'),
+            ),
+            FilledButton(
+              key: const Key('pelada-live-rules-restart'),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Recomeçar'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+    final next = await Navigator.of(context).push<PeladaLiveSession>(
+      MaterialPageRoute(
+        builder: (_) => PeladaLiveSetupPage(
+          initial: BookingResult(teams: _s.base.teams, games: _s.base.games),
+          sport: sport,
+          store: widget.store,
+          clock: widget.clock,
+          ctaLabel: 'Aplicar regras',
+        ),
+      ),
+    );
+    if (next == null || !mounted) return;
+    setState(() {
+      _s = next;
+      _toast = null;
+    });
+    _persist();
+    _syncTicker();
   }
 
   Future<void> _finish() async {
@@ -192,13 +303,18 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (_) => _FinishSheet(session: _s),
+      builder: (_) => _FinishSheet(
+        session: _s,
+        sendLabel: widget.onSend == null ? null : widget.sendLabel,
+      ),
     );
     _sheetOpen = false;
     if (!mounted) return;
     switch (action) {
-      case _FinishAction.useScore:
-        _useScore();
+      case _FinishAction.send:
+        await _send();
+      case _FinishAction.review:
+        _review();
       case _FinishAction.next:
         setState(() {
           _s = _s.nextGame(now: widget.clock());
@@ -231,8 +347,8 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
                 key: const Key('pelada-live-menu-use'),
                 leading: const Icon(Icons.check_rounded),
                 title: Text(
-                  'Encerrar e usar no placar · ${_s.gamesCount} '
-                  '${_unit(_s.gamesCount)}',
+                  '${widget.onSend == null ? 'Encerrar e usar no placar' : 'Encerrar e revisar o placar'}'
+                  ' · ${_s.gamesCount} ${_unit(_s.gamesCount)}',
                 ),
                 onTap: () => Navigator.pop(context, 'use'),
               ),
@@ -268,7 +384,7 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
     if (!mounted) return;
     switch (choice) {
       case 'use':
-        _useScore();
+        _review();
       case 'swap':
         _swap();
       case 'serve':
@@ -323,7 +439,8 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
 
   String get _subtitle => [
         if ((widget.sportLabel ?? '').isNotEmpty) widget.sportLabel!,
-        _s.rules.summary,
+        // Com o chip das regras, o resumo fica nele.
+        if (widget.sport == null) _s.rules.summary,
       ].join(' · ');
 
   @override
@@ -388,6 +505,7 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
                 ],
               ),
             ),
+            if (widget.sport != null) _rulesChip(),
             Expanded(
               child: Stack(
                 children: [
@@ -408,11 +526,73 @@ class _PeladaLivePageState extends State<PeladaLivePage> {
                         onTap: () => setState(() => _toast = null),
                       ),
                     ),
+                  if (_sending)
+                    const Center(
+                      child: CircularProgressIndicator(color: AppColors.brand),
+                    ),
                 ],
               ),
             ),
             _footer(),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// "Melhor de 3 · até 21 · decisivo 15 · Mudar": as regras do esporte da
+  /// reserva, já valendo; mudar abre a folha de regras.
+  Widget _rulesChip() {
+    final colors = context.themeColors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Material(
+        color: colors.surfaceRaised,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: colors.onSurface.withValues(alpha: 0.10)),
+        ),
+        child: InkWell(
+          key: const Key('pelada-live-rules-change'),
+          onTap: _changeRules,
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            height: 44,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.rule_rounded,
+                    size: 16,
+                    color: colors.onSurface.withValues(alpha: 0.6),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _s.rules.summary,
+                      key: const Key('pelada-live-rules-summary'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: colors.onSurface.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'Mudar',
+                    style: AppTypography.soraRegular(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: colors.brandText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -951,9 +1131,67 @@ class _Toast extends StatelessWidget {
 
 /// Folha de fim de jogo: quem venceu, os sets e o que fazer agora.
 class _FinishSheet extends StatelessWidget {
-  const _FinishSheet({required this.session});
+  const _FinishSheet({required this.session, this.sendLabel});
 
   final PeladaLiveSession session;
+
+  /// "Enviar para …"; `null` quando quem marca não envia.
+  final String? sendLabel;
+
+  Widget _primary(
+    BuildContext context, {
+    required Key key,
+    required String label,
+    required _FinishAction action,
+  }) =>
+      SizedBox(
+        height: 54,
+        child: FilledButton(
+          key: key,
+          onPressed: () => Navigator.pop(context, action),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.brand,
+            foregroundColor: const Color(0xFF0A0A0A),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            textStyle: AppTypography.soraRegular(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+      );
+
+  Widget _secondary(
+    BuildContext context, {
+    required Key key,
+    required String label,
+    required _FinishAction action,
+  }) {
+    final colors = context.themeColors;
+    return SizedBox(
+      height: 48,
+      child: OutlinedButton(
+        key: key,
+        onPressed: () => Navigator.pop(context, action),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: colors.onSurface,
+          side: BorderSide(color: colors.onSurface.withValues(alpha: 0.16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1107,10 +1345,14 @@ class _FinishSheet extends StatelessWidget {
             ],
             const SizedBox(height: 12),
             Text(
-              rotation
-                  ? 'Vai para o placar da pelada junto com os outros jogos.'
-                  : 'Vai para o placar da pelada. Quando você salvar, os '
-                      'jogadores recebem para confirmar.',
+              sendLabel == null
+                  ? 'Só quem reservou envia o placar. Este vai para a arte '
+                      'do story.'
+                  : rotation
+                      ? 'Siga com o próximo jogo ou encerre e envie todos.'
+                      : 'Ao enviar, os outros jogadores recebem para '
+                          'confirmar. Sem contestação em 48h, confirma '
+                          'sozinho.',
               style: TextStyle(
                 fontSize: 13,
                 height: 1.5,
@@ -1118,56 +1360,54 @@ class _FinishSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-            SizedBox(
-              height: 54,
-              child: FilledButton(
-                key: Key(rotation ? 'pelada-live-next' : 'pelada-live-use'),
-                onPressed: () => Navigator.pop(
-                  context,
-                  rotation ? _FinishAction.next : _FinishAction.useScore,
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.brand,
-                  foregroundColor: const Color(0xFF0A0A0A),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  textStyle: AppTypography.soraRegular(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                child: Text(
-                  rotation ? nextLabel : 'Usar no placar',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
+            // Rei da quadra: o principal é o próximo jogo. Dois times: enviar
+            // (ou, para quem não envia, usar o placar na arte).
+            _primary(
+              context,
+              key: Key(rotation ? 'pelada-live-next' : 'pelada-live-send'),
+              label: rotation ? nextLabel : (sendLabel ?? 'Usar no placar'),
+              action: rotation
+                  ? _FinishAction.next
+                  : (sendLabel != null
+                      ? _FinishAction.send
+                      : _FinishAction.review),
             ),
             const SizedBox(height: 8),
-            SizedBox(
-              height: 48,
-              child: OutlinedButton(
-                key: Key(rotation ? 'pelada-live-use' : 'pelada-live-next'),
-                onPressed: () => Navigator.pop(
-                  context,
-                  rotation ? _FinishAction.useScore : _FinishAction.next,
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: colors.onSurface,
-                  side: BorderSide(
-                      color: colors.onSurface.withValues(alpha: 0.16)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+            if (rotation)
+              _secondary(
+                context,
+                key: const Key('pelada-live-end'),
+                label: sendLabel != null
+                    ? 'Encerrar e enviar · ${session.gamesCount} jogos'
+                    : 'Encerrar e usar no placar · ${session.gamesCount} jogos',
+                action: sendLabel != null
+                    ? _FinishAction.send
+                    : _FinishAction.review,
+              )
+            else
+              Row(
+                children: [
+                  if (sendLabel != null) ...[
+                    Expanded(
+                      child: _secondary(
+                        context,
+                        key: const Key('pelada-live-review'),
+                        label: 'Revisar placar',
+                        action: _FinishAction.review,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: _secondary(
+                      context,
+                      key: const Key('pelada-live-next'),
+                      label: nextLabel,
+                      action: _FinishAction.next,
+                    ),
                   ),
-                ),
-                child: Text(
-                  rotation
-                      ? 'Encerrar e usar no placar · ${session.gamesCount} jogos'
-                      : nextLabel,
-                ),
+                ],
               ),
-            ),
             TextButton.icon(
               key: const Key('pelada-live-finish-undo'),
               onPressed: session.canUndo

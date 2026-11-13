@@ -27,7 +27,8 @@ import 'package:nexago_app/features/arenas/domain/my_booking_payment.dart';
 import 'package:nexago_app/features/arenas/domain/slots_page_logic.dart';
 import 'package:nexago_app/features/arenas/domain/slots_page_providers.dart';
 import 'package:nexago_app/features/arenas/presentation/booking_result_page.dart';
-import 'package:nexago_app/features/arenas/presentation/booking_result_score_page.dart';
+import 'package:nexago_app/features/arenas/domain/booking_result.dart';
+import 'package:nexago_app/features/arenas/presentation/lancar_placar/placar_enviado_page.dart';
 import 'package:nexago_app/features/arenas/presentation/club_session_detail_page.dart';
 import 'package:nexago_app/features/arenas/presentation/club_session_pix_page.dart';
 import 'package:nexago_app/features/athlete/presentation/athlete_waitlist_page.dart';
@@ -541,19 +542,31 @@ final _screens = <_Screen>[
     [Icons.schedule_rounded],
   ),
   _Screen(
-    'Placar da reserva: lançar o placar',
+    'Placar da reserva: placar enviado',
     (tester, theme) async {
+      const maria = ResultPlayer(id: 'u1', name: 'Maria Alves');
+      const enzo = ResultPlayer(id: 'u2', name: 'Enzo Lima');
+      const rafa = ResultPlayer(id: 'u3', name: 'Rafael Souza');
+      const lia = ResultPlayer(id: 'u4', name: 'Lia Martins');
       await _pumpPage(
         tester,
         theme,
-        const BookingResultPage(args: _storyArgs),
-        _resultOverrides(),
+        const PlacarEnviadoPage(
+          args: _storyArgs,
+          result: BookingResult(
+            teams: [
+              ResultTeam(id: 0, players: [maria, enzo]),
+              ResultTeam(id: 1, players: [rafa, lia]),
+            ],
+            games: [ResultGame(teamA: 0, teamB: 1, scoreA: 21, scoreB: 18)],
+          ),
+          confirmers: [enzo, rafa, lia],
+        ),
+        const [],
       );
       await tester.pump();
-      await tester.tap(find.byKey(const Key('booking-result-edit')));
-      await tester.pumpAndSettle();
     },
-    find.byType(BookingResultScorePage),
+    find.byType(PlacarEnviadoPage),
     [Icons.schedule_rounded],
   ),
 ];

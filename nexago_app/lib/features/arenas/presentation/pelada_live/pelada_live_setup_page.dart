@@ -43,7 +43,11 @@ class PeladaLiveSetupPage extends StatefulWidget {
     required this.store,
     this.clock = DateTime.now,
     this.random,
+    this.ctaLabel = 'Começar a marcar',
   });
+
+  /// "Começar a marcar" · "Aplicar regras" (o "Mudar" do placar ao vivo).
+  final String ctaLabel;
 
   final BookingResult initial;
   final String? sport;
@@ -168,7 +172,7 @@ class _PeladaLiveSetupPageState extends State<PeladaLiveSetupPage> {
               key: const Key('pelada-live-start'),
               onPressed: _start,
               icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('Começar a marcar'),
+              label: Text(widget.ctaLabel),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brand,
                 foregroundColor: const Color(0xFF0A0A0A),
@@ -543,33 +547,19 @@ class _TeamsCard extends StatelessWidget {
                 ),
               ),
             ),
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            children: [
-              // Os times se montam no Editar placar, de onde esta tela abre.
-              TextButton.icon(
-                key: const Key('pelada-live-edit-teams'),
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.group_outlined, size: 18),
-                label: const Text('Ajustar times'),
+          if (onSwap != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                key: const Key('pelada-live-swap'),
+                onPressed: onSwap,
+                icon: const Icon(Icons.swap_vert_rounded, size: 18),
+                label: const Text('Trocar lados'),
                 style: TextButton.styleFrom(
                   foregroundColor: colors.brandText,
                 ),
               ),
-              if (onSwap != null)
-                TextButton.icon(
-                  key: const Key('pelada-live-swap'),
-                  onPressed: onSwap,
-                  icon: const Icon(Icons.swap_vert_rounded, size: 18),
-                  label: const Text('Trocar lados'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: colors.brandText,
-                  ),
-                ),
-            ],
-          ),
+            ),
         ],
       ),
     );

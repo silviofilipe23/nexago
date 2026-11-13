@@ -13,7 +13,11 @@ const art = BookingResultArtData(
 
 ResultPlayer p(String id, String name) => ResultPlayer(id: id, name: name);
 
-Future<void> pintar(WidgetTester tester, BookingResult result) async {
+Future<void> pintar(
+  WidgetTester tester,
+  BookingResult result, {
+  BookingStoryTheme theme = BookingStoryTheme.night,
+}) async {
   tester.view.physicalSize = const Size(360, 640);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -23,7 +27,7 @@ Future<void> pintar(WidgetTester tester, BookingResult result) async {
       child: BookingResultCard(
         result: result,
         art: art,
-        theme: BookingStoryTheme.night,
+        theme: theme,
         infos: BookingResultInfo.values.toSet(),
       ),
     ),
@@ -52,9 +56,91 @@ void main() {
     await pintar(tester, result);
 
     expect(tester.takeException(), isNull);
-    // Só os cinco primeiros sets entram, e os 7 vencidos aparecem no total.
+    // Mais de cinco sets não cabem em colunas: vão todos para a grade.
     expect(find.text('7'), findsOneWidget);
-    expect(find.text('21'), findsNWidgets(BookingResultCard.maxSetColumns));
+    expect(find.byKey(const Key('booking-result-games-grid')), findsOneWidget);
+    expect(find.text('SETS · 7'), findsOneWidget);
+    expect(find.text('S7'), findsOneWidget);
+    expect(find.text('21–16'), findsOneWidget);
+  });
+
+  testWidgets('até cinco sets: placar em colunas, sem grade', (tester) async {
+    final result = BookingResult(
+      teams: [
+        ResultTeam(id: 0, players: [p('u1', 'Maria'), p('u2', 'Enzo')]),
+        ResultTeam(id: 1, players: [p('u3', 'Caio'), p('u4', 'Lia')]),
+      ],
+      games: const [
+        ResultGame(teamA: 0, teamB: 1, scoreA: 21, scoreB: 18),
+        ResultGame(teamA: 0, teamB: 1, scoreA: 17, scoreB: 21),
+        ResultGame(teamA: 0, teamB: 1, scoreA: 15, scoreB: 12),
+      ],
+    );
+
+    await pintar(tester, result);
+
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('booking-result-games-grid')), findsNothing);
+    expect(find.text('18'), findsOneWidget);
+    expect(find.text('17'), findsOneWidget);
+  });
+
+  testWidgets(
+      'rei da quadra: placar de cada jogo na grade, com o excesso '
+      'contado', (tester) async {
+    var result = BookingResult(
+      teams: [
+        for (var t = 0; t < 3; t++)
+          ResultTeam(
+            id: t,
+            players: [p('a$t', 'Atleta $t'), p('b$t', 'Par $t'), p('c$t', 'X')],
+          ),
+      ],
+      games: const [],
+    );
+    for (var i = 0; i < 7; i++) {
+      result = result.addGame();
+      final g = result.games.last;
+      result = result.updateGame(i, g.copyWith(scoreA: 2, scoreB: i % 2));
+    }
+
+    for (final theme in BookingStoryTheme.values) {
+      await pintar(tester, result, theme: theme);
+      expect(tester.takeException(), isNull, reason: theme.name);
+    }
+    expect(find.text('JOGOS · 7'), findsOneWidget);
+    expect(find.text('J6'), findsOneWidget);
+    expect(find.text('J7'), findsNothing);
+    expect(find.text('+1 jogo no app'), findsOneWidget);
+    expect(find.text('2–1'), findsNWidgets(3));
+  });
+
+  testWidgets('rei da quadra com 4+ times na classificação: grade menor',
+      (tester) async {
+    var result = BookingResult(
+      teams: [
+        for (var t = 0; t < 5; t++)
+          ResultTeam(
+            id: t,
+            players: [p('a$t', 'Atleta $t'), p('b$t', 'Par $t')],
+          ),
+      ],
+      games: const [],
+    );
+    for (var i = 0; i < 9; i++) {
+      result = result.addGame();
+      result = result.updateGame(
+        i,
+        result.games.last.copyWith(scoreA: 15, scoreB: 10 + i % 4),
+      );
+    }
+
+    await pintar(tester, result);
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('J4'), findsOneWidget);
+    expect(find.text('J5'), findsNothing);
+    expect(find.text('+5 jogos no app'), findsOneWidget);
   });
 
   testWidgets('rotação com seis times: só os quatro primeiros', (tester) async {

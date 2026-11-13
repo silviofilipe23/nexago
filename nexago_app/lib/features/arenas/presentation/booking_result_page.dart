@@ -178,7 +178,8 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
     final available = [
       for (final info in BookingResultInfo.values)
         if (switch (info) {
-          BookingResultInfo.sets => !result.isRotation,
+          // No rei da quadra vira "Jogos": a grade de placares da arte.
+          BookingResultInfo.sets => result.hasScore,
           BookingResultInfo.duration => art.duration.isNotEmpty,
           _ => true,
         })
@@ -298,7 +299,9 @@ class _BookingResultPageState extends ConsumerState<BookingResultPage>
         for (final info in available)
           BookingStoryChip(
             key: Key('booking-result-info-${info.name}'),
-            label: info.label,
+            label: info == BookingResultInfo.sets && result.isRotation
+                ? 'Jogos'
+                : info.label,
             selected: infos.contains(info),
             onTap: () => _toggleInfo(info),
           ),

@@ -185,11 +185,25 @@ void main() {
   ) async {
     await abrir(tester);
 
-    // Os dois times mostram o 0 do set + o 0 de sets vencidos.
-    expect(inCard(find.text('0')), findsNWidgets(4));
+    // Sem placar lançado não há set para mostrar: nem chip, nem colunas —
+    // só o 0 de sets vencidos de cada time.
+    expect(find.byKey(const Key('booking-result-info-sets')), findsNothing);
+    expect(inCard(find.text('0')), findsNWidgets(2));
+
+    await tester.tap(find.byKey(const Key('booking-result-edit')));
+    await navegar(tester);
+    await tester.tap(find.byKey(const Key('SET 1-a-plus')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('booking-result-save')));
+    await navegar(tester);
+
+    // O set 1×0 entra em colunas ao lado dos nomes.
+    expect(inCard(find.text('0')), findsNWidgets(2));
+    expect(inCard(find.text('1')), findsNWidgets(2));
     await tester.tap(find.byKey(const Key('booking-result-info-sets')));
     await tester.pump();
-    expect(inCard(find.text('0')), findsNWidgets(2));
+    expect(inCard(find.text('0')), findsOneWidget);
+    expect(inCard(find.text('1')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('booking-result-info-score')));
     await tester.pump();
@@ -206,7 +220,7 @@ void main() {
   });
 
   testWidgets(
-    'terceira dupla pela busca vira rotação: classificação, jogos e sem Sets',
+    'terceira dupla pela busca vira rotação: classificação, jogos e chip Jogos',
     (tester) async {
       await abrir(
         tester,
@@ -248,7 +262,18 @@ void main() {
       await navegar(tester);
 
       expect(cardResult(tester).isRotation, isTrue);
-      expect(find.byKey(const Key('booking-result-info-sets')), findsNothing);
+      // No rei da quadra o chip vira "Jogos": a grade com o placar de cada um.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('booking-result-info-sets')),
+          matching: find.text('Jogos'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        inCard(find.byKey(const Key('booking-result-games-grid'))),
+        findsOneWidget,
+      );
       expect(inCard(find.text('Bruno & Carol')), findsOneWidget);
     },
   );

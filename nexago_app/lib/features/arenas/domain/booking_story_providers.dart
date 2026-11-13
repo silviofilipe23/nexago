@@ -17,11 +17,13 @@ class BookingStorySource {
     this.sport,
     this.ownerUid,
     this.confirmed = const [],
+    this.arenaId,
   });
 
   final String? sport;
   final String? ownerUid;
   final List<MyBookingConfirmedAthlete> confirmed;
+  final String? arenaId;
 }
 
 /// Lido do doc (e não dos args da confirmação) para valer também na reserva
@@ -36,6 +38,7 @@ final bookingStorySourceProvider =
     sport: item.sport,
     ownerUid: item.ownerAthleteId,
     confirmed: item.confirmedAthletes,
+    arenaId: item.arenaId,
   );
 });
 

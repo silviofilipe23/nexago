@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/arenas/data/booking_arena_art.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record_providers.dart';
@@ -19,6 +22,11 @@ import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 
 import 'fake_booking_result_repository.dart';
+
+/// PNG 1×1: capa e logo de mentira da arena.
+final pixel = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+);
 
 const args = BookingStoryArgs(
   bookingId: 'b1',
@@ -68,6 +76,7 @@ Future<FakeBookingResultRepository> abrir(
   List<SavedBookingResult> salvos = const [],
   String uid = 'u1',
   BookingSocialUnlock? unlock = liberada,
+  BookingArenaArt? arena,
 }) async {
   final repo = FakeBookingResultRepository(salvos);
   tester.view.physicalSize = const Size(400, 1400);
@@ -78,7 +87,18 @@ Future<FakeBookingResultRepository> abrir(
     ProviderScope(
       overrides: [
         athleteProfileProvider.overrideWith((ref) => Stream.value(maria)),
-        bookingStorySourceProvider('b1').overrideWith((ref) => source),
+        bookingStorySourceProvider('b1').overrideWith(
+          (ref) => arena == null || source == null
+              ? source
+              : BookingStorySource(
+                  sport: source.sport,
+                  ownerUid: source.ownerUid,
+                  confirmed: source.confirmed,
+                  arenaId: 'a1',
+                ),
+        ),
+        if (arena != null)
+          bookingArenaArtProvider('a1').overrideWith((ref) async => arena),
         bookingSocialUnlockProvider('b1').overrideWith((ref) => unlock),
         bookingResultPlayerSearchProvider.overrideWith(
           (ref, query) async => busca,
@@ -208,6 +228,53 @@ void main() {
     await tester.tap(find.byKey(const Key('booking-result-info-score')));
     await tester.pump();
     expect(inCard(find.text('Maria & Enzo')), findsNothing);
+  });
+
+  testWidgets(
+      'arena com capa e logo: a capa abre de fundo, o logo vai ao lado do '
+      'nome e "Foto da arena" volta a ela', (tester) async {
+    await abrir(tester, arena: BookingArenaArt(cover: pixel, logo: pixel));
+    await tester.pumpAndSettle();
+
+    BookingResultCard card() =>
+        tester.widget<BookingResultCard>(find.byType(BookingResultCard));
+    expect(card().theme, BookingStoryTheme.photo);
+    expect(card().photo, same(pixel));
+    expect(
+      inCard(find.byKey(const Key('booking-result-arena-logo'))),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('booking-story-theme-ember')));
+    await tester.pump();
+    expect(card().theme, BookingStoryTheme.ember);
+
+    // Tocar na arte em "Foto" abre a folha; a capa é a primeira opção.
+    await tester.tap(find.byKey(const Key('booking-story-theme-photo')));
+    await tester.pump();
+    await tester.tap(find.byType(BookingResultCard));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('booking-story-photo-source-arena')),
+    );
+    await tester.pumpAndSettle();
+    expect(card().theme, BookingStoryTheme.photo);
+    expect(card().photo, same(pixel));
+  });
+
+  testWidgets('arena sem capa nem logo: segue em Brasa, sem logo', (
+    tester,
+  ) async {
+    await abrir(tester, arena: BookingArenaArt.none);
+    await tester.pumpAndSettle();
+
+    final card =
+        tester.widget<BookingResultCard>(find.byType(BookingResultCard));
+    expect(card.theme, BookingStoryTheme.ember);
+    expect(
+      inCard(find.byKey(const Key('booking-result-arena-logo'))),
+      findsNothing,
+    );
   });
 
   testWidgets('sozinho na reserva: o outro lado é "Adversários"', (

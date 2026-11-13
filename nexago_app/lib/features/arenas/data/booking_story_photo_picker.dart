@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 /// De onde vem a foto de fundo do story.
-enum BookingStoryPhotoSource { camera, gallery }
+/// `arena`: a capa da arena, já baixada (não passa pelo picker).
+enum BookingStoryPhotoSource { arena, camera, gallery }
 
 /// Foto de fundo da câmera ou da galeria; `null` quando o atleta desiste.
 typedef BookingStoryPhotoPicker = Future<Uint8List?> Function(

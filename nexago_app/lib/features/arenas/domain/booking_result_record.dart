@@ -308,6 +308,7 @@ class SavedBookingResult {
         dateKey: dateKey,
         startTime: startTime,
         endTime: endTime,
+        arenaId: arenaId,
       );
 
   /// Primeiros nomes de quem ainda não respondeu, pela ordem dos times.

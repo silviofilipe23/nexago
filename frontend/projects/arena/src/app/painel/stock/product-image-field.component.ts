@@ -34,7 +34,7 @@ import { IconComponent } from '../ui/icon.component';
           aria-label="Selecionar foto do produto"
           (change)="onFileSelected($event)"
         />
-        <p class="hint" [class.error]="!!error()">{{ error() ?? 'JPG, PNG ou WebP de até 5MB. Aparece na comanda e no cardápio.' }}</p>
+        <p class="hint" [class.error]="!!error()">{{ error() ?? 'JPG, PNG ou WebP de até 25 MB. Aparece na comanda e no cardápio.' }}</p>
       </div>
     </div>
   `,

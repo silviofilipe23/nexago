@@ -17,6 +17,7 @@ import {
   type WriteBatch,
 } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
+import { shrinkImageFile } from '../data/image-shrink';
 import { validateArenaImageFile } from '../profile/arena-profile-repository';
 import {
   signedDeltaForMovementType,
@@ -270,9 +271,11 @@ export async function uploadProductImage(
   if (error) {
     throw new Error(error);
   }
+  // Reduz antes de subir: fora do try abaixo, pra mensagem de "não abriu a imagem" chegar inteira.
+  const blob = await shrinkImageFile(file, 'product');
   const fileRef = productImageRef(storage, arenaId, productId);
   try {
-    await uploadBytes(fileRef, file, { contentType: file.type });
+    await uploadBytes(fileRef, blob, { contentType: blob.type || file.type });
   } catch (err) {
     if ((err as { code?: string }).code === 'storage/unauthorized') {
       throw new Error('Sem permissão para enviar a foto do produto. A equipe só edita o estoque com o plano da arena em dia.');

@@ -2,6 +2,7 @@ import { amenitiesFromFirestore, ARENA_AMENITIES_EMPTY, courtTypeCodesFor } from
 import { deleteField, doc, setDoc, type Firestore } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
 import { validateArenaBasicInfo, validateArenaContacts, type ArenaProfile } from '../data/arena-profile.model';
+import { PICKED_IMAGE_MAX_BYTES, shrinkImageFile, type ImageTarget } from '../data/image-shrink';
 
 /** Espelha `ArenaProfileEditService` (Flutter) — mesmo doc `arenas/{arenaId}`, mesmos campos.
  *  Client pode escrever esses campos direto (firestore.rules só congela
@@ -79,21 +80,32 @@ export async function saveArenaBasicInfo(db: Firestore, arenaId: string, input: 
 
 export type ArenaImageKind = 'cover' | 'logo';
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
 /** Tipos que o storage.rules aceita do gestor da equipe na capa/logo (`arenas/{id}/{cover|logo}`). */
 const ARENA_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-/** Valida a imagem antes do upload: JPG, PNG ou WebP de até 5MB — o mesmo limite que o
- *  storage.rules impõe ao gestor, pra ele não esbarrar numa recusa muda do Storage. */
+/** Valida a imagem ESCOLHIDA: JPG, PNG ou WebP de até 25 MB. Ela é reduzida no navegador antes
+ *  de subir (`shrinkImageFile`), e o teto de 5 MB do storage.rules vale para o arquivo reduzido. */
 export function validateArenaImageFile(file: File): string | null {
   if (!ARENA_IMAGE_TYPES.includes(file.type)) {
     return 'Selecione um arquivo de imagem (JPG, PNG ou WebP).';
   }
-  if (file.size >= MAX_IMAGE_BYTES) {
-    return 'Imagem muito grande — o limite é 5MB.';
+  if (file.size >= PICKED_IMAGE_MAX_BYTES) {
+    return 'Imagem muito grande — o limite é 25 MB.';
   }
   return null;
+}
+
+/** Valida, reduz e sobe a imagem; devolve a download URL. Todos os uploads de imagem do painel
+ *  passam por aqui, então nenhum manda a foto crua da câmera pro Storage. */
+export async function uploadArenaImageFile(storage: FirebaseStorage, path: string, file: File, target: ImageTarget): Promise<string> {
+  const error = validateArenaImageFile(file);
+  if (error) {
+    throw new Error(error);
+  }
+  const blob = await shrinkImageFile(file, target);
+  const fileRef = ref(storage, path);
+  await uploadBytes(fileRef, blob, { contentType: blob.type || file.type });
+  return getDownloadURL(fileRef);
 }
 
 /** Sobe a capa/logo para `arenas/{arenaId}/{cover|logo}` (storage.rules libera escrita para o
@@ -101,14 +113,7 @@ export function validateArenaImageFile(file: File): string | null {
  *  por tipo: cada novo upload sobrescreve o anterior, sem acumular arquivos órfãos. A URL
  *  retornada ainda precisa ser salva no Firestore via `saveArenaBasicInfo` para valer no perfil. */
 export async function uploadArenaImage(storage: FirebaseStorage, arenaId: string, kind: ArenaImageKind, file: File): Promise<string> {
-  const error = validateArenaImageFile(file);
-  if (error) {
-    throw new Error(error);
-  }
-
-  const fileRef = ref(storage, `arenas/${arenaId}/${kind}`);
-  await uploadBytes(fileRef, file, { contentType: file.type });
-  return getDownloadURL(fileRef);
+  return uploadArenaImageFile(storage, `arenas/${arenaId}/${kind}`, file, kind === 'logo' ? 'logo' : 'wide');
 }
 
 export type ArenaContactsInput = Pick<ArenaProfile, 'phone' | 'whatsapp'>;

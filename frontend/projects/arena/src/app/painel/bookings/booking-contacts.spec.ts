@@ -24,5 +24,7 @@ describe('WhatsApp da reserva', () => {
     expect(bookingContactsKey(b)).toBe('b1|u1');
     expect(bookingContactsKey({ ...b, participants: [{ uid: 'u2', name: 'Bia', avatarUrl: null, via: 'direct' as const, joinedAt: null }] })).toBe('b1|u1|u2');
     expect(bookingContactsKey({ id: 'w', athleteId: '', participants: [] })).toBeNull();
+    // Quem entrou pelo placar também tem WhatsApp no card: muda a chave.
+    expect(bookingContactsKey({ ...b, resultPlayers: [{ uid: 'u3', name: 'Rafa', avatarUrl: null }] })).toBe('b1|u1|u3');
   });
 });

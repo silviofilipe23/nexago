@@ -6,6 +6,7 @@ import '../../../../../core/profiles/app_user_profile.dart';
 import '../../../domain/athlete_display_name.dart';
 import '../../../domain/athlete_profile_providers.dart';
 import '../../../domain/booking_invite_status.dart';
+import '../../../../arenas/domain/booking_players.dart';
 import '../../../../arenas/domain/booking_providers.dart';
 import '../../../../arenas/domain/my_booking_confirmed_athlete.dart';
 import '../../../../arenas/domain/my_booking_item.dart';
@@ -93,7 +94,7 @@ final bookingDetailsTeamProvider = FutureProvider.autoDispose
   final participantsRaw = (data['confirmedParticipants'] as num?)?.toInt() ??
       (data['participantsConfirmedCount'] as num?)?.toInt() ??
       1;
-  final confirmedCount = participantsRaw.clamp(1, kBookingTeamSlots);
+  var confirmedCount = participantsRaw.clamp(1, kBookingTeamSlots);
 
   final ps = (data['paymentStatus'] as String?)?.toLowerCase().trim();
   final paidOnline = (data['amountPaidOnlineReais'] as num?)?.toDouble();
@@ -145,12 +146,18 @@ final bookingDetailsTeamProvider = FutureProvider.autoDispose
 
   final guests = <MyBookingConfirmedAthlete>[];
   final seen = <String>{if (ownerId != null) ownerId};
+  // Quem só entrou pelo placar do pós-jogo (não por convite): a linha diz isso.
+  final fromResult = <String>{};
 
-  Future<void> addGuest(MyBookingConfirmedAthlete athlete) async {
+  Future<void> addGuest(
+    MyBookingConfirmedAthlete athlete, {
+    bool viaResult = false,
+  }) async {
     final uid = athlete.userId?.trim();
     if (uid != null && uid.isNotEmpty) {
       if (uid == ownerId || seen.contains(uid)) return;
       seen.add(uid);
+      if (viaResult) fromResult.add(uid);
     }
     var name = athlete.displayName?.trim() ?? '';
     String? avatar = athlete.avatarUrl;
@@ -195,6 +202,17 @@ final bookingDetailsTeamProvider = FutureProvider.autoDispose
     }
   }
 
+  // Depois dos convidados, quem está no placar (espelho `resultPlayers` que o
+  // servidor grava ao salvar o placar) — sem repetir quem já entrou por convite.
+  for (final athlete in bookingResultPlayersOf(data)) {
+    await addGuest(athlete, viaResult: true);
+  }
+  // O placar pode trazer mais gente do que as vagas do convite: a contagem
+  // acompanha a lista, até o teto das vagas.
+  if (1 + guests.length > confirmedCount) {
+    confirmedCount = (1 + guests.length).clamp(1, kBookingTeamSlots);
+  }
+
   for (final guest in guests) {
     final name = guest.displayName?.trim() ?? 'Jogador confirmado';
     final isViewer = viewerUid != null && guest.userId == viewerUid;
@@ -202,7 +220,7 @@ final bookingDetailsTeamProvider = FutureProvider.autoDispose
       BookingDetailsTeamMember(
         uid: guest.userId,
         displayName: isViewer ? 'Você' : name,
-        subtitle: 'Confirmado',
+        subtitle: fromResult.contains(guest.userId) ? 'No placar' : 'Confirmado',
         initials: _initialsFrom(name),
         avatarUrl: guest.avatarUrl,
         isConfirmed: true,

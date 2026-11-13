@@ -1,4 +1,4 @@
-import { BOOKING_MAX_PLAYERS, type BookingParticipant } from '../../data/booking-invite-model';
+import { BOOKING_MAX_PLAYERS, type BookingParticipant, type BookingResultPlayer } from '../../data/booking-invite-model';
 
 /** Linha da equipe no detalhe da reserva — espelha `BookingDetailsTeamMember` (Flutter). */
 export interface BookingTeamMember {
@@ -35,6 +35,8 @@ export interface BookingTeamInput {
   ownerPaid: boolean;
   participants: readonly BookingParticipant[];
   legacyGuests: readonly LegacyBookingGuest[];
+  /** Quem está no placar do jogo (`resultPlayers`): entra depois dos convidados, sem repetir. */
+  resultPlayers?: readonly BookingResultPlayer[];
   /** Quem vê é o dono e o jogo ainda não terminou. */
   canRemove: boolean;
 }
@@ -52,7 +54,7 @@ export function viewerIsBookingOwner(ownerUid: string | null, viewerUid: string 
   return !ownerUid || !viewerUid || ownerUid === viewerUid;
 }
 
-/** Dono primeiro, depois quem entrou (servidor) e o legado, completando as 4 vagas. O dono só
+/** Dono primeiro, depois quem entrou (servidor), o legado e quem está no placar, completando as 4 vagas. O dono só
  *  aparece como "Você" para ele mesmo — o convidado vê o nome de quem reservou e a si como "Você". */
 export function buildBookingTeam(input: BookingTeamInput): BookingTeamMember[] {
   const isOwner = viewerIsBookingOwner(input.ownerUid, input.viewerUid);
@@ -74,7 +76,13 @@ export function buildBookingTeam(input: BookingTeamInput): BookingTeamMember[] {
   ];
 
   const seen = new Set<string>(input.ownerUid ? [input.ownerUid] : []);
-  const addGuest = (uid: string | null, name: string, avatarUrl: string | null, removable: boolean) => {
+  const addGuest = (
+    uid: string | null,
+    name: string,
+    avatarUrl: string | null,
+    removable: boolean,
+    subtitle = 'Confirmado',
+  ) => {
     if (uid) {
       if (seen.has(uid)) return;
       seen.add(uid);
@@ -84,7 +92,7 @@ export function buildBookingTeam(input: BookingTeamInput): BookingTeamMember[] {
       id: uid ?? `guest-${members.length}`,
       uid,
       displayName: isViewer ? 'Você' : name,
-      subtitle: 'Confirmado',
+      subtitle,
       initials: initialsOf(name),
       avatarUrl,
       isOrganizer: false,
@@ -96,6 +104,8 @@ export function buildBookingTeam(input: BookingTeamInput): BookingTeamMember[] {
   };
   for (const p of input.participants) addGuest(p.uid, p.name, p.avatarUrl, input.canRemove);
   for (const g of input.legacyGuests) addGuest(g.uid, g.name, null, false);
+  // Quem só entrou pelo placar não sai pela callable do convite: nunca removível.
+  for (const p of input.resultPlayers ?? []) addGuest(p.uid, p.name, p.avatarUrl, false, 'No placar');
 
   for (let i = members.length; i < BOOKING_MAX_PLAYERS; i++) {
     members.push({

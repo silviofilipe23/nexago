@@ -292,6 +292,41 @@ void main() {
       'Bob Guest',
     );
   });
+
+  test('quem só está no placar aparece depois dos convidados, sem repetir',
+      () async {
+    final container = _buildContainer(
+      viewer: MockUser(uid: 'owner1', displayName: 'Dono'),
+      bookingData: const {
+        'athleteId': 'owner1',
+        'confirmedParticipants': 2,
+        'participants': [
+          {'uid': 'guest1', 'name': 'Bob Guest', 'via': 'direct'},
+        ],
+        'participantUids': ['guest1'],
+        // Espelho do placar: o convidado e o dono também estão nele.
+        'resultPlayers': [
+          {'uid': 'owner1', 'name': 'Dono'},
+          {'uid': 'guest1', 'name': 'Bob Guest'},
+          {'uid': 'p3', 'name': 'Carla', 'avatarUrl': 'https://x/c.jpg'},
+          {'uid': 'p4', 'name': 'Duda'},
+        ],
+      },
+    );
+    addTearDown(container.dispose);
+
+    final state = await _readTeam(container, _bookingId);
+    final people = state.members.where((m) => !m.isEmptySlot).toList();
+
+    expect(people.map((m) => m.uid), ['owner1', 'guest1', 'p3', 'p4']);
+    expect(people[1].subtitle, 'Confirmado');
+    expect(people[2].subtitle, 'No placar');
+    expect(people[2].avatarUrl, 'https://x/c.jpg');
+    expect(state.confirmedCount, 4);
+    expect(state.openSlots, 0);
+    // Só quem entrou por convite sai pela callable.
+    expect(state.participantUids, ['guest1']);
+  });
 }
 
 class _FakeDocSnapshot implements DocumentSnapshot<Map<String, dynamic>> {

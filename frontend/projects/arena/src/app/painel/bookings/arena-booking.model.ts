@@ -74,6 +74,9 @@ export interface ArenaBooking {
   memberHoursDiscountReais?: number | null;
   /** Quem joga além do dono (`participants`, gravado só pelo servidor ao aceitar convite). */
   participants?: BookingParticipant[];
+  /** Quem está no placar do pós-jogo (`resultPlayers`, espelho gravado só pelo servidor ao salvar o
+   *  placar). Não inclui o dono; pode repetir quem entrou por convite (a tela não duplica). */
+  resultPlayers?: BookingResultPlayer[];
   /** Trocas de quadra (`courtHistory`, as últimas que o servidor guarda), da mais antiga à mais nova. */
   courtHistory?: BookingCourtChange[];
   /** Hora do check-in (`checkedInAt`) — pelo QR da quadra ou pela recepção. */
@@ -91,6 +94,12 @@ export interface BookingParticipant {
   /** `link` = entrou pelo link compartilhado; `direct` = convite direto do dono. */
   via: 'link' | 'direct';
   joinedAt: Date | null;
+}
+
+export interface BookingResultPlayer {
+  uid: string;
+  name: string;
+  avatarUrl: string | null;
 }
 
 export interface BookingCourtChange {
@@ -119,6 +128,10 @@ function participantsFrom(raw: unknown): BookingParticipant[] {
     });
   }
   return out;
+}
+
+function resultPlayersFrom(raw: unknown): BookingResultPlayer[] {
+  return participantsFrom(raw).map(({ uid, name, avatarUrl }) => ({ uid, name, avatarUrl }));
 }
 
 function courtHistoryFrom(raw: unknown): BookingCourtChange[] {
@@ -194,6 +207,7 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     ...athletePricingFields(d),
     ...memberHoursFields(d),
     participants: participantsFrom(d['participants']),
+    resultPlayers: resultPlayersFrom(d['resultPlayers']),
     courtHistory: courtHistoryFrom(d['courtHistory']),
     checkedInAt: toDate(d['checkedInAt']),
     scheduleFlexMinutes: typeof d['scheduleFlexMinutes'] === 'number' ? d['scheduleFlexMinutes'] : 0,

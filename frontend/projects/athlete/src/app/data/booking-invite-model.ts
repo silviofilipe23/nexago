@@ -108,6 +108,19 @@ export function bookingParticipantsOf(raw: unknown): BookingParticipant[] {
   return out;
 }
 
+/** Quem está no placar do pós-jogo — `arenaBookings/{id}.resultPlayers`, espelho que o servidor
+ *  grava a cada placar salvo (`booking-result-write.ts`). Não inclui o dono. */
+export interface BookingResultPlayer {
+  uid: string;
+  name: string;
+  avatarUrl: string | null;
+}
+
+/** Lista do placar na ordem dos times, sem repetir uid (entradas sem `uid` ficam de fora). */
+export function bookingResultPlayersOf(raw: unknown): BookingResultPlayer[] {
+  return bookingParticipantsOf(raw).map(({ uid, name, avatarUrl }) => ({ uid, name, avatarUrl }));
+}
+
 /** O que `/convite/:inviteId` mostra para quem abriu. */
 export type BookingInviteGate =
   /** Sem sessão: pede login para responder (a rota tem `authGuard`, então só por segurança). */

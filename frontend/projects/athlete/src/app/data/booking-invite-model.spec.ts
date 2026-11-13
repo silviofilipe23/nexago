@@ -4,6 +4,7 @@ import {
   bookingInviteUrl,
   bookingInviteWhenLabel,
   bookingParticipantsOf,
+  bookingResultPlayersOf,
   resolveBookingInviteGate,
   type BookingInvite,
   type BookingInviteGateBooking,
@@ -157,6 +158,23 @@ describe('bookingParticipantsOf', () => {
       { uid: 'beto', name: 'Atleta', avatarUrl: null, via: 'direct' },
     ]);
     expect(bookingParticipantsOf(undefined)).toEqual([]);
+  });
+});
+
+describe('bookingResultPlayersOf', () => {
+  it('lê o espelho do placar sem `via`, sem repetir e sem entrada sem uid', () => {
+    expect(
+      bookingResultPlayersOf([
+        { uid: 'duda', name: 'Duda', avatarUrl: 'https://x/d.jpg' },
+        { uid: 'duda', name: 'Duda de novo' },
+        { name: 'Sem uid' },
+        { uid: 'enzo' },
+      ]),
+    ).toEqual([
+      { uid: 'duda', name: 'Duda', avatarUrl: 'https://x/d.jpg' },
+      { uid: 'enzo', name: 'Atleta', avatarUrl: null },
+    ]);
+    expect(bookingResultPlayersOf(undefined)).toEqual([]);
   });
 });
 

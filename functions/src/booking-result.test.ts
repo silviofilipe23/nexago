@@ -6,6 +6,7 @@ import {
   CONFIRM_WINDOW_MS,
   bookingEndAt,
   bookingResultOpenError,
+  bookingResultPlayers,
   confirmationsOf,
   parseBookingResultInput,
   parseDisputeReason,
@@ -321,6 +322,48 @@ describe("saveBookingResultCore", () => {
       ],
     }), new Date(NOW.getTime() + 60_000));
     assert.deepEqual(again.notices.map((n) => n.userId), ["zé"]);
+  });
+
+  it("espelha quem está no placar na reserva (sem o dono), sem mexer nos convidados", async () => {
+    const fake = new FakeFirestore();
+    const invited = [{uid: "enzo", name: "Enzo Lima", via: "direct", joinedAt: Timestamp.fromMillis(0)}];
+    seed(fake, {participants: invited, participantUids: ["enzo"], confirmedParticipants: 2});
+    await saveBookingResultCore(db(fake), "maria", payload(), NOW);
+    const booking = fake.store.get("arenaBookings/bk1")!;
+    assert.deepEqual(booking["resultPlayers"], [
+      // Foto fora de https não vai (a mesma regra do placar).
+      {uid: "enzo", name: "Enzo Lima"},
+      {uid: "rafael", name: "Rafael T."},
+      {uid: "bia", name: "Bia"},
+    ]);
+    // Convite continua sendo a lista do convite: o placar não ocupa vaga nem vira convidado.
+    assert.deepEqual(booking["participantUids"], ["enzo"]);
+    assert.equal(booking["confirmedParticipants"], 2);
+
+    // Editar reescreve o espelho: quem saiu do placar sai da lista.
+    await saveBookingResultCore(db(fake), "maria", payload({
+      teams: [
+        {id: 0, players: [{id: "maria"}, {id: "enzo"}]},
+        {id: 1, players: [{id: "rafael"}, {id: "zé"}]},
+      ],
+    }), new Date(NOW.getTime() + 60_000));
+    assert.deepEqual(
+      (fake.store.get("arenaBookings/bk1")!["resultPlayers"] as {uid: string}[]).map((p) => p.uid),
+      ["enzo", "rafael", "zé"],
+    );
+  });
+});
+
+describe("bookingResultPlayers", () => {
+  it("tira o dono e repetidos, mantém a ordem dos times e omite foto vazia", () => {
+    const teams = [
+      {players: [{id: "maria", name: "Maria", avatarUrl: "https://x/m.jpg"}, {id: "enzo", name: "Enzo", avatarUrl: null}]},
+      {players: [{id: "rafael", name: "Rafael", avatarUrl: "https://x/r.jpg"}, {id: "enzo", name: "Enzo", avatarUrl: null}]},
+    ];
+    assert.deepEqual(bookingResultPlayers(teams, "maria"), [
+      {uid: "enzo", name: "Enzo"},
+      {uid: "rafael", name: "Rafael", avatarUrl: "https://x/r.jpg"},
+    ]);
   });
 });
 

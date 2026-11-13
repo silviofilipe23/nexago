@@ -200,6 +200,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
             arenaId: historyArenaId,
             primaryAthleteId: athleteId,
             participants: participants,
+            bookingData: data,
           ),
           SizedBox(height: 14),
           ArenaBookingDetailPayment(

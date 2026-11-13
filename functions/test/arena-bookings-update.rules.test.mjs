@@ -546,6 +546,24 @@ test('lista de jogadores (arena-booking-invite.ts) é só do servidor', async ()
   );
 });
 
+test('quem está no placar (resultPlayers, booking-result-write.ts) é só do servidor', async () => {
+  await seedBooking(confirmed);
+  const placar = { resultPlayers: [{ uid: CONVIDADO, name: 'Convidado' }] };
+  // Dono não põe ninguém na lista pelo cliente; o atleta não se inclui; a equipe também não.
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), placar));
+  await assertDeniedByRule(updateDoc(bookingAs(CONVIDADO), placar));
+  await assertDeniedByRule(updateDoc(bookingAs(RECEPCAO), placar));
+  // Com a lista gravada pelo servidor, o dono segue cancelando sem tocar nela.
+  await seedBooking({ ...confirmed, ...placar });
+  await assertSucceeds(
+    updateDoc(bookingAs(ATLETA), {
+      status: 'canceled',
+      attendanceStatus: 'canceled',
+      canceledAt: serverTimestamp(),
+    }),
+  );
+});
+
 test('bookingInvites: ninguém cria (nem o dono da reserva) nem aceita pelo cliente', async () => {
   await seedBooking(confirmed);
   const invite = {

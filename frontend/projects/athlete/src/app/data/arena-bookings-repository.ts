@@ -16,7 +16,12 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
 import { athleteVisibleCourtName } from '@nexago/arena-discovery';
-import { bookingParticipantsOf, type BookingParticipant } from './booking-invite-model';
+import {
+  bookingParticipantsOf,
+  bookingResultPlayersOf,
+  type BookingParticipant,
+  type BookingResultPlayer,
+} from './booking-invite-model';
 import { readCashbackCharge } from './cashback-preview';
 import { readSquadDiscount } from './squad-discount';
 
@@ -165,6 +170,8 @@ export interface ArenaBookingDoc {
   participants: BookingParticipant[];
   /** `participantUids` — a mesma lista em uids (é o campo que a Agenda consulta). */
   participantUids: string[];
+  /** Quem está no placar do jogo (`resultPlayers`, só o servidor grava). Não inclui o dono. */
+  resultPlayers?: BookingResultPlayer[];
   /** Ocorrência de horário fixo (mensalista) — gerida pela arena, sem cancelamento pelo app. */
   recurringBookingId: string | null;
   /** O que volta se o atleta cancelar no prazo (cópia da política da arena na criação;
@@ -818,6 +825,7 @@ export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): Arena
     guestAthleteName: optionalStr(data['guestAthleteName']),
     participants: bookingParticipantsOf(data['participants']),
     participantUids: participantUidsOf(data),
+    resultPlayers: bookingResultPlayersOf(data['resultPlayers']),
     recurringBookingId: optionalStr(data['recurringBookingId']),
     cancelPolicy: athleteCancelPolicyFrom(data['cancelPolicy']),
     createdAt: toDateOrNull(data['createdAt']),

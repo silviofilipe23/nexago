@@ -67,6 +67,28 @@ describe('buildBookingTeam', () => {
     const team = buildBookingTeam(input({ participants: [{ ...ana, uid: 'dono' }] }));
     expect(team.filter((m) => !m.isEmptySlot).length).toBe(1);
   });
+
+  it('quem só está no placar entra depois dos convidados, sem repetir nem poder ser tirado', () => {
+    const team = buildBookingTeam(
+      input({
+        participants: [ana],
+        resultPlayers: [
+          { uid: 'dono', name: 'Bruno Lima', avatarUrl: null },
+          { uid: 'ana', name: 'Ana Souza', avatarUrl: null },
+          { uid: 'duda', name: 'Duda Melo', avatarUrl: 'https://x/duda.jpg' },
+          { uid: 'enzo', name: 'Enzo Lima', avatarUrl: null },
+          { uid: 'fabi', name: 'Fabi Rocha', avatarUrl: null },
+        ],
+      }),
+    );
+    // Placar com mais gente que as 4 vagas: lista todo mundo, sem vaga aberta.
+    expect(team.map((m) => m.uid)).toEqual(['dono', 'ana', 'duda', 'enzo', 'fabi']);
+    expect(team[1]!.subtitle).toBe('Confirmado');
+    expect(team[2]).toEqual(
+      jasmine.objectContaining({ subtitle: 'No placar', removable: false, avatarUrl: 'https://x/duda.jpg' }),
+    );
+    expect(team.some((m) => m.isEmptySlot)).toBeFalse();
+  });
 });
 
 describe('viewerIsBookingOwner', () => {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../arenas/domain/booking_players.dart';
 import '../../../athlete/domain/athlete_profile.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
 import '../../domain/arena_bookings_grouping.dart';
@@ -17,11 +18,16 @@ class ArenaBookingDetailAthletes extends ConsumerWidget {
     required this.arenaId,
     required this.primaryAthleteId,
     required this.participants,
+    this.bookingData = const {},
   });
 
   final String arenaId;
   final String primaryAthleteId;
   final int participants;
+
+  /// Doc da reserva: de onde sai quem joga além do dono — convidados
+  /// (`participants` e legado) e quem está no placar (`resultPlayers`).
+  final Map<String, dynamic> bookingData;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,6 +47,8 @@ class ArenaBookingDetailAthletes extends ConsumerWidget {
             ),
           );
 
+    final guests = bookingGuestsOf(bookingData, ownerUid: athleteId);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -49,7 +57,12 @@ class ArenaBookingDetailAthletes extends ConsumerWidget {
           profileAsync: profileAsync,
           historyAsync: historyAsync,
         ),
-        if (participants >= 2) ...[
+        for (final guest in guests) ...[
+          SizedBox(height: 10),
+          _GuestAthleteCard(guest: guest),
+        ],
+        // Reserva antiga que só contou o convidado, sem dizer quem é.
+        if (guests.isEmpty && participants >= 2) ...[
           SizedBox(height: 10),
           const _GuestAthleteCard(),
         ],
@@ -163,12 +176,33 @@ class _AthleteDetailCard extends StatelessWidget {
   }
 }
 
-class _GuestAthleteCard extends StatelessWidget {
-  const _GuestAthleteCard();
+/// Quem joga além do dono: convidado ou atleta do placar. Sem [guest], o
+/// cartão genérico de reserva antiga que só contou "+1".
+class _GuestAthleteCard extends ConsumerWidget {
+  const _GuestAthleteCard({this.guest});
+
+  final BookingGuest? guest;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final athlete = guest?.athlete;
+    final uid = athlete?.userId?.trim() ?? '';
+    final storedName = athlete?.displayName?.trim() ?? '';
+    // Entrada só com o uid (legado): o nome vem do perfil.
+    final name = guest == null
+        ? 'Atleta convidado'
+        : storedName.isNotEmpty
+            ? storedName
+            : uid.isNotEmpty
+                ? ref.watch(athleteDisplayLabelProvider(uid)).valueOrNull ??
+                    'Atleta'
+                : 'Atleta';
+    final subtitle = guest == null
+        ? 'Dados do parceiro em breve'
+        : guest!.fromResult
+            ? 'No placar do jogo'
+            : 'Convidado';
 
     return DecoratedBox(
       decoration: ArenaDashboardTokens.cardDecoration(context),
@@ -176,24 +210,27 @@ class _GuestAthleteCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: AppColors.win.withValues(alpha: 0.22),
-              child: Text(
-                '+1',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: context.themeColors.win,
+            if (guest == null)
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: AppColors.win.withValues(alpha: 0.22),
+                child: Text(
+                  '+1',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: context.themeColors.win,
+                  ),
                 ),
-              ),
-            ),
+              )
+            else
+              _DetailAvatar(imageUrl: athlete?.avatarUrl, name: name),
             SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Atleta convidado',
+                    name,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: context.themeColors.onSurface,
@@ -201,7 +238,7 @@ class _GuestAthleteCard extends StatelessWidget {
                   ),
                   SizedBox(height: 4),
                   Text(
-                    'Dados do parceiro em breve',
+                    subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w600,

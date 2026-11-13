@@ -287,6 +287,7 @@ export class AthleteBookingDetailComponent {
       ownerPaid: b.paymentStatus === 'paid' || b.amountPaidOnlineReais > 0.02,
       participants: b.participants,
       legacyGuests: this.legacyGuests(),
+      resultPlayers: b.resultPlayers ?? [],
       canRemove: this.isOwner() && this.gameOpen(),
     });
   });

@@ -334,4 +334,33 @@ void main() {
       isTrue,
     );
   });
+
+  testWidgets(
+      'vindo da Agenda: o Editar placar já abre as regras, e "Ajustar times" '
+      'volta para ele', (tester) async {
+    _phone(tester);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: BookingResultScorePage(
+          initial: _two(),
+          candidates: const [],
+          ownerPlayerId: 'u0a',
+          sport: 'padel',
+          bookingId: 'b1',
+          liveStore: _MemoryStore(),
+          autoStartLive: true,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(PeladaLiveSetupPage), findsOneWidget);
+    expect(find.text('No 40–40'.toUpperCase()), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('pelada-live-edit-teams')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PeladaLiveSetupPage), findsNothing);
+    expect(find.byType(BookingResultScorePage), findsOneWidget);
+    expect(find.text('Marcar ao vivo'), findsOneWidget);
+  });
 }

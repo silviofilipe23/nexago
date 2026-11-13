@@ -25,8 +25,13 @@ void disableNativeLiquidGlassOnPluginError(Object error) {
 }
 
 bool get nexaUseNativeLiquidGlass =>
-    NativeLiquidGlassUtils.supportsLiquidGlass &&
+    (debugNexaSupportsLiquidGlassOverride ??
+        NativeLiquidGlassUtils.supportsLiquidGlass) &&
     nexaNativeLiquidGlassEnabled.value;
+
+/// Testes rodam no host (não é iOS 26): forçam o caminho nativo por aqui.
+@visibleForTesting
+bool? debugNexaSupportsLiquidGlassOverride;
 
 /// Quantos popups (sheet, diálogo, menu) estão abertos no navegador raiz.
 ///

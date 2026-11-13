@@ -24,6 +24,7 @@ import 'core/notifications/notification_providers.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/native_interface_style.dart';
 import 'core/theme/system_ui_overlay_style.dart';
 import 'core/theme/theme_mode_provider.dart';
 import 'core/theme/theme_preferences_repository.dart';
@@ -209,6 +210,7 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
   Widget build(BuildContext context) {
     final router = ref.watch(goRouterProvider);
     final themeMode = ref.watch(resolvedThemeModeProvider);
+    syncNativeInterfaceStyle(themeMode);
 
     return AppUpdateGate(
       child: BiometricAppGate(

@@ -54,5 +54,57 @@ import UserNotifications
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    InterfaceStyleChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
+  }
+}
+
+/// Aplica o tema do app (claro/escuro/sistema) às janelas do iOS.
+///
+/// A barra e a tab bar Liquid Glass são views nativas: o título segue a
+/// aparência da janela, não o `Theme` do Flutter. Sem isso, com o iPhone
+/// claro e o app escuro, o título saía preto sobre o fundo escuro.
+/// Lado Dart: `lib/core/theme/native_interface_style.dart`.
+private enum InterfaceStyleChannel {
+  private static var style: UIUserInterfaceStyle = .unspecified
+  private static var observer: NSObjectProtocol?
+
+  static func register(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "nexago/interface_style",
+      binaryMessenger: messenger
+    )
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "setInterfaceStyle" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      switch call.arguments as? String {
+      case "light": style = .light
+      case "dark": style = .dark
+      default: style = .unspecified
+      }
+      applyToAllWindows()
+      result(nil)
+    }
+
+    // Janela que aparece depois (alerta, teclado, cena nova) herda o estilo.
+    if observer == nil {
+      observer = NotificationCenter.default.addObserver(
+        forName: UIWindow.didBecomeVisibleNotification,
+        object: nil,
+        queue: .main
+      ) { note in
+        (note.object as? UIWindow)?.overrideUserInterfaceStyle = style
+      }
+    }
+  }
+
+  private static func applyToAllWindows() {
+    for scene in UIApplication.shared.connectedScenes {
+      guard let windowScene = scene as? UIWindowScene else { continue }
+      for window in windowScene.windows {
+        window.overrideUserInterfaceStyle = style
+      }
+    }
   }
 }

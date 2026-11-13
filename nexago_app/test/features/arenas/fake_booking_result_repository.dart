@@ -13,6 +13,10 @@ class FakeBookingResultRepository implements BookingResultRepository {
   final _changes = StreamController<List<SavedBookingResult>>.broadcast();
 
   final saves = <(String bookingId, BookingResult result)>[];
+  final suggestions = <(String bookingId, BookingResult result)>[];
+
+  /// Placar sugerido pelo convidado que quem reservou vê ao abrir.
+  BookingResultSuggestion? suggestion;
   final responses =
       <(String bookingId, bool confirm, int version, String? reason)>[];
   String? saveError;
@@ -58,6 +62,21 @@ class FakeBookingResultRepository implements BookingResultRepository {
         ];
     yield pick(_current);
     yield* _changes.stream.map(pick);
+  }
+
+  @override
+  Stream<BookingResultSuggestion?> watchSuggestion(
+    String bookingId,
+    String ownerUid,
+  ) =>
+      Stream.value(
+        suggestion?.bookingId == bookingId ? suggestion : null,
+      );
+
+  @override
+  Future<void> suggest(String bookingId, BookingResult result) async {
+    if (saveError != null) throw BookingResultException(saveError!);
+    suggestions.add((bookingId, result));
   }
 
   @override

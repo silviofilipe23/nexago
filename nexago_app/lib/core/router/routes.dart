@@ -919,6 +919,9 @@ abstract final class AppRoutes {
   /// Conferir o placar do pós-jogo do aluguel (confirmar / contestar).
   static const String bookingResultReview = '/reservar/resultado/:bookingId';
 
+  /// "Lançar placar" da reserva (push "Como foi o jogo?" e placar sugerido).
+  static const String lancarPlacar = '/reservar/placar/:bookingId';
+
   /// Detalhe da pelada (10c) — o placar do pós-jogo de uma reserva.
   static const String peladaDetail = '/peladas/:bookingId';
 
@@ -1472,6 +1475,7 @@ abstract final class AppRouteNames {
   static const String bookingSuccess = 'bookingSuccess';
   static const String bookingInvite = 'bookingInvite';
   static const String bookingResultReview = 'bookingResultReview';
+  static const String lancarPlacar = 'lancarPlacar';
   static const String peladaDetail = 'peladaDetail';
   static const String athletePeladas = 'athletePeladas';
   static const String friendlyMatchHub = 'friendlyMatchHub';

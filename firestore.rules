@@ -1977,6 +1977,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Placar sugerido pelo convidado da reserva (fase 2 do "Lançar placar"):
+    // só quem reservou e quem sugeriu leem; só o servidor grava (callable
+    // `suggestBookingResult`, apagado pelo `saveBookingResult`). O app escuta
+    // por QUERY (`ownerUid == uid`): o doc pode nascer depois da tela abrir.
+    match /bookingResultSuggestions/{bookingId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.ownerUid ||
+        request.auth.uid == resource.data.suggestedBy
+      );
+      allow write: if false;
+    }
+
     // Horários fixos (mensalistas): série semanal criada pelo gestor.
     // Escrita apenas via Cloud Functions (Admin SDK) — a criação exige
     // transação com locks e validação de conflito multi-data.

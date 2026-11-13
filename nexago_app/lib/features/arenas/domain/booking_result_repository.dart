@@ -16,6 +16,16 @@ abstract class BookingResultRepository {
   /// qualquer atleta (link, perfil público). `null` sem doc ou sem acesso.
   Stream<SavedBookingResult?> watchOne(String bookingId);
 
+  /// O placar sugerido pelo convidado da reserva [bookingId] para quem
+  /// reservou ([ownerUid]) conferir e enviar; `null` sem sugestão.
+  Stream<BookingResultSuggestion?> watchSuggestion(
+    String bookingId,
+    String ownerUid,
+  );
+
+  /// Convidado: manda o placar para quem reservou conferir e enviar.
+  Future<void> suggest(String bookingId, BookingResult result);
+
   /// As peladas CONFIRMADAS de outro atleta (perfil público), ao vivo.
   Stream<List<SavedBookingResult>> watchConfirmedOf(String userId);
 

@@ -486,12 +486,14 @@ void main() {
   });
 
   group('convidado da reserva (entra pela Agenda desde o #779)', () {
-    testWidgets('monta a arte, mas não grava: só quem reservou salva', (
-      tester,
-    ) async {
+    testWidgets(
+        'convidado marca e manda para quem reservou enviar (não grava o '
+        'placar)', (tester) async {
       final repo = await abrir(tester, uid: 'u3');
 
       await lancar(tester);
+      // Só quem reservou convida quem não tem conta.
+      expect(find.byKey(const Key('lancar-placar-invite')), findsNothing);
       await proximo(tester);
       expect(
         find.text('Só quem reservou envia o placar. Este vai para a arte do '
@@ -499,11 +501,20 @@ void main() {
         findsOneWidget,
       );
       await placar(tester, 0, 21, 19);
-      expect(find.text('Gerar arte do story'), findsOneWidget);
+      expect(find.text('Mandar para quem reservou enviar'), findsOneWidget);
       await enviar(tester);
 
-      expect(find.byType(BookingResultPage), findsOneWidget);
       expect(repo.saves, isEmpty);
+      expect(repo.suggestions.single.$2.games.single.scoreA, 21);
+      expect(find.byType(PlacarEnviadoPage), findsOneWidget);
+      expect(find.text('Placar mandado'), findsOneWidget);
+      expect(
+        rich('Mandamos para quem reservou a quadra conferir e enviar'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('placar-enviado-story')));
+      await navegar(tester);
+      expect(find.byType(BookingResultPage), findsOneWidget);
       expect(cardResult(tester).games.single.scoreA, 21);
     });
 

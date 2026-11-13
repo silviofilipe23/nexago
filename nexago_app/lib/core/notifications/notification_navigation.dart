@@ -705,6 +705,15 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     return '$path?$query';
   }
 
+  // "Como foi o jogo?" e placar sugerido pelo convidado
+  // (`booking-result-nudge.ts`): abrem o "Lançar placar" da reserva.
+  if (type == 'pelada_score_prompt' || type == 'pelada_score_suggested') {
+    final bookingId = (data['bookingId'] as String?)?.trim() ?? '';
+    if (bookingId.isEmpty) return AppRoutes.athleteMatchHistory;
+    return AppRoutes.lancarPlacar
+        .replaceAll(':bookingId', Uri.encodeComponent(bookingId));
+  }
+
   // Pelada (`booking-result-write.ts`): placar para confirmar, lembrete das
   // 24h e contestação — todos abrem o detalhe da pelada. Sem `url` no
   // payload: o app de antes desta tela cai em Minhas reservas.

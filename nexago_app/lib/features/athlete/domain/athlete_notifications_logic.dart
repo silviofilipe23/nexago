@@ -404,6 +404,23 @@ AthleteNotificationPresentation _basePresentation(
         ],
         routePath: paymentRoutePath,
       );
+    case 'pelada_score_prompt':
+    case 'pelada_score_suggested':
+      final bookingId = data['bookingId'] ?? '';
+      return AthleteNotificationPresentation(
+        icon: Icons.scoreboard_outlined,
+        iconColor: AppColors.brand,
+        iconBackground: _bookingIconBackground,
+        actions: [
+          AthleteNotificationAction(
+            label: type == 'pelada_score_suggested'
+                ? 'Conferir e enviar'
+                : 'Lançar placar',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: bookingId.isNotEmpty ? '/reservar/placar/$bookingId' : null,
+      );
     case 'booking_invite':
       final inviteId = data['inviteId'] ?? '';
       return AthleteNotificationPresentation(

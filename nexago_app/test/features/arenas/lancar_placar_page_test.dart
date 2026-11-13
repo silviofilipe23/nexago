@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/data/pelada_live_draft_store.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result.dart';
+import 'package:nexago_app/features/arenas/domain/booking_result_record.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record_providers.dart';
 import 'package:nexago_app/features/arenas/domain/booking_social_unlock.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story.dart';
@@ -54,8 +55,9 @@ Future<(FakeBookingResultRepository, _MemoryStore)> _abrir(
   String uid = 'u1',
   _MemoryStore? store,
   LancarPlacarMode mode = LancarPlacarMode.live,
+  FakeBookingResultRepository? repo,
 }) async {
-  final repo = FakeBookingResultRepository();
+  repo ??= FakeBookingResultRepository();
   final drafts = store ?? _MemoryStore();
   tester.view.physicalSize = const Size(390 * 3, 844 * 3);
   tester.view.devicePixelRatio = 3;
@@ -248,7 +250,8 @@ void main() {
     expect(find.text('1 set · até 21'), findsOneWidget);
   });
 
-  testWidgets('convidado marca, mas o fim é "Usar no placar" (só arte)', (
+  testWidgets('convidado marca ao vivo e o fim manda para quem reservou enviar',
+      (
     tester,
   ) async {
     final (repo, _) = await _abrir(tester, uid: 'u3');
@@ -257,12 +260,61 @@ void main() {
     await _setPara(tester, LiveSide.a);
     await _setPara(tester, LiveSide.a);
 
-    expect(find.text('Usar no placar'), findsOneWidget);
+    expect(find.text('Mandar para quem reservou'), findsOneWidget);
     await tester.tap(find.byKey(const Key('pelada-live-send')));
     await tester.pumpAndSettle();
-    expect(find.byType(PlacarDigitadoPage), findsOneWidget);
-    expect(find.text('Gerar arte do story'), findsOneWidget);
+    expect(find.byType(PlacarEnviadoPage), findsOneWidget);
+    expect(find.text('Placar mandado'), findsOneWidget);
     expect(repo.saves, isEmpty);
+    expect(repo.suggestions.single.$2.games.length, 2);
+  });
+
+  testWidgets('quem reservou abre com o placar que o convidado mandou e envia',
+      (
+    tester,
+  ) async {
+    final repo = FakeBookingResultRepository()
+      ..suggestion = const BookingResultSuggestion(
+        bookingId: 'b1',
+        suggestedBy: 'u3',
+        suggestedByName: 'Rafael Souza',
+        result: BookingResult(
+          teams: [
+            ResultTeam(id: 0, players: [
+              ResultPlayer(id: 'u1', name: 'Maria Alves'),
+              ResultPlayer(id: 'u3', name: 'Rafael Souza'),
+            ]),
+            ResultTeam(id: 1, players: [
+              ResultPlayer(id: 'u2', name: 'Enzo Lima'),
+              ResultPlayer(id: 'u4', name: 'Lia Martins'),
+            ]),
+          ],
+          games: [ResultGame(teamA: 0, teamB: 1, scoreA: 21, scoreB: 17)],
+        ),
+      );
+    await _abrir(tester, mode: LancarPlacarMode.typed, repo: repo);
+
+    expect(find.byKey(const Key('lancar-placar-suggested')), findsOneWidget);
+    expect(find.textContaining('Rafael marcou o placar'), findsOneWidget);
+    // Os times vêm da sugestão: Rafael no A.
+    expect(find.text('TIME A · 2'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('lancar-placar-next')));
+    await tester.pumpAndSettle();
+    expect(find.text('Maria & Rafael vencem 1–0'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('placar-submit')));
+    await tester.pumpAndSettle();
+    expect(repo.saves.single.$2.games.single.scoreB, 17);
+    expect(find.text('Placar enviado'), findsOneWidget);
+  });
+
+  testWidgets('quem reservou vê "Convidar quem não tem conta"', (tester) async {
+    await _abrir(tester, mode: LancarPlacarMode.typed);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('lancar-placar-invite')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Convidar quem não tem conta'), findsOneWidget);
   });
 
   testWidgets('placar digitado: alternar para ao vivo no passo 1', (

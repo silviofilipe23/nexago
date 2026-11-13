@@ -22,7 +22,12 @@ class PlacarEnviadoPage extends StatelessWidget {
     required this.confirmers,
     this.sport,
     this.fromStoryEditor = false,
+    this.toOwner = false,
   });
+
+  /// Convidado: o placar foi para quem reservou conferir e enviar (não para
+  /// confirmação de todos ainda).
+  final bool toOwner;
 
   final BookingStoryArgs args;
   final BookingResult result;
@@ -48,9 +53,15 @@ class PlacarEnviadoPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final headline = lancarResultHeadline(result) ?? 'Placar enviado';
-    final notice = bookingResultSaveNotice([
-      for (final p in confirmers) p.firstName,
-    ]);
+    final notice = toOwner
+        ? (
+            names: '',
+            rest: 'Mandamos para quem reservou a quadra conferir e enviar '
+                'para todos confirmarem.',
+          )
+        : bookingResultSaveNotice([
+            for (final p in confirmers) p.firstName,
+          ]);
     final lines = result.isRotation
         ? '${result.games.length} jogos'
         : bookingResultSetsLine(result);
@@ -65,9 +76,9 @@ class PlacarEnviadoPage extends StatelessWidget {
         automaticallyImplyLeading: false,
         // Título de duas linhas desenhado pelo Flutter: a barra nativa do
         // iOS segue o claro/escuro do aparelho, não o tema do app.
-        title: const LancarPlacarTitle(
-          title: 'Placar enviado',
-          subtitle: 'esperando confirmação',
+        title: LancarPlacarTitle(
+          title: toOwner ? 'Placar mandado' : 'Placar enviado',
+          subtitle: toOwner ? 'para quem reservou' : 'esperando confirmação',
         ),
       ),
       bottomNavigationBar: SafeArea(

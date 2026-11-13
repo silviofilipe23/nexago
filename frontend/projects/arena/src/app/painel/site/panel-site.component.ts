@@ -134,7 +134,7 @@ interface PlanFormItem {
                 <div class="upload-empty-thumb" aria-hidden></div>
                 <div class="upload-copy">
                   <div class="upload-title">Nenhuma imagem enviada</div>
-                  <div class="upload-meta">JPG ou PNG · mín. 1600×900 · até 5 MB</div>
+                  <div class="upload-meta">JPG ou PNG · mín. 1600×900 · até 25 MB</div>
                 </div>
               }
               <div class="upload-actions">

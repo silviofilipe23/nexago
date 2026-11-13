@@ -1,7 +1,8 @@
 import { getDownloadURL, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
 
-/** Limite anunciado na UI do onboarding (arquivo escolhido). */
-export const ATHLETE_AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+/** Teto do arquivo ESCOLHIDO. Ele é reduzido (`prepareAvatarJpeg`, 1024 px) antes de subir e fica
+ *  com uma fração disso, então uma foto de celular de 8–12 MB passa sem o atleta ter que diminuir. */
+export const ATHLETE_AVATAR_MAX_BYTES = 25 * 1024 * 1024;
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -10,7 +11,7 @@ export function isAllowedAvatarFile(file: File): string | null {
     return 'Use JPG, PNG ou WebP.';
   }
   if (file.size > ATHLETE_AVATAR_MAX_BYTES) {
-    return 'A foto deve ter no máximo 2 MB.';
+    return 'A foto deve ter no máximo 25 MB.';
   }
   return null;
 }

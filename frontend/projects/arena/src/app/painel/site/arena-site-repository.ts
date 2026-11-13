@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, serverTimestamp, type Firestore } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
-import { getDownloadURL, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
-import { validateArenaImageFile } from '../profile/arena-profile-repository';
+import { type FirebaseStorage } from 'firebase/storage';
+import { uploadArenaImageFile } from '../profile/arena-profile-repository';
 import {
   ARENA_SITE_EMPTY,
   ARENA_SITE_MAX_ABOUT_IMAGES,
@@ -192,26 +192,14 @@ export async function uploadArenaSiteImage(
   kind: ArenaSiteImageKind,
   file: File,
 ): Promise<string> {
-  const error = validateArenaImageFile(file);
-  if (error) {
-    throw new Error(error);
-  }
-  const fileRef = ref(storage, `arenas/${arenaId}/${kind}`);
-  await uploadBytes(fileRef, file, { contentType: file.type });
-  return getDownloadURL(fileRef);
+  return uploadArenaImageFile(storage, `arenas/${arenaId}/${kind}`, file, 'wide');
 }
 
 /** Fotos da galeria usam nome único (timestamp): remover uma foto do site não
  *  pode invalidar a URL de outra que continua publicada — diferente dos slots
  *  fixos do hero/sobre, aqui a lista é reordenável. Órfãos ocasionais são ok. */
 export async function uploadArenaGalleryImage(storage: FirebaseStorage, arenaId: string, file: File): Promise<string> {
-  const error = validateArenaImageFile(file);
-  if (error) {
-    throw new Error(error);
-  }
-  const fileRef = ref(storage, `arenas/${arenaId}/site-gallery-${Date.now()}`);
-  await uploadBytes(fileRef, file, { contentType: file.type });
-  return getDownloadURL(fileRef);
+  return uploadArenaImageFile(storage, `arenas/${arenaId}/site-gallery-${Date.now()}`, file, 'wide');
 }
 
 export async function publishArenaSite(functions: Functions, arenaId: string, slug: string): Promise<{ slug: string }> {

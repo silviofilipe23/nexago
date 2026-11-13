@@ -57,8 +57,12 @@ describe('validateArenaImageFile', () => {
     expect(validateArenaImageFile(file('image/heic'))).toContain('JPG, PNG ou WebP');
   });
 
-  it('5MB já é demais: o storage.rules exige menos que isso', () => {
-    expect(validateArenaImageFile(file('image/jpeg', 5 * 1024 * 1024))).toContain('5MB');
-    expect(validateArenaImageFile(file('image/jpeg', 5 * 1024 * 1024 - 1))).toBeNull();
+  it('foto de celular acima de 5 MB passa: ela é reduzida antes de subir', () => {
+    expect(validateArenaImageFile(file('image/jpeg', 12 * 1024 * 1024))).toBeNull();
+  });
+
+  it('25 MB já é demais, nem tenta reduzir', () => {
+    expect(validateArenaImageFile(file('image/jpeg', 25 * 1024 * 1024))).toContain('25 MB');
+    expect(validateArenaImageFile(file('image/jpeg', 25 * 1024 * 1024 - 1))).toBeNull();
   });
 });

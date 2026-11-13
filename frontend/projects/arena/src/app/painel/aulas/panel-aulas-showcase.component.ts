@@ -66,7 +66,7 @@ import {
                 }
                 <input #file type="file" accept="image/jpeg,image/png,image/webp" hidden (change)="onFile($event)" />
               </div>
-              <p class="hint">Foto na horizontal, de preferência com gente treinando. JPG, PNG ou WebP até 5 MB.</p>
+              <p class="hint">Foto na horizontal, de preferência com gente treinando. JPG, PNG ou WebP até 25 MB.</p>
 
               <div class="field-label spaced">Descrição</div>
               <textarea class="input-box" rows="4" [attr.maxlength]="descriptionMax" [disabled]="readOnly()" [value]="showcase().description"

@@ -1,13 +1,21 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, booleanAttribute, computed, inject, input, output, signal } from '@angular/core';
 import { fetchArenaAthleteIdsOnce, resolveAthleteProfile } from '../bookings/bookings-repository';
 import { arenaFirestore } from '../data/firestore';
 import { AvatarComponent } from '../ui/avatar.component';
 import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search-filter';
+import { canSearchPlatform, searchPlatformAthletes } from './platform-athlete-search';
+
+type Row =
+  | { kind: 'header'; key: string; label: string }
+  | { kind: 'athlete'; key: string; athlete: AthleteCandidate };
 
 /** Campo de busca de atleta pra vincular um mensalista de horário fixo — pesquisa entre os
  *  atletas que já reservaram nesta arena (mesma base do Ranking de clientes), não uma busca
  *  global no app. Antes usava `arenas/{arenaId}/followers` (quem clicou "seguir" a arena),
- *  mas essa base fica vazia na prática — poucos atletas seguem a arena. */
+ *  mas essa base fica vazia na prática — poucos atletas seguem a arena.
+ *
+ *  Com `searchPlatform`, o texto digitado também busca em todo o nexaGO (`public_profiles`):
+ *  é o atleta do balcão, que nunca reservou aqui. Clientes da arena vêm primeiro. */
 @Component({
   selector: 'ar-athlete-search-field',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -29,19 +37,27 @@ import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search
       <div class="dropdown">
         @if (loading()) {
           <div class="empty">Carregando…</div>
-        } @else if (loadError()) {
-          <button type="button" class="empty retry" (click)="retryLoad()">Erro ao carregar atletas. Toque para tentar de novo.</button>
-        } @else if (results().length === 0) {
-          <div class="empty">
-            {{ queryText().trim() ? 'Nenhum atleta encontrado.' : 'Nenhum atleta reservou nesta arena ainda.' }}
-          </div>
         } @else {
-          @for (r of results(); track r.athleteId) {
-            <!-- Avatar fora do <button>: com \`zoomable\` ele mesmo é botão (abre a foto ampliada). -->
-            <div class="item">
-              <ar-avatar [name]="r.name" [photoUrl]="r.photoUrl ?? null" [size]="32" zoomable />
-              <button type="button" class="item-name" (click)="select(r)">{{ r.name }}</button>
-            </div>
+          @if (loadError()) {
+            <button type="button" class="empty retry" (click)="retryLoad()">Erro ao carregar atletas. Toque para tentar de novo.</button>
+          }
+          @for (row of rows(); track row.key) {
+            @if (row.kind === 'header') {
+              <div class="section">{{ row.label }}</div>
+            } @else {
+              <!-- Avatar fora do <button>: com \`zoomable\` ele mesmo é botão (abre a foto ampliada). -->
+              <div class="item">
+                <ar-avatar [name]="row.athlete.name" [photoUrl]="row.athlete.photoUrl ?? null" [size]="32" zoomable />
+                <button type="button" class="item-name" (click)="select(row.athlete)">{{ row.athlete.name }}</button>
+              </div>
+            }
+          }
+          @if (platformLoading()) {
+            <div class="empty">Buscando no nexaGO…</div>
+          } @else if (platformError()) {
+            <button type="button" class="empty retry" (click)="retryPlatform()">Erro ao buscar no nexaGO. Toque para tentar de novo.</button>
+          } @else if (emptyText(); as text) {
+            <div class="empty">{{ text }}</div>
           }
         }
       </div>
@@ -89,6 +105,16 @@ import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search
       overflow: hidden;
       text-overflow: ellipsis;
       cursor: pointer;
+    }
+
+    .section {
+      padding: 10px 14px 6px;
+      font-family: var(--nx-font-mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+      border-bottom: 1px solid var(--nx-line);
     }
 
     .item:last-child {
@@ -150,6 +176,8 @@ import { filterAthleteCandidates, type AthleteCandidate } from './athlete-search
 })
 export class AthleteSearchFieldComponent {
   readonly arenaId = input.required<string>();
+  /** Liga a busca em todo o nexaGO além dos clientes da arena (ex.: reserva de balcão). */
+  readonly searchPlatform = input(false, { transform: booleanAttribute });
   readonly selected = output<AthleteCandidate>();
 
   private readonly host = inject(ElementRef<HTMLElement>);
@@ -162,6 +190,41 @@ export class AthleteSearchFieldComponent {
   protected readonly loadError = signal(false);
   protected readonly results = signal<AthleteCandidate[]>([]);
   protected readonly open = signal(false);
+  protected readonly platformResults = signal<AthleteCandidate[]>([]);
+  protected readonly platformLoading = signal(false);
+  protected readonly platformError = signal(false);
+  /** Descarta resposta de busca antiga que chega depois da nova (digitação rápida). */
+  private platformSeq = 0;
+
+  /** Clientes da arena primeiro; com resultado do nexaGO, cada grupo ganha um título. */
+  protected readonly rows = computed<Row[]>(() => {
+    const arena = this.results();
+    const platform = this.platformResults();
+    const athlete = (prefix: string) => (a: AthleteCandidate): Row => ({ kind: 'athlete', key: `${prefix}${a.athleteId}`, athlete: a });
+    if (platform.length === 0) return arena.map(athlete('a:'));
+    return [
+      ...(arena.length ? [{ kind: 'header', key: 'h:arena', label: 'Já jogaram aqui' } as Row, ...arena.map(athlete('a:'))] : []),
+      { kind: 'header', key: 'h:platform', label: 'Atletas do nexaGO' },
+      ...platform.map(athlete('p:')),
+    ];
+  });
+
+  /** Rodapé do dropdown: vazio, dica de busca no nexaGO ou nada. */
+  protected readonly emptyText = computed<string | null>(() => {
+    const term = this.queryText().trim();
+    const hasRows = this.results().length > 0 || this.platformResults().length > 0;
+    if (!this.searchPlatform()) {
+      if (hasRows || this.loadError()) return null;
+      return term ? 'Nenhum atleta encontrado.' : 'Nenhum atleta reservou nesta arena ainda.';
+    }
+    if (!term) {
+      return hasRows ?
+        'Não achou? Digite o nome para buscar em todo o nexaGO.' :
+        'Digite o nome para buscar entre os atletas do nexaGO.';
+    }
+    if (!canSearchPlatform(term)) return hasRows ? null : 'Digite mais letras para buscar no nexaGO.';
+    return hasRows ? null : 'Nenhum atleta encontrado. Ele precisa ter conta no nexaGO.';
+  });
 
   protected onFocus(): void {
     this.open.set(true);
@@ -170,6 +233,10 @@ export class AthleteSearchFieldComponent {
 
   protected retryLoad(): void {
     void this.ensureCandidatesLoaded();
+  }
+
+  protected retryPlatform(): void {
+    void this.runPlatformSearch();
   }
 
   protected onQueryInput(value: string): void {
@@ -215,5 +282,30 @@ export class AthleteSearchFieldComponent {
 
   private runFilter(): void {
     this.results.set(filterAthleteCandidates(this.candidates ?? [], this.queryText()));
+    if (this.searchPlatform()) void this.runPlatformSearch();
+  }
+
+  private async runPlatformSearch(): Promise<void> {
+    const seq = ++this.platformSeq;
+    const term = this.queryText();
+    this.platformError.set(false);
+    if (!canSearchPlatform(term)) {
+      this.platformResults.set([]);
+      this.platformLoading.set(false);
+      return;
+    }
+    this.platformLoading.set(true);
+    try {
+      const shown = new Set(this.results().map((r) => r.athleteId));
+      const found = await searchPlatformAthletes(this.db, term, shown);
+      if (seq === this.platformSeq) this.platformResults.set(found);
+    } catch {
+      if (seq === this.platformSeq) {
+        this.platformResults.set([]);
+        this.platformError.set(true);
+      }
+    } finally {
+      if (seq === this.platformSeq) this.platformLoading.set(false);
+    }
   }
 }

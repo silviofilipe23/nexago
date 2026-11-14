@@ -73,7 +73,7 @@ dependencies:
   # Sem ele o envio do SMS falha com "The reCAPTCHA SDK is not linked to your
   # app". O Firebase provisiona a própria chave; não usamos a API do pacote.
   # É o que obriga o mínimo de iOS 15 (ver ios/Podfile).
-  recaptcha_enterprise_flutter: ^18.9.1
+  recaptcha_enterprise_flutter: 18.9.1 # 18.9.4 traz SDK Android compilado com Kotlin 2.4 (projeto usa 2.2)
   wakelock_plus: ^1.3.3
   in_app_review: ^2.0.12
   screen_brightness: ^2.1.11

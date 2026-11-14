@@ -41,6 +41,15 @@ function minutesOf(time: string): number | null {
   return h * 60 + min;
 }
 
+/** Reserva de balcão só em hora cheia ou meia hora: 16:39 não vira horário de quadra.
+ *  Mesmo passo da grade (slots de 30/60/120 min) e dos Planos de horário. */
+export const MANUAL_BOOKING_STEP_MINUTES = 30;
+
+export function isOnBookingStep(time: string): boolean {
+  const minutes = minutesOf(time);
+  return minutes != null && minutes % MANUAL_BOOKING_STEP_MINUTES === 0;
+}
+
 /** Intervalo em minutos, tratando 00:00 como meia-noite do dia seguinte. */
 function spanOf(startTime: string, endTime: string): { start: number; end: number } | null {
   const start = minutesOf(startTime);
@@ -76,8 +85,11 @@ export function quoteKeyOf(
 ): string | null {
   if (!state.courtId.trim() || state.dateKey.length < 10) return null;
   if (!spanOf(state.startTime, state.endTime)) return null;
+  if (!isOnBookingStep(state.startTime) || !isOnBookingStep(state.endTime)) return null;
   return `${state.courtId}|${state.dateKey}|${state.startTime}|${state.endTime}`;
 }
+
+export const OFF_STEP_ERROR = 'Use hora cheia ou meia hora (ex.: 16:00 ou 16:30).';
 
 export function validateManualBookingForm(
   state: ManualBookingFormState,
@@ -94,6 +106,9 @@ export function validateManualBookingForm(
 
   if (!spanOf(state.startTime, state.endTime)) {
     return { ok: false, error: 'O horário de fim precisa ser depois do início.' };
+  }
+  if (!isOnBookingStep(state.startTime) || !isOnBookingStep(state.endTime)) {
+    return { ok: false, error: OFF_STEP_ERROR };
   }
 
   const athleteId = state.athleteId?.trim() || null;

@@ -22,6 +22,8 @@ import { ModalComponent } from '../ui/modal.component';
 import { dateKeyOf, formatMemberMinutes } from './arena-booking.model';
 import {
   amountAfterMemberHours,
+  isOnBookingStep,
+  OFF_STEP_ERROR,
   parseAmountText,
   quoteKeyOf,
   validateManualBookingForm,
@@ -60,13 +62,30 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
       <div class="row">
         <div class="col">
           <div class="field-label">Início</div>
-          <input type="time" class="input-box" [value]="startValue()" (input)="startValue.set($any($event.target).value)" />
+          <input
+            type="time"
+            step="1800"
+            class="input-box"
+            [class.invalid]="startOffStep()"
+            [value]="startValue()"
+            (input)="startValue.set($any($event.target).value)"
+          />
         </div>
         <div class="col">
           <div class="field-label">Fim</div>
-          <input type="time" class="input-box" [value]="endValue()" (input)="endValue.set($any($event.target).value)" />
+          <input
+            type="time"
+            step="1800"
+            class="input-box"
+            [class.invalid]="endOffStep()"
+            [value]="endValue()"
+            (input)="endValue.set($any($event.target).value)"
+          />
         </div>
       </div>
+      @if (startOffStep() || endOffStep()) {
+        <p class="field-error">{{ offStepError }}</p>
+      }
 
       @if (athleteId()) {
         <div class="field-label">Atleta</div>
@@ -203,6 +222,16 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
       border-color: var(--nx-orange-500);
     }
 
+    .input-box.invalid {
+      border-color: var(--nx-live);
+    }
+
+    .field-error {
+      color: var(--nx-live);
+      font-size: 12.5px;
+      margin: -10px 0 18px;
+    }
+
     .row {
       display: flex;
       gap: 12px;
@@ -334,6 +363,10 @@ export class ManualBookingModalComponent {
     return left <= 0 ? 'nada (coberta pelo plano)' : `R$ ${left.toFixed(2).replace('.', ',')}`;
   });
   protected readonly fmtMinutes = formatMemberMinutes;
+  protected readonly offStepError = OFF_STEP_ERROR;
+  /** Horário picado (16:39): marca o campo na hora, sem esperar o "Criar reserva". */
+  protected readonly startOffStep = computed(() => !!this.startValue() && !isOnBookingStep(this.startValue()));
+  protected readonly endOffStep = computed(() => !!this.endValue() && !isOnBookingStep(this.endValue()));
 
   protected readonly quoting = signal(false);
   protected readonly saving = signal(false);

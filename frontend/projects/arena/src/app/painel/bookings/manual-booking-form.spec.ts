@@ -1,5 +1,7 @@
 import {
   amountAfterMemberHours,
+  isOnBookingStep,
+  OFF_STEP_ERROR,
   parseAmountText,
   quoteKeyOf,
   validateManualBookingForm,
@@ -158,5 +160,31 @@ describe('validateManualBookingForm', () => {
     expect(amountAfterMemberHours(300, '19:00', '21:00', 60)).toBe(150);
     expect(amountAfterMemberHours(150, '19:00', '20:00', 0)).toBe(150);
     expect(amountAfterMemberHours(150, '23:00', '00:00', 30)).toBe(75);
+  });
+});
+
+describe('horário picado', () => {
+  it('aceita hora cheia e meia hora', () => {
+    expect(isOnBookingStep('16:00')).toBeTrue();
+    expect(isOnBookingStep('16:30')).toBeTrue();
+    expect(validateManualBookingForm(stateOf({ startTime: '16:30', endTime: '18:00' }), 'arena1', TODAY).ok).toBeTrue();
+  });
+
+  it('recusa início ou fim fora do passo de 30 min', () => {
+    expect(isOnBookingStep('16:39')).toBeFalse();
+    expect(isOnBookingStep('16:15')).toBeFalse();
+    expect(validateManualBookingForm(stateOf({ startTime: '16:39', endTime: '18:00' }), 'arena1', TODAY)).toEqual({
+      ok: false,
+      error: OFF_STEP_ERROR,
+    });
+    expect(validateManualBookingForm(stateOf({ startTime: '16:00', endTime: '17:10' }), 'arena1', TODAY)).toEqual({
+      ok: false,
+      error: OFF_STEP_ERROR,
+    });
+  });
+
+  it('não cota horário picado', () => {
+    expect(quoteKeyOf({ courtId: 'court1', dateKey: TODAY, startTime: '16:39', endTime: '18:00' })).toBeNull();
+    expect(quoteKeyOf({ courtId: 'court1', dateKey: TODAY, startTime: '16:30', endTime: '18:00' })).not.toBeNull();
   });
 });

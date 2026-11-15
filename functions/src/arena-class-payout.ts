@@ -29,7 +29,7 @@ import {
 } from "./arena-class-constants";
 import {monthKeyOf} from "./arena-class-ledger";
 import {allocateCents} from "./arena-class-asaas-model";
-import {resolveArenaBookingFeePercent} from "./arena-entitlement";
+import {loadArenaFeePercent} from "./arena-fees";
 import {computePlatformFeeReais} from "./platform-fees";
 import {
   TYPE_LABEL_PT,
@@ -468,7 +468,7 @@ export async function loadPayoutInputs(
 
   const charges = payoutChargesFromData(
     chargesSnap.docs.map((doc) => ({id: doc.id, data: doc.data() as Record<string, unknown>})),
-    resolveArenaBookingFeePercent(arenaSnap.data() ?? {}, Date.now()),
+    await loadArenaFeePercent(db, arenaId, arenaSnap.data(), "class"),
   );
 
   // Só as matrículas das cobranças pagas no mês (a coleção cresce com as canceladas).

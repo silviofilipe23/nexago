@@ -65,6 +65,14 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/arenas/taxas',
+    title: 'Taxas das arenas — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/arenas/taxas/panel-arena-taxas.component').then((m) => m.PanelArenaTaxasComponent),
+  },
+  {
     path: 'painel/arenas/pre-cadastro',
     title: 'Arenas pré-cadastradas — NexaGO Backoffice',
     canActivate: [authGuard],

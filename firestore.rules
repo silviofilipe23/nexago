@@ -4046,6 +4046,19 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Taxas da arena (backoffice › Arenas › Taxas): exceção por arena e produto (id = arenaId) e o
+    // histórico. Só admin lê; só as callables de `arena-fees.ts` gravam. O padrão mora em
+    // `appConfig/arenaFees` (regra de appConfig acima).
+    match /arenaFees/{arenaId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
+    match /arenaFeesLog/{entryId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+
     // Contrato de plano por evento (id = tournamentId) e as cotas de patrocínio dele. Só as
     // callables de `tournament-plan-contracts.ts` gravam. O organizador lê os próprios; ler
     // um id sem contrato (`resource == null`) é permitido pra tela saber que não há plano.

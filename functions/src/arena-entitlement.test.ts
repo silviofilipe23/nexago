@@ -4,7 +4,6 @@ import {Timestamp} from "firebase-admin/firestore";
 import {
   isArenaEntitledPro,
   arenaEntitledTier,
-  resolveArenaBookingFeePercent,
   resolveArenaWithdrawalFeeReais,
 } from "./arena-entitlement";
 
@@ -64,23 +63,6 @@ describe("arena-entitlement.arenaEntitledTier", () => {
       ),
       null,
     );
-  });
-});
-
-describe("arena-entitlement.resolveArenaBookingFeePercent", () => {
-  const now = Date.parse("2026-07-01T12:00:00Z");
-
-  it("8/6/5 por tier titular", () => {
-    assert.equal(resolveArenaBookingFeePercent({planStatus: "active", planTier: "starter"}, now), 8);
-    assert.equal(resolveArenaBookingFeePercent({planStatus: "active", planTier: "pro"}, now), 6);
-    assert.equal(resolveArenaBookingFeePercent({planStatus: "active", planTier: "elite"}, now), 5);
-    assert.equal(resolveArenaBookingFeePercent({planStatus: "active", planTier: "parceiro"}, now), 5);
-  });
-
-  it("sem plano / sem titularidade -> 8%", () => {
-    assert.equal(resolveArenaBookingFeePercent({}, now), 8);
-    assert.equal(resolveArenaBookingFeePercent({planStatus: "none", planTier: "pro"}, now), 8);
-    assert.equal(resolveArenaBookingFeePercent({planStatus: "active", planTier: "essencial"}, now), 8);
   });
 });
 

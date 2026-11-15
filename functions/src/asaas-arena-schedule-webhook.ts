@@ -15,7 +15,7 @@ import * as logger from "firebase-functions/logger";
 import {FieldValue, type DocumentReference, type Firestore, type Transaction} from "firebase-admin/firestore";
 import {ARENA_SCHEDULE_ASAAS_PAYMENTS, ARENA_SCHEDULE_CHARGES, SCHEDULE_PAYMENT_REF_PREFIX} from "./arena-schedule-plan-constants";
 import {chargeAsaasMirror} from "./arena-class-asaas-model";
-import {resolveArenaBookingFeePercent} from "./arena-entitlement";
+import {loadArenaFeePercent} from "./arena-fees";
 import {
   creditArenaWalletFromBookingPayment,
   holdArenaAwaitingSettlement,
@@ -199,7 +199,7 @@ export async function processArenaScheduleAsaasNotification(
       }
       // Taxa da NexaGO no plano da arena agora — a mesma conta do crédito no caixa.
       const platformFeeReais = computePlatformFeeReais(
-        gross, resolveArenaBookingFeePercent(arenaSnap.data() ?? {}, deps.now().getTime()),
+        gross, await loadArenaFeePercent(db, String(group["arenaId"] ?? ""), arenaSnap.data(), "schedulePlan", deps.now()),
       );
       tx.set(chargeRef, {
         status: "paid",
@@ -258,7 +258,9 @@ export async function processArenaScheduleAsaasNotification(
 
   if (!arenaId) return;
   const arenaData = (await db.collection("arenas").doc(arenaId).get()).data() ?? {};
-  const platformFeeReais = computePlatformFeeReais(gross, resolveArenaBookingFeePercent(arenaData, deps.now().getTime()));
+  const platformFeeReais = computePlatformFeeReais(
+    gross, await loadArenaFeePercent(db, arenaId, arenaData, "schedulePlan", deps.now()),
+  );
   // A taxa do gateway é sobre o que o Asaas cobrou (com as taxas do cartão), não sobre o plano; a arena
   // só paga o processamento que o atleta não cobriu por cima.
   const gatewayFeeReais = gatewayFeeBeyondCovered(

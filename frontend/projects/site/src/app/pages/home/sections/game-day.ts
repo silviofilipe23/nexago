@@ -5,7 +5,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
 
-type MomentId = 'manha' | 'galera' | 'torneio' | 'evoluir';
+type MomentId = 'manha' | 'galera' | 'torneio';
 
 interface Moment {
   /** Também é o nome da foto em `public/img/home/`. */
@@ -17,10 +17,11 @@ interface Moment {
 }
 
 /**
- * Um dia de jogo em quatro horários. A ordem é a do relógio (e a luz das fotos acompanha: manhã,
- * meio-dia, fim de tarde, anoitecer), por isso a lista é `<ol>` e o horário é o marcador.
- * A reserva de quadra não entra aqui: tem cena própria logo acima (`BookingScene`), e a agenda
- * da manhã já mostra o horário reservado lá.
+ * Um dia de jogo em três horários. A ordem é a do relógio (e a luz das fotos acompanha: manhã,
+ * meio-dia, fim de tarde), por isso a lista é `<ol>` e o horário é o marcador.
+ * Dois assuntos ficam de fora porque têm cena própria: a reserva de quadra (`BookingScene`, logo
+ * acima; a agenda da manhã já mostra o horário reservado lá) e o que fica para o atleta depois do
+ * jogo — histórico, nível, ranking — que é a `AthleteScene`, logo abaixo, fechando o dia.
  * Nomes de arena, atletas e torneio são fictícios.
  */
 const MOMENTS: Moment[] = [
@@ -44,13 +45,6 @@ const MOMENTS: Moment[] = [
     title: 'Torneio de verdade, do sorteio à final.',
     text: 'Inscrição e pagamento pelo app, chave montada, quadra e horário de cada jogo. Quem não pôde ir acompanha o placar ao vivo.',
     alt: 'Dupla disputando um ponto de padel em quadra azul, no fim da tarde.',
-  },
-  {
-    id: 'evoluir',
-    time: '19:10',
-    title: 'Cada jogo conta.',
-    text: 'Resultado de torneio vira ponto no ranking do seu esporte. Acompanhe seu nível, veja sua evolução e compartilhe a vitória.',
-    alt: 'Atleta sentada ao lado da quadra, sorrindo para o celular, com a raquete de beach tennis no banco.',
   },
 ];
 

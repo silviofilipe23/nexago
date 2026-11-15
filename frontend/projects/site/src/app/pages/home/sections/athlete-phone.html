@@ -1,0 +1,252 @@
+<app-phone-app-shell time="10:12" [active]="tab()">
+  @switch (step()) {
+    @case ('focus') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pb-[5cqw] pt-[5cqw]">
+        <div class="flex items-center justify-between">
+          <span class="rounded-full bg-brand px-[3cqw] py-[1.2cqw] font-mono text-[2.9cqw] font-700 tracking-[0.14em] text-on-brand">FOCUS</span>
+          <svg class="size-[5cqw] text-text-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </div>
+        <p class="mt-[3cqw] font-display text-[6.2cqw] font-700 leading-tight tracking-tight">{{ athlete.tournament }}</p>
+        <p class="text-[3.4cqw] text-text-mute">Dupla mista</p>
+
+        <div class="mt-[4cqw] rounded-[5.5cqw] bg-brand p-[4.5cqw] text-on-brand">
+          <p class="font-mono text-[2.8cqw] font-700 uppercase tracking-[0.12em]">Sua próxima partida</p>
+          <p class="mt-[1.5cqw] font-display text-[9cqw] font-800 leading-none tracking-tight">{{ athlete.next.round }}</p>
+          <p class="mt-[1.6cqw] text-[3.5cqw] font-600">{{ athlete.next.teams }}</p>
+          <div class="mt-[3.5cqw] grid grid-cols-2 gap-[2cqw]">
+            <div class="rounded-[3.4cqw] bg-black/15 p-[2.8cqw]">
+              <p class="font-mono text-[2.5cqw] font-700 uppercase tracking-[0.1em]">Começa em</p>
+              <p class="mt-[0.6cqw] font-display text-[5.4cqw] font-800 leading-none">{{ athlete.next.startsIn }}</p>
+            </div>
+            <div class="rounded-[3.4cqw] bg-black/15 p-[2.8cqw]">
+              <p class="font-mono text-[2.5cqw] font-700 uppercase tracking-[0.1em]">Sua quadra</p>
+              <p class="mt-[0.6cqw] font-display text-[5.4cqw] font-800 leading-none">{{ athlete.next.court }}</p>
+            </div>
+          </div>
+          <span class="mt-[3cqw] flex h-[11.5cqw] items-center justify-center rounded-full bg-black font-display text-[4cqw] font-700 text-brand">
+            Estou indo pra quadra
+          </span>
+        </div>
+
+        <p class="mt-[3.4cqw] flex items-center gap-[2cqw] text-[3.3cqw] font-600 text-win">
+          <span class="live-dot size-[2cqw] rounded-full bg-win"></span>
+          Check-in liberado
+        </p>
+
+        <p class="mt-[4.5cqw] font-mono text-[2.8cqw] uppercase tracking-[0.12em] text-text-dim">Ordem do seu dia</p>
+        <ul class="mt-[2cqw] space-y-[1.8cqw] text-[3.5cqw]">
+          <li class="flex items-center gap-[3cqw] rounded-[4cqw] border border-brand/50 bg-brand-tint px-[3.6cqw] py-[2.8cqw]">
+            <span class="font-mono font-700 text-brand">10:30</span>
+            <span class="font-display font-700">{{ athlete.next.round }}</span>
+            <span class="ml-auto text-[3.1cqw] text-text-mute">{{ athlete.next.court }}</span>
+          </li>
+        </ul>
+
+        <p class="mt-[4cqw] font-mono text-[2.8cqw] uppercase tracking-[0.12em] text-text-dim">Avisos do organizador</p>
+        <p class="mt-[2cqw] rounded-[4cqw] border border-line bg-surface-1 px-[3.6cqw] py-[2.8cqw] text-[3.3cqw] leading-snug text-text-mute">
+          Premiação na quadra central, logo depois da final.
+        </p>
+
+        <div class="mt-auto flex items-center justify-between rounded-full border border-line bg-surface-1 px-[4cqw] py-[3cqw] text-[3cqw] font-600 text-text-mute">
+          @for (section of focusSections; track section; let first = $first) {
+            <span [class.text-brand]="first">{{ section }}</span>
+          }
+        </div>
+      </div>
+    }
+
+    @case ('history') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pt-[6cqw]">
+        <p class="font-display text-[6.6cqw] font-700 leading-tight tracking-tight">Histórico</p>
+
+        <div class="mt-[3.4cqw] flex gap-[1.8cqw] text-[3.3cqw] font-600">
+          <span class="rounded-[3cqw] bg-brand px-[3.2cqw] py-[2cqw] text-on-brand">Todos</span>
+          <span class="rounded-[3cqw] border border-line bg-surface-1 px-[3.2cqw] py-[2cqw] text-text-mute">Torneios</span>
+          <span class="rounded-[3cqw] border border-line bg-surface-1 px-[3.2cqw] py-[2cqw] text-text-mute">Peladas</span>
+        </div>
+
+        <div class="mt-[3.4cqw] grid grid-cols-3 gap-[2cqw] text-center">
+          <div class="rounded-[4cqw] border border-line bg-surface-1 py-[2.8cqw]">
+            <p class="font-display text-[5.6cqw] font-800 leading-none">{{ athlete.wins }}</p>
+            <p class="mt-[1cqw] text-[2.8cqw] text-text-mute">Vitórias</p>
+          </div>
+          <div class="rounded-[4cqw] border border-line bg-surface-1 py-[2.8cqw]">
+            <p class="font-display text-[5.6cqw] font-800 leading-none">{{ winRate }}%</p>
+            <p class="mt-[1cqw] text-[2.8cqw] text-text-mute">Aproveitamento</p>
+          </div>
+          <div class="rounded-[4cqw] border border-line bg-surface-1 py-[2.8cqw]">
+            <p class="font-display text-[5.6cqw] font-800 leading-none">{{ athlete.longestStreak }}</p>
+            <p class="mt-[1cqw] text-[2.8cqw] text-text-mute">Seq. máx</p>
+          </div>
+        </div>
+
+        <ul class="mt-[3.4cqw] space-y-[2cqw]">
+          @for (match of matches; track $index) {
+            <li class="flex items-center gap-[3cqw] rounded-[4cqw] border border-line bg-surface-1 px-[3.6cqw] py-[2.8cqw]">
+              <span
+                class="flex size-[8cqw] shrink-0 items-center justify-center rounded-[2.4cqw] font-display text-[3.8cqw] font-800"
+                [class]="match.result === 'win' ? 'bg-win/15 text-win' : 'bg-surface-2 text-text-mute'"
+              >
+                {{ match.result === 'win' ? 'V' : 'D' }}
+              </span>
+              <span class="min-w-0">
+                <span class="block truncate font-display text-[3.9cqw] font-700 leading-tight">{{ match.round }}</span>
+                <span class="block truncate text-[3cqw] text-text-mute">{{ match.event }}</span>
+              </span>
+              <span class="ml-auto font-mono text-[3.6cqw] font-700">{{ match.score }}</span>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+
+    @case ('level') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pt-[6cqw]">
+        <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-brand">Como funciona</p>
+        <p class="mt-[1.2cqw] font-display text-[6.6cqw] font-700 leading-tight tracking-tight">Seu nível</p>
+
+        <div class="mt-[4cqw] rounded-[5.5cqw] border border-line bg-surface-1 p-[4.5cqw]">
+          <p class="text-[3.3cqw] text-text-mute">{{ athlete.sport }}</p>
+          <p class="mt-[0.8cqw] font-display text-[7.6cqw] font-800 leading-none tracking-tight">{{ athlete.level.name }}</p>
+          <div class="mt-[4cqw] h-[2.4cqw] overflow-hidden rounded-full bg-surface-2">
+            <span class="block h-full rounded-full bg-brand" [style.width.%]="levelProgress"></span>
+          </div>
+          <p class="mt-[2.4cqw] text-[3.3cqw]">
+            Faltam <span class="font-700 text-brand">{{ pointsToPromotion }} pts</span> para {{ athlete.level.next }}
+          </p>
+        </div>
+
+        <div class="mt-[2.6cqw] grid grid-cols-3 gap-[2cqw] text-center">
+          @for (mark of levelMarks; track mark.label) {
+            <div class="rounded-[4cqw] border border-line bg-surface-1 py-[2.6cqw]">
+              <p class="font-mono text-[2.6cqw] uppercase tracking-[0.1em] text-text-dim">{{ mark.label }}</p>
+              <p class="mt-[0.8cqw] font-display text-[4.6cqw] font-700 leading-none">{{ mark.value }}</p>
+            </div>
+          }
+        </div>
+
+        <div class="mt-[2.6cqw] rounded-[5.5cqw] border border-line bg-surface-1 p-[4.5cqw]">
+          <div class="flex items-baseline justify-between">
+            <p class="font-display text-[4.3cqw] font-700">Sua evolução</p>
+            <p class="font-mono text-[3.3cqw] text-text-mute">{{ levelPoints }} pts</p>
+          </div>
+          <svg class="mt-[2.6cqw] w-full text-brand" viewBox="0 0 200 64" fill="none" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M2 54 L32 48 L62 51 L92 38 L122 41 L152 24 L198 10" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="198" cy="10" r="4.5" fill="currentColor" />
+          </svg>
+        </div>
+      </div>
+    }
+
+    @case ('ranking') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pt-[6cqw]">
+        <p class="font-display text-[6.6cqw] font-700 leading-tight tracking-tight">Ranking</p>
+
+        <div class="mt-[3.4cqw] flex gap-[1.8cqw] overflow-hidden whitespace-nowrap text-[3.3cqw] font-600">
+          <span class="rounded-[3cqw] bg-brand px-[3.2cqw] py-[2cqw] text-on-brand">{{ athlete.sport }}</span>
+          <span class="rounded-[3cqw] border border-line bg-surface-1 px-[3.2cqw] py-[2cqw] text-text-mute">Individual</span>
+          <span class="rounded-[3cqw] border border-line bg-surface-1 px-[3.2cqw] py-[2cqw] text-text-mute">Filtros</span>
+        </div>
+
+        <ol class="mt-[3.4cqw] space-y-[1.6cqw] text-[3.8cqw]">
+          @for (row of ranking; track row.position) {
+            <li
+              class="flex items-center gap-[3cqw] rounded-[4cqw] px-[3.6cqw] py-[3cqw]"
+              [class]="row.you ? 'bg-brand font-700 text-on-brand' : 'border border-line bg-surface-1'"
+            >
+              <span class="w-[6cqw] font-mono text-[3.4cqw] font-700">{{ row.position }}</span>
+              <span class="truncate font-display font-600">{{ row.name }}</span>
+              @if (row.you) {
+                <span class="rounded-full bg-black/20 px-[2.2cqw] py-[0.8cqw] text-[2.9cqw] font-700">subiu {{ climb }}</span>
+              }
+              <span class="ml-auto font-mono text-[3.4cqw]">{{ row.pointsLabel }}</span>
+            </li>
+          }
+        </ol>
+
+        <span class="mt-auto flex h-[12.5cqw] items-center justify-center rounded-full border border-brand/60 font-display text-[4cqw] font-700 text-brand">
+          Compartilhar minha posição
+        </span>
+      </div>
+    }
+
+    @case ('xp') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pt-[6cqw]">
+        <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-brand">Desafios</p>
+        <div class="mt-[1.2cqw] flex items-baseline justify-between">
+          <p class="font-display text-[6.6cqw] font-700 leading-tight tracking-tight">Missões diárias</p>
+          <p class="font-mono text-[3.3cqw] text-brand">{{ missionsDone }}/{{ missionsPerDay }} hoje</p>
+        </div>
+
+        <div class="mt-[4cqw] grid grid-cols-2 gap-[2cqw]">
+          <div class="rounded-[4.5cqw] border border-line bg-surface-1 p-[3.6cqw]">
+            <p class="font-mono text-[2.6cqw] uppercase tracking-[0.12em] text-text-dim">Seu XP</p>
+            <p class="mt-[0.8cqw] font-display text-[6.4cqw] font-800 leading-none">{{ xpTotal }}</p>
+          </div>
+          <div class="rounded-[4.5cqw] border border-line bg-surface-1 p-[3.6cqw]">
+            <p class="font-mono text-[2.6cqw] uppercase tracking-[0.12em] text-text-dim">Sua sequência</p>
+            <p class="mt-[0.8cqw] font-display text-[6.4cqw] font-800 leading-none">{{ athlete.xp.streakDays }} dias</p>
+          </div>
+        </div>
+
+        <div class="mt-[2.4cqw] flex items-center gap-[3cqw] rounded-[4.5cqw] border border-brand/50 bg-brand-tint p-[3.6cqw]">
+          <span class="flex size-[9cqw] shrink-0 items-center justify-center rounded-[2.8cqw] bg-brand text-on-brand">
+            <svg class="size-[5cqw]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" /></svg>
+          </span>
+          <span>
+            <span class="block font-display text-[4.1cqw] font-700 leading-tight">Você ganhou XP!</span>
+            <span class="block text-[3.1cqw] text-text-mute">+{{ winXp }} XP, vitória em torneio</span>
+          </span>
+        </div>
+
+        <ul class="mt-[2.4cqw] space-y-[1.8cqw] text-[3.5cqw]">
+          @for (mission of missions; track mission.title) {
+            <li class="flex items-center gap-[3cqw] rounded-[4cqw] border border-line bg-surface-1 px-[3.6cqw] py-[2.8cqw]">
+              <span
+                class="flex size-[5.4cqw] shrink-0 items-center justify-center rounded-full"
+                [class]="mission.done ? 'bg-win text-black' : 'border-[0.5cqw] border-line-strong'"
+              >
+                @if (mission.done) {
+                  <svg class="size-[3.4cqw]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7" /></svg>
+                }
+              </span>
+              <span class="truncate" [class.text-text-mute]="mission.done">{{ mission.title }}</span>
+              <span class="ml-auto font-mono text-[3.1cqw] font-700 text-brand">+{{ mission.xp }}</span>
+            </li>
+          }
+        </ul>
+
+        <div class="mt-auto flex items-center justify-between rounded-[4.5cqw] bg-surface-2 px-[3.8cqw] py-[3.2cqw]">
+          <span class="font-display text-[4cqw] font-700">Conquistas</span>
+          <span class="text-[3.3cqw] text-text-mute">{{ athlete.xp.achievements }} desbloqueadas</span>
+        </div>
+      </div>
+    }
+
+    @case ('share') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pb-[5cqw] pt-[5cqw]">
+        <div class="flex items-center gap-[3cqw]">
+          <svg class="size-[5cqw] text-text-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+          <p class="font-display text-[4.6cqw] font-700">Postar no story</p>
+        </div>
+
+        <div class="story mt-[4cqw] flex flex-1 flex-col rounded-[6cqw] border border-line-strong p-[6cqw]">
+          <p class="font-mono text-[2.8cqw] font-700 uppercase tracking-[0.14em] text-sand">Minha posição no ranking</p>
+          <p class="mt-[3cqw] font-athletic text-[34cqw] font-900 italic leading-[0.82] text-brand [font-stretch:72%]">{{ position }}º</p>
+          <p class="mt-[3cqw] font-athletic text-[9.5cqw] font-900 uppercase italic leading-[0.92] [font-stretch:76%]">Entrei no top 10</p>
+          <p class="mt-[3cqw] text-[3.6cqw] text-text-mute">{{ athlete.sport }}, subiu {{ climb }}</p>
+          <p class="mt-auto font-display text-[4.3cqw] font-700">Quem vem me tirar daqui?</p>
+          <p class="mt-[2cqw] font-display text-[3.8cqw] font-700 tracking-tight">nexa<span class="text-brand">GO</span></p>
+        </div>
+
+        <span class="mt-[4cqw] flex h-[12.5cqw] items-center justify-center rounded-full bg-brand font-display text-[4.2cqw] font-700 text-on-brand">
+          Postar no story
+        </span>
+      </div>
+    }
+  }
+</app-phone-app-shell>

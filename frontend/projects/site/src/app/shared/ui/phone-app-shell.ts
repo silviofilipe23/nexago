@@ -18,9 +18,9 @@ const TABS = [
 export type AppTab = (typeof TABS)[number]['label'];
 
 /**
- * O que toda tela do app tem em volta: a barra de status em cima e as abas embaixo. A tela em
- * si entra por projeção e ocupa o meio (`flex-1`). Vai dentro de um `app-phone-frame`, e por
- * isso mede tudo em `cqw`, como o conteúdo.
+ * O que toda tela do app tem em volta: a barra de status em cima e, salvo em tela imersiva, as
+ * abas embaixo. A tela em si entra por projeção e ocupa o meio (`flex-1`). Vai dentro de um
+ * `app-phone-frame`, e por isso mede tudo em `cqw`, como o conteúdo.
  */
 @Component({
   selector: 'app-phone-app-shell',
@@ -39,23 +39,26 @@ export type AppTab = (typeof TABS)[number]['label'];
 
     <ng-content />
 
-    <div class="mx-[5.5cqw] mb-[5cqw] mt-[4cqw] flex items-center justify-between rounded-full border border-line bg-surface-1 px-[5cqw] py-[2.6cqw] text-text-mute">
-      @for (tab of tabs; track tab.label) {
-        <span class="flex flex-col items-center gap-[0.8cqw] text-[2.5cqw]" [class.text-brand]="tab.label === active()">
-          <svg class="size-[5.2cqw]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path [attr.d]="tab.icon" />
-          </svg>
-          {{ tab.label }}
-        </span>
-      }
-    </div>
+    @if (active(); as current) {
+      <div class="mx-[5.5cqw] mb-[5cqw] mt-[4cqw] flex items-center justify-between rounded-full border border-line bg-surface-1 px-[5cqw] py-[2.6cqw] text-text-mute">
+        @for (tab of tabs; track tab.label) {
+          <span class="flex flex-col items-center gap-[0.8cqw] text-[2.5cqw]" [class.text-brand]="tab.label === current">
+            <svg class="size-[5.2cqw]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path [attr.d]="tab.icon" />
+            </svg>
+            {{ tab.label }}
+          </span>
+        }
+      </div>
+    }
   `,
 })
 export class PhoneAppShell {
   /** Hora na barra de status. */
   readonly time = input.required<string>();
-  /** Aba em que a tela mostrada mora. */
-  readonly active = input.required<AppTab>();
+  /** Aba em que a tela mostrada mora; `null` para tela imersiva, que esconde as abas (o Modo
+   *  Focus tem navegação própria, o editor de story ocupa a tela toda). */
+  readonly active = input.required<AppTab | null>();
 
   protected readonly tabs = TABS;
 }

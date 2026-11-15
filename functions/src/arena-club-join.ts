@@ -48,7 +48,7 @@ import {
 } from "./cashback-checkout";
 import {clubCashbackLabel} from "./cashback-intent";
 import {attachHoldPayment} from "./athlete-wallet";
-import {CLUB_FEE_PERCENT} from "./platform-fees";
+import {loadArenaFeePercent} from "./arena-fees";
 import {
   recordArenaSquadDiscountQuietly,
   resolveArenaSquadDiscount,
@@ -397,7 +397,7 @@ export const joinArenaClubSession = onCall({
       payerUid: uid,
       typedCode: input.squadCode,
       priceReais: session.priceReais,
-      feePercent: CLUB_FEE_PERCENT,
+      feePercent: await loadArenaFeePercent(db, session.arenaId, undefined, "club"),
       feeFloorReais: 0,
     }, new Date());
     const squadCents = squad?.cents ?? 0;

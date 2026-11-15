@@ -17,7 +17,7 @@ import {HttpsError} from "firebase-functions/v2/https";
 import {FieldValue, type DocumentReference, type Firestore, type Transaction} from "firebase-admin/firestore";
 import {assertArenaCanBillOnline} from "./arena-class-billing";
 import {MIN_ONLINE_CHARGE_REAIS} from "./arena-schedule-plan-constants";
-import {resolveArenaBookingFeePercent} from "./arena-entitlement";
+import {loadArenaFeePercent} from "./arena-fees";
 import {
   arenaBookingNetReais,
   creditArenaWalletFromBookingPayment,
@@ -403,7 +403,9 @@ export async function processArenaCrmAsaasNotification(
 
   if (!arenaId) return;
   const arenaData = (await db.collection("arenas").doc(arenaId).get()).data() ?? {};
-  const platformFeeReais = computePlatformFeeReais(gross, resolveArenaBookingFeePercent(arenaData, deps.now().getTime()));
+  const platformFeeReais = computePlatformFeeReais(
+    gross, await loadArenaFeePercent(db, arenaId, arenaData, "crm", deps.now()),
+  );
   const gatewayFeeReais = gatewayFeeBeyondCovered(resolveGatewayFeeReais(payment, billingType, gross), 0);
   if (phases.awaitSettlement) {
     await holdArenaAwaitingSettlement(db, processedRef, {arenaId, netReais: arenaBookingNetReais({grossReais: gross, platformFeeReais, gatewayFeeReais})});

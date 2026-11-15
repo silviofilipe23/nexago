@@ -6,7 +6,7 @@
  *   arenaBillingConfig/model/versions/{n}  — retrato de cada versão salva (histórico + restaurar).
  *
  * Nada aqui cobra: a prévia só mostra o que o modelo cobraria. A cobrança atual (taxa por reserva
- * 8/6/5% do `planTier` e as assinaturas Starter/Pro/Elite) segue intacta.
+ * do Backoffice › Arenas › Taxas, `arena-fees.ts`, e as assinaturas Starter/Pro/Elite) segue intacta.
  */
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getAuth} from "firebase-admin/auth";

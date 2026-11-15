@@ -945,6 +945,8 @@ export {
 export {getCompanyFinance} from "./backoffice-company-finance";
 // Backoffice — modelo comercial das arenas (2027): faixas de mínimo de reservas, mensalidade e comissão.
 export {getArenaBillingOverview, saveArenaBillingModel} from "./backoffice-arena-billing";
+// Taxas da arena: padrão por plano + clubinho e exceção por arena/produto (a cobrança lê em `loadArenaFeePercent`).
+export {saveArenaFee, saveArenaFeeDefault} from "./arena-fees";
 // Backoffice — base de atletas: números reais (ativos = cadastro completo + já entrou) e marca de inativa.
 export {getBackofficeAthleteBase, setAthleteInactive} from "./backoffice-athlete-base";
 // Backoffice — Centros de Treinamento (ativar/suspender, recebimento, assinatura).

@@ -12,7 +12,7 @@ import * as logger from "firebase-functions/logger";
 import {FieldValue, type DocumentReference, type Firestore, type Transaction} from "firebase-admin/firestore";
 import {ARENA_CLASS_ASAAS_PAYMENTS, ARENA_CLASS_CHARGES, CLASS_PAYMENT_REF_PREFIX} from "./arena-class-constants";
 import {allocateCents, chargeAsaasMirror} from "./arena-class-asaas-model";
-import {resolveArenaBookingFeePercent} from "./arena-entitlement";
+import {loadArenaFeePercent} from "./arena-fees";
 import {
   creditArenaWalletFromBookingPayment,
   holdArenaAwaitingSettlement,
@@ -154,7 +154,9 @@ export async function processArenaClassAsaasNotification(
       // Taxa da NexaGO do pagamento (plano da arena agora, mesma conta do crédito no caixa),
       // repartida pelas mensalidades: o repasse do professor desconta a parte de cada uma.
       const feeCents = Math.round(
-        computePlatformFeeReais(gross, resolveArenaBookingFeePercent(arenaSnap.data() ?? {}, deps.now().getTime())) * 100,
+        computePlatformFeeReais(
+          gross, await loadArenaFeePercent(db, String(group["arenaId"] ?? ""), arenaSnap.data(), "class", deps.now()),
+        ) * 100,
       );
       const feeShares = allocateCents(feeCents, chargeSnaps.map((c) => Math.round(Number(c.data()?.["amountReais"] ?? 0) * 100)));
       for (const [i, c] of chargeSnaps.entries()) {
@@ -205,7 +207,9 @@ export async function processArenaClassAsaasNotification(
 
   if (!arenaId) return;
   const arenaData = (await db.collection("arenas").doc(arenaId).get()).data() ?? {};
-  const platformFeeReais = computePlatformFeeReais(gross, resolveArenaBookingFeePercent(arenaData, deps.now().getTime()));
+  const platformFeeReais = computePlatformFeeReais(
+    gross, await loadArenaFeePercent(db, arenaId, arenaData, "class", deps.now()),
+  );
   const gatewayFeeReais = resolveGatewayFeeReais(payment, billingType, gross);
 
   if (phases.awaitSettlement) {

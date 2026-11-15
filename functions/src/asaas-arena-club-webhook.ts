@@ -23,7 +23,8 @@ import {
 } from "./arena-club-constants";
 import {creditArenaWalletFromClubPayment} from "./arena-wallet";
 import {arenaSquadDiscountCents, markArenaSquadDiscountConfirmedQuietly} from "./squad-arena-discount";
-import {CLUB_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
+import {loadArenaFeePercent} from "./arena-fees";
+import {computePlatformFeeReais} from "./platform-fees";
 import {roundMoney} from "./mercadopago-arena-helpers";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {resolveAthleteCpfCnpj, resolveAthletePayerName} from "./asaas-customer";
@@ -142,9 +143,11 @@ export async function processArenaClubSessionAsaasNotification(
       return;
     }
     const paidReais = roundMoney(cashPaid + appliedCents / 100 + squadDiscountCents / 100);
+    // % do clubinho na arena da vaga (padrão do backoffice ou exceção da arena), sem piso.
+    const feeArenaId = String((await sessionRef.get()).data()?.["arenaId"] ?? "");
     const platformFeeReais = computePlatformFeeReais(
       paidReais,
-      CLUB_FEE_PERCENT,
+      await loadArenaFeePercent(db, feeArenaId, undefined, "club"),
       {floorReais: 0},
     );
     const netReais = roundMoney(paidReais - platformFeeReais);

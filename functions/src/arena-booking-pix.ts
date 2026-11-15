@@ -34,7 +34,8 @@ import {
   resolveWithdrawalPixFields,
   resolveWithdrawalTransferAmount,
 } from "./asaas-payout";
-import {resolveArenaBookingFeePercent, resolveArenaWithdrawalFeeReais} from "./arena-entitlement";
+import {resolveArenaWithdrawalFeeReais} from "./arena-entitlement";
+import {loadArenaFeePercent} from "./arena-fees";
 import {manualReviewBlockReason} from "./withdrawal-transfer-state";
 import {AsaasApiError, asaasArenaSecrets} from "./asaas-client";
 import {
@@ -281,7 +282,7 @@ async function prepareArenaBookingCharge(
     payerUid: callerUid,
     typedCode: data.squadCode,
     priceReais: amountToPayNow,
-    feePercent: resolveArenaBookingFeePercent(arena, Date.now()),
+    feePercent: await loadArenaFeePercent(db, arenaId, arena, "booking"),
   }, new Date());
   const squadCents = squad?.cents ?? 0;
   const priceAfterSquad = roundMoney(amountToPayNow - squadCents / 100);

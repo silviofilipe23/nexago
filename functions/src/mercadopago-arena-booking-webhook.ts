@@ -17,7 +17,7 @@ import * as logger from "firebase-functions/logger";
 import {creditArenaWalletFromBooking} from "./arena-wallet";
 import {computeSlotLockIds} from "./arena-booking-waitlist";
 import {roundMoney} from "./mercadopago-arena-helpers";
-import {resolveArenaBookingFeePercent} from "./arena-entitlement";
+import {loadArenaFeePercent} from "./arena-fees";
 import {computePlatformFeeReais} from "./platform-fees";
 
 import {
@@ -131,11 +131,11 @@ export async function processArenaBookingMercadoPagoNotification(
     const paymentStatus = isPartial ? "partial" : "paid";
     const arenaId = booking.arenaId as string | undefined;
 
-    // Taxa por plano: 8% Starter, 6% Pro, 5% Elite; sem plano titular = 8%.
+    // Taxa da reserva: exceção da arena ou padrão do backoffice por plano (`arena-fees.ts`).
     let platformFee = 0;
     if (arenaId) {
       const arenaSnap = await db.collection("arenas").doc(arenaId).get();
-      const feePercent = resolveArenaBookingFeePercent(arenaSnap.data() ?? {}, Date.now());
+      const feePercent = await loadArenaFeePercent(db, arenaId, arenaSnap.data(), "booking");
       platformFee = computePlatformFeeReais(paidOnline, feePercent);
     }
 

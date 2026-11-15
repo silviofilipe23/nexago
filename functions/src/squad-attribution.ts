@@ -14,8 +14,8 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {Timestamp, getFirestore, type Firestore} from "firebase-admin/firestore";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {followerDiscountFor, followerPctOf, payerUsedDiscount} from "./squad-commission-lifecycle";
-import {resolveArenaBookingFeePercent} from "./arena-entitlement";
-import {CLUB_FEE_PERCENT, FEE_FLOOR_REAIS} from "./platform-fees";
+import {loadArenaFeePercent} from "./arena-fees";
+import {FEE_FLOOR_REAIS} from "./platform-fees";
 import {feeRuleForRegistration} from "./squad-fee-cap";
 import {SQUAD_AMBASSADORS} from "./squad-commissions";
 import {SQUAD_PUBLIC} from "./squad-public";
@@ -263,10 +263,15 @@ async function feeOfPurpose(
   ids: {registrationId: string; arenaId: string},
   now: Date,
 ): Promise<{feePercent: number | null; feeFloorReais: number}> {
-  if (purpose === "club") return {feePercent: CLUB_FEE_PERCENT, feeFloorReais: 0};
+  if (purpose === "club") {
+    return {feePercent: await loadArenaFeePercent(db, ids.arenaId, undefined, "club", now), feeFloorReais: 0};
+  }
   if (purpose === "booking") {
     const arena = ids.arenaId ? (await db.collection("arenas").doc(ids.arenaId).get()).data() : undefined;
-    return {feePercent: arena ? resolveArenaBookingFeePercent(arena, now.getTime()) : null, feeFloorReais: FEE_FLOOR_REAIS};
+    return {
+      feePercent: arena ? await loadArenaFeePercent(db, ids.arenaId, arena, "booking", now) : null,
+      feeFloorReais: FEE_FLOOR_REAIS,
+    };
   }
   // Inscrição: a regra do torneio (exceção, comissão do organizador ou padrão), com o piso dela.
   const rule = await feeRuleForRegistration(db, ids.registrationId);

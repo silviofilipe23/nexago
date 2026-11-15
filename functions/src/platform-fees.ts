@@ -6,8 +6,9 @@
  * e é sempre descontada do recebedor (arena/organizador recebe líquido); o
  * pagador (atleta) paga o mesmo valor.
  *
- * - Reservas: todos os planos — 8% Starter, 6% Pro, 5% Elite; sem plano = 8%.
- *   Resolução em `arena-entitlement.resolveArenaBookingFeePercent`.
+ * - Arena (reservas, planos de horário, aulas, CRM, clubinho): padrão 8% Starter, 6% Pro, 5% Elite,
+ *   8% sem plano e 5% no clubinho — editável no backoffice, com exceção por arena e produto.
+ *   As constantes abaixo são só o padrão de código; quem cobra lê `arena-fees.loadArenaFeePercent`.
  * - Inscrições de torneio: todos os organizadores. Padrão editável e exceção por
  *   torneio em `tournament-fees.ts` (`resolveTournamentFeeRule`). Ali a regra pode
  *   pôr a taxa (ou metade dela) por cima do preço para o atleta ("Quem paga",
@@ -20,9 +21,8 @@ function roundMoney(n: number): number {
 }
 
 /**
- * Taxa sobre reservas de arena por plano (%). Todos os planos pagam; arena sem
- * plano titular paga a taxa do Starter. Resolução em
- * `arena-entitlement.resolveArenaBookingFeePercent`.
+ * Taxa padrão sobre o que a arena recebe online, por plano (%). Arena sem plano titular paga a
+ * taxa do Starter. Só o padrão de código: o backoffice sobrepõe (`arena-fees.ts`).
  */
 export const BOOKING_FEE_PERCENT_BY_TIER = {starter: 8, pro: 6, elite: 5} as const;
 
@@ -52,7 +52,6 @@ export function isValidCommissionPercent(percent: unknown): percent is number {
 /**
  * Taxa de inscrição para um organizador: a comissão negociada em
  * `organizers/{uid}.commissionPercent` quando houver, senão o padrão.
- * Espelha `resolveArenaBookingFeePercent` (arena-entitlement).
  *
  * `organizer` é o doc de `organizers/{uid}`; ausente (organizador sem cadastro
  * pelo backoffice) resolve para o padrão, que é o comportamento de antes.

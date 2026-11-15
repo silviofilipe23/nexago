@@ -180,6 +180,13 @@ const NAV_ITEMS: readonly PanelNavItem[] = [
     icon: 'percent',
     route: '/painel/arenas/modelo-comercial',
   },
+  {
+    kind: 'link',
+    id: 'arenas-taxas',
+    label: 'Taxas das arenas',
+    icon: 'percent',
+    route: '/painel/arenas/taxas',
+  },
   TORNEIOS_GROUP,
   { kind: 'link', id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes' },
   {
@@ -724,6 +731,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/arenas/modelo-comercial')) {
       return 'arenas-modelo-comercial';
+    }
+    if (path.startsWith('/painel/arenas/taxas')) {
+      return 'arenas-taxas';
     }
     if (path.startsWith('/painel/arenas')) {
       return 'arenas';

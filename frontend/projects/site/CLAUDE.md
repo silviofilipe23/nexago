@@ -37,7 +37,7 @@ src/
       blog/                 # /blog e /blog/:slug: posts do backoffice (Firestore `blogPosts`) + estáticos antigos de lib/blog/posts.ts
     shared/
       hub/                  # StatusBadge, ArenaCard, filter-controls — compartilhados entre páginas do hub
-      ui/                   # ButtonDirective, DownloadCta, DownloadQr, PhoneFrame, StoreButtons (blog), ToastService, ThemeToggle
+      ui/                   # ButtonDirective, DownloadCta, DownloadQr, PhoneFrame, PhoneAppShell, StoreButtons (blog), ToastService, ThemeToggle
       layout/               # SiteHeader, SiteFooter
       reveal.directive.ts
       replay-animation.directive.ts  # [nxReplay]: toca de novo a animação CSS quando o valor muda
@@ -66,9 +66,12 @@ Exceção: cor de categoria do blog criada no backoffice (`blogCategories/{id}.c
 A home é um dia de jogo contado de cima para baixo, e tudo termina no download:
 
 1. `Opening` — a arena ao anoitecer em vídeo (laço mudo de 7 s; o pôster é o 1º quadro do laço), título "Hoje tem jogo." com a data de quem lê, `DownloadCta` e QR. `SportsTicker` fecha a primeira tela.
-2. `MatchPoint` — a cena-assinatura: os últimos pontos de uma semifinal jogados pela rolagem (ScrollTrigger com pin). A rolagem só escolhe o `beat`; o que aparece em cada um é template guiado por signal. Sequência e regras em `match-point-beats.ts` (com spec). Confete (`canvas-confetti`, import dinâmico) só ao chegar na vitória.
-3. `GameDay` — quatro horários (07:40 reservar, 12:30 galera, 16:50 torneio, 19:10 ranking), cada um com foto e um recorte de tela do app desenhado em HTML.
-4. Dados reais do Firestore (`TorneiosDestaqueSection`, `ArenasCarouselSection`), `AudienceDoors` (organizadores/arenas), FAQ e `FinalCall`. `StickyDownload` é a barra de download do celular.
+2. `MatchPoint` — a cena-assinatura: os últimos pontos de uma semifinal jogados pela rolagem (ScrollTrigger com pin). Sequência e regras em `match-point-beats.ts` (com spec). Confete (`canvas-confetti`, import dinâmico) só ao chegar na vitória.
+3. `BookingScene` — mesma mecânica, lados trocados no desktop: a reserva de uma quadra em cinco etapas (buscar, esporte, horário, pagar, reservado). O quadro de horários e as telas do app (`BookingPhone`, com os rótulos reais do app) saem da mesma agenda em `booking-beats.ts` (com spec). O desfecho é a casa carimbada "Você", sem confete.
+4. `GameDay` — quatro horários (07:40 agenda do dia, 12:30 galera, 16:50 torneio, 19:10 ranking), cada um com foto e um recorte de tela do app desenhado em HTML. A reserva não se repete aqui: tem a cena acima.
+5. Dados reais do Firestore (`TorneiosDestaqueSection`, `ArenasCarouselSection`), `AudienceDoors` (organizadores/arenas), FAQ e `FinalCall`. `StickyDownload` é a barra de download do celular.
+
+Cenas jogadas pela rolagem (`beat-scene.ts` + `beat-scene.scss`): `pinBeatScene` prende um palco de uma tela e a rolagem só escolhe o `beat`; o que aparece em cada um é template guiado por signal. Uma cena nova segue o molde: dados e funções puras num `*-beats.ts` com spec, componente com `styleUrls: ['./beat-scene.scss', './minha-cena.scss']`, tela do app dentro de `PhoneFrame` + `PhoneAppShell`. Os `@keyframes` são isolados por folha: uma folha não enxerga os da outra.
 
 Regras que valem só aqui:
 - **Download**: todo "Baixar o app" do site vai para `/baixar` (`DOWNLOAD_PATH`), que detecta o aparelho (`lib/platform.ts`) e redireciona; `DownloadCta` mostra só a loja do aparelho no celular e as duas no desktop. O QR (`lib/download-qr.ts`) é um caminho SVG fixo de `https://nexago.com.br/baixar` — mudou o endereço, gere de novo.

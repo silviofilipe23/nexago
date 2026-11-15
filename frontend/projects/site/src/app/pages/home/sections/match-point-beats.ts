@@ -64,13 +64,6 @@ export const MATCH_BEATS: MatchBeat[] = [
   },
 ];
 
-/** Qual ponto está em cena para um progresso de rolagem de 0 a 1 — fatias iguais, a última
- *  (vitória) inclusive, para dar tempo de ler o resultado antes de a cena soltar. */
-export function beatForProgress(progress: number, total = MATCH_BEATS.length): number {
-  const clamped = Math.min(1, Math.max(0, progress));
-  return Math.min(total - 1, Math.floor(clamped * total));
-}
-
 export interface LoggedPoint {
   score: string;
   scorer: Side;

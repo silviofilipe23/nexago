@@ -19,14 +19,16 @@ interface Moment {
 /**
  * Um dia de jogo em quatro horários. A ordem é a do relógio (e a luz das fotos acompanha: manhã,
  * meio-dia, fim de tarde, anoitecer), por isso a lista é `<ol>` e o horário é o marcador.
+ * A reserva de quadra não entra aqui: tem cena própria logo acima (`BookingScene`), e a agenda
+ * da manhã já mostra o horário reservado lá.
  * Nomes de arena, atletas e torneio são fictícios.
  */
 const MOMENTS: Moment[] = [
   {
     id: 'manha',
     time: '07:40',
-    title: 'A quadra é sua em três toques.',
-    text: 'Veja os horários livres das arenas perto de você, escolha o esporte e pague no Pix. Sem ligar para ninguém, sem depender do grupo.',
+    title: 'Acordou, já sabe o que tem hoje.',
+    text: 'Treino, reserva e jogo de torneio ficam na mesma agenda, com horário e quadra. Nada de procurar no grupo que horas era.',
     alt: 'Quadra de areia vazia ao amanhecer, com a areia recém-rastelada.',
   },
   {

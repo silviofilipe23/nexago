@@ -1,14 +1,5 @@
-// Placar de transmissão: um painel só, duas linhas, o numeral do ponto em caixa própria.
-.board {
-  overflow: hidden;
-  max-width: 44rem;
-  border: 1px solid var(--color-line-strong);
-  border-radius: 20px;
-  background: rgba(8, 8, 9, 0.72);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-
+// Placar de transmissão: duas linhas dentro do painel (`.board`, em beat-scene.scss), com o
+// numeral do ponto em caixa própria.
 .row {
   display: flex;
   align-items: center;
@@ -66,36 +57,12 @@
   animation: tick 520ms cubic-bezier(0.19, 1, 0.22, 1) both;
 }
 
-.call {
-  animation: call 600ms cubic-bezier(0.19, 1, 0.22, 1) both;
-}
-
-.note,
-.cta {
-  animation: fade 500ms ease 160ms both;
-}
-
-.screen {
-  animation: fade 420ms ease both;
-}
-
 .log {
   animation: log 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .live-dot {
   animation: pulse 1.4s ease-in-out infinite;
-}
-
-// Clarão do ponto: laranja para o nosso lado, branco frio para o deles.
-.flash {
-  background: radial-gradient(60% 55% at 32% 45%, rgba(255, 106, 26, 0.34), transparent 70%);
-  opacity: 0;
-  animation: flash 900ms ease-out both;
-}
-
-.flash-them {
-  background: radial-gradient(60% 55% at 32% 45%, rgba(244, 244, 245, 0.16), transparent 70%);
 }
 
 @keyframes tick {
@@ -106,26 +73,6 @@
   to {
     opacity: 1;
     transform: none;
-  }
-}
-
-@keyframes call {
-  from {
-    opacity: 0;
-    transform: translateX(-28px) skewX(-8deg);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
   }
 }
 
@@ -143,14 +90,5 @@
 @keyframes pulse {
   50% {
     opacity: 0.35;
-  }
-}
-
-@keyframes flash {
-  0% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
   }
 }

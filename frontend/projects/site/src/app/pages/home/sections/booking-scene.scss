@@ -1,0 +1,136 @@
+// O clarão acompanha o quadro, que nesta cena fica do lado direito no desktop.
+:host {
+  --flash-x: 50%;
+
+  @media (min-width: 1024px) {
+    --flash-x: 68%;
+  }
+}
+
+// (O Angular isola os @keyframes por folha: os daqui não enxergam os da `beat-scene.scss`.)
+.chip {
+  animation: chip-in 400ms ease both;
+}
+
+// Quadro de horários: horários em cima (no numeral de placar), quadras à esquerda.
+.slots {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: clamp(4px, 0.8vw, 8px);
+  padding: clamp(0.5rem, 1.6vw, 1rem);
+
+  thead td {
+    width: clamp(4.4rem, 12vw, 7rem);
+  }
+
+  th[scope='col'] {
+    padding-bottom: 0.15em;
+    font-size: clamp(1.5rem, 4.2vw, 2.6rem);
+    color: var(--color-text-mute);
+    transition: color 300ms ease;
+  }
+
+  th[scope='row'] {
+    font-size: clamp(0.85rem, 1.9vw, 1.2rem);
+    text-align: left;
+    white-space: nowrap;
+    color: var(--color-text-mute);
+    transition: color 300ms ease;
+  }
+
+  // Horário e quadra escolhidos: laranja enquanto a reserva anda, verde quando fecha.
+  // (`th.on` e não só `.on`: precisa empatar com os seletores de cima para valer pela ordem.)
+  th.on {
+    color: var(--color-brand);
+  }
+
+  th.won {
+    color: var(--color-win);
+  }
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  height: clamp(2.15rem, 6vw, 4.25rem);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-size: clamp(0.66rem, 1.5vw, 0.9rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition:
+    background-color 300ms ease,
+    border-color 300ms ease,
+    color 300ms ease;
+}
+
+// Antes do esporte não há agenda: as casas respiram, à espera.
+.cell-unknown {
+  background: rgba(255, 255, 255, 0.05);
+  animation: wait 1.6s ease-in-out infinite;
+}
+
+.cell-busy {
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.09) 0 5px, transparent 5px 11px);
+}
+
+.cell-free {
+  border-color: var(--color-line-strong);
+  color: var(--color-sand);
+}
+
+.cell-picked {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  animation: stamp 420ms var(--ease-spring) both;
+}
+
+.cell-holding {
+  border-width: 2px;
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+  animation: hold 1.1s ease-in-out infinite;
+}
+
+// O desfecho: a casa carimbada com o seu nome.
+.cell-yours {
+  background: var(--color-win);
+  color: #04130b;
+  font-family: var(--font-athletic);
+  font-size: clamp(0.85rem, 1.9vw, 1.15rem);
+  font-weight: 800;
+  animation: stamp 520ms var(--ease-spring) both;
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes wait {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes hold {
+  50% {
+    background: rgba(255, 106, 26, 0.16);
+  }
+}
+
+@keyframes stamp {
+  from {
+    transform: scale(0.72);
+  }
+  to {
+    transform: none;
+  }
+}

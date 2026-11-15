@@ -1,4 +1,4 @@
-import { MATCH_BEATS, beatForProgress, pointLog } from './match-point-beats';
+import { MATCH_BEATS, pointLog } from './match-point-beats';
 
 describe('cena Match point', () => {
   it('conta uma sequência de pontos válida: um ponto por vez, para quem pontuou', () => {
@@ -16,17 +16,6 @@ describe('cena Match point', () => {
     expect(closed(last)).toBeTrue();
     expect(last.us).toBeGreaterThan(last.them);
     expect(MATCH_BEATS.slice(0, -1).some(closed)).toBeFalse();
-  });
-
-  it('divide a rolagem em fatias iguais e segura a vitória até o fim', () => {
-    expect(beatForProgress(0)).toBe(0);
-    expect(beatForProgress(0.19)).toBe(0);
-    expect(beatForProgress(0.2)).toBe(1);
-    expect(beatForProgress(0.79)).toBe(3);
-    expect(beatForProgress(0.8)).toBe(4);
-    expect(beatForProgress(1)).toBe(4);
-    expect(beatForProgress(-0.5)).toBe(0);
-    expect(beatForProgress(7)).toBe(4);
   });
 
   it('lista o ponto a ponto do mais recente para o mais antigo', () => {

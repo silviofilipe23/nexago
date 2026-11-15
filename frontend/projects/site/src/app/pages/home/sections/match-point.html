@@ -18,7 +18,7 @@
         class="flash absolute inset-0"
         [nxReplay]="beat()"
         [class.hidden]="!current().scorer"
-        [class.flash-them]="current().scorer === 'them'"
+        [class.flash-cold]="current().scorer === 'them'"
       ></div>
     </div>
 
@@ -87,15 +87,7 @@
 
       <div class="flex justify-center lg:justify-end">
         <app-phone-frame class="[--phone-w:232px] sm:[--phone-w:264px] lg:[--phone-w:min(21.5rem,36svh)]" aria-hidden="true">
-          <div class="flex h-full flex-col font-sans text-fg">
-            <div class="flex items-center justify-between px-[7cqw] pt-[5.2cqw] text-[3.7cqw] font-600">
-              <span>19:42</span>
-              <span class="flex items-center gap-[1.4cqw]">
-                <span class="h-[2.6cqw] w-[4cqw] rounded-[0.6cqw] bg-fg/90"></span>
-                <span class="h-[2.6cqw] w-[5.6cqw] rounded-[0.9cqw] border border-fg/60 p-[0.3cqw]"><span class="block h-full w-3/4 rounded-[0.4cqw] bg-fg/90"></span></span>
-              </span>
-            </div>
-
+          <app-phone-app-shell time="19:42" active="Competir">
             @if (!won()) {
               <div class="screen flex flex-1 flex-col px-[5.5cqw] pt-[6cqw]">
                 <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-brand">Ao vivo · Quadra 2</p>
@@ -172,18 +164,7 @@
                 </span>
               </div>
             }
-
-            <div class="mx-[5.5cqw] mb-[5cqw] mt-[4cqw] flex items-center justify-between rounded-full border border-line bg-surface-1 px-[5cqw] py-[2.6cqw] text-text-mute">
-              @for (tab of tabs; track tab.label) {
-                <span class="flex flex-col items-center gap-[0.8cqw] text-[2.5cqw]" [class.text-brand]="tab.active">
-                  <svg class="size-[5.2cqw]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path [attr.d]="tab.icon" />
-                  </svg>
-                  {{ tab.label }}
-                </span>
-              }
-            </div>
-          </div>
+          </app-phone-app-shell>
         </app-phone-frame>
       </div>
     </div>

@@ -41,9 +41,11 @@ const FAQ_ITEMS: QA[] = [
   template: `
     <section id="faq" class="relative mx-auto max-w-3xl scroll-mt-24 px-5 py-16 sm:px-6 sm:py-32">
       <div nxReveal class="text-center">
-        <p class="mb-3 font-mono text-sm font-600 uppercase tracking-[0.2em] text-brand">
-          {{ eyebrow() }}
-        </p>
+        @if (eyebrow()) {
+          <p class="mb-3 font-mono text-sm font-600 uppercase tracking-[0.2em] text-brand">
+            {{ eyebrow() }}
+          </p>
+        }
         <h2 class="font-display text-[clamp(1.9rem,5vw,3.25rem)] font-700 leading-tight tracking-tight text-fg">
           {{ title() }}
         </h2>

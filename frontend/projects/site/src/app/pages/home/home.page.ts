@@ -1,62 +1,92 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Title } from '@angular/platform-browser';
-import { CinematicHero } from './sections/cinematic-hero';
+import { HOME_IMAGE_LOADER } from '../../../lib/home-images';
+import { Opening } from './sections/opening';
+import { SportsTicker } from './sections/sports-ticker';
+import { MatchPoint } from './sections/match-point';
+import { GameDay } from './sections/game-day';
 import { AcompanhandoSection } from './sections/acompanhando';
-import { FeaturesSection } from './sections/features';
-import { ComoFunciona } from './sections/como-funciona';
-import { StatsSection } from './sections/stats';
 import { TorneiosDestaqueSection } from './sections/torneios-destaque';
 import { ArenasCarouselSection } from './sections/arenas-carousel';
-import { LigaSection } from './sections/liga';
+import { AudienceDoors } from './sections/audience-doors';
 import { FaqSection } from './sections/faq';
-import { WaitlistSection } from './sections/waitlist';
-import { DownloadSection } from './sections/download';
+import type { QA } from './sections/faq-accordion';
+import { FinalCall } from './sections/final-call';
+import { StickyDownload } from './sections/sticky-download';
+
+const HOME_FAQ: QA[] = [
+  {
+    q: 'O app é gratuito?',
+    a: 'Sim. Baixar o nexaGO e criar seu perfil de atleta é grátis. Você paga só o que decidir usar: a reserva de uma quadra ou a inscrição de um torneio.',
+  },
+  {
+    q: 'Quais esportes posso jogar?',
+    a: 'Vôlei de praia, futevôlei, beach tennis, tênis, padel e vôlei de quadra têm torneios, placar e ranking. Futebol, basquete e corrida já entram no seu perfil, e a lista segue crescendo.',
+  },
+  {
+    q: 'Como reservo uma quadra?',
+    a: 'No app, escolha o esporte, o dia e o horário, veja as arenas com vaga perto de você e pague por ali mesmo. A reserva aparece na sua agenda na hora.',
+  },
+  {
+    q: 'Como me inscrevo em um torneio?',
+    a: 'Abra o torneio no app, escolha a categoria, convide sua dupla ou equipe e pague a inscrição ali mesmo. Depois é acompanhar a chave e os horários dos seus jogos.',
+  },
+  {
+    q: 'Como funciona o ranking?',
+    a: 'Cada torneio soma pontos conforme a fase que você alcança e o peso da categoria. O ranking é separado por esporte, e a tela "Como funciona" do app mostra a conta inteira.',
+  },
+  {
+    q: 'Organizo torneios ou tenho uma arena. Tem algo para mim?',
+    a: 'Tem. Organizadores criam torneios, recebem inscrições e geram as chaves pelo painel; arenas ganham agenda online, reservas pagas e página própria. As duas portas estão logo acima.',
+  },
+];
 
 /**
- * Porta de `app/page.tsx` (site Next.js) — mesma composição e ordem da fonte. `ProvaSocial`
- * fica de fora de propósito: está comentada na fonte (`{/* <ProvaSocial /> * /}`), não é
- * dead code nosso. `Hero`/`Steps` não aparecem aqui — não fazem parte da home real (ver
- * relatório da migração: `Hero` é código morto na fonte, `Steps` só roda em /arenas,
- * /ligas, /organizadores). Torneios/arenas usam dados placeholder — leitura Firestore ao
- * vivo é uma fase posterior da migração.
+ * Home "Dia de jogo": abertura em vídeo, a cena do match point guiada pela rolagem, o dia em
+ * quatro horários, o que está acontecendo de verdade (torneios e arenas do Firestore) e o
+ * download. Tudo que anima com ScrollTrigger vem antes das seções que carregam dados — assim a
+ * altura que elas ganham ao chegar não desloca nenhum gatilho.
  */
 @Component({
   selector: 'app-home-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CinematicHero,
+    Opening,
+    SportsTicker,
+    MatchPoint,
+    GameDay,
     AcompanhandoSection,
-    FeaturesSection,
-    ComoFunciona,
-    StatsSection,
     TorneiosDestaqueSection,
     ArenasCarouselSection,
-    LigaSection,
+    AudienceDoors,
     FaqSection,
-    WaitlistSection,
-    DownloadSection,
+    FinalCall,
+    StickyDownload,
   ],
-  host: { class: 'block overflow-x-hidden' },
+  providers: [HOME_IMAGE_LOADER],
+  host: { class: 'nx-home block overflow-x-clip' },
   template: `
-    <app-cinematic-hero />
+    <app-opening />
+    <app-sports-ticker />
+    <app-match-point />
+    <app-game-day />
     <app-acompanhando-section />
-    <app-features />
-    <app-como-funciona />
-    <app-stats />
     <app-torneios-destaque-section />
     <app-arenas-carousel-section
-      eyebrow="Onde a areia acontece"
-      title="Arenas pra jogar perto de você"
-      description="Conheça as arenas que já fazem parte do nexaGO — encontre onde jogar, treinar e competir."
+      eyebrow=""
+      title="Arenas para jogar perto de você"
+      description="Conheça as arenas que já estão no nexaGO: veja as quadras, os esportes e reserve seu horário pelo app."
     />
-    <app-liga />
-    <app-faq />
-    <app-waitlist-section />
-    <app-download-section />
+    <app-audience-doors />
+    <app-faq [items]="faq" eyebrow="" title="Antes de entrar em quadra" />
+    <app-final-call />
+    <app-sticky-download />
   `,
 })
 export class HomePage {
+  protected readonly faq = HOME_FAQ;
+
   constructor() {
-    inject(Title).setTitle('nexaGO — Torneios, ranking e ligas de beach tennis e vôlei de praia');
+    inject(Title).setTitle('nexaGO — Reserve quadras, jogue torneios e suba no ranking');
   }
 }

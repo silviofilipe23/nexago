@@ -62,16 +62,14 @@
 
     <div class="hidden items-center gap-2 md:flex">
       <app-theme-toggle />
-      <a nxButton="primary" href="https://linktr.ee/nexago" target="_blank" rel="noopener noreferrer" class="min-h-0 whitespace-nowrap py-2 text-sm">
+      <a nxButton="primary" routerLink="/baixar" class="min-h-0 whitespace-nowrap py-2 text-sm">
         Baixar o app
       </a>
     </div>
 
     <div class="flex items-center gap-2 md:hidden">
       <a
-        href="https://linktr.ee/nexago"
-        target="_blank"
-        rel="noopener noreferrer"
+        routerLink="/baixar"
         class="inline-flex h-9 items-center gap-1.5 rounded-pill bg-brand px-3.5 font-display text-[13px] font-bold tracking-tight text-on-brand shadow-glow-orange transition-all duration-200 ease-out hover:bg-brand-light active:scale-[0.98] active:bg-brand-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
       >
         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -157,9 +155,7 @@
 
       <a
         nxButton="primary"
-        href="https://linktr.ee/nexago"
-        target="_blank"
-        rel="noopener noreferrer"
+        routerLink="/baixar"
         (click)="closeMenu()"
         class="mt-8 w-full"
       >

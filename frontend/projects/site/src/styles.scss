@@ -52,6 +52,71 @@
   transform: translateY(0);
 }
 
+// ── Home "Dia de jogo" ──────────────────────────────────────────────────────────────────────
+// Trechos sobre foto ou vídeo são sempre noturnos, em qualquer tema: a classe redeclara os
+// tokens escuros no próprio elemento e tudo que está dentro (utilitários do Tailwind) acompanha.
+// A UI do app desenhada dentro do celular também usa — o app é escuro por padrão.
+.nx-night {
+  --color-brand: #ff6a1a;
+  --color-brand-light: #ff8a4a;
+  --color-brand-dark: #e5560e;
+  --color-brand-tint: rgba(255, 106, 26, 0.12);
+  --color-on-brand: #0a0a0a;
+  --color-bg: #050505;
+  --color-surface-0: #0b0b0c;
+  --color-surface-1: #131316;
+  --color-surface-2: #1b1b1f;
+  --color-glass: rgba(20, 20, 22, 0.62);
+  --color-line: rgba(255, 255, 255, 0.08);
+  --color-line-strong: rgba(255, 255, 255, 0.16);
+  --color-fg: #f4f4f5;
+  --color-text-mute: rgba(244, 244, 245, 0.62);
+  --color-text-dim: rgba(244, 244, 245, 0.55);
+  --color-live: #ff3b30;
+  --color-pending: #f4c543;
+  --color-win: #2bd17e;
+  --color-sand: #e6cfa4;
+  --shadow-elev-2: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 8px 24px rgba(0, 0, 0, 0.55);
+  --shadow-elev-3: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 24px 60px rgba(0, 0, 0, 0.65);
+  --shadow-glow-orange: 0 0 0 1px rgba(255, 106, 26, 0.3), 0 12px 40px rgba(255, 106, 26, 0.25);
+  color: var(--color-fg);
+  color-scheme: dark;
+}
+
+// Na home, os títulos das seções compartilhadas (torneios, arenas, FAQ) falam com a mesma voz.
+.nx-home {
+  --font-display: var(--font-athletic);
+}
+
+// Três vozes tipográficas da home, todas da mesma família (Archivo, variável em largura):
+// a chamada de transmissão, o título calmo e o numeral de placar.
+.nx-shout {
+  font-family: var(--font-athletic);
+  font-style: italic;
+  font-weight: 900;
+  font-stretch: 76%;
+  line-height: 0.9;
+  letter-spacing: -0.012em;
+  text-transform: uppercase;
+}
+
+.nx-title {
+  font-family: var(--font-athletic);
+  font-weight: 800;
+  font-stretch: 100%;
+  line-height: 1.04;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+}
+
+.nx-score {
+  font-family: var(--font-athletic);
+  font-weight: 800;
+  font-stretch: 62%;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
 // Toast (ToastHost).
 @keyframes nx-toast-in {
   from {

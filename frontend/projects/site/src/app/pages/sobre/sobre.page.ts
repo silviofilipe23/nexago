@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Title } from '@angular/platform-browser';
+import { RouterLink } from '@angular/router';
 import { RevealDirective } from '../../shared/reveal.directive';
 import { ButtonDirective } from '../../shared/ui/button.directive';
 import { SpotlightCardDirective } from './spotlight-card.directive';
@@ -38,7 +39,7 @@ const VALUES: SobreValue[] = [
 @Component({
   selector: 'app-sobre-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RevealDirective, ButtonDirective, SpotlightCardDirective],
+  imports: [RevealDirective, ButtonDirective, SpotlightCardDirective, RouterLink],
   templateUrl: './sobre.page.html',
 })
 export class SobrePage {

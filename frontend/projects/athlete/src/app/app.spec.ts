@@ -63,4 +63,11 @@ describe('chromeHiddenForUrl', () => {
     expect(chromeHiddenForUrl('/convite/b1_uid?x=1')).toBe(true);
     expect(chromeHiddenForUrl('/convites')).toBe(false);
   });
+
+  it('usa a moldura do painel no Clube de Vantagens e no parceiro', () => {
+    expect(chromeHiddenForUrl('/clube')).toBe(true);
+    expect(chromeHiddenForUrl('/clube?origem=competir_web')).toBe(true);
+    expect(chromeHiddenForUrl('/clube/fast-acai')).toBe(true);
+    expect(chromeHiddenForUrl('/clubes')).toBe(false);
+  });
 });

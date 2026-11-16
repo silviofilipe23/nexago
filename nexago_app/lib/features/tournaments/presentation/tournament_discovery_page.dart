@@ -12,6 +12,7 @@ import '../../arena/domain/arena_access_provider.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
 import '../../athlete/domain/athlete_shell_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
+import '../../benefits_club/presentation/widgets/benefits_club_hub_card.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'widgets/compete_hub/compete_hub_menu_card.dart';
 import 'widgets/compete_hub/compete_hub_shell_app_bar.dart';
@@ -24,7 +25,8 @@ const double _gridGap = AppSpacing.md;
 
 /// Aba Competir — menu de navegação no padrão do painel do portal web:
 /// grid de seis cards com arte (Torneios e ligas, Ranking, Equipes, Atletas,
-/// Aulas e treinos, Blog) e o card largo de Organizadores. O conteúdo
+/// Aulas e treinos, Blog), o card do Clube de Vantagens (só com a flag ou
+/// para quem testa) e o card largo de Organizadores. O conteúdo
 /// em destaque (carrossel de competições, convites) mora na Home.
 class TournamentDiscoveryPage extends ConsumerWidget {
   const TournamentDiscoveryPage({super.key});
@@ -180,6 +182,8 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: _gridGap),
+                    // Só ocupa espaço quando aparece (flag ou quem testa).
+                    const BenefitsClubHubCard(bottomGap: _gridGap),
                     CompeteHubWideCard(
                       icon: Icons.storefront_outlined,
                       title: 'Organizadores',

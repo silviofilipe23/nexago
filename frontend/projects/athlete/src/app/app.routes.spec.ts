@@ -94,6 +94,23 @@ describe('app.routes', () => {
     expect(routes.indexOf(route!)).toBeLessThan(routes.findIndex((r) => r.path === '**'));
   });
 
+  // A lista e o parceiro dividem o store da vitrine (rota vazia componentless), que fica fora do
+  // bundle inicial por morar no `loadChildren`.
+  it('Clube de Vantagens exige login e onboarding, e lista e parceiro dividem o store', async () => {
+    const route = routes.find((r) => r.path === 'clube');
+    expect(route?.canActivate).toEqual([authGuard, onboardingGuard]);
+    expect(route?.providers).toBeUndefined();
+    expect(routes.indexOf(route!)).toBeLessThan(routes.findIndex((r) => r.path === '**'));
+    const [{ CLUBE_ROUTES }, { ClubStore }] = await Promise.all([
+      import('./clube/clube.routes'),
+      import('./clube/data/clube.store'),
+    ]);
+    expect(CLUBE_ROUTES.length).toBe(1);
+    expect(CLUBE_ROUTES[0]!.component).toBeUndefined();
+    expect(CLUBE_ROUTES[0]!.providers).toEqual([ClubStore]);
+    expect(CLUBE_ROUTES[0]!.children?.map((r) => r.path)).toEqual(['', ':partnerId']);
+  });
+
   // `webUrl: '/cashback'` dos pushes `cashback_released`/`cashback_expiring` cai aqui.
   it('Meu cashback exige login e onboarding', () => {
     const route = routes.find((r) => r.path === 'cashback');

@@ -133,8 +133,8 @@ const TORNEIOS_GROUP: NavGroup = {
 };
 
 /**
- * App do atleta: o banner de novidades da Home, a tela de Novidades (uma página por versão) e a
- * Central de ajuda (guias por categoria).
+ * App do atleta: o banner de novidades da Home, a tela de Novidades (uma página por versão), a
+ * Central de ajuda (guias por categoria) e o Clube de Vantagens Nexa (parceiros, métricas e leads).
  */
 const APP_GROUP: NavGroup = {
   kind: 'group',
@@ -145,6 +145,7 @@ const APP_GROUP: NavGroup = {
     { kind: 'link', id: 'app-novidades', label: 'Banner da Home', icon: 'phone', route: '/painel/app/novidades' },
     { kind: 'link', id: 'app-versoes', label: 'Novidades', icon: 'phone', route: '/painel/app/versoes' },
     { kind: 'link', id: 'app-ajuda', label: 'Central de ajuda', icon: 'phone', route: '/painel/app/ajuda' },
+    { kind: 'link', id: 'app-clube', label: 'Clube de Vantagens', icon: 'gift', route: '/painel/clube' },
   ],
 };
 
@@ -783,6 +784,9 @@ export class PanelShellComponent {
     }
     if (path.startsWith('/painel/app')) {
       return 'app-novidades';
+    }
+    if (path.startsWith('/painel/clube')) {
+      return 'app-clube';
     }
     // Antes de '/painel/conteudo/blog': a fila é mais específica.
     if (path.startsWith('/painel/conteudo/blog/comentarios')) {

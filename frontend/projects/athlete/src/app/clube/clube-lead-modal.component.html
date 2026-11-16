@@ -1,0 +1,72 @@
+<div class="lm-backdrop" (click)="close()" aria-hidden="true"></div>
+
+<div class="lm-dialog" role="dialog" aria-modal="true" [attr.aria-labelledby]="titleId">
+  <div class="lm-head">
+    <app-clube-partner-logo [partner]="partner()" [size]="44" />
+    <div class="lm-head-text">
+      <h2 class="lm-title" [id]="titleId">{{ success() ? 'Pedido enviado' : partner().ctaLabel }}</h2>
+      <div class="lm-sub">{{ partner().benefitTitle }} · a {{ partner().name }} fala com você pelo WhatsApp</div>
+    </div>
+    <button type="button" class="lm-x" aria-label="Fechar" [disabled]="sending()" (click)="close()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+    </button>
+  </div>
+
+  @if (success(); as message) {
+    <div class="lm-success" role="status">
+      <span class="lm-success-icon" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10" /></svg>
+      </span>
+      <p class="lm-success-text">{{ message }}</p>
+    </div>
+    <dl class="lm-summary">
+      <div><dt>Parceiro</dt><dd>{{ partner().name }}</dd></div>
+      <div><dt>WhatsApp</dt><dd>{{ whatsapp() }}</dd></div>
+      <div><dt>Bairro</dt><dd>{{ neighborhood() }}</dd></div>
+    </dl>
+    <div class="lm-actions">
+      <a class="lm-btn lm-btn--ghost" routerLink="/clube" [queryParams]="{ origem: source() }">Voltar ao clube</a>
+      <button type="button" class="lm-btn lm-success-close" (click)="close()">Fechar</button>
+    </div>
+  } @else {
+    <form class="lm-form" novalidate (submit)="submit($event)">
+      <div class="lm-two">
+        <div class="lm-field">
+          <label for="lm-name">Nome</label>
+          <input id="lm-name" class="cl-input" type="text" autocomplete="name" maxlength="120" [value]="name()" (input)="setField('name', $event)" />
+        </div>
+        <div class="lm-field">
+          <label for="lm-wa">WhatsApp</label>
+          <input id="lm-wa" class="cl-input" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="(00) 00000-0000" maxlength="20" [value]="whatsapp()" (input)="setField('whatsapp', $event)" />
+        </div>
+      </div>
+      <div class="lm-two">
+        <div class="lm-field">
+          <label for="lm-hood">Bairro</label>
+          <input id="lm-hood" class="cl-input" type="text" autocomplete="address-level3" placeholder="Seu bairro" maxlength="80" [value]="neighborhood()" (input)="setField('neighborhood', $event)" />
+        </div>
+        <div class="lm-field">
+          <label for="lm-cep">CEP</label>
+          <input id="lm-cep" class="cl-input" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000" maxlength="9" [value]="cep()" (input)="setField('cep', $event)" />
+        </div>
+      </div>
+
+      <label class="lm-consent">
+        <input type="checkbox" [checked]="consent()" (change)="setConsent($event)" />
+        <!-- Numa linha só: quebra de linha entre os pedaços vira espaço antes da pontuação. -->
+        <span>@for (part of consentParts(); track $index) {@if (part.strong) {<b>{{ part.text }}</b>} @else {<span>{{ part.text }}</span>}}</span>
+      </label>
+
+      @if (error(); as message) {
+        <p class="lm-error" role="alert">{{ message }}</p>
+      }
+
+      <div class="lm-actions">
+        <button type="button" class="lm-btn lm-btn--ghost" [disabled]="sending()" (click)="close()">Cancelar</button>
+        <button type="submit" class="lm-btn" [disabled]="!consent() || sending()">
+          {{ sending() ? 'Enviando…' : 'Enviar' }}
+        </button>
+      </div>
+    </form>
+  }
+</div>

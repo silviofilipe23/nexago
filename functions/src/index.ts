@@ -799,6 +799,8 @@ export {
 export {saveLinkPageProfile, trackLinkPageEvent} from "./link-pages";
 
 export {trackArenaContactClick} from "./arena-contact-leads";
+// Clube de Vantagens Nexa: funil e leads dos parceiros (docs/product/vantagens-nexago-spec.md).
+export {trackBenefitEvent, submitPartnerLead} from "./benefits-club";
 
 export {completeCoachSignup} from "./coach-signup";
 export {completeArenaSignup} from "./arena-signup";

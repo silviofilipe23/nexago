@@ -5,6 +5,7 @@ import { AuthService } from '../auth/auth.service';
 import { PartnerInvitesService } from '../data/partner-invites.service';
 import { StaffTournamentsService } from '../data/staff-tournaments.service';
 import { StoreFlagService } from '../data/store-flag.service';
+import { ClubAccessService } from '../clube/data/clube-access.service';
 import { ProfessorLinksService } from '../professor/professor-links.service';
 import type { ProfessorLink } from '../professor/professor-links.model';
 import { AtPanelShellComponent } from './at-panel-shell.component';
@@ -152,6 +153,8 @@ describe('AtPanelShellComponent — item Competir na bottom-nav', () => {
     '/atletas/fulano',
     '/equipes',
     '/equipes/e1',
+    '/clube',
+    '/clube/fast-acai',
   ];
 
   beforeEach(async () => {
@@ -160,7 +163,7 @@ describe('AtPanelShellComponent — item Competir na bottom-nav', () => {
       providers: [
         provideZonelessChangeDetection(),
         provideRouter(
-          ['painel', 'agenda', 'competir', 'torneios', 'torneios/:id', 'ligas/:id', 'ranking', 'atletas', 'atletas/:handle', 'equipes', 'equipes/:teamId'].map(
+          ['painel', 'agenda', 'competir', 'torneios', 'torneios/:id', 'ligas/:id', 'ranking', 'atletas', 'atletas/:handle', 'equipes', 'equipes/:teamId', 'clube', 'clube/:partnerId', 'clubinho'].map(
             (path) => ({ path, component: AtPanelShellComponent }),
           ),
         ),
@@ -205,6 +208,12 @@ describe('AtPanelShellComponent — item Competir na bottom-nav', () => {
     const fixture = await openAt('/agenda');
     expect(isActive(fixture, '/competir')).toBeFalse();
     expect(isActive(fixture, '/agenda')).toBeTrue();
+  });
+
+  // `/clube` é seção do Competir; o Clubinho (jogo aberto) não, apesar do prefixo parecido.
+  it('não acende no Clubinho', async () => {
+    const fixture = await openAt('/clubinho');
+    expect(isActive(fixture, '/competir')).toBeFalse();
   });
 
   it('segue aceso ao trocar de seção do hub com o shell montado', async () => {
@@ -272,6 +281,44 @@ describe('AtPanelShellComponent — Loja', () => {
     const host = await render(false);
     expect(host.querySelector('.at-nav-item--logout')).not.toBeNull();
     expect(host.querySelector('.at-nav-item--login')).toBeNull();
+  });
+});
+
+/** O Clube de Vantagens entra no menu com a MESMA condição do card do Competir: flag ligada ou
+ *  quem testa. No desktop não há item "Competir", então sem ele o clube não se achava. */
+describe('AtPanelShellComponent — Clube de Vantagens', () => {
+  let visible: ReturnType<typeof signal<boolean>>;
+
+  beforeEach(async () => {
+    visible = signal(false);
+    await TestBed.configureTestingModule({
+      imports: [AtPanelShellComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: ClubAccessService, useValue: { visible } },
+        { provide: StaffTournamentsService, useValue: { count: signal(0) } },
+        { provide: PartnerInvitesService, useValue: { pending: signal([]), pendingCount: signal(0), markAnswered: () => {} } },
+        { provide: AuthService, useValue: { user: signal(null) } },
+      ],
+    }).compileComponents();
+  });
+
+  async function clubItem(): Promise<HTMLAnchorElement | null> {
+    const fixture = TestBed.createComponent(AtPanelShellComponent);
+    await fixture.whenStable();
+    return (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>('.at-nav a[href^="/clube"]');
+  }
+
+  it('sem a flag e sem ser quem testa, nada de Clube no menu', async () => {
+    expect(await clubItem()).toBeNull();
+  });
+
+  it('com acesso, o Clube entra no menu com a origem do Competir', async () => {
+    visible.set(true);
+    const item = await clubItem();
+    expect(item?.textContent).toContain('Clube de Vantagens');
+    expect(item?.getAttribute('href')).toBe('/clube?origem=competir_web');
   });
 });
 

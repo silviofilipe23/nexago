@@ -237,6 +237,21 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/app/ajuda/panel-app-guide.component').then((m) => m.PanelAppGuideComponent),
   },
+  {
+    path: 'painel/clube',
+    title: 'Clube de Vantagens — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () => import('./painel/clube/panel-clube.component').then((m) => m.PanelClubeComponent),
+  },
+  {
+    // `novo` cria; depois de salvar a URL troca para o id (slug do nome).
+    path: 'painel/clube/parceiros/:id',
+    title: 'Parceiro do clube — NexaGO Backoffice',
+    canActivate: [authGuard],
+    canDeactivate: [leaveWithConfirm],
+    loadComponent: () =>
+      import('./painel/clube/partner-editor.component').then((m) => m.PartnerEditorComponent),
+  },
   { path: 'painel/conteudo', pathMatch: 'full', redirectTo: 'painel/conteudo/blog' },
   {
     path: 'painel/conteudo/blog',

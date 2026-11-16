@@ -1,0 +1,87 @@
+<app-at-panel-shell [userName]="store.accountLabel()">
+  <header class="cl-page-header">
+    <div>
+      <h1>Clube de Vantagens Nexa</h1>
+      <div class="cl-page-header-sub">Descontos dos parceiros NexaGO</div>
+    </div>
+  </header>
+
+  <div class="cl-body">
+    @if (store.loading() && store.partners().length === 0) {
+      <div class="cl-state" role="status" aria-live="polite">
+        <span class="cl-spinner" aria-hidden="true"></span>
+        <span>Carregando o clube…</span>
+      </div>
+    } @else if (store.error()) {
+      <div class="cl-state cl-state--error" role="alert">
+        <p>{{ store.error() }}</p>
+        <button type="button" class="cl-btn" (click)="retry()">Tentar de novo</button>
+      </div>
+    } @else if (store.closed()) {
+      <div class="cl-state">
+        <p class="cl-state-title">O clube ainda não abriu</p>
+        <p>Em breve você vai encontrar aqui os descontos dos parceiros NexaGO.</p>
+        <a class="cl-btn" routerLink="/competir">Voltar ao Competir</a>
+      </div>
+    } @else if (store.partners().length === 0) {
+      <div class="cl-state">
+        <p class="cl-state-title">Nenhum parceiro por aqui ainda</p>
+        <p>Assim que um parceiro entrar no clube para a sua cidade, ele aparece nesta tela.</p>
+      </div>
+    } @else {
+      @if (store.sponsor(); as sponsor) {
+        <a
+          class="cl-sponsor"
+          [class.cl-sponsor--dark-text]="sponsorDarkText()"
+          [style.--clube-brand]="sponsor.brandColor"
+          [routerLink]="['/clube', sponsor.id]"
+          [queryParams]="linkQuery"
+        >
+          <app-clube-partner-logo class="cl-sponsor-logo" [partner]="sponsor" variant="inverse" [size]="72" />
+          <span class="cl-sponsor-text">
+            <span class="cl-sponsor-tag">Patrocinador oficial</span>
+            <span class="cl-sponsor-name">{{ sponsor.name }}</span>
+            <span class="cl-sponsor-benefit">{{ sponsor.benefitTitle }}</span>
+          </span>
+          <span class="cl-sponsor-cta">
+            {{ sponsor.ctaLabel }}
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </span>
+        </a>
+      }
+
+      <div class="cl-chips" role="group" aria-label="Categorias">
+        <button type="button" class="cl-chip" [class.cl-chip--on]="activeCategory() === null" [attr.aria-pressed]="activeCategory() === null" (click)="selectCategory(null)">
+          Todos
+        </button>
+        @for (category of categories(); track category) {
+          <button type="button" class="cl-chip" [class.cl-chip--on]="activeCategory() === category" [attr.aria-pressed]="activeCategory() === category" (click)="selectCategory(category)">
+            {{ labels[category] }}
+          </button>
+        }
+      </div>
+
+      <ul class="cl-grid" role="list">
+        @for (partner of shown(); track partner.id) {
+          <li>
+            <a class="cl-card" [routerLink]="['/clube', partner.id]" [queryParams]="linkQuery">
+              <span class="cl-card-head">
+                <app-clube-partner-logo [partner]="partner" />
+                <span class="cl-card-id">
+                  <span class="cl-card-name">{{ partner.name }}</span>
+                  <span class="cl-card-cat">{{ categoryLine(partner) }}</span>
+                </span>
+              </span>
+              <span class="cl-card-benefit">{{ partner.benefitTitle }}</span>
+              @if (partner.benefitHighlight) {
+                <span class="cl-card-off">{{ partner.benefitHighlight }}</span>
+              }
+            </a>
+          </li>
+        }
+      </ul>
+
+      <p class="cl-note">Os descontos são dados pelos parceiros. Você não paga nada a mais por usar o clube.</p>
+    }
+  </div>
+</app-at-panel-shell>

@@ -88,6 +88,46 @@ void main() {
     expect(title.style!.color, AppColors.white);
   });
 
+  testWidgets('descrição é legível sobre a foto', (tester) async {
+    await tester.pumpWidget(wrap(card()));
+
+    final description = tester.widget<Text>(
+      find.text('Descubra competições abertas e inscrições'),
+    );
+    // Abaixo de 11px o AppTextScaler nem mexe, e a foto come o contraste.
+    expect(description.style!.fontSize, greaterThanOrEqualTo(11));
+    expect(description.style!.color!.a, greaterThanOrEqualTo(0.85));
+  });
+
+  testWidgets('leitor de tela lê o card como um botão só', (tester) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      wrap(
+        CompeteHubMenuCard(
+          imageAsset: CompeteHubArt.blog,
+          title: 'Blog',
+          description: 'Notícias e dicas',
+          badge: 'NOVO',
+          onTap: () {},
+        ),
+      ),
+    );
+
+    expect(
+      find.bySemanticsLabel('Blog, novo. Notícias e dicas'),
+      findsOneWidget,
+    );
+    expect(
+      tester.getSemantics(
+        find.bySemanticsLabel('Blog, novo. Notícias e dicas'),
+      ),
+      isSemantics(isButton: true, hasTapAction: true),
+    );
+    // Sem fragmentos soltos: o selo e o título não viram itens à parte.
+    expect(find.bySemanticsLabel('NOVO'), findsNothing);
+    handle.dispose();
+  });
+
   testWidgets('descrição longa não estoura o card', (tester) async {
     await tester.pumpWidget(
       wrap(

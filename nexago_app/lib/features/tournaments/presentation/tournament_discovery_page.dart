@@ -14,6 +14,7 @@ import '../../athlete/domain/athlete_shell_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../../benefits_club/presentation/widgets/benefits_club_hub_card.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'widgets/compete_hub/compete_hub_live_cards.dart';
 import 'widgets/compete_hub/compete_hub_menu_card.dart';
 import 'widgets/compete_hub/compete_hub_shell_app_bar.dart';
 import 'widgets/compete_hub/compete_hub_wide_card.dart';
@@ -99,11 +100,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                         Expanded(
                           child: AthleteHomeTourAnchor(
                             target: AthleteHomeTourTarget.tournaments,
-                            child: CompeteHubMenuCard(
-                              imageAsset: CompeteHubArt.tournaments,
-                              title: 'Torneios e ligas',
-                              description:
-                                  'Descubra competições abertas e inscrições',
+                            child: CompeteHubTournamentsCard(
                               onTap: () => context.pushNamed(
                                 AppRouteNames.tournamentDiscoveryList,
                               ),
@@ -114,10 +111,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                         Expanded(
                           child: AthleteHomeTourAnchor(
                             target: AthleteHomeTourTarget.ranking,
-                            child: CompeteHubMenuCard(
-                              imageAsset: CompeteHubArt.ranking,
-                              title: 'Ranking',
-                              description: 'Sua posição na temporada',
+                            child: CompeteHubRankingCard(
                               onTap: () => context
                                   .pushNamed(AppRouteNames.athleteRanking),
                             ),

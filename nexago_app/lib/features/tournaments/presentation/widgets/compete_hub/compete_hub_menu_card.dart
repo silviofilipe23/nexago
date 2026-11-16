@@ -41,6 +41,11 @@ const LinearGradient _scrim = LinearGradient(
   stops: [0.20, 0.52, 1],
 );
 
+/// Descrição sobre a foto: 11px é o piso do texto miúdo do app, e abaixo de
+/// ~85% de opacidade o branco some nos altos-luzes da arte.
+const double _descriptionFontSize = 11;
+const double _descriptionOpacity = 0.86;
+
 /// Card de navegação do hub Competir: arte sangrando no fundo, véu escuro,
 /// título, descrição e seta no canto.
 ///
@@ -88,106 +93,114 @@ class _CompeteHubMenuCardState extends State<CompeteHubMenuCard> {
     final colors = context.themeColors;
     final badge = widget.badge;
 
-    return AspectRatio(
-      aspectRatio: CompeteHubMenuCard.aspectRatio,
-      child: AnimatedScale(
-        scale: _pressed ? CompeteHubMenuCard.pressedScale : 1,
-        duration: AppMotion.fast,
-        curve: AppMotion.curve,
-        child: LayoutBuilder(
-          builder: (context, constraints) => Material(
-            color: colors.surfaceCard,
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: AppRadii.lgAll,
-              side: AppBorders.baseSide(colors),
-            ),
-            child: Ink.image(
-              image: _imageProvider(context, constraints.maxWidth),
-              colorFilter: _artDim,
-              fit: BoxFit.cover,
-              // As artes são retrato e o card é baixo: o enquadramento sobe
-              // para não cortar troféu e cabeças no topo.
-              alignment: const Alignment(0, -0.8),
-              child: InkWell(
-                onTap: widget.onTap,
-                // Reusa o InkWell que já existe para o ripple em vez de
-                // empilhar um GestureDetector disputando a arena de gestos:
-                // escala e ripple saem do mesmo sinal e andam juntos.
-                onHighlightChanged: _setPressed,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    const DecoratedBox(
-                      decoration: BoxDecoration(gradient: _scrim),
-                    ),
-                    if (badge != null)
-                      Positioned(
-                        top: AppSpacing.sm,
-                        left: AppSpacing.sm,
-                        child: Container(
-                          height: 20,
-                          padding: const EdgeInsets.symmetric(horizontal: 7),
-                          decoration: BoxDecoration(
-                            color: AppColors.brand,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            badge,
-                            style: AppTypography.mono(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF0A0A0A),
-                            ).copyWith(letterSpacing: 0.8),
-                          ),
-                        ),
+    // Lido como um botão só ("Blog, novo. Notícias…"): sem isso o leitor de
+    // tela anda por selo, título e descrição como itens soltos.
+    return Semantics(
+      button: true,
+      label: _semanticsLabel(badge),
+      excludeSemantics: true,
+      onTap: widget.onTap,
+      child: AspectRatio(
+        aspectRatio: CompeteHubMenuCard.aspectRatio,
+        child: AnimatedScale(
+          scale: _pressed ? CompeteHubMenuCard.pressedScale : 1,
+          duration: AppMotion.fast,
+          curve: AppMotion.curve,
+          child: LayoutBuilder(
+            builder: (context, constraints) => Material(
+              color: colors.surfaceCard,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: AppRadii.lgAll,
+                side: AppBorders.baseSide(colors),
+              ),
+              child: Ink.image(
+                image: _imageProvider(context, constraints.maxWidth),
+                colorFilter: _artDim,
+                fit: BoxFit.cover,
+                // As artes são retrato e o card é baixo: o enquadramento sobe
+                // para não cortar troféu e cabeças no topo.
+                alignment: const Alignment(0, -0.8),
+                child: InkWell(
+                  onTap: widget.onTap,
+                  // Reusa o InkWell que já existe para o ripple em vez de
+                  // empilhar um GestureDetector disputando a arena de gestos:
+                  // escala e ripple saem do mesmo sinal e andam juntos.
+                  onHighlightChanged: _setPressed,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      const DecoratedBox(
+                        decoration: BoxDecoration(gradient: _scrim),
                       ),
-                    Padding(
-                      padding: const EdgeInsets.all(AppSpacing.md),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTypography.titleS.copyWith(
-                              color: AppColors.white,
-                              height: 1.15,
+                      if (badge != null)
+                        Positioned(
+                          top: AppSpacing.sm,
+                          left: AppSpacing.sm,
+                          child: Container(
+                            height: 20,
+                            padding: const EdgeInsets.symmetric(horizontal: 7),
+                            decoration: BoxDecoration(
+                              color: AppColors.brand,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              badge,
+                              style: AppTypography.mono(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF0A0A0A),
+                              ).copyWith(letterSpacing: 0.8),
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  widget.description,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTypography.bodyS.copyWith(
-                                    fontSize: 10,
-                                    height: 1.3,
-                                    color: AppColors.white.withValues(
-                                      alpha: 0.74,
+                        ),
+                      Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.titleS.copyWith(
+                                color: AppColors.white,
+                                height: 1.15,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    widget.description,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.bodyS.copyWith(
+                                      fontSize: _descriptionFontSize,
+                                      height: 1.25,
+                                      color: AppColors.white.withValues(
+                                        alpha: _descriptionOpacity,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: AppSpacing.xs),
-                              const Icon(
-                                Icons.arrow_forward_rounded,
-                                size: 16,
-                                color: AppColors.white,
-                              ),
-                            ],
-                          ),
-                        ],
+                                const SizedBox(width: AppSpacing.xs),
+                                const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  size: 16,
+                                  color: AppColors.white,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -195,6 +208,13 @@ class _CompeteHubMenuCardState extends State<CompeteHubMenuCard> {
         ),
       ),
     );
+  }
+
+  String _semanticsLabel(String? badge) {
+    final title = badge == null
+        ? widget.title
+        : '${widget.title}, ${badge.toLowerCase()}';
+    return '$title. ${widget.description}';
   }
 
   /// Decodifica a arte no tamanho em que ela aparece, não nos 1024x1536 do

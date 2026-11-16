@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'compete_hub_search_sheet.dart';
 
 /// Header da aba Competir no shell do atleta (rola com o conteúdo).
 class CompeteHubHeader extends StatelessWidget {
@@ -17,13 +16,6 @@ class CompeteHubHeader extends StatelessWidget {
   final Widget? leading;
 
   final List<Widget> trailingActions;
-
-  void _openDiscoveryList(BuildContext context, {bool searchOpen = false}) {
-    context.pushNamed(
-      AppRouteNames.tournamentDiscoveryList,
-      queryParameters: {if (searchOpen) 'search': '1'},
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,8 +55,8 @@ class CompeteHubHeader extends StatelessWidget {
         ),
         CompeteHubAppBarIconButton(
           icon: Icons.search_rounded,
-          onTap: () => _openDiscoveryList(context, searchOpen: true),
-          tooltip: 'Buscar torneios',
+          onTap: () => showCompeteHubSearchSheet(context),
+          tooltip: 'Buscar no Hub',
         ),
         ...trailingActions,
       ],

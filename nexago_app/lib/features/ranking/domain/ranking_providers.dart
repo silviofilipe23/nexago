@@ -173,6 +173,7 @@ final competeHubUserRankingProvider =
     promotionPointsRemaining: userRow.rank > 0 ? pointsRemaining : null,
     promotionProgress: userRow.rank > 0 ? progress : 1,
     isUnranked: userRow.rank <= 0,
+    isSeasonMode: isSeasonMode,
   );
 });
 

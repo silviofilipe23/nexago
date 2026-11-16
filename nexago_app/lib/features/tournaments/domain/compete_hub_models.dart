@@ -10,6 +10,7 @@ class CompeteHubUserRanking {
     this.promotionPointsRemaining,
     this.promotionProgress = 1,
     this.isUnranked = false,
+    this.isSeasonMode = true,
   });
 
   final int rank;
@@ -20,6 +21,9 @@ class CompeteHubUserRanking {
   final int? promotionPointsRemaining;
   final double promotionProgress;
   final bool isUnranked;
+
+  /// Posição na soma da temporada atual; `false` quando caiu no ranking geral.
+  final bool isSeasonMode;
 
   bool get canPromote =>
       !isUnranked && promotionPointsRemaining != null;
@@ -39,6 +43,7 @@ class CompeteHubUserRanking {
       points: 0,
       tournamentsCount: 0,
       isUnranked: true,
+      isSeasonMode: isSeasonMode,
     );
   }
 }

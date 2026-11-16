@@ -1298,3 +1298,217 @@ describe("asaas-tournament-registration-webhook: processamento do cartão pago p
     assert.equal(credit.netReais, 92);
   });
 });
+
+describe("asaas-tournament-registration-webhook: estorno depois do crédito", () => {
+  const WEBHOOK_TAG = "webhook:asaas-tournament-registration";
+  const refunded = {...fullPayment, status: "REFUNDED"};
+
+  async function notify(db: Firestore, payment: Record<string, unknown>): Promise<void> {
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", payment, processedRefOf(db), makeDeps().deps,
+    );
+  }
+
+  /** PIX do atleta A liquidado: inscrição confirmada e R$ 92 no caixa (bruto 100 − 8%). */
+  async function paidAndCredited(): Promise<{fake: FakeFirestore; db: Firestore}> {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, PIX_PENDING_A);
+    await notify(db, fullPayment);
+    return {fake, db};
+  }
+
+  function processedDoc(fake: FakeFirestore): Record<string, unknown> {
+    return fake.store.get(PROCESSED_PATH)!;
+  }
+
+  it("REFUNDED tira o crédito do disponível e a linha do extrato", async () => {
+    const {fake, db} = await paidAndCredited();
+    assert.equal(walletDoc(fake)!["availableReais"], 92);
+
+    await notify(db, refunded);
+
+    assert.equal(walletDoc(fake)!["availableReais"], 0);
+    assert.equal(ledgerEntries(fake).length, 0);
+  });
+
+  it("grava a reversão no pagamento, no formato do script manual, e mantém walletCreditedAt", async () => {
+    const {fake, db} = await paidAndCredited();
+    const creditLine = ledgerEntries(fake)[0]!;
+
+    await notify(db, refunded);
+
+    const processed = processedDoc(fake);
+    assert.ok(processed["walletCreditReversedAt"]);
+    assert.ok(processed["walletCreditedAt"]);
+    assert.equal(processed["outcome"], "approved");
+    const reversal = processed["walletCreditReversal"] as Record<string, unknown>;
+    assert.deepEqual(
+      Object.keys(reversal).sort(),
+      ["by", "ledgerEntry", "ledgerEntryId", "netReais", "reason", "tournamentId"],
+    );
+    assert.equal(reversal["reason"], "REFUNDED");
+    assert.equal(reversal["tournamentId"], "t1");
+    assert.equal(reversal["netReais"], 92);
+    assert.equal(reversal["by"], WEBHOOK_TAG);
+    assert.equal(typeof reversal["ledgerEntryId"], "string");
+    assert.deepEqual(reversal["ledgerEntry"], creditLine);
+  });
+
+  it("a vaga segue como está: desfazer a inscrição continua manual", async () => {
+    const {fake, db} = await paidAndCredited();
+
+    await notify(db, refunded);
+
+    assert.equal(fake.store.get(REG_PATH)!["isPaid"], true);
+    assert.equal(fake.store.get(REG_PATH)!["paidAmount"], ENTRY_FEE);
+  });
+
+  it("reentrega do REFUNDED não debita de novo", async () => {
+    const {fake, db} = await paidAndCredited();
+
+    await notify(db, refunded);
+    await notify(db, refunded);
+
+    assert.equal(walletDoc(fake)!["availableReais"], 0);
+  });
+
+  it("RECEIVED reentregue depois do estorno não credita de novo", async () => {
+    const {fake, db} = await paidAndCredited();
+    await notify(db, refunded);
+
+    await notify(db, fullPayment);
+
+    assert.equal(walletDoc(fake)!["availableReais"], 0);
+    assert.equal(ledgerEntries(fake).length, 0);
+  });
+
+  it("pagamento já revertido pelo script manual: o webhook não debita de novo", async () => {
+    const {fake, db} = await paidAndCredited();
+    // O que o script deixa: linha apagada, caixa abatido (aqui sobraram R$ 50
+    // de outro crédito) e o marcador no pagamento.
+    const [linePath] = [...fake.store.keys()].filter((p) => p.startsWith("tournamentWallets/t1/ledger/"));
+    fake.store.delete(linePath!);
+    fake.seedDoc("tournamentWallets/t1", {...walletDoc(fake)!, availableReais: 50});
+    const scriptReversal = {
+      reason: "REFUNDED", tournamentId: "t1", netReais: 92, ledgerEntryId: "l1",
+      ledgerEntry: {type: "credit", asaasPaymentId: "pay1", netReais: 92},
+      by: "script:reverse-refunded-registration-credit",
+    };
+    fake.seedDoc(PROCESSED_PATH, {
+      ...processedDoc(fake), walletCreditReversedAt: "ts", walletCreditReversal: scriptReversal,
+    });
+
+    await notify(db, refunded);
+
+    assert.equal(walletDoc(fake)!["availableReais"], 50);
+    assert.deepEqual(processedDoc(fake)["walletCreditReversal"], scriptReversal);
+  });
+
+  it("só sai o crédito do pagamento estornado: o resto do caixa fica", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, PIX_PENDING_A);
+    fake.seedDoc("tournamentWallets/t1", {tournamentId: "t1", availableReais: 50, pendingReais: 30});
+    fake.seedDoc("tournamentWallets/t1/ledger/other", {type: "credit", asaasPaymentId: "payX", netReais: 50});
+    await notify(db, fullPayment);
+
+    await notify(db, refunded);
+
+    assert.equal(walletDoc(fake)!["availableReais"], 50);
+    assert.equal(walletDoc(fake)!["pendingReais"], 30);
+    assert.deepEqual(ledgerEntries(fake).map((l) => l["asaasPaymentId"]), ["payX"]);
+  });
+
+  it("organizador já sacou: o disponível fica negativo, é a dívida do caixa", async () => {
+    const {fake, db} = await paidAndCredited();
+    // Dos R$ 92 creditados, R$ 80 já saíram num saque.
+    fake.seedDoc("tournamentWallets/t1", {...walletDoc(fake)!, availableReais: 12});
+
+    await notify(db, refunded);
+
+    assert.equal(walletDoc(fake)!["availableReais"], -80);
+    assert.ok(processedDoc(fake)["walletCreditReversedAt"]);
+  });
+
+  it("cartão já liquidado: REFUNDED reverte o líquido que entrou", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, CARD_PENDING_A);
+    await notify(db, cardPayment("CONFIRMED", {netValue: 96.71}));
+    await notify(db, cardPayment("RECEIVED", {netValue: 96.71}));
+    assert.equal(walletDoc(fake)!["availableReais"], 88.71);
+
+    await notify(db, cardPayment("REFUNDED"));
+
+    assert.equal(walletDoc(fake)!["availableReais"], 0);
+    assert.equal(walletDoc(fake)!["awaitingSettlementReais"], 0);
+    assert.equal(ledgerEntries(fake).length, 0);
+    const reversal = processedDoc(fake)["walletCreditReversal"] as Record<string, unknown>;
+    assert.equal(reversal["netReais"], 88.71);
+    // O "a liberar" já tinha sido abatido pelo crédito: o motivo não é reescrito.
+    assert.equal(processedDoc(fake)["awaitingSettlementReleaseReason"], "credited");
+  });
+
+  it("cartão ainda a liberar: só sai do a liberar, sem reversão do caixa", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake);
+    fake.seedDoc(PENDING_A, CARD_PENDING_A);
+    await notify(db, cardPayment("CONFIRMED", {netValue: 96.71}));
+    assert.equal(walletDoc(fake)!["awaitingSettlementReais"], 88.71);
+
+    await notify(db, cardPayment("REFUNDED"));
+
+    assert.equal(walletDoc(fake)!["awaitingSettlementReais"], 0);
+    assert.equal(walletDoc(fake)!["availableReais"], 0);
+    assert.equal(processedDoc(fake)["awaitingSettlementReleaseReason"], "REFUNDED");
+    assert.equal(processedDoc(fake)["walletCreditReversedAt"], undefined);
+    assert.equal(processedDoc(fake)["walletCreditReversal"], undefined);
+  });
+
+  for (const status of [
+    "REFUND_REQUESTED",
+    "CHARGEBACK_REQUESTED",
+    "CHARGEBACK_DISPUTE",
+    "AWAITING_CHARGEBACK_REVERSAL",
+  ]) {
+    it(`${status} não reverte: ainda pode voltar atrás`, async () => {
+      const {fake, db} = await paidAndCredited();
+
+      await notify(db, {...fullPayment, status});
+
+      assert.equal(walletDoc(fake)!["availableReais"], 92);
+      assert.equal(ledgerEntries(fake).length, 1);
+      assert.equal(processedDoc(fake)["walletCreditReversedAt"], undefined);
+    });
+  }
+
+  it("estorno parcial não tira o crédito inteiro: fica para resolver à mão", async () => {
+    const {fake, db} = await paidAndCredited();
+
+    await notify(db, {...refunded, refunds: [{status: "DONE", value: 40}]});
+
+    assert.equal(walletDoc(fake)!["availableReais"], 92);
+    assert.equal(ledgerEntries(fake).length, 1);
+    assert.equal(processedDoc(fake)["walletCreditReversedAt"], undefined);
+  });
+
+  it("acervo pré-cartão (aprovado sem marcador de crédito) não é revertido", async () => {
+    const {fake, db} = makeDb();
+    seedTournamentWithOrganizer(fake);
+    seedRegistration(fake, {isPaid: true, paidAmount: ENTRY_FEE, sharePaidUids: ["uidA", "uidB"]});
+    fake.seedDoc(PROCESSED_PATH, {kind: "tournamentRegistration", registrationId: REG_ID, outcome: "approved"});
+    fake.seedDoc("tournamentWallets/t1", {tournamentId: "t1", availableReais: 92, pendingReais: 0});
+    fake.seedDoc("tournamentWallets/t1/ledger/l1", {type: "credit", asaasPaymentId: "pay1", netReais: 92});
+
+    await notify(db, refunded);
+
+    assert.equal(walletDoc(fake)!["availableReais"], 92);
+    assert.equal(ledgerEntries(fake).length, 1);
+    assert.equal(processedDoc(fake)["walletCreditReversedAt"], undefined);
+  });
+});

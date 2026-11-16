@@ -146,6 +146,103 @@ export async function releaseTournamentAwaitingSettlement(
   });
 }
 
+/**
+ * Desfecho de `reverseTournamentWalletCreditForRefund`. `skipped` nunca grava nada:
+ * - `not_credited`: o pagamento não creditou o caixa (sem `walletCreditedAt`);
+ * - `already_reversed`: já foi desfeito, por aqui ou pelo script manual;
+ * - `ledger_line_missing` / `ledger_line_duplicated`: sem UMA linha `credit` do
+ *   pagamento neste caixa não há valor confiável para tirar — decisão de gente.
+ */
+export type TournamentWalletCreditReversal =
+  | {status: "reversed"; netReais: number; availableAfterReais: number; ledgerEntryId: string}
+  | {
+    status: "skipped";
+    reason: "not_credited" | "already_reversed" | "ledger_line_missing" | "ledger_line_duplicated";
+  };
+
+/**
+ * Desfaz o crédito de uma inscrição cujo pagamento foi estornado DEPOIS de
+ * entrar no caixa: tira o líquido creditado do disponível, apaga a linha
+ * `credit` do extrato e guarda a cópia dela no doc do pagamento.
+ *
+ * Mesmo registro do script manual (`scripts/reverse-refunded-registration-credit.js`):
+ * `walletCreditReversedAt` + `walletCreditReversal`. As duas vias leem esse
+ * marcador na transação, então são idempotentes entre si — o que uma desfez a
+ * outra pula. `walletCreditedAt` FICA: é ele que impede uma reentrega do
+ * `RECEIVED` de creditar de novo.
+ *
+ * A linha é apagada (e não lançada como estorno negativo) porque todo leitor do
+ * extrato — telas do organizador, Arrecadação e Financeiro do backoffice, e o
+ * app que já está na loja — só entende `type: "credit"`.
+ *
+ * O disponível pode ficar NEGATIVO quando o organizador já sacou: é a dívida do
+ * caixa. `reserveTournamentWithdrawalAmount` recusa saque novo,
+ * `assertTournamentWithdrawalReservationValid` segura o PIX de um saque em
+ * revisão, e os próximos créditos abatem a dívida sozinhos.
+ */
+export async function reverseTournamentWalletCreditForRefund(
+  db: Firestore,
+  processedRef: DocumentReference,
+  params: {
+    /** Caixa onde o crédito entrou — o torneio da inscrição. */
+    tournamentId: string;
+    paymentId: string;
+    /** Status do Asaas que motivou a reversão (`REFUNDED`). */
+    reason: string;
+    /** Quem desfez, para o rastro: o webhook ou o script. */
+    by: string;
+  },
+): Promise<TournamentWalletCreditReversal> {
+  const walletRef = tournamentWalletRef(db, params.tournamentId);
+  const paymentLines = walletRef.collection("ledger").where("asaasPaymentId", "==", params.paymentId);
+
+  return db.runTransaction(async (tx): Promise<TournamentWalletCreditReversal> => {
+    const processed = (await tx.get(processedRef)).data() ?? {};
+    if (processed.walletCreditReversedAt != null) {
+      return {status: "skipped", reason: "already_reversed"};
+    }
+    if (processed.walletCreditedAt == null) {
+      return {status: "skipped", reason: "not_credited"};
+    }
+
+    const creditLines = (await tx.get(paymentLines)).docs.filter((d) => d.data().type === "credit");
+    if (creditLines.length !== 1) {
+      return {
+        status: "skipped",
+        reason: creditLines.length === 0 ? "ledger_line_missing" : "ledger_line_duplicated",
+      };
+    }
+    const line = creditLines[0]!;
+    const ledgerEntry = line.data();
+    const netReais = roundMoney(Math.max(0, Number(ledgerEntry.netReais) || 0));
+    const walletSnap = await tx.get(walletRef);
+    const availableAfterReais = roundMoney((Number(walletSnap.data()?.availableReais) || 0) - netReais);
+
+    tx.set(
+      walletRef,
+      {availableReais: availableAfterReais, updatedAt: FieldValue.serverTimestamp()},
+      {merge: true},
+    );
+    tx.delete(line.ref);
+    tx.set(
+      processedRef,
+      {
+        walletCreditReversedAt: FieldValue.serverTimestamp(),
+        walletCreditReversal: {
+          reason: params.reason,
+          tournamentId: params.tournamentId,
+          netReais,
+          ledgerEntryId: line.id,
+          ledgerEntry,
+          by: params.by,
+        },
+      },
+      {merge: true},
+    );
+    return {status: "reversed", netReais, availableAfterReais, ledgerEntryId: line.id};
+  });
+}
+
 export async function creditTournamentWalletFromRegistration(
   db: Firestore,
   tournamentId: string,

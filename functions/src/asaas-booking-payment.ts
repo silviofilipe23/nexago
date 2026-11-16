@@ -351,6 +351,11 @@ export type AsaasPaymentDetails = {
   dueDate?: string;
   /** Cobrança removida — o GET ainda a devolve, só com esta flag em `true`. */
   deleted?: boolean;
+  /**
+   * Estornos da cobrança (docs.asaas.com/docs/estornos): total ou parciais. `CANCELLED` não devolveu
+   * nada. Ausente ou `null` quando a cobrança nunca foi estornada.
+   */
+  refunds?: Array<{status?: string; value?: number}> | null;
 };
 
 export async function getAsaasPayment(paymentId: string): Promise<AsaasPaymentDetails> {

@@ -20,6 +20,10 @@ void openBenefitsClub(BuildContext context, BenefitSource source) =>
 void openMyBenefits(BuildContext context) =>
     context.pushNamed(AppRouteNames.benefitsMine);
 
+/// Busca do clube (lista e mapa).
+void openBenefitsSearch(BuildContext context) =>
+    context.pushNamed(AppRouteNames.benefitsSearch);
+
 void openBenefitsPartner(
   BuildContext context,
   String partnerId,

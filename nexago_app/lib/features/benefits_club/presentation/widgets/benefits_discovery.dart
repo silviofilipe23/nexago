@@ -280,7 +280,15 @@ class BenefitsPartnerMap extends StatefulWidget {
 }
 
 class _BenefitsPartnerMapState extends State<BenefitsPartnerMap> {
+  final _controller = ArenaMapController();
   String? _selectedId;
+
+  /// Volta a câmera para a pessoa (só existe com a localização liberada).
+  void _recenter() {
+    final center = widget.center;
+    if (center == null) return;
+    _controller.flyTo(center.latitude, center.longitude);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -293,6 +301,7 @@ class _BenefitsPartnerMapState extends State<BenefitsPartnerMap> {
         children: [
           Positioned.fill(
             child: ArenaMapView(
+              controller: _controller,
               pins: benefitsMapPins(widget.partners),
               initialCenter: widget.center,
               showUserLocation: widget.showUserLocation,
@@ -300,6 +309,12 @@ class _BenefitsPartnerMapState extends State<BenefitsPartnerMap> {
                   setState(() => _selectedId = partnerIdOfPin(pinId)),
             ),
           ),
+          if (widget.center != null && widget.showUserLocation)
+            Positioned(
+              top: AppSpacing.md,
+              right: AppSpacing.md,
+              child: _MapRecenterButton(onTap: _recenter),
+            ),
           if (selected != null)
             Positioned(
               left: AppSpacing.md,
@@ -317,6 +332,43 @@ class _BenefitsPartnerMapState extends State<BenefitsPartnerMap> {
   }
 }
 
+class _MapRecenterButton extends StatelessWidget {
+  const _MapRecenterButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Tooltip(
+      message: 'Centralizar na minha localização',
+      child: Material(
+        color: colors.surfaceCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadii.mdAll,
+          side: AppBorders.subtleSide(colors),
+        ),
+        child: InkWell(
+          key: const Key('benefits-map-recenter'),
+          borderRadius: AppRadii.mdAll,
+          onTap: onTap,
+          child: SizedBox(
+            width: benefitsTapTarget,
+            height: benefitsTapTarget,
+            child: Icon(
+              Icons.my_location_rounded,
+              size: 19,
+              color: colors.onSurface,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Card do parceiro tocado no mapa (artboard 09): logo, nome, selo do
+/// benefício, distância e endereço, e o botão laranja que abre o parceiro.
 class _MapPartnerCard extends StatelessWidget {
   const _MapPartnerCard({
     required this.partner,
@@ -335,8 +387,13 @@ class _MapPartnerCard extends StatelessWidget {
     final km = distance;
     final meta = [?km, if (address.isNotEmpty) address].join(' · ');
     return Material(
-      color: colors.surfaceSheet,
-      borderRadius: AppRadii.lgAll,
+      key: const Key('benefits-map-card'),
+      color: colors.surfaceCard,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadii.lgAll,
+        side: AppBorders.subtleSide(colors),
+      ),
+      elevation: 8,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -346,7 +403,7 @@ class _MapPartnerCard extends StatelessWidget {
             children: [
               PartnerLogo(
                 partner: partner,
-                size: 40,
+                size: 46,
                 borderRadius: AppRadii.mdAll,
               ),
               const SizedBox(width: AppSpacing.md),
@@ -356,28 +413,51 @@ class _MapPartnerCard extends StatelessWidget {
                   children: [
                     Text(
                       partner.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: AppTypography.titleS.copyWith(
-                        fontSize: 14,
+                        fontSize: 14.5,
                         color: colors.onSurface,
                       ),
                     ),
-                    if (meta.isNotEmpty)
-                      Text(
-                        meta,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.bodyS.copyWith(
-                          fontSize: 12,
-                          color: colors.onSurfaceMuted,
-                        ),
-                      ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        if (partner.benefitHighlight.isNotEmpty) ...[
+                          BenefitHighlightBadge(partner.benefitHighlight),
+                          const SizedBox(width: AppSpacing.sm),
+                        ],
+                        if (meta.isNotEmpty)
+                          Flexible(
+                            child: Text(
+                              meta,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.bodyS.copyWith(
+                                fontSize: 12,
+                                color: colors.onSurfaceMuted,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-              if (partner.benefitHighlight.isNotEmpty)
-                BenefitHighlightBadge(partner.benefitHighlight),
               const SizedBox(width: AppSpacing.sm),
-              Icon(Icons.arrow_forward_rounded, color: colors.onSurface),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: AppColors.brand,
+                  borderRadius: AppRadii.mdAll,
+                ),
+                child: const Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 18,
+                  color: AppColors.canvas,
+                ),
+              ),
             ],
           ),
         ),

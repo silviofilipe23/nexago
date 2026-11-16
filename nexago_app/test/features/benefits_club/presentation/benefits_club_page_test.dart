@@ -10,6 +10,7 @@ import 'package:nexago_app/features/benefits_club/domain/benefits_club_config.da
 import 'package:nexago_app/features/benefits_club/domain/my_benefits.dart';
 import 'package:nexago_app/features/benefits_club/domain/partner.dart';
 import 'package:nexago_app/features/benefits_club/presentation/benefit_partner_page.dart';
+import 'package:nexago_app/features/benefits_club/presentation/benefits_search_page.dart';
 import 'package:nexago_app/features/benefits_club/presentation/widgets/benefits_member_card.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -432,18 +433,20 @@ void main() {
     );
   });
 
-  group('descoberta (8+ parceiros)', () {
-    testWidgets('com 7 parceiros não há busca nem controles', (tester) async {
+  group('botão de busca no header (8+ parceiros)', () {
+    testWidgets('com 7 parceiros não há botão de busca nem busca na tela', (
+      tester,
+    ) async {
       await _pumpClub(
         tester,
         service: FakeBenefitsClubService(),
         partners: _manyPartners(7),
       );
+      expect(find.byKey(const Key('benefits-open-search')), findsNothing);
       expect(find.byKey(const Key('benefits-search')), findsNothing);
-      expect(find.byKey(const Key('benefits-near')), findsNothing);
     });
 
-    testWidgets('com 8 a busca filtra sem acento e abre com a origem search', (
+    testWidgets('com 8 o botão aparece no header e abre a tela de busca', (
       tester,
     ) async {
       await _pumpClub(
@@ -451,65 +454,15 @@ void main() {
         service: FakeBenefitsClubService(),
         partners: _manyPartners(8),
       );
-      expect(find.byKey(const Key('benefits-search')), findsOneWidget);
-      // Sem localização liberada, nada de "Perto de você".
-      expect(find.byKey(const Key('benefits-near')), findsNothing);
+      // A busca não fica mais embutida na tela do clube.
+      expect(find.byKey(const Key('benefits-search')), findsNothing);
+      expect(find.byKey(const Key('benefits-open-search')), findsOneWidget);
+      expect(find.byKey(const Key('benefits-open-mine')), findsOneWidget);
 
-      await tester.enterText(find.byKey(const Key('benefits-search')), 'acai');
-      await tester.pump();
-      expect(find.byKey(const Key('benefits-partner-p0')), findsOneWidget);
-      expect(find.byKey(const Key('benefits-partner-p1')), findsNothing);
-
-      await tester.tap(find.byKey(const Key('benefits-partner-p0')));
+      await tester.tap(find.byKey(const Key('benefits-open-search')));
       await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<BenefitPartnerPage>(find.byType(BenefitPartnerPage))
-            .source,
-        BenefitSource.search,
-      );
-    });
-
-    testWidgets('busca sem resultado avisa', (tester) async {
-      await _pumpClub(
-        tester,
-        service: FakeBenefitsClubService(),
-        partners: _manyPartners(8),
-      );
-      await tester.enterText(find.byKey(const Key('benefits-search')), 'zzz');
-      await tester.pump();
-      expect(
-        find.text('Nenhum parceiro encontrado para "zzz".'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('"Perto de você" só com GPS já liberado e ordena pela '
-        'distância', (tester) async {
-      await _pumpClub(
-        tester,
-        service: FakeBenefitsClubService(),
-        partners: _manyPartners(8),
-        // O atleta está ao lado da loja 7 (a de menor prioridade).
-        userLocation: const UserLocationSnapshot(
-          source: UserLocationSource.profile,
-          latitude: -16.75,
-          longitude: -49.25,
-          city: 'Goiânia',
-        ),
-      );
-      expect(find.byKey(const Key('benefits-near')), findsOneWidget);
-      await tester.tap(find.byKey(const Key('benefits-near')));
-      await tester.pump();
-      expect(find.text('8 PARCEIROS PERTO DE VOCÊ'), findsOneWidget);
-
-      final y7 = tester
-          .getTopLeft(find.byKey(const Key('benefits-partner-p7')))
-          .dy;
-      final y0 = tester
-          .getTopLeft(find.byKey(const Key('benefits-partner-p0')))
-          .dy;
-      expect(y7, lessThan(y0));
+      expect(find.byType(BenefitsSearchPage), findsOneWidget);
+      expect(find.byKey(const Key('benefits-search')), findsOneWidget);
     });
   });
 

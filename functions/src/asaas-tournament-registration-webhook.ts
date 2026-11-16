@@ -75,6 +75,7 @@ import {
   resolveCashbackForPayment,
 } from "./cashback-intent";
 import {refundHoldOfPayment} from "./cashback-reversal";
+import {reverseWalletCreditOfRefundedPayment} from "./asaas-tournament-registration-refund";
 
 const ASAAS_NEGATIVE_TERMINAL_STATUSES = new Set([
   "OVERDUE",
@@ -748,9 +749,10 @@ export async function processTournamentRegistrationAsaasNotification(
   }
 
   if (ASAAS_NEGATIVE_TERMINAL_STATUSES.has(status)) {
-    // Estorno ou chargeback DEPOIS da vaga garantida. Não há desfazimento
-    // automático (mesma lacuna que o estorno de PIX sempre teve), mas isso
-    // precisa ser barulhento em vez de sumir num return silencioso.
+    // Estorno ou chargeback DEPOIS da vaga garantida. A vaga não é desfeita
+    // sozinha (mesma lacuna que o estorno de PIX sempre teve) — isso precisa
+    // ser barulhento em vez de sumir num return silencioso. Já o dinheiro é
+    // desfeito: `REFUNDED` tira do caixa o crédito que tinha entrado.
     const squadEvent = squadEventForStatus(status, alreadyConfirmed);
     if (squadEvent) {
       await applySquadPaymentEventQuietly(db, {registrationId, payerUid, paymentId, event: squadEvent}, new Date());
@@ -769,10 +771,19 @@ export async function processTournamentRegistrationAsaasNotification(
           );
         }
       }
+      // Crédito que já entrou no caixa: o estorno devolveu o dinheiro ao
+      // atleta, então ele sai do disponível do organizador. Decide de novo
+      // dentro da transação (`walletCreditedAt`), não pelo que foi lido acima.
+      const walletNote = await reverseWalletCreditOfRefundedPayment(db, processedRef, {
+        tournamentId,
+        paymentId,
+        status,
+        payment,
+      });
       logger.error(
         `Asaas tournament registration ${registrationId}: pagamento ${paymentId} ` +
-        `virou ${status} DEPOIS de confirmar a inscrição — vaga e carteira ` +
-        "seguem como estão, resolver à mão",
+        `virou ${status} DEPOIS de confirmar a inscrição — ${walletNote}; ` +
+        "a vaga segue como está, resolver à mão",
         {registrationId, payerUid, paymentId, status, billingType},
       );
       return;

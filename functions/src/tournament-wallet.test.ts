@@ -9,6 +9,7 @@ import {
   assertTournamentWithdrawalReservationValid,
   holdTournamentAwaitingSettlement,
   releaseTournamentAwaitingSettlement,
+  reverseTournamentWalletCreditForRefund,
 } from "./tournament-wallet";
 
 const TOURNAMENT = "t1";
@@ -310,5 +311,218 @@ describe("a liberar do cartão (`awaitingSettlementReais`)", () => {
     assert.equal(fake.store.get("tournamentWallets/t0")!["awaitingSettlementReais"], 0);
     assert.equal(fake.store.get(WALLET_PATH)!["availableReais"], 88.71);
     assert.equal(fake.store.get(WALLET_PATH)!["awaitingSettlementReais"], undefined);
+  });
+});
+
+describe("reverseTournamentWalletCreditForRefund", () => {
+  const PROCESSED = "artifacts/p/public/data/asaas_processed_payments/pay1";
+  const BY = "webhook:asaas-tournament-registration";
+
+  function processedRef(fake: FakeFirestore, path = PROCESSED): DocumentReference {
+    return (fake as unknown as Firestore).doc(path) as DocumentReference;
+  }
+
+  /** Crédito de inscrição (bruto 100, taxa 8 → líquido 92) marcado no doc do pagamento. */
+  async function creditPayment(fake: FakeFirestore, paymentId = "pay1", path = PROCESSED): Promise<void> {
+    fake.seedDoc(path, {kind: "tournamentRegistration", confirmedAt: "ts"});
+    await creditTournamentWalletFromRegistration(fake as unknown as Firestore, TOURNAMENT, {
+      ownerId: OWNER, registrationId: "reg1", payerUid: "uidA", paymentId,
+      grossReais: 100, platformFeeReais: 8,
+      processedRef: processedRef(fake, path),
+    });
+  }
+
+  async function reverse(fake: FakeFirestore, paymentId = "pay1", path = PROCESSED) {
+    return reverseTournamentWalletCreditForRefund(
+      fake as unknown as Firestore,
+      processedRef(fake, path),
+      {tournamentId: TOURNAMENT, paymentId, reason: "REFUNDED", by: BY},
+    );
+  }
+
+  function ledgerLines(fake: FakeFirestore): Array<[string, Record<string, unknown>]> {
+    return [...fake.store.entries()].filter(([path]) => path.startsWith(`${WALLET_PATH}/ledger/`));
+  }
+
+  it("tira o líquido do disponível e apaga a linha do extrato", async () => {
+    const fake = new FakeFirestore();
+    await creditPayment(fake);
+
+    const outcome = await reverse(fake);
+
+    assert.equal(outcome.status, "reversed");
+    assert.equal(fake.store.get(WALLET_PATH)!["availableReais"], 0);
+    assert.equal(ledgerLines(fake).length, 0);
+  });
+
+  it("grava a reversão no pagamento no formato do script manual", async () => {
+    const fake = new FakeFirestore();
+    await creditPayment(fake);
+    const [linePath, line] = ledgerLines(fake)[0]!;
+
+    await reverse(fake);
+
+    const processed = fake.store.get(PROCESSED)!;
+    assert.ok(processed["walletCreditReversedAt"]);
+    assert.deepEqual(processed["walletCreditReversal"], {
+      reason: "REFUNDED",
+      tournamentId: TOURNAMENT,
+      netReais: 92,
+      ledgerEntryId: linePath.split("/").pop(),
+      ledgerEntry: line,
+      by: BY,
+    });
+  });
+
+  it("mantém walletCreditedAt: o crédito não acontece de novo depois da reversão", async () => {
+    const fake = new FakeFirestore();
+    await creditPayment(fake);
+    await reverse(fake);
+
+    const creditedAgain = await creditTournamentWalletFromRegistration(
+      fake as unknown as Firestore, TOURNAMENT, {
+        ownerId: OWNER, registrationId: "reg1", payerUid: "uidA", paymentId: "pay1",
+        grossReais: 100, platformFeeReais: 8, processedRef: processedRef(fake),
+      },
+    );
+
+    assert.equal(creditedAgain, false);
+    assert.ok(fake.store.get(PROCESSED)!["walletCreditedAt"]);
+    assert.equal(fake.store.get(WALLET_PATH)!["availableReais"], 0);
+  });
+
+  it("reentrega não debita de novo", async () => {
+    const fake = new FakeFirestore();
+    await creditPayment(fake);
+    await creditPayment(fake, "pay2", "artifacts/p/public/data/asaas_processed_payments/pay2");
+
+    await reverse(fake);
+    const second = await reverse(fake);
+
+    assert.deepEqual(second, {status: "skipped", reason: "already_reversed"});
+    // Sobrou só o crédito do outro pagamento.
+    assert.equal(fake.store.get(WALLET_PATH)!["availableReais"], 92);
+    assert.equal(ledgerLines(fake).length, 1);
+    assert.equal(ledgerLines(fake)[0]![1]["asaasPaymentId"], "pay2");
+  });
+
+  it("pagamento que nunca creditou o caixa não é revertido", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(WALLET_PATH, {availableReais: 50, pendingReais: 0});
+    fake.seedDoc(PROCESSED, {kind: "tournamentRegistration", confirmedAt: "ts"});
+
+    const outcome = await reverse(fake);
+
+    assert.deepEqual(outcome, {status: "skipped", reason: "not_credited"});
+    assert.equal(fake.store.get(WALLET_PATH)!["availableReais"], 50);
+    assert.equal(fake.store.get(PROCESSED)!["walletCreditReversedAt"], undefined);
+  });
+
+  it("pagamento já revertido pelo script manual é pulado", async () => {
+    const fake = new FakeFirestore();
+    // Estado que o script deixa: caixa já abatido, linha apagada, marcador no pagamento.
+    fake.seedDoc(WALLET_PATH, {availableReais: 50, pendingReais: 0});
+    const scriptReversal = {
+      reason: "REFUNDED", tournamentId: TOURNAMENT, netReais: 92, ledgerEntryId: "l1",
+      ledgerEntry: {type: "credit", asaasPaymentId: "pay1", netReais: 92},
+      by: "script:reverse-refunded-registration-credit",
+    };
+    fake.seedDoc(PROCESSED, {
+      kind: "tournamentRegistration", confirmedAt: "ts", walletCreditedAt: "ts",
+      walletCreditReversedAt: "ts", walletCreditReversal: scriptReversal,
+    });
+
+    const outcome = await reverse(fake);
+
+    assert.deepEqual(outcome, {status: "skipped", reason: "already_reversed"});
+    assert.equal(fake.store.get(WALLET_PATH)!["availableReais"], 50);
+    assert.deepEqual(fake.store.get(PROCESSED)!["walletCreditReversal"], scriptReversal);
+  });
+
+  it("crédito fora do extrato deste caixa não debita nada", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(WALLET_PATH, {availableReais: 50, pendingReais: 0});
+    fake.seedDoc(PROCESSED, {kind: "tournamentRegistration", confirmedAt: "ts", walletCreditedAt: "ts"});
+    // A linha deste pagamento está no caixa de OUTRO torneio.
+    fake.seedDoc("tournamentWallets/t0/ledger/l0", {type: "credit", asaasPaymentId: "pay1", netReais: 92});
+
+    const outcome = await reverse(fake);
+
+    assert.deepEqual(outcome, {status: "skipped", reason: "ledger_line_missing"});
+    assert.equal(fake.store.get(WALLET_PATH)!["availableReais"], 50);
+    assert.ok(fake.store.get("tournamentWallets/t0/ledger/l0"));
+    assert.equal(fake.store.get(PROCESSED)!["walletCreditReversedAt"], undefined);
+  });
+
+  it("duas linhas de crédito do mesmo pagamento: não escolhe uma, não debita", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(WALLET_PATH, {availableReais: 184, pendingReais: 0});
+    fake.seedDoc(PROCESSED, {kind: "tournamentRegistration", confirmedAt: "ts", walletCreditedAt: "ts"});
+    fake.seedDoc(`${WALLET_PATH}/ledger/l1`, {type: "credit", asaasPaymentId: "pay1", netReais: 92});
+    fake.seedDoc(`${WALLET_PATH}/ledger/l2`, {type: "credit", asaasPaymentId: "pay1", netReais: 92});
+
+    const outcome = await reverse(fake);
+
+    assert.deepEqual(outcome, {status: "skipped", reason: "ledger_line_duplicated"});
+    assert.equal(fake.store.get(WALLET_PATH)!["availableReais"], 184);
+    assert.equal(ledgerLines(fake).length, 2);
+  });
+
+  it("não mexe no saque em processamento, no a liberar nem nas outras linhas", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc(WALLET_PATH, {availableReais: 10, pendingReais: 30, awaitingSettlementReais: 40});
+    fake.seedDoc(`${WALLET_PATH}/ledger/other`, {type: "credit", asaasPaymentId: "payX", netReais: 10});
+    await creditPayment(fake);
+
+    await reverse(fake);
+
+    const wallet = fake.store.get(WALLET_PATH)!;
+    assert.equal(wallet["availableReais"], 10);
+    assert.equal(wallet["pendingReais"], 30);
+    assert.equal(wallet["awaitingSettlementReais"], 40);
+    assert.deepEqual(ledgerLines(fake).map(([path]) => path), [`${WALLET_PATH}/ledger/other`]);
+  });
+
+  describe("organizador já sacou", () => {
+    /** Caixa creditado em 92 do qual 80 já saíram num saque aprovado. */
+    async function creditedAndWithdrawn(): Promise<FakeFirestore> {
+      const fake = new FakeFirestore();
+      await creditPayment(fake);
+      const db = fake as unknown as Firestore;
+      await reserveTournamentWithdrawalAmount(db, TOURNAMENT, 80);
+      await releaseTournamentWithdrawalReservation(db, TOURNAMENT, 80, true);
+      return fake;
+    }
+
+    it("o disponível fica negativo: é a dívida do caixa", async () => {
+      const fake = await creditedAndWithdrawn();
+
+      const outcome = await reverse(fake);
+
+      assert.deepEqual(outcome, {
+        status: "reversed", netReais: 92, availableAfterReais: -80,
+        ledgerEntryId: (fake.store.get(PROCESSED)!["walletCreditReversal"] as Record<string, unknown>)["ledgerEntryId"],
+      });
+      assert.equal(fake.store.get(WALLET_PATH)!["availableReais"], -80);
+    });
+
+    it("caixa negativo recusa saque novo", async () => {
+      const fake = await creditedAndWithdrawn();
+      await reverse(fake);
+
+      await assert.rejects(
+        () => reserveTournamentWithdrawalAmount(fake as unknown as Firestore, TOURNAMENT, 1),
+        /INSUFFICIENT_BALANCE/,
+      );
+    });
+
+    it("o próximo crédito abate a dívida antes de sobrar para saque", async () => {
+      const fake = await creditedAndWithdrawn();
+      await reverse(fake);
+
+      await creditPayment(fake, "pay2", "artifacts/p/public/data/asaas_processed_payments/pay2");
+
+      assert.equal(fake.store.get(WALLET_PATH)!["availableReais"], 12);
+    });
   });
 });

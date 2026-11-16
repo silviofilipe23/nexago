@@ -253,6 +253,13 @@ export const routes: Routes = [
       import('./competir/competir-hub.component').then((m) => m.CompetirHubComponent),
   },
   {
+    // Clube de Vantagens Nexa (lista e parceiro). O store da vitrine e o SDK do Firestore moram em
+    // `clube/clube.routes.ts`, carregados sob demanda — nada disso entra no bundle inicial.
+    path: 'clube',
+    canActivate: [authGuard, onboardingGuard],
+    loadChildren: () => import('./clube/clube.routes').then((m) => m.CLUBE_ROUTES),
+  },
+  {
     // Lista e perfil público de organizadores. Um pai só, com as filhas num arquivo lazy: a carga
     // inicial (no limite de 1 MB) ganha uma entrada de rota em vez de duas.
     path: 'organizadores',

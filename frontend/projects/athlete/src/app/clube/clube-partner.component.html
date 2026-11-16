@@ -1,0 +1,131 @@
+<app-at-panel-shell [userName]="store.accountLabel()">
+  @if (partner(); as p) {
+    <div class="cp-hero" [class.cp-hero--dark-text]="darkText()" [style.--clube-brand]="p.brandColor">
+      <a class="cp-back" routerLink="/clube" [queryParams]="linkQuery">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+        Clube de Vantagens
+      </a>
+      <div class="cp-id">
+        <app-clube-partner-logo [partner]="p" variant="inverse" [size]="80" />
+        <div class="cp-id-text">
+          <h1>{{ p.name }}</h1>
+          <div class="cp-hero-line">{{ heroLine() }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cp-grid">
+      <div class="cp-col">
+        <section class="cp-card" aria-labelledby="cp-benefit-title">
+          <h2 class="cp-kicker" id="cp-benefit-title">Benefício</h2>
+          @if (p.benefitHighlight) {
+            <div class="cp-big">{{ p.benefitHighlight }}</div>
+          }
+          <p class="cp-benefit-title">{{ p.benefitTitle }}</p>
+          @if (p.description) {
+            <p class="cp-text">{{ p.description }}</p>
+          }
+        </section>
+
+        <section class="cp-card" aria-labelledby="cp-steps-title">
+          <h2 class="cp-kicker" id="cp-steps-title">Como usar</h2>
+          <ol class="cp-steps">
+            @for (step of steps(); track $index) {
+              <li class="cp-step">
+                <span class="cp-step-n" aria-hidden="true">{{ $index + 1 }}</span>
+                <!-- Numa linha só: quebra de linha entre os pedaços vira espaço antes do ponto. -->
+                <span>@for (part of step; track $index) {@if (part.strong) {<b>{{ part.text }}</b>} @else {<span>{{ part.text }}</span>}}</span>
+              </li>
+            }
+          </ol>
+        </section>
+
+        @if (p.terms) {
+          <section class="cp-card" aria-labelledby="cp-terms-title">
+            <h2 class="cp-kicker" id="cp-terms-title">Termos e condições</h2>
+            <p class="cp-terms">{{ p.terms }}</p>
+          </section>
+        }
+      </div>
+
+      <div class="cp-col cp-col--side">
+        <section class="cp-card cp-card--cta" [attr.aria-label]="coupon() ? 'Seu cupom' : 'Aproveitar o benefício'">
+          @if (coupon(); as code) {
+            <h2 class="cp-kicker">Seu cupom</h2>
+            <div class="cp-code">
+              <span class="cp-code-value">{{ code }}</span>
+              <button type="button" class="cp-copy" [class.cp-copy--done]="copyState() === 'copied'" (click)="copyCoupon()">
+                @if (copyState() === 'copied') {
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>
+                  Copiado
+                } @else {
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a1 1 0 0 1 1-1h10" /></svg>
+                  Copiar
+                }
+              </button>
+            </div>
+            <p class="cp-sr" role="status" aria-live="polite">
+              @if (copyState() === 'copied') {
+                Cupom {{ code }} copiado.
+              }
+            </p>
+            @if (copyState() === 'failed') {
+              <p class="cp-copy-failed" role="alert">Não deu para copiar. Selecione o código e copie manualmente.</p>
+            }
+          }
+
+          @if (p.ctaType === 'lead_form') {
+            <button type="button" class="cp-cta" (click)="openLead()">
+              {{ p.ctaLabel }}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            </button>
+          } @else if (ctaUrl(); as url) {
+            <a class="cp-cta" [href]="url" target="_blank" rel="noopener" (click)="onLinkClick()">
+              {{ p.ctaLabel }}
+              <span class="cp-sr">(abre numa nova aba)</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></svg>
+            </a>
+          } @else {
+            <button type="button" class="cp-cta" disabled>{{ p.ctaLabel }}</button>
+          }
+          <p class="cp-hint">{{ hint() }}</p>
+        </section>
+      </div>
+    </div>
+
+    @if (leadOpen()) {
+      <app-clube-lead-modal
+        [partner]="p"
+        [profile]="store.profile()"
+        [source]="source"
+        (closed)="closeLead()"
+      />
+    }
+  } @else {
+    <div class="cp-body">
+      @if (store.loading()) {
+        <div class="cl-state" role="status" aria-live="polite">
+          <span class="cl-spinner" aria-hidden="true"></span>
+          <span>Carregando o parceiro…</span>
+        </div>
+      } @else if (store.error()) {
+        <div class="cl-state cl-state--error" role="alert">
+          <p>{{ store.error() }}</p>
+          <button type="button" class="cl-btn" (click)="retry()">Tentar de novo</button>
+        </div>
+      } @else if (store.closed()) {
+        <div class="cl-state">
+          <p class="cl-state-title">O clube ainda não abriu</p>
+          <p>Em breve você vai encontrar aqui os descontos dos parceiros NexaGO.</p>
+          <a class="cl-btn" routerLink="/competir">Voltar ao Competir</a>
+        </div>
+      } @else {
+        <div class="cl-state">
+          <p class="cl-state-title">Parceiro não encontrado</p>
+          <p>Esta oferta não está mais disponível para você.</p>
+          <a class="cl-btn" routerLink="/clube" [queryParams]="linkQuery">Ver o clube</a>
+        </div>
+      }
+    </div>
+  }
+</app-at-panel-shell>

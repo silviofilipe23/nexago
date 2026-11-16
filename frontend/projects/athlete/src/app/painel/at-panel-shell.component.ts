@@ -19,12 +19,22 @@ import { fetchMyAthleteProfile } from '../data/my-athlete-profile-repository';
 import { PartnerInvitesService } from '../data/partner-invites.service';
 import { StaffTournamentsService } from '../data/staff-tournaments.service';
 import { StoreFlagService } from '../data/store-flag.service';
+import { ClubAccessService } from '../clube/data/clube-access.service';
 import { ProfessorLinksService } from '../professor/professor-links.service';
 import { NxBannerComponent } from '../shared/feedback';
 import { AtInviteAnnouncerComponent } from '../shared/partner-invite/at-invite-announcer.component';
 
 /** Rotas que o hub Competir agrupa — mantêm o item "Competir" aceso na bottom-nav mobile. */
 const COMPETIR_PREFIXES = ['/competir', '/torneios', '/ligas', '/ranking', '/equipes', '/atletas', '/organizadores'];
+/** Seções do Competir que só casam o segmento inteiro: `/clube` não pode acender em `/clubinho`. */
+const COMPETIR_SECTIONS = ['/clube'];
+
+function isCompetirUrl(path: string): boolean {
+  return (
+    COMPETIR_PREFIXES.some((p) => path.startsWith(p)) ||
+    COMPETIR_SECTIONS.some((p) => path === p || path.startsWith(`${p}/`))
+  );
+}
 
 /** Wizard de inscrição: bottom-nav atrapalha o fluxo focado (CTA do passo + voltar). */
 function isRegistrationFlowUrl(url: string): boolean {
@@ -87,6 +97,17 @@ export class AtPanelShellComponent {
   /** Item "Loja" — atrás de `appConfig/store.enabled` enquanto o checkout não existe. */
   protected readonly storeEnabled = inject(StoreFlagService).enabled;
 
+  /** Item "Clube de Vantagens" — a mesma condição do card do Competir (flag ligada ou quem testa).
+   *  No desktop não há item "Competir", então sem ele o clube só se acharia pelo hub do celular. */
+  protected readonly clubVisible = inject(ClubAccessService).visible;
+  protected readonly clubQuery = { origem: 'competir_web' } as const;
+  protected readonly clubActiveOptions = {
+    paths: 'subset',
+    queryParams: 'ignored',
+    matrixParams: 'ignored',
+    fragment: 'ignored',
+  } as const;
+
   private readonly professorLinks = inject(ProfessorLinksService);
   /** Convites de arena em aberto (vínculo de professor) — badge de "Minhas arenas". */
   protected readonly professorInvites = this.professorLinks.openInviteCount;
@@ -127,10 +148,7 @@ export class AtPanelShellComponent {
     { initialValue: this.router.url },
   );
 
-  protected readonly competirSectionActive = computed(() => {
-    const current = this.url().split('?')[0] ?? '';
-    return COMPETIR_PREFIXES.some((p) => current.startsWith(p));
-  });
+  protected readonly competirSectionActive = computed(() => isCompetirUrl(this.url().split('?')[0] ?? ''));
 
   protected readonly hideBottomNav = computed(() => isRegistrationFlowUrl(this.url()));
 

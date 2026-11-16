@@ -1,0 +1,256 @@
+@use 'clube-ui';
+
+// Cabeçalho e corpo no ritmo do hub do Competir, com 16px de respiro lateral no celular.
+.cl-page-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--nx-line);
+
+  h1 {
+    margin: 0;
+    font-family: var(--nx-font-display);
+    font-weight: 800;
+    font-size: 21px;
+    letter-spacing: -0.02em;
+    color: var(--nx-text);
+  }
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 14px;
+  }
+}
+
+.cl-page-header-sub {
+  margin-top: 3px;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.cl-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 1000px;
+  padding: 22px 24px 40px;
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 24px;
+  }
+}
+
+// ── Patrocinador oficial (na cor da marca) ──
+.cl-sponsor {
+  --clube-on-brand: var(--nx-text);
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 24px;
+  border-radius: var(--nx-r-5);
+  background: var(--clube-brand);
+  color: var(--clube-on-brand);
+  text-decoration: none;
+  transition: transform var(--nx-d-fast) var(--nx-ease-out);
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 18px;
+  }
+}
+
+.cl-sponsor--dark-text {
+  --clube-on-brand: var(--nx-text-on-orange);
+}
+
+.cl-sponsor-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.cl-sponsor-tag {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.cl-sponsor-name {
+  margin-top: 2px;
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 22px;
+  overflow-wrap: anywhere;
+}
+
+.cl-sponsor-benefit {
+  font-family: var(--nx-font-ui);
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+// O "botão" do banner é só a pista visual: o banner inteiro é o link.
+.cl-sponsor-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 46px;
+  padding: 0 20px;
+  border-radius: var(--nx-r-3);
+  // Contraponto da cor da marca: claro sobre marca escura, escuro sobre marca clara.
+  background: var(--clube-on-brand);
+  color: var(--clube-brand);
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+
+  @media (max-width: 640px) {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+// ── Chips de categoria ──
+.cl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cl-chip {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: var(--nx-r-pill);
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-surface-0);
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--nx-text);
+  }
+}
+
+.cl-chip--on {
+  background: var(--nx-orange-tint);
+  border-color: var(--nx-orange-500);
+  color: var(--nx-orange-400);
+
+  &:hover {
+    color: var(--nx-orange-400);
+  }
+}
+
+// ── Grade de parceiros ──
+.cl-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 640px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  li {
+    display: flex;
+  }
+}
+
+.cl-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: var(--nx-r-4);
+  border: 1px solid var(--nx-line);
+  background: var(--nx-surface-0);
+  color: var(--nx-text);
+  text-decoration: none;
+  transition: border-color var(--nx-d-fast) ease-out;
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+}
+
+.cl-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cl-card-id {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cl-card-name {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.cl-card-cat {
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.cl-card-benefit {
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--nx-text-mute);
+}
+
+.cl-card-off {
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 5px 8px;
+  border-radius: var(--nx-r-2);
+  border: 1px solid color-mix(in srgb, var(--nx-win) 35%, transparent);
+  background: color-mix(in srgb, var(--nx-win) 10%, transparent);
+  color: var(--nx-win);
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cl-note {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-dim);
+}

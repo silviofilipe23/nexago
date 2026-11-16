@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
+import { ClubeCompetirCardComponent } from '../clube/clube-competir-card.component';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 
 function titleCase(input: string): string {
@@ -30,7 +31,7 @@ interface CompetirSection {
 @Component({
   selector: 'app-competir-hub',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, ClubeCompetirCardComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-at-panel-shell [userName]="accountLabel()">
@@ -71,6 +72,8 @@ interface CompetirSection {
               <svg class="ch-card-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
             </a>
           }
+          <!-- Clube de Vantagens: só com a flag ligada ou para quem testa (some sozinho). -->
+          <app-clube-competir-card />
         </div>
       </div>
     </app-at-panel-shell>

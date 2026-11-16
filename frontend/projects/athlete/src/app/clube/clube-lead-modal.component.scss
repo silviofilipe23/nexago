@@ -1,0 +1,280 @@
+// Overlay no mesmo molde do `lgpd-consent-dialog`: host em flex + `min()` na largura, para a
+// porcentagem cair na caixa do host (no celular o diálogo ocupa a largura sem cortar nada).
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: safe center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px))
+    max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.lm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--nx-bg) 72%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.lm-dialog {
+  position: relative;
+  box-sizing: border-box;
+  width: min(480px, 100%);
+  max-height: min(100%, calc(100dvh - 32px));
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-radius: var(--nx-r-5);
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-surface-2);
+  box-shadow: var(--nx-elev-3);
+  color: var(--nx-text);
+
+  @media (max-width: 520px) {
+    padding: 18px 16px;
+    border-radius: var(--nx-r-4);
+  }
+}
+
+.lm-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.lm-head-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.lm-title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 19px;
+}
+
+.lm-sub {
+  margin-top: 2px;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--nx-text-mute);
+}
+
+.lm-x {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--nx-r-2);
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+  cursor: pointer;
+}
+
+.lm-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lm-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+
+  @media (max-width: 420px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.lm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+
+  label {
+    font-family: var(--nx-font-ui);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--nx-text-mute);
+  }
+}
+
+.cl-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: var(--nx-r-2);
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-bg);
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+  font-size: 16px; // 16px: abaixo disso o Safari do iPhone dá zoom ao focar
+
+  &::placeholder {
+    color: var(--nx-text-dim);
+  }
+
+  &:focus {
+    border-color: var(--nx-orange-500);
+  }
+}
+
+.lm-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--nx-r-3);
+  border: 1px solid var(--nx-orange-500);
+  background: color-mix(in srgb, var(--nx-orange-500) 7%, transparent);
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--nx-text);
+  cursor: pointer;
+
+  input {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: var(--nx-orange-500);
+    cursor: pointer;
+  }
+
+  b {
+    font-weight: 700;
+  }
+}
+
+.lm-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--nx-r-2);
+  border: 1px solid color-mix(in srgb, var(--nx-live) 40%, transparent);
+  background: color-mix(in srgb, var(--nx-live) 10%, transparent);
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text);
+}
+
+.lm-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+
+  // Coluna na ordem do DOM: a ordem do Tab segue a ordem visual.
+  @media (max-width: 420px) {
+    flex-direction: column;
+  }
+}
+
+.lm-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: var(--nx-r-2);
+  border: 1px solid var(--nx-orange-500);
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.lm-btn--ghost {
+  border-color: var(--nx-line-strong);
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+}
+
+.lm-success {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: var(--nx-r-3);
+  border: 1px solid color-mix(in srgb, var(--nx-win) 40%, transparent);
+  background: color-mix(in srgb, var(--nx-win) 10%, transparent);
+}
+
+.lm-success-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--nx-win);
+  color: var(--nx-text-on-orange);
+}
+
+.lm-success-text {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.lm-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+
+  div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-family: var(--nx-font-ui);
+    font-size: 13px;
+  }
+
+  dt {
+    color: var(--nx-text-dim);
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--nx-orange-500);
+  outline-offset: 2px;
+}

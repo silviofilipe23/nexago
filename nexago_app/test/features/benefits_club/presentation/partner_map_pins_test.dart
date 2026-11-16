@@ -104,21 +104,19 @@ void main() {
     });
   });
 
-  test('pinos do mapa: imagem própria só para quem já tem e o tocado em '
-      'destaque', () {
-    final pins = benefitsMapPins(
-      [
-        _partner('fast', locations: const [_loc]),
-        _partner('linq', locations: const [_loc, _loc]),
-      ],
-      withImage: {'fast'},
-      selectedId: 'linq',
-    );
+  test('pinos do mapa: todo parceiro com a imagem dele (nunca a quadra) e o '
+      'tocado em destaque', () {
+    final pins = benefitsMapPins([
+      _partner('fast', locations: const [_loc]),
+      _partner('linq', locations: const [_loc, _loc]),
+    ], selectedId: 'linq');
     expect(pins, hasLength(3));
     expect(pins[0].iconImageId, partnerPinImageId('fast'));
     expect(pins[0].selected, isFalse);
-    // A LinQ ainda não tem imagem pronta: cai na arte padrão até chegar.
-    expect(pins[1].iconImageId, isNull);
+    // Mesmo antes de a imagem ficar pronta o pino aponta para ela: sem `icon`
+    // o estilo desenharia a quadra das arenas.
+    expect(pins[1].iconImageId, partnerPinImageId('linq'));
+    expect(pins[2].iconImageId, partnerPinImageId('linq'));
     expect(pins.where((p) => p.selected).map((p) => p.arenaId), [
       'linq#0',
       'linq#1',

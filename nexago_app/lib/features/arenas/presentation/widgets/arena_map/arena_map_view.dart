@@ -262,14 +262,27 @@ class _ArenaMapViewState extends State<ArenaMapView> {
     final map = _map;
     if (map == null) return;
 
+    final installedPins = widget.pins;
+    final installedImages = widget.pinImages;
     await installArenaMapStyle(
       map,
-      pins: widget.pins,
-      pinImages: widget.pinImages,
+      pins: installedPins,
+      pinImages: installedImages,
     );
     if (!mounted) return;
 
     _styleInstalled = true;
+    // Pinos ou imagens que mudaram DURANTE a instalação tiveram a
+    // sincronização ignorada (estilo ainda não instalado) e ninguém refaria:
+    // as imagens dos parceiros do clube costumam ficar prontas bem nessa hora
+    // e o pino ficava sem a imagem dele.
+    if (!identical(installedImages, widget.pinImages)) {
+      await installArenaMapPinImages(map, widget.pinImages);
+    }
+    if (!identical(installedPins, widget.pins)) {
+      await updateArenaMapPins(map, widget.pins);
+    }
+    if (!mounted) return;
     if (kDebugMode) await _reportStyleState(map);
     await _maybeInitialFit();
   }

@@ -43,13 +43,16 @@ class ArenaMapPinImage {
 const double customPinIconSize = 1.0;
 const double customPinSelectedIconSize = 1.25;
 
-/// Imagem do pino: a própria (`icon`) quando já registrada, senão a quadra.
+/// Imagem do pino: a própria (`icon`) para quem tem uma; a quadra só para
+/// quem não tem (as arenas).
 ///
-/// `coalesce` + `image` cai na quadra também enquanto a imagem própria ainda
-/// não foi registrada: o pino nunca some.
+/// Pino com `icon` NUNCA cai na quadra: enquanto a imagem dele não está
+/// registrada, ele simplesmente não aparece (milissegundos, até as iniciais
+/// ficarem prontas). Cair na quadra mostrava parceiro do clube como arena.
 List<Object> mapPinImageExpression() {
   return <Object>[
-    'coalesce',
+    'case',
+    ['has', 'icon'],
     [
       'image',
       ['get', 'icon'],

@@ -100,11 +100,19 @@ void main() {
   });
 
   group('pino com imagem própria (Clube de Vantagens)', () {
-    test('imagem: a própria quando registrada, senão a quadra', () {
+    test('imagem: pino com `icon` usa só a própria; a quadra é só de quem '
+        'não tem (as arenas)', () {
       final expr = mapPinImageExpression();
-      expect(expr.first, 'coalesce');
-      final valores = _flatten(expr).whereType<String>();
-      expect(valores, contains('icon'));
+      expect(expr.first, 'case');
+      expect(expr[1], ['has', 'icon']);
+      // Ramo de quem tem imagem própria: nenhuma referência à quadra, nem
+      // como reserva — senão o parceiro aparece como arena.
+      final propria = expr[2] as List<Object?>;
+      expect(propria, [
+        'image',
+        ['get', 'icon'],
+      ]);
+      expect(_flatten(propria), isNot(contains(ArenaMapIds.pinImage)));
       expect(expr.last, ['image', ArenaMapIds.pinImage]);
     });
 

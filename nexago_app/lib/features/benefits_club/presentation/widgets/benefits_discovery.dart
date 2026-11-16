@@ -243,11 +243,10 @@ const String _pinSeparator = '#';
 
 /// Pinos das unidades; o id do pino é `<partnerId>#<índice da unidade>`.
 ///
-/// Parceiro em [withImage] usa o pino com a logo/iniciais dele
-/// ([partnerPinImageId]); o de [selectedId] fica em destaque.
+/// Todo pino de parceiro usa a imagem dele ([partnerPinImageId]: a logo ou as
+/// iniciais), nunca a quadra das arenas; o de [selectedId] fica em destaque.
 List<ArenaMapPin> benefitsMapPins(
   List<Partner> partners, {
-  Set<String> withImage = const {},
   String? selectedId,
 }) => [
   for (final partner in partners)
@@ -257,9 +256,7 @@ List<ArenaMapPin> benefitsMapPins(
         latitude: partner.locations[i].latitude,
         longitude: partner.locations[i].longitude,
         kind: ArenaMapPinKind.available,
-        iconImageId: withImage.contains(partner.id)
-            ? partnerPinImageId(partner.id)
-            : null,
+        iconImageId: partnerPinImageId(partner.id),
         selected: partner.id == selectedId,
       ),
 ];
@@ -382,11 +379,7 @@ class _BenefitsPartnerMapState extends State<BenefitsPartnerMap> {
             child: ArenaMapView(
               controller: _controller,
               pinImages: _pinImages,
-              pins: benefitsMapPins(
-                widget.partners,
-                withImage: _images.keys.toSet(),
-                selectedId: _selectedId,
-              ),
+              pins: benefitsMapPins(widget.partners, selectedId: _selectedId),
               initialCenter: widget.center,
               showUserLocation: widget.showUserLocation,
               onPinTap: (pinId) =>

@@ -12,11 +12,6 @@ import '../../domain/partner.dart';
 import '../benefits_club_navigation.dart';
 import 'partner_visuals.dart';
 
-/// Quantas logos de parceiro o card mostra.
-const int _maxLogos = 3;
-const double _logoSize = 28;
-const double _logoOverlap = 8;
-
 /// Card "Clube de Vantagens Nexa" do Hub, de largura inteira, logo abaixo da
 /// grade. Só aparece com a flag ligada ou para quem testa; carregando ou com
 /// erro não ocupa espaço nenhum (o Hub de hoje não pode pular nem quebrar).
@@ -33,13 +28,10 @@ class BenefitsClubHubCard extends ConsumerWidget {
     if (!ref.watch(benefitsHubCardVisibleProvider)) {
       return const SizedBox.shrink();
     }
-    final partners =
-        ref.watch(benefitsVisiblePartnersProvider).valueOrNull ?? const [];
     return Padding(
       padding: EdgeInsets.only(bottom: bottomGap),
       child: _HubCard(
         key: cardKey,
-        partners: partners.take(_maxLogos).toList(),
         sponsor: ref.watch(benefitsHubSponsorProvider),
       ),
     );
@@ -47,9 +39,7 @@ class BenefitsClubHubCard extends ConsumerWidget {
 }
 
 class _HubCard extends ConsumerStatefulWidget {
-  const _HubCard({super.key, required this.partners, this.sponsor});
-
-  final List<Partner> partners;
+  const _HubCard({super.key, this.sponsor});
 
   /// `appConfig/benefitsClub.hubSponsorPartnerId` visível para a pessoa: o
   /// card vira "Oferecido por <parceiro>", na cor da marca.
@@ -148,10 +138,6 @@ class _HubCardState extends ConsumerState<_HubCard> {
                     ],
                   ),
                 ),
-                if (widget.partners.isNotEmpty) ...[
-                  const SizedBox(width: AppSpacing.sm),
-                  _StackedLogos(partners: widget.partners),
-                ],
                 const SizedBox(width: AppSpacing.sm),
                 Icon(
                   Icons.arrow_forward_rounded,
@@ -192,35 +178,6 @@ class _NewBadge extends StatelessWidget {
       ),
     ),
   );
-}
-
-class _StackedLogos extends StatelessWidget {
-  const _StackedLogos({required this.partners});
-
-  final List<Partner> partners;
-
-  @override
-  Widget build(BuildContext context) {
-    final ring = BorderSide(color: context.themeColors.surfaceCard, width: 2);
-    const step = _logoSize - _logoOverlap;
-    return SizedBox(
-      width: _logoSize + step * (partners.length - 1),
-      height: _logoSize,
-      child: Stack(
-        children: [
-          for (var i = 0; i < partners.length; i++)
-            Positioned(
-              left: step * i,
-              child: PartnerLogo(
-                partner: partners[i],
-                size: _logoSize,
-                ring: ring,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
 }
 
 /// Card do Hub em modo patrocinador: o mesmo card do clube (borda laranja,

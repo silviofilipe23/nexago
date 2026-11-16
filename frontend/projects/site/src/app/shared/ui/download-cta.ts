@@ -97,8 +97,10 @@ export class DownloadCta {
 
   protected readonly badgeClasses = computed(() => {
     const base = `group inline-flex h-[60px] items-center gap-3 rounded-[16px] px-6 transition-[background-color,color,transform,box-shadow] duration-200 ease-out active:scale-[0.98] motion-reduce:transition-none ${FOCUS}`;
+    // As duas lojas aparecem também numa tela estreita quando o aparelho não se identifica (navegador
+    // embutido, modo de desenvolvedor): ali elas empilham em largura cheia, como o botão único do celular.
     return this.platform === 'desktop'
-      ? `${base} min-w-[188px] bg-fg text-bg hover:bg-brand hover:text-on-brand hover:shadow-glow-orange`
+      ? `${base} w-full justify-center sm:w-auto sm:min-w-[188px] sm:justify-start bg-fg text-bg hover:bg-brand hover:text-on-brand hover:shadow-glow-orange`
       : `${base} w-full justify-center bg-brand text-on-brand shadow-glow-orange hover:bg-brand-light`;
   });
 }

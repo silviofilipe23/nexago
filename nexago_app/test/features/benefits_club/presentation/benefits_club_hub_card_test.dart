@@ -86,13 +86,16 @@ void main() {
         find.descendant(of: find.byKey(_card), matching: find.text('NOVO')),
         findsOneWidget,
       );
-      // Logos dos parceiros visíveis (a LinQ é só de quem testa).
+      // Sem as bolinhas dos parceiros: nenhuma logo no card padrão.
       expect(
-        find.descendant(of: find.byKey(_card), matching: find.text('FA')),
-        findsOneWidget,
+        find.descendant(
+          of: find.byKey(_card),
+          matching: find.byType(PartnerLogo),
+        ),
+        findsNothing,
       );
       expect(
-        find.descendant(of: find.byKey(_card), matching: find.text('LT')),
+        find.descendant(of: find.byKey(_card), matching: find.text('FA')),
         findsNothing,
       );
 
@@ -163,11 +166,6 @@ void main() {
     );
 
     expect(find.byKey(_card), findsOneWidget);
-    // Quem testa vê também a LinQ (audience testers).
-    expect(
-      find.descendant(of: find.byKey(_card), matching: find.text('LT')),
-      findsOneWidget,
-    );
   });
 
   testWidgets('flag desligada: aparece para admin', (tester) async {

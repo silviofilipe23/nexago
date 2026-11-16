@@ -1,0 +1,241 @@
+<app-phone-app-shell [time]="clock()" [active]="null">
+  @switch (step()) {
+    @case ('booking') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pb-[5cqw] pt-[6cqw]">
+        <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-brand">Arena · Reservas</p>
+        <p class="mt-[1.2cqw] font-display text-[6.6cqw] font-700 leading-tight tracking-tight">Hoje</p>
+
+        <p class="mt-[3cqw] flex h-[10.5cqw] items-center gap-[2.4cqw] rounded-full border border-line bg-surface-1 px-[4cqw] text-[3.2cqw] text-text-dim">
+          <svg class="size-[4cqw] flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+          </svg>
+          Buscar reserva, quadra ou atleta
+        </p>
+
+        <div class="mt-[2.4cqw] flex gap-[1.6cqw] text-[3.1cqw] font-600">
+          <span class="rounded-full bg-brand px-[3.4cqw] py-[1.4cqw] text-on-brand">Hoje</span>
+          <span class="rounded-full border border-line px-[3.4cqw] py-[1.4cqw] text-text-mute">Amanhã</span>
+          <span class="rounded-full border border-line px-[3.4cqw] py-[1.4cqw] text-text-mute">Futuras</span>
+        </div>
+
+        <ul class="mt-[3cqw] space-y-[1.8cqw]">
+          @for (booking of bookings; track booking.key) {
+            <li class="rounded-[4.5cqw] border px-[3.8cqw] py-[3.2cqw]" [class]="booking.yours ? 'border-brand/60 bg-brand-tint' : 'border-line bg-surface-1'">
+              <div class="flex items-center gap-[2.4cqw]">
+                <span class="font-display text-[5cqw] font-800 leading-none [font-variant-numeric:tabular-nums]">{{ booking.time }}</span>
+                <span class="text-[3.3cqw] text-text-mute">{{ booking.court }}</span>
+                <span class="ml-auto rounded-full bg-win/15 px-[2.6cqw] py-[1cqw] text-[2.8cqw] font-700 text-win">Pago online</span>
+              </div>
+              <p class="mt-[2cqw] truncate text-[3.4cqw]">
+                <span class="font-display font-700">{{ booking.who }}</span> <span class="text-text-mute">· {{ booking.sport }}</span>
+              </p>
+              <p class="mt-[1.2cqw] flex items-center gap-[1.6cqw] text-[3cqw]" [class]="booking.checkedIn ? 'text-win' : 'text-text-dim'">
+                <span class="size-[1.8cqw] rounded-full" [class]="booking.checkedIn ? 'bg-win' : 'border border-text-dim'"></span>
+                {{ booking.checkedIn ? 'Check-in realizado' : 'Check-in pendente' }}
+              </p>
+            </li>
+          }
+        </ul>
+
+        <span class="mt-auto flex h-[12cqw] items-center justify-center rounded-full border border-line-strong font-display text-[4cqw] font-700">
+          Criar reserva
+        </span>
+      </div>
+    }
+
+    @case ('fixed') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pb-[5cqw] pt-[6cqw]">
+        <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-brand">Arena</p>
+        <div class="mt-[1.2cqw] flex items-center justify-between gap-[2cqw]">
+          <p class="font-display text-[6.6cqw] font-700 leading-tight tracking-tight">Horários fixos</p>
+          <span class="rounded-full border border-brand/60 px-[3.2cqw] py-[1.2cqw] text-[3.1cqw] font-700 text-brand">Novo</span>
+        </div>
+
+        <div class="mt-[3.6cqw] grid grid-cols-2 gap-[2cqw]">
+          <div class="rounded-[4cqw] border border-line bg-surface-1 p-[3.2cqw]">
+            <p class="font-mono text-[2.4cqw] uppercase tracking-[0.1em] text-text-dim">Ativos</p>
+            <p class="mt-[0.8cqw] font-display text-[5.8cqw] font-800 leading-none">{{ fixed.length }}</p>
+          </div>
+          <div class="rounded-[4cqw] border border-line bg-surface-1 p-[3.2cqw]">
+            <p class="font-mono text-[2.4cqw] uppercase tracking-[0.1em] text-text-dim">Por semana</p>
+            <p class="mt-[0.8cqw] font-display text-[5.8cqw] font-800 leading-none">{{ fixedPerWeek }}</p>
+          </div>
+        </div>
+
+        <ul class="mt-[2.4cqw] space-y-[2cqw]">
+          @for (item of fixed; track item.key) {
+            <li class="rounded-[4.5cqw] border border-line bg-surface-1 px-[3.8cqw] py-[3.4cqw]">
+              <div class="flex items-center gap-[2.4cqw]">
+                <span class="font-display text-[4.3cqw] font-700 leading-tight">Quinta, {{ item.time }}</span>
+                <span class="ml-auto rounded-full bg-win/15 px-[2.6cqw] py-[1cqw] font-mono text-[2.5cqw] font-700 tracking-[0.08em] text-win">ATIVO</span>
+              </div>
+              <p class="mt-[1.4cqw] text-[3.4cqw] text-text-mute">{{ item.court }} · {{ item.who }}</p>
+              <!-- A semana do mensalista: só a quinta acesa. -->
+              <p class="mt-[2.4cqw] flex gap-[1.4cqw]">
+                @for (day of weekdays; track $index) {
+                  <span
+                    class="flex size-[6.4cqw] items-center justify-center rounded-full font-mono text-[2.7cqw] font-700"
+                    [class]="day.on ? 'bg-sand text-on-brand' : 'bg-surface-2 text-text-dim'"
+                  >
+                    {{ day.letter }}
+                  </span>
+                }
+              </p>
+              <p class="mt-[2.2cqw] text-[3.1cqw] text-text-dim">Mensalista · {{ hourPrice }} por semana</p>
+            </li>
+          }
+        </ul>
+
+        <span class="mt-auto flex h-[12.5cqw] items-center justify-center rounded-full bg-brand font-display text-[4.2cqw] font-700 text-on-brand">
+          Criar horário fixo
+        </span>
+      </div>
+    }
+
+    @case ('club') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pb-[5cqw] pt-[6cqw]">
+        <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-brand">Gestor · Clubinho</p>
+        <p class="mt-[1.2cqw] font-display text-[6.6cqw] font-700 leading-tight tracking-tight">{{ club.name }}</p>
+        <p class="mt-[1cqw] text-[3.3cqw] text-text-mute">{{ club.court }} · {{ club.from }} às {{ club.until }}</p>
+
+        <div class="mt-[3.6cqw] grid grid-cols-2 gap-[2cqw]">
+          <div class="rounded-[4cqw] border border-win/40 bg-win/10 p-[3.2cqw]">
+            <p class="font-mono text-[2.4cqw] uppercase tracking-[0.1em] text-win">Vagas · Lista cheia</p>
+            <p class="mt-[0.8cqw] font-display text-[5.8cqw] font-800 leading-none">{{ club.spots }} de {{ club.spots }}</p>
+          </div>
+          <div class="rounded-[4cqw] border border-line bg-surface-1 p-[3.2cqw]">
+            <p class="font-mono text-[2.4cqw] uppercase tracking-[0.1em] text-text-dim">Por atleta</p>
+            <p class="mt-[0.8cqw] font-display text-[5.8cqw] font-800 leading-none">{{ perAthlete }}</p>
+          </div>
+        </div>
+
+        <p class="mt-[4cqw] font-mono text-[2.8cqw] uppercase tracking-[0.12em] text-text-dim">Confirmados</p>
+        <ol class="mt-[2cqw] space-y-[1.6cqw] text-[3.5cqw]">
+          @for (player of players; track player.name; let index = $index) {
+            <li class="flex items-center gap-[3cqw] rounded-[4cqw] border border-line bg-surface-1 px-[3.6cqw] py-[2.4cqw]">
+              <span class="flex size-[6cqw] items-center justify-center rounded-full bg-surface-2 font-mono text-[3cqw] font-700 text-text-mute">{{ index + 1 }}</span>
+              <span class="font-display font-600">{{ player.name }}</span>
+              <span class="ml-auto text-[2.9cqw] font-700" [class]="player.atArena ? 'text-text-mute' : 'text-win'">
+                {{ player.atArena ? 'Paga na arena' : 'Pix pago' }}
+              </span>
+            </li>
+          }
+        </ol>
+        <p class="mt-[1.8cqw] text-[3.1cqw] text-text-dim">e mais {{ morePlayers }} na lista</p>
+
+        <p class="mt-[3.6cqw] font-mono text-[2.8cqw] uppercase tracking-[0.12em] text-text-dim">Próximas sessões</p>
+        <p class="mt-[2cqw] flex items-center justify-between rounded-[4cqw] border border-line bg-surface-1 px-[3.6cqw] py-[2.8cqw] text-[3.4cqw]">
+          <span class="font-display font-600">{{ club.next.when }}, {{ club.from }}</span>
+          <span class="text-text-mute">{{ club.next.taken }} de {{ club.spots }} vagas</span>
+        </p>
+
+        <span class="mt-auto flex h-[12cqw] items-center justify-center rounded-full border border-line-strong font-display text-[4cqw] font-700">
+          Adicionar convidado
+        </span>
+      </div>
+    }
+
+    @case ('tab') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pb-[5cqw] pt-[6cqw]">
+        <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-brand">Comanda · {{ tab.court }}</p>
+        <p class="mt-[1.2cqw] font-display text-[6.6cqw] font-700 leading-tight tracking-tight">{{ tab.who }}</p>
+        <p class="mt-[1cqw] text-[3.3cqw] text-text-mute">Aberta com a locação das {{ tab.time }}</p>
+
+        <p class="mt-[3.6cqw] font-mono text-[2.8cqw] uppercase tracking-[0.12em] text-text-dim">Lançamento rápido</p>
+        <div class="mt-[2cqw] grid grid-cols-2 gap-[1.6cqw] text-[3.2cqw]">
+          @for (product of quickItems; track product.name) {
+            <span class="flex items-center justify-between gap-[2cqw] rounded-[3.4cqw] border border-line px-[3cqw] py-[2.2cqw]">
+              <span class="truncate font-600">{{ product.name }}</span>
+              <span class="flex-none text-text-dim">{{ product.price }}</span>
+            </span>
+          }
+        </div>
+
+        <p class="mt-[3.6cqw] font-mono text-[2.8cqw] uppercase tracking-[0.12em] text-text-dim">Itens lançados</p>
+        <ul class="mt-[2cqw] space-y-[1.6cqw] text-[3.5cqw]">
+          @for (item of tabItems; track item.name) {
+            <li class="flex items-center gap-[3cqw] rounded-[4cqw] border border-line bg-surface-1 px-[3.6cqw] py-[2.5cqw]">
+              <span class="font-mono font-700 text-brand">{{ item.quantity }}×</span>
+              <span class="font-display font-600">{{ item.name }}</span>
+              <span class="ml-auto text-text-mute">{{ item.total }}</span>
+            </li>
+          }
+        </ul>
+
+        <div class="mt-[2.4cqw] rounded-[5cqw] border border-line bg-surface-1 p-[4cqw]">
+          <p class="flex justify-between text-[3.2cqw] text-text-mute"><span>Locação</span><span>{{ rental }} · Pago online</span></p>
+          <p class="mt-[1.2cqw] flex justify-between text-[3.2cqw] text-text-mute"><span>Consumo</span><span>{{ tabTotal }}</span></p>
+          <p class="mt-[3cqw] font-mono text-[2.6cqw] uppercase tracking-[0.12em] text-text-dim">Falta receber</p>
+          <p class="mt-[0.8cqw] font-display text-[8cqw] font-800 leading-none tracking-tight">{{ tabTotal }}</p>
+        </div>
+
+        <div class="mt-[2.4cqw] grid grid-cols-4 gap-[1.6cqw] text-center text-[3cqw] font-600">
+          @for (method of methods; track method; let first = $first) {
+            <span class="rounded-[3cqw] border py-[2cqw]" [class]="first ? 'border-brand/60 bg-brand-tint text-brand' : 'border-line text-text-mute'">{{ method }}</span>
+          }
+        </div>
+
+        <span class="mt-auto flex h-[12.5cqw] items-center justify-center rounded-full bg-brand font-display text-[4.2cqw] font-700 text-on-brand">
+          Fechar conta →
+        </span>
+      </div>
+    }
+
+    @case ('close') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pb-[5cqw] pt-[6cqw]">
+        <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-win">Arena · Hoje</p>
+        <p class="mt-[1.2cqw] font-display text-[6.6cqw] font-700 leading-tight tracking-tight">{{ arena.name }}</p>
+
+        <div class="mt-[4cqw] grid grid-cols-2 gap-[2cqw]">
+          <div class="rounded-[4cqw] border border-win/40 bg-win/10 p-[3.2cqw]">
+            <p class="font-mono text-[2.4cqw] uppercase tracking-[0.1em] text-win">Faturamento</p>
+            <p class="mt-[0.8cqw] whitespace-nowrap font-display text-[5.8cqw] font-800 leading-none">{{ day.revenue }}</p>
+          </div>
+          <div class="rounded-[4cqw] border border-line bg-surface-1 p-[3.2cqw]">
+            <p class="font-mono text-[2.4cqw] uppercase tracking-[0.1em] text-text-dim">Reservas</p>
+            <p class="mt-[0.8cqw] font-display text-[5.8cqw] font-800 leading-none">{{ day.bookings }}</p>
+          </div>
+          <div class="rounded-[4cqw] border border-line bg-surface-1 p-[3.2cqw]">
+            <p class="font-mono text-[2.4cqw] uppercase tracking-[0.1em] text-text-dim">Ocupação</p>
+            <p class="mt-[0.8cqw] font-display text-[5.8cqw] font-800 leading-none">{{ day.occupancy }}%</p>
+          </div>
+          <div class="rounded-[4cqw] border border-line bg-surface-1 p-[3.2cqw]">
+            <p class="font-mono text-[2.4cqw] uppercase tracking-[0.1em] text-text-dim">Pico</p>
+            <p class="mt-[0.8cqw] font-display text-[5.8cqw] font-800 leading-none">{{ day.peak }}</p>
+          </div>
+        </div>
+
+        <div class="mt-[2.4cqw] rounded-[4.5cqw] border border-line bg-surface-1 px-[3.8cqw] pb-[3cqw] pt-[3.4cqw]">
+          <p class="flex items-baseline justify-between">
+            <span class="font-display text-[3.8cqw] font-700">Faturamento</span>
+            <span class="font-mono text-[2.4cqw] uppercase tracking-[0.1em] text-text-dim">Últimos 7 dias</span>
+          </p>
+          <div class="mt-[2.6cqw] flex h-[22cqw] items-end gap-[1.8cqw]">
+            @for (bar of week; track bar.day) {
+              <span class="flex-1 rounded-t-[1.4cqw]" [class]="bar.today ? 'bg-win' : 'bg-fg/20'" [style.height.%]="bar.height"></span>
+            }
+          </div>
+          <div class="mt-[1.2cqw] flex gap-[1.8cqw] text-center font-mono text-[2.3cqw] text-text-dim">
+            @for (bar of week; track bar.day) {
+              <span class="flex-1" [class.text-win]="bar.today">{{ bar.day }}</span>
+            }
+          </div>
+          <p class="mt-[2.6cqw] flex justify-between border-t border-line pt-[2.4cqw] text-[3.2cqw]">
+            <span class="text-text-mute">Hoje: quadras {{ day.courts }}</span>
+            <span class="text-text-mute">comandas {{ day.bar }}</span>
+          </p>
+        </div>
+
+        <div class="mt-[2.4cqw] rounded-[5cqw] border border-line bg-surface-1 p-[4cqw]">
+          <p class="font-mono text-[2.6cqw] uppercase tracking-[0.12em] text-text-dim">Saldo disponível</p>
+          <p class="mt-[1cqw] font-display text-[8cqw] font-800 leading-none tracking-tight">{{ wallet }}</p>
+          <p class="mt-[2cqw] text-[3.2cqw] text-text-mute">Na carteira da arena, com saque por Pix.</p>
+        </div>
+
+        <span class="mt-auto flex h-[12.5cqw] items-center justify-center rounded-full bg-brand font-display text-[4.2cqw] font-700 text-on-brand">
+          Solicitar saque
+        </span>
+      </div>
+    }
+  }
+</app-phone-app-shell>

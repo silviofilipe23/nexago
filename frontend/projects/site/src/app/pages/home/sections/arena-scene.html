@@ -1,0 +1,145 @@
+<section class="nx-night relative bg-black" aria-labelledby="ar-title">
+  <div #stage class="relative isolate flex h-[100svh] min-h-[620px] items-start overflow-hidden pt-24 lg:items-center lg:pt-0">
+    <div class="absolute inset-0 -z-10" aria-hidden="true">
+      <div #backdrop class="absolute inset-0 will-change-transform">
+        <img
+          ngSrc="balcao"
+          ngSrcset="960w, 1920w"
+          [loaderParams]="{ fallback: 1920 }"
+          sizes="100vw"
+          fill
+          alt=""
+          class="object-cover object-[80%_50%]"
+        />
+      </div>
+      <!-- A areia iluminada toma a esquerda da foto, bem onde fica o quadro: o véu pesa desse lado. -->
+      <div class="absolute inset-0 bg-black/35"></div>
+      <div class="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.9)_0%,rgba(0,0,0,0.6)_50%,rgba(0,0,0,0.28)_100%)]"></div>
+      <div class="absolute inset-0 bg-[linear-gradient(to_bottom,#000_0%,transparent_22%,transparent_74%,#000_100%)]"></div>
+      <div class="flash absolute inset-0" [nxReplay]="beat()" [class.hidden]="beat() === 0" [class.flash-win]="closed()"></div>
+    </div>
+
+    <div class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 px-5 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:items-center lg:gap-14">
+      <div>
+        <h2 id="ar-title" class="nx-title text-balance text-xl text-sand sm:text-2xl">Para quem tem arena: casa cheia e caixa em dia.</h2>
+
+        <!-- A agenda do dia vista do balcão: o mesmo quadro da cena da reserva, agora com dono em cada horário. -->
+        <div class="board day mt-5" [class.day-closed]="closed()">
+          <div class="flex items-center gap-4 border-b border-line-strong px-4 py-2.5 text-[13px] font-500 text-text-mute sm:px-6 sm:text-sm">
+            <span class="font-700 text-fg">{{ arena.name }}</span>
+            <span>{{ arena.day }}</span>
+            <span
+              class="status ml-auto rounded-pill px-3 py-1 font-600"
+              [class]="closed() ? 'bg-win/15 text-win' : 'bg-brand-tint text-brand'"
+              [nxReplay]="beat()"
+            >
+              {{ current().status }}
+            </span>
+          </div>
+
+          <table class="agenda">
+            <caption class="sr-only">
+              Agenda de hoje da {{ arena.name }}
+            </caption>
+            <thead>
+              <tr>
+                <td></td>
+                @for (time of times; track time) {
+                  <th scope="col" class="nx-score">{{ time }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows(); track row.court) {
+                <tr>
+                  <th scope="row" class="nx-title">{{ row.court }}</th>
+                  @for (cell of row.cells; track cell.time) {
+                    <td [attr.colspan]="cell.span">
+                      @if (cell.block; as block) {
+                        <span [class]="'slot slot-' + block.kind" [class.slot-now]="cell.now" [class.slot-yours]="cell.yours">
+                          <span class="kind">{{ cell.label }}</span>
+                          <span class="who">{{ block.who }}</span>
+                          @if (cell.tab) {
+                            <svg class="tab-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                              <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3ZM9 8h6M9 12h6" />
+                            </svg>
+                            <span class="sr-only">, com comanda</span>
+                          }
+                        </span>
+                      } @else {
+                        <span class="slot slot-free">livre</span>
+                      }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+
+          <!-- O placar do dia: os três números sobem conforme a agenda enche. -->
+          <dl class="totals">
+            <div class="total">
+              <dt>Faturamento</dt>
+              <dd class="nx-score" [class.text-win]="closed()">
+                <span class="tick" [nxReplay]="revenue()">{{ revenue() }}</span>
+              </dd>
+            </div>
+            <div class="total">
+              <dt>Ocupação</dt>
+              <dd class="nx-score">
+                <span class="tick" [nxReplay]="occupancy()">{{ occupancy() }}%</span>
+              </dd>
+            </div>
+            <div class="total" [class.total-now]="step() === 'tab'">
+              <dt>Comandas</dt>
+              <dd class="nx-score">
+                @if (barOpen()) {
+                  <span class="tick">{{ tabsCount }}</span>
+                  <span class="unit">{{ closed() ? 'fechadas' : 'abertas' }}</span>
+                } @else {
+                  <span class="off" aria-hidden="true">—</span>
+                }
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="mt-6 min-h-[9.5rem] sm:mt-8 sm:min-h-[12rem]" aria-live="polite">
+          <p
+            class="call nx-shout text-[clamp(2.5rem,7.2vw,5.75rem)]"
+            [nxReplay]="beat()"
+            [class.text-brand]="step() === 'club'"
+            [class.text-win]="closed()"
+          >
+            {{ current().call }}
+          </p>
+          <p class="note mt-3 max-w-[30rem] text-pretty text-base leading-relaxed text-fg/80 sm:text-lg" [nxReplay]="beat()">
+            {{ current().note }}
+          </p>
+        </div>
+
+        <div class="mt-5 flex min-h-6 items-center gap-5">
+          <ol class="flex gap-1.5" aria-hidden="true">
+            @for (b of beats; track b.step) {
+              <li class="h-1 w-7 rounded-full transition-colors duration-300" [class]="$index <= beat() ? 'bg-brand' : 'bg-fg/20'"></li>
+            }
+          </ol>
+          @if (closed()) {
+            <a
+              [routerLink]="page"
+              class="cta inline-flex items-center gap-2 rounded-1 text-base font-700 text-fg underline decoration-brand decoration-2 underline-offset-[6px] transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4 focus-visible:ring-offset-black"
+            >
+              Encha a sua: conheça os planos
+            </a>
+          }
+        </div>
+      </div>
+
+      <div class="flex justify-center lg:justify-end">
+        <app-phone-frame class="[--phone-w:232px] sm:[--phone-w:264px] lg:[--phone-w:min(21.5rem,36svh)]" aria-hidden="true">
+          <app-arena-phone [step]="step()" />
+        </app-phone-frame>
+      </div>
+    </div>
+  </div>
+</section>

@@ -12,6 +12,25 @@ import '../../domain/partner.dart';
 import '../benefits_club_navigation.dart';
 import 'partner_visuals.dart';
 
+/// Selo NOVO no canto superior direito dos dois cards: distância das bordas
+/// e largura fixa (o texto que fica embaixo reserva esse espaço).
+const double _badgeInset = AppSpacing.sm;
+const double _badgeWidth = 44;
+const double _badgeGap = 6;
+
+/// Respiro interno dos cards e área da seta, para calcular quanto o texto
+/// precisa recuar e não passar por baixo do selo.
+const double _cardPadding = AppSpacing.md + 2;
+const double _arrowArea = 17 + AppSpacing.sm;
+
+/// Recuo à direita do título do card padrão (ele já termina antes da seta).
+const double _titleBadgeClearance =
+    _badgeInset + _badgeWidth + _badgeGap - _cardPadding - _arrowArea;
+
+/// Recuo à direita da faixa "Oferecido por" (ela vai até a borda do card).
+const double _stripBadgeClearance =
+    _badgeInset + _badgeWidth + _badgeGap - _cardPadding;
+
 /// Card "Clube de Vantagens Nexa" do Hub, de largura inteira, logo abaixo da
 /// grade. Só aparece com a flag ligada ou para quem testa; carregando ou com
 /// erro não ocupa espaço nenhum (o Hub de hoje não pode pular nem quebrar).
@@ -86,65 +105,64 @@ class _HubCardState extends ConsumerState<_HubCard> {
           borderRadius: AppRadii.lgAll,
           side: BorderSide(color: AppColors.brand, width: 1.5),
         ),
-        child: InkWell(
-          onTap: _open,
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.md + 2),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: const BoxDecoration(
-                    color: AppColors.brand,
-                    borderRadius: AppRadii.mdAll,
+        child: _WithCornerBadge(
+          child: InkWell(
+            onTap: _open,
+            child: Padding(
+              padding: const EdgeInsets.all(_cardPadding),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: const BoxDecoration(
+                      color: AppColors.brand,
+                      borderRadius: AppRadii.mdAll,
+                    ),
+                    child: const Icon(
+                      Icons.card_giftcard_rounded,
+                      size: 21,
+                      color: AppColors.canvas,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.card_giftcard_rounded,
-                    size: 21,
-                    color: AppColors.canvas,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text.rich(
-                        TextSpan(
-                          text: 'Clube de Vantagens Nexa ',
-                          children: const [
-                            WidgetSpan(
-                              alignment: PlaceholderAlignment.middle,
-                              child: _NewBadge(),
-                            ),
-                          ],
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            right: _titleBadgeClearance,
+                          ),
+                          child: Text(
+                            'Clube de Vantagens Nexa',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: titleStyle,
+                          ),
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: titleStyle,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        'Descontos dos parceiros NexaGO',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.bodyS.copyWith(
-                          fontSize: 11.5,
-                          height: 1.3,
-                          color: colors.onSurfaceMuted,
+                        const SizedBox(height: 3),
+                        Text(
+                          'Descontos dos parceiros NexaGO',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.bodyS.copyWith(
+                            fontSize: 11.5,
+                            height: 1.3,
+                            color: colors.onSurfaceMuted,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 17,
-                  color: colors.onSurface,
-                ),
-              ],
+                  const SizedBox(width: AppSpacing.sm),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 17,
+                    color: colors.onSurface,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -155,13 +173,36 @@ class _HubCardState extends ConsumerState<_HubCard> {
   void _open() => openBenefitsClub(context, BenefitSource.hubCard);
 }
 
+/// Põe o selo NOVO no canto superior direito do card, por cima do conteúdo.
+/// O selo não recebe toque: o card inteiro continua sendo o botão.
+class _WithCornerBadge extends StatelessWidget {
+  const _WithCornerBadge({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      child,
+      const Positioned(
+        top: _badgeInset,
+        right: _badgeInset,
+        child: IgnorePointer(child: _NewBadge()),
+      ),
+    ],
+  );
+}
+
 class _NewBadge extends StatelessWidget {
   const _NewBadge();
 
+  static const Key badgeKey = Key('benefits-hub-card-new-badge');
+
   @override
   Widget build(BuildContext context) => Container(
+    key: badgeKey,
+    width: _badgeWidth,
     height: 18,
-    padding: const EdgeInsets.symmetric(horizontal: 6),
     decoration: const BoxDecoration(
       color: AppColors.brand,
       borderRadius: AppRadii.smAll,
@@ -181,7 +222,7 @@ class _NewBadge extends StatelessWidget {
 }
 
 /// Card do Hub em modo patrocinador: o mesmo card do clube (borda laranja,
-/// selo NOVO), com a faixa "Oferecido por <parceiro>" no topo. A cor da marca
+/// selo NOVO no canto superior direito), com a faixa "Oferecido por <parceiro>" no topo. A cor da marca
 /// fica só na faixa e no ícone; sem as logos dos parceiros, que repetiam a
 /// marca do patrocinador num card pequeno.
 class _SponsorHubCard extends StatelessWidget {
@@ -214,91 +255,88 @@ class _SponsorHubCard extends StatelessWidget {
           borderRadius: AppRadii.lgAll,
           side: BorderSide(color: AppColors.brand, width: 1.5),
         ),
-        child: InkWell(
-          key: sponsorKey,
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    PartnerLogo(
-                      partner: sponsor,
-                      size: 20,
-                      borderRadius: AppRadii.smAll,
-                      onBrandSurface: true,
+        child: _WithCornerBadge(
+          child: InkWell(
+            key: sponsorKey,
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: _stripBadgeClearance),
+                    child: Row(
+                      children: [
+                        PartnerLogo(
+                          partner: sponsor,
+                          size: 20,
+                          borderRadius: AppRadii.smAll,
+                          onBrandSurface: true,
+                        ),
+                        const SizedBox(width: 7),
+                        Flexible(
+                          child: BenefitsEyebrow(
+                            'Oferecido por ${sponsor.name}',
+                            color: accent,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 7),
-                    Flexible(
-                      child: BenefitsEyebrow(
-                        'Oferecido por ${sponsor.name}',
-                        color: accent,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: brand,
+                          borderRadius: AppRadii.mdAll,
+                        ),
+                        child: Icon(
+                          Icons.card_giftcard_rounded,
+                          size: 21,
+                          color: onPartnerBrand(brand),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: brand,
-                        borderRadius: AppRadii.mdAll,
-                      ),
-                      child: Icon(
-                        Icons.card_giftcard_rounded,
-                        size: 21,
-                        color: onPartnerBrand(brand),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  'Clube de Vantagens Nexa',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTypography.titleS.copyWith(
-                                    fontSize: 14.5,
-                                    color: colors.onSurface,
-                                  ),
-                                ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Clube de Vantagens Nexa',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.titleS.copyWith(
+                                fontSize: 14.5,
+                                color: colors.onSurface,
                               ),
-                              const SizedBox(width: 6),
-                              const _NewBadge(),
-                            ],
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            'Descontos dos parceiros NexaGO',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTypography.bodyS.copyWith(
-                              fontSize: 11.5,
-                              color: colors.onSurfaceMuted,
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 3),
+                            Text(
+                              'Descontos dos parceiros NexaGO',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.bodyS.copyWith(
+                                fontSize: 11.5,
+                                color: colors.onSurfaceMuted,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Icon(
-                      Icons.arrow_forward_rounded,
-                      size: 17,
-                      color: colors.onSurface,
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: AppSpacing.sm),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 17,
+                        color: colors.onSurface,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),

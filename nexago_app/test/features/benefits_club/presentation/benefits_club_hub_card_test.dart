@@ -71,6 +71,24 @@ Future<GoRouter> _pumpHub(
   return router;
 }
 
+/// O selo NOVO fica no canto superior direito do card, sem cobrir [text].
+void _expectBadgeInTopRightCorner(WidgetTester tester, String text) {
+  final card = tester.getRect(find.byKey(_card));
+  final badge = tester.getRect(
+    find.descendant(of: find.byKey(_card), matching: find.text('NOVO')),
+  );
+  expect(card.right - badge.right, lessThan(16), reason: 'encostado à direita');
+  expect(badge.top - card.top, lessThan(16), reason: 'encostado no topo');
+  final covered = tester.getRect(
+    find.descendant(of: find.byKey(_card), matching: find.text(text)),
+  );
+  expect(
+    covered.overlaps(badge),
+    isFalse,
+    reason: '"$text" não passa por baixo do selo',
+  );
+}
+
 void main() {
   testWidgets(
     'flag ligada: card de largura total entre a grade e Organizadores, '
@@ -86,6 +104,7 @@ void main() {
         find.descendant(of: find.byKey(_card), matching: find.text('NOVO')),
         findsOneWidget,
       );
+      _expectBadgeInTopRightCorner(tester, 'Clube de Vantagens Nexa');
       // Sem as bolinhas dos parceiros: nenhuma logo no card padrão.
       expect(
         find.descendant(
@@ -215,11 +234,13 @@ void main() {
 
     expect(find.byKey(_card), findsOneWidget);
     expect(find.text('OFERECIDO POR LINQ TELECOM'), findsOneWidget);
-    // Selo NOVO continua no modo patrocinador.
+    // Selo NOVO continua no modo patrocinador, no canto superior direito.
     expect(
       find.descendant(of: find.byKey(_card), matching: find.text('NOVO')),
       findsOneWidget,
     );
+    _expectBadgeInTopRightCorner(tester, 'OFERECIDO POR LINQ TELECOM');
+    _expectBadgeInTopRightCorner(tester, 'Clube de Vantagens Nexa');
     // Só a logo do patrocinador na faixa: nada de bolinhas dos parceiros.
     expect(
       find.descendant(

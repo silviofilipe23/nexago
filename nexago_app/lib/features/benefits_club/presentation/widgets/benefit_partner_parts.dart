@@ -8,93 +8,193 @@ import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/nexa_icon_square_button.dart';
 import '../../domain/partner.dart';
+import 'partner_cover.dart';
 import 'benefits_club_parts.dart';
 import 'partner_visuals.dart';
 
-/// Topo da tela do parceiro, na cor da marca (passa por baixo da barra de
-/// status): voltar, selo de patrocinador, logo, nome e "Categoria · cidade".
+/// Altura da capa do topo da tela do parceiro (sem a barra de status).
+const double _heroCoverHeight = 170;
+const double _heroLogoSize = 72;
+
+/// Topo da tela do parceiro: a capa (ou a cor da marca) passa por baixo da
+/// barra de status, com voltar, salvar (coração), o selo de prazo ou de
+/// exclusividade e a logo saindo da capa.
 class BenefitPartnerHero extends StatelessWidget {
   const BenefitPartnerHero({
     super.key,
     required this.partner,
-    required this.locationLabel,
     required this.onBack,
+    this.saved,
+    this.onToggleSaved,
+    this.badge,
+    this.badgeIcon = Icons.schedule_rounded,
+    this.locked = false,
   });
 
   final Partner partner;
-  final String locationLabel;
   final VoidCallback onBack;
+
+  /// `null` = o coração some (salvos ainda carregando ou deslogado).
+  final bool? saved;
+  final VoidCallback? onToggleSaved;
+
+  /// "Termina em 3 dias" ou "Exclusivo Squad".
+  final String? badge;
+  final IconData badgeIcon;
+  final bool locked;
+
+  /// O que fica atrás da barra de status é escuro (decide a cor dos ícones).
+  /// Bloqueado sem capa usa a superfície do tema, não a marca.
+  static bool isDark(
+    Partner partner, {
+    required bool locked,
+    required bool themeIsDark,
+  }) {
+    if (partner.coverUrl != null) return true;
+    if (locked) return themeIsDark;
+    return onPartnerBrand(partnerBrandColor(partner)) == AppColors.white;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.themeColors;
     final brand = partnerBrandColor(partner);
-    final ink = onPartnerBrand(brand);
-    return ColoredBox(
-      color: brand,
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
-            AppSpacing.sm,
-            AppSpacing.screenH,
-            22,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  NexaIconSquareButton(
-                    icon: Icons.arrow_back_rounded,
-                    size: benefitsTapTarget,
-                    tooltip: 'Voltar',
-                    iconColor: ink,
-                    background: AppColors.black.withValues(alpha: 0.18),
-                    side: BorderSide(color: ink.withValues(alpha: 0.24)),
-                    onTap: onBack,
-                  ),
-                  const Spacer(),
-                  if (partner.isMasterSponsor) _OfficialPill(ink: ink),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md + 2),
-              Row(
-                children: [
-                  PartnerLogo(
-                    partner: partner,
-                    size: 64,
-                    borderRadius: AppRadii.lgAll,
-                    onBrandSurface: true,
-                  ),
-                  const SizedBox(width: AppSpacing.md + 2),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Semantics(
-                          header: true,
-                          child: Text(
-                            partner.name,
-                            style: AppTypography.titleL.copyWith(color: ink),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        BenefitsEyebrow(
-                          locationLabel,
-                          color: ink.withValues(alpha: 0.8),
-                        ),
-                      ],
+    final hasCover = partner.coverUrl != null;
+    final ink = hasCover
+        ? AppColors.white
+        : locked
+        ? colors.onSurface
+        : onPartnerBrand(brand);
+    final top = MediaQuery.paddingOf(context).top;
+    final saved = this.saved;
+    final onToggleSaved = this.onToggleSaved;
+    final badge = this.badge;
+    return SizedBox(
+      height: top + _heroCoverHeight + _heroLogoSize / 2,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: top + _heroCoverHeight,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (hasCover)
+                  PartnerCover(partner: partner, muted: locked)
+                else
+                  ColoredBox(color: locked ? colors.surfaceRaised : brand),
+                if (hasCover)
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          AppColors.black.withValues(alpha: 0.35),
+                          AppColors.black.withValues(alpha: 0),
+                          AppColors.black.withValues(alpha: 0.55),
+                        ],
+                        stops: const [0, 0.4, 1],
+                      ),
                     ),
                   ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          Positioned(
+            left: AppSpacing.screenH,
+            right: AppSpacing.screenH,
+            top: top + AppSpacing.sm,
+            child: Row(
+              children: [
+                _GlassButton(
+                  icon: Icons.arrow_back_rounded,
+                  tooltip: 'Voltar',
+                  ink: ink,
+                  onTap: onBack,
+                ),
+                const Spacer(),
+                if (partner.isMasterSponsor) ...[
+                  _OfficialPill(ink: ink),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
+                if (saved != null && onToggleSaved != null)
+                  _GlassButton(
+                    key: const Key('benefits-save'),
+                    icon: saved
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    tooltip: saved
+                        ? 'Remover ${partner.name} dos salvos'
+                        : 'Salvar ${partner.name}',
+                    ink: saved ? AppColors.brand : ink,
+                    selected: saved,
+                    onTap: onToggleSaved,
+                  ),
+              ],
+            ),
+          ),
+          if (badge != null)
+            Positioned(
+              right: AppSpacing.screenH,
+              top: top + _heroCoverHeight - 40,
+              child: CoverTag(
+                label: badge,
+                tone: CoverTagTone.warning,
+                icon: badgeIcon,
+                height: 26,
+              ),
+            ),
+          Positioned(
+            left: AppSpacing.screenH,
+            bottom: 0,
+            child: Hero(
+              tag: partnerLogoHeroTag(partner.id),
+              child: PartnerLogo(
+                partner: partner,
+                size: _heroLogoSize,
+                borderRadius: AppRadii.xlAll,
+                ring: BorderSide(color: colors.canvas, width: 4),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _GlassButton extends StatelessWidget {
+  const _GlassButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.ink,
+    required this.onTap,
+    this.selected,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final Color ink;
+  final VoidCallback onTap;
+  final bool? selected;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    selected: selected,
+    child: NexaIconSquareButton(
+      icon: icon,
+      size: benefitsTapTarget,
+      tooltip: tooltip,
+      iconColor: ink,
+      background: AppColors.black.withValues(alpha: 0.35),
+      side: BorderSide(color: AppColors.white.withValues(alpha: 0.22)),
+      onTap: onTap,
+    ),
+  );
 }
 
 class _OfficialPill extends StatelessWidget {
@@ -107,7 +207,7 @@ class _OfficialPill extends StatelessWidget {
     height: 28,
     padding: const EdgeInsets.symmetric(horizontal: 10),
     decoration: BoxDecoration(
-      color: ink.withValues(alpha: 0.16),
+      color: AppColors.black.withValues(alpha: 0.35),
       borderRadius: AppRadii.pillAll,
       border: Border.all(color: ink.withValues(alpha: 0.3)),
     ),
@@ -120,6 +220,40 @@ class _OfficialPill extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// Nome e "Categoria · cidade", ao lado da logo que sai da capa.
+class BenefitPartnerIdentity extends StatelessWidget {
+  const BenefitPartnerIdentity({
+    super.key,
+    required this.partner,
+    required this.locationLabel,
+  });
+
+  final Partner partner;
+  final String locationLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Padding(
+      padding: const EdgeInsets.only(left: _heroLogoSize + AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              partner.name,
+              style: AppTypography.titleL.copyWith(color: colors.onSurface),
+            ),
+          ),
+          const SizedBox(height: 3),
+          BenefitsEyebrow(locationLabel),
+        ],
+      ),
+    );
+  }
 }
 
 /// O benefício em destaque: selo grande em verde, título e descrição.
@@ -168,92 +302,6 @@ class BenefitDetailsCard extends StatelessWidget {
               ),
             ),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Caixa do cupom com o botão "Copiar".
-class BenefitCouponBox extends StatelessWidget {
-  const BenefitCouponBox({
-    super.key,
-    required this.coupon,
-    required this.onCopy,
-  });
-
-  final String coupon;
-  final VoidCallback onCopy;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.md + 2,
-        AppSpacing.md + 2,
-        AppSpacing.md + 2,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.brand.withValues(alpha: 0.06),
-        borderRadius: AppRadii.lgAll,
-        border: Border.all(
-          color: AppColors.brand.withValues(alpha: 0.6),
-          width: 1.5,
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const BenefitsEyebrow('Seu cupom'),
-                const SizedBox(height: AppSpacing.xs),
-                SelectableText(
-                  coupon,
-                  style: AppTypography.mono(
-                    fontSize: 22,
-                    letterSpacing: 1.6,
-                    color: colors.onSurface,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Material(
-            color: colors.surfaceRaised,
-            shape: RoundedRectangleBorder(
-              borderRadius: AppRadii.mdAll,
-              side: AppBorders.strongSide(colors),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              key: const Key('benefits-copy-coupon'),
-              onTap: onCopy,
-              child: Container(
-                height: benefitsTapTarget,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.copy_rounded, size: 16, color: colors.onSurface),
-                    const SizedBox(width: 7),
-                    Text(
-                      'Copiar',
-                      style: AppTypography.labelL.copyWith(
-                        fontSize: 13,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -412,20 +460,26 @@ class BenefitCtaBar extends StatelessWidget {
     this.icon,
     this.busy = false,
     this.buttonKey,
+    this.secondary = false,
   });
 
-  final String label;
+  /// `null` = só a dica (parceiro bloqueado sem destino, como o de nível).
+  final String? label;
   final String? hint;
   final VoidCallback? onPressed;
   final IconData? icon;
   final bool busy;
   final Key? buttonKey;
 
+  /// Botão contornado em laranja ("Conhecer o Squad"), não o de resgate.
+  final bool secondary;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final hint = this.hint;
     final icon = this.icon;
+    final label = this.label;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.canvas,
@@ -444,48 +498,48 @@ class BenefitCtaBar extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(
-                height: 52,
-                child: FilledButton(
-                  key: buttonKey,
-                  onPressed: busy ? null : onPressed,
-                  style: FilledButton.styleFrom(
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: AppRadii.mdAll,
-                    ),
-                  ),
-                  child: busy
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.4,
-                            color: AppColors.canvas,
-                          ),
-                        )
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                label,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.labelL.copyWith(
-                                  fontSize: 15,
-                                ),
-                              ),
+              if (label != null)
+                SizedBox(
+                  height: 52,
+                  child: secondary
+                      ? OutlinedButton(
+                          key: buttonKey,
+                          onPressed: onPressed,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colors.brandText,
+                            backgroundColor: colors.surfaceRaised,
+                            side: BorderSide(
+                              color: AppColors.brand.withValues(alpha: 0.55),
+                              width: 1.5,
                             ),
-                            if (icon != null) ...[
-                              const SizedBox(width: AppSpacing.sm),
-                              Icon(icon, size: 17),
-                            ],
-                          ],
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: AppRadii.mdAll,
+                            ),
+                          ),
+                          child: _label(label, icon),
+                        )
+                      : FilledButton(
+                          key: buttonKey,
+                          onPressed: busy ? null : onPressed,
+                          style: FilledButton.styleFrom(
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: AppRadii.mdAll,
+                            ),
+                          ),
+                          child: busy
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
+                                    color: AppColors.canvas,
+                                  ),
+                                )
+                              : _label(label, icon),
                         ),
                 ),
-              ),
               if (hint != null) ...[
-                const SizedBox(height: 6),
+                if (label != null) const SizedBox(height: 6),
                 Text(
                   hint,
                   textAlign: TextAlign.center,
@@ -501,4 +555,22 @@ class BenefitCtaBar extends StatelessWidget {
       ),
     );
   }
+
+  Widget _label(String text, IconData? icon) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Flexible(
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.labelL.copyWith(fontSize: 15),
+        ),
+      ),
+      if (icon != null) ...[
+        const SizedBox(width: AppSpacing.sm),
+        Icon(icon, size: 17),
+      ],
+    ],
+  );
 }

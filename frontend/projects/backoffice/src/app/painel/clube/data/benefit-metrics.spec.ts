@@ -5,6 +5,8 @@ import {
   metricsCsv,
   partnerMetricRows,
   periodStart,
+  sourceLabel,
+  EVENT_LABELS,
   type BenefitEvent,
   type BenefitEventType,
 } from './benefit-metrics';
@@ -141,5 +143,18 @@ describe('clube: métricas', () => {
       'LinQ Telecom;Clique no botão;1;1',
       'LinQ Telecom;Lead enviado;3;2',
     ]);
+  });
+
+  it('v2: conta "Conseguiu usar?" e reconhece as origens novas', () => {
+    const doc = (type: string, source: string) => benefitEventFromDoc({ type, uid: 'u', partnerId: 'fast-acai', source });
+    expect(doc('use_confirmed', 'my_benefits')?.type).toBe('use_confirmed');
+    expect(doc('use_denied', 'post_game')?.type).toBe('use_denied');
+    const m = aggregateEvents([doc('use_confirmed', 'my_benefits')!, doc('use_denied', 'post_game')!]);
+    const row = partnerMetricRows(m, [FAST])[0]!;
+    expect(row.usedConfirmed).toBe(1);
+    for (const source of ['post_game', 'tournament_day', 'featured', 'search', 'map', 'my_benefits']) {
+      expect(sourceLabel(source)).not.toBe(source);
+    }
+    expect(EVENT_LABELS.use_confirmed).toBe('Confirmou que usou');
   });
 });

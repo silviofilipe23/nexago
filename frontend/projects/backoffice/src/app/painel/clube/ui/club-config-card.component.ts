@@ -1,17 +1,18 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { ConfirmDialogComponent } from '../../ui/confirm-dialog.component';
 import { IconComponent } from '../../ui/icon.component';
 import { ToggleComponent } from '../../ui/toggle.component';
 import { addTester, removeTester, shortName, TESTERS_MAX, type ClubConfig } from '../data/club-config';
 import { clubErrorMessage } from '../data/club-errors';
 import { ClubRepository } from '../data/club.repository';
+import type { Partner } from '../data/partner';
 
 type LoadState = 'loading' | 'ok' | 'error';
 
 /**
- * `appConfig/benefitsClub`: o card do Hub para todos e quem testa. Carrega e grava sozinho; cada
- * mudança regrava o doc inteiro (a rule aceita só os cinco campos). Ligar para todos pede
- * confirmação: o card aparece no Hub de todo atleta na hora.
+ * `appConfig/benefitsClub`: o card do Hub para todos, quem testa e o "modo patrocinador" do card
+ * (`hubSponsorPartnerId`, v2). Carrega e grava sozinho; cada mudança regrava o doc inteiro. Ligar
+ * para todos pede confirmação: o card aparece no Hub de todo atleta na hora.
  */
 @Component({
   selector: 'bo-club-config-card',
@@ -63,6 +64,33 @@ type LoadState = 'loading' | 'ok' | 'error';
           </div>
         </div>
 
+        <div class="sponsor">
+          <label class="kicker" for="cfg-sponsor">Card do Hub oferecido por</label>
+          <select
+            id="cfg-sponsor"
+            class="bo-select"
+            [disabled]="saving()"
+            (change)="setSponsor(value($event))"
+          >
+            <option value="" [selected]="!config().hubSponsorPartnerId">Nenhum (card normal)</option>
+            @for (p of sponsorOptions(); track p.id) {
+              <option [value]="p.id" [selected]="p.id === config().hubSponsorPartnerId">{{ p.name }}</option>
+            }
+            @if (sponsorMissing(); as id) {
+              <option [value]="id" selected>{{ id }} (inativo ou excluído)</option>
+            }
+          </select>
+          <span class="hint">
+            @if (sponsorMissing()) {
+              O parceiro escolhido não está ativo: o app mostra o card normal. Escolha outro ou "Nenhum".
+            } @else if (config().hubSponsorPartnerId) {
+              O card do Hub mostra "Oferecido por" com a cor da marca do parceiro.
+            } @else {
+              Só parceiros ativos. O card vira "Oferecido por &lt;parceiro&gt;" na cor da marca.
+            }
+          </span>
+        </div>
+
         @if (editing()) {
           <form class="add" (submit)="$event.preventDefault(); add()">
             <input
@@ -98,7 +126,7 @@ type LoadState = 'loading' | 'ok' | 'error';
       confirmLabel="Ligar para todos"
       [busy]="saving()"
       [error]="confirmError()"
-      (confirmed)="save(true, config().testerUids)"
+      (confirmed)="save(true, config().testerUids, config().hubSponsorPartnerId)"
       (dismissed)="confirmOn.set(false)"
     />
   `,
@@ -119,6 +147,9 @@ type LoadState = 'loading' | 'ok' | 'error';
     .add .bo-input { flex: 1; }
     .note { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--nx-text-dim); }
     .push { margin-left: auto; flex: none; }
+    .sponsor { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--nx-line); }
+    .sponsor .bo-select { width: auto; min-width: 220px; max-width: 320px; height: 36px; }
+    .hint { font-size: 11.5px; line-height: 1.4; color: var(--nx-text-dim); flex: 1; min-width: 200px; }
     .skeleton { height: 48px; border-radius: var(--nx-r-3); background: var(--nx-surface-1); opacity: 0.6; }
     .bo-spinner.small { width: 13px; height: 13px; border-width: 2px; }
   `,
@@ -126,9 +157,25 @@ type LoadState = 'loading' | 'ok' | 'error';
 export class ClubConfigCardComponent {
   private readonly repository = inject(ClubRepository);
 
+  /** Os parceiros carregados pela aba (para o modo patrocinador). */
+  readonly partners = input<readonly Partner[]>([]);
+
   protected readonly max = TESTERS_MAX;
   protected readonly state = signal<LoadState>('loading');
-  protected readonly config = signal<ClubConfig>({ enabled: false, testerUids: [], updatedAt: null, updatedByName: '' });
+  protected readonly config = signal<ClubConfig>({
+    enabled: false,
+    testerUids: [],
+    hubSponsorPartnerId: null,
+    updatedAt: null,
+    updatedByName: '',
+  });
+  protected readonly sponsorOptions = computed(() => this.partners().filter((p) => p.active));
+  /** O id gravado que não é de um parceiro ativo (a lista ainda carregando conta como ativo). */
+  protected readonly sponsorMissing = computed(() => {
+    const id = this.config().hubSponsorPartnerId;
+    if (!id || this.partners().length === 0) return null;
+    return this.sponsorOptions().some((p) => p.id === id) ? null : id;
+  });
   /** uid → nome. `null` = não existe em `users`; ausente/`undefined` = não deu para saber. */
   private readonly names = signal<ReadonlyMap<string, string | null | undefined>>(new Map());
   protected readonly editing = signal(false);
@@ -174,7 +221,12 @@ export class ClubConfigCardComponent {
       this.confirmOn.set(true);
       return;
     }
-    void this.save(false, this.config().testerUids);
+    void this.save(false, this.config().testerUids, this.config().hubSponsorPartnerId);
+  }
+
+  protected setSponsor(id: string): void {
+    const c = this.config();
+    void this.save(c.enabled, c.testerUids, id || null);
   }
 
   /** Confere o uid em `users/{uid}` antes de gravar: uid errado não testaria nada. */
@@ -194,22 +246,22 @@ export class ClubConfigCardComponent {
       return;
     }
     this.names.update((m) => new Map([...m, ...found]));
-    if (await this.save(this.config().enabled, result.list)) {
+    if (await this.save(this.config().enabled, result.list, this.config().hubSponsorPartnerId)) {
       this.draftUid.set('');
     }
   }
 
   protected remove(uid: string): void {
-    void this.save(this.config().enabled, removeTester(this.config().testerUids, uid));
+    void this.save(this.config().enabled, removeTester(this.config().testerUids, uid), this.config().hubSponsorPartnerId);
   }
 
-  protected async save(enabled: boolean, testerUids: readonly string[]): Promise<boolean> {
+  protected async save(enabled: boolean, testerUids: readonly string[], hubSponsorPartnerId: string | null): Promise<boolean> {
     this.saving.set(true);
     this.error.set('');
     this.confirmError.set(null);
     try {
-      await this.repository.saveConfig(enabled, testerUids);
-      this.config.update((c) => ({ ...c, enabled, testerUids: [...testerUids], updatedAt: new Date() }));
+      await this.repository.saveConfig(enabled, testerUids, hubSponsorPartnerId);
+      this.config.update((c) => ({ ...c, enabled, testerUids: [...testerUids], hubSponsorPartnerId, updatedAt: new Date() }));
       this.confirmOn.set(false);
       return true;
     } catch (error) {
@@ -223,6 +275,6 @@ export class ClubConfigCardComponent {
   }
 
   protected value(event: Event): string {
-    return (event.target as HTMLInputElement).value;
+    return (event.target as HTMLInputElement | HTMLSelectElement).value;
   }
 }

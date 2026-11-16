@@ -7,6 +7,8 @@ import {
   brandTextTone,
   categoriesOf,
   categoryLine,
+  isLocked,
+  lockLabel,
   parseClubSource,
   partnersInCategory,
   type PartnerCategory,
@@ -30,6 +32,8 @@ export class ClubeListComponent {
 
   protected readonly labels = CATEGORY_LABELS;
   protected readonly categoryLine = categoryLine;
+  protected readonly isLocked = isLocked;
+  protected readonly lockLabel = lockLabel;
   protected readonly selected = signal<PartnerCategory | null>(null);
 
   protected readonly categories = computed(() => categoriesOf(this.store.partners()));

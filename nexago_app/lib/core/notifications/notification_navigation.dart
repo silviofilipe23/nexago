@@ -595,6 +595,18 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   final url = appRouteForNotificationUrl(data['url'] as String?);
   if (url != null) return url;
 
+  // Clube de Vantagens (`benefit_partner_new`, `benefit_partner_ending`,
+  // `benefit_expiry_reminder`): o `url` já é `/athlete/clube/<id>?origem=push`;
+  // sem ele, monta pelo `partnerId` (ou abre o clube), sempre com a origem.
+  if (type.startsWith('benefit_')) {
+    final partnerId = (data['partnerId'] as String?)?.trim() ?? '';
+    final path = partnerId.isEmpty
+        ? AppRoutes.benefitsClub
+        : AppRoutes.benefitsPartner
+            .replaceFirst(':partnerId', Uri.encodeComponent(partnerId));
+    return '$path?origem=push';
+  }
+
   // Cashback liberado / vencendo: o backend manda `url: '/cashback'`; sem ele
   // (item antigo do inbox), o tipo ainda leva a Meu cashback.
   if (type.startsWith('cashback_')) return AppRoutes.athleteCashback;

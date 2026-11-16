@@ -81,6 +81,7 @@ type LoadState = 'loading' | 'ok' | 'error';
                 <th scope="col" class="n">Cliques</th>
                 <th scope="col" class="n">Cupom copiado</th>
                 <th scope="col" class="n">Leads</th>
+                <th scope="col" class="n" title="Atletas que responderam que conseguiram usar (não é resgate confirmado pelo parceiro)">Disse que usou</th>
                 <th scope="col" class="n" title="Atletas que clicaram ÷ atletas que viram o parceiro">Clique / visita</th>
               </tr>
             </thead>
@@ -93,13 +94,14 @@ type LoadState = 'loading' | 'ok' | 'error';
                   <td class="n">{{ count(r.clicks) }}</td>
                   <td class="n">{{ r.couponApplies ? count(r.codeCopies) : '—' }}</td>
                   <td class="n">{{ r.leadApplies ? count(r.leads) : '—' }}</td>
+                  <td class="n">{{ count(r.usedConfirmed) }}</td>
                   <td class="n strong">{{ rate(r.clickRate) }}</td>
                 </tr>
               }
             </tbody>
           </table>
         </div>
-        <p class="foot">Visualizações, cliques e cupons são toques (o mesmo atleta em 30 s conta uma vez). Atletas, leads e clique/visita são atletas únicos.</p>
+        <p class="foot">Visualizações, cliques e cupons são toques (o mesmo atleta em 30 s conta uma vez). Atletas, leads, "disse que usou" e clique/visita são atletas únicos. Economia só com resgate confirmado (aba Resgates).</p>
       }
     </section>
 
@@ -135,7 +137,7 @@ type LoadState = 'loading' | 'ok' | 'error';
     h2 { margin: 0; font-family: var(--nx-font-display); font-weight: 700; font-size: 15px; color: var(--nx-text); }
     .meta { font-size: 12px; color: var(--nx-text-dim); }
     .wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; min-width: 640px; }
+    table { width: 100%; border-collapse: collapse; min-width: 720px; }
     th { text-align: left; font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--nx-text-dim); padding: 9px 10px; border-bottom: 1px solid var(--nx-line); white-space: nowrap; }
     td { padding: 12px 10px; border-bottom: 1px solid var(--nx-line); font-size: 13px; color: var(--nx-text-mute); }
     tr:last-child td { border-bottom: none; }

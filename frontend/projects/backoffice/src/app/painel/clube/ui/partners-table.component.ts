@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { PillComponent } from '../../ui/pill.component';
 import { ToggleComponent } from '../../ui/toggle.component';
 import { AUDIENCE_LABELS, CATEGORY_LABELS, ctaSummary, type Partner } from '../data/partner';
+import { endingLabel, outsideWindow, requirementSummary } from '../data/partner-premium';
 import { PartnerLogoComponent } from './partner-logo.component';
 
 export interface PartnerActiveChange {
@@ -41,6 +42,15 @@ export interface PartnerActiveChange {
                     @if (p.isMasterSponsor) {
                       <bo-pill tone="orange">Patrocinador oficial</bo-pill>
                     }
+                    @if (p.featured) {
+                      <bo-pill tone="orange">Destaque</bo-pill>
+                    }
+                    @if (p.requirement.type !== 'none') {
+                      <bo-pill tone="dim">Requisito: {{ requirement(p.requirement) }}</bo-pill>
+                    }
+                    @if (windowNote(p); as w) {
+                      <bo-pill tone="yellow">{{ w }}</bo-pill>
+                    }
                   </div>
                 </div>
               </td>
@@ -67,6 +77,7 @@ export interface PartnerActiveChange {
                 />
               </td>
               <td class="end">
+                <a class="bo-mini-btn" [routerLink]="['/painel/clube/parceiros', p.id, 'relatorio']" [attr.aria-label]="'Relatório de ' + p.name">Relatório</a>
                 <a class="bo-mini-btn" [routerLink]="['/painel/clube/parceiros', p.id]">Editar</a>
               </td>
             </tr>
@@ -85,7 +96,8 @@ export interface PartnerActiveChange {
     tr.off td { opacity: 0.7; }
     .n { text-align: right; }
     .mono { font-family: var(--nx-font-mono); color: var(--nx-text); }
-    .end { text-align: right; }
+    .end { text-align: right; white-space: nowrap; }
+    .end .bo-mini-btn + .bo-mini-btn { margin-left: 6px; }
     .who { display: flex; align-items: center; gap: 12px; min-width: 0; }
     .names { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
     .name { font-family: var(--nx-font-display); font-weight: 700; font-size: 13.5px; color: var(--nx-text); }
@@ -105,4 +117,14 @@ export class PartnersTableComponent {
   protected readonly categories = CATEGORY_LABELS;
   protected readonly audiences = AUDIENCE_LABELS;
   protected readonly cta = ctaSummary;
+  protected readonly requirement = requirementSummary;
+
+  /** "Começa 01/12", "Terminou", "Termina em 3 dias": a validade que muda o que o app mostra. */
+  protected windowNote(p: Partner): string | null {
+    const now = new Date();
+    const out = outsideWindow(p.startsAt, p.validUntil, now);
+    if (out === 'before') return `Começa ${p.startsAt!.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`;
+    if (out === 'after') return 'Terminou';
+    return endingLabel(p.validUntil, now);
+  }
 }

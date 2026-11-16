@@ -16,6 +16,10 @@ void openBenefitsClub(BuildContext context, BenefitSource source) =>
       queryParameters: _originQuery(source),
     );
 
+/// "Meus benefícios" (usados e salvos).
+void openMyBenefits(BuildContext context) =>
+    context.pushNamed(AppRouteNames.benefitsMine);
+
 void openBenefitsPartner(
   BuildContext context,
   String partnerId,

@@ -447,7 +447,10 @@ abstract final class AppRoutes {
 
   /// Clube de Vantagens Nexa: vitrine, parceiro e formulário "Quero
   /// contratar". A origem da visita vai em `?origem=` (ver `BenefitSource`).
+  /// `benefitsMine` é literal e deve vir ANTES de [benefitsPartner] no router
+  /// (senão "meus" casa como :partnerId).
   static const String benefitsClub = '/athlete/clube';
+  static const String benefitsMine = '/athlete/clube/meus';
   static const String benefitsPartner = '/athlete/clube/:partnerId';
   static const String benefitsPartnerLead =
       '/athlete/clube/:partnerId/contratar';
@@ -1319,6 +1322,7 @@ abstract final class AppRouteNames {
   static const String blogSaved = 'blogSaved';
   static const String blogPost = 'blogPost';
   static const String benefitsClub = 'benefitsClub';
+  static const String benefitsMine = 'benefitsMine';
   static const String benefitsPartner = 'benefitsPartner';
   static const String benefitsPartnerLead = 'benefitsPartnerLead';
   static const String athleteCashback = 'athleteCashback';

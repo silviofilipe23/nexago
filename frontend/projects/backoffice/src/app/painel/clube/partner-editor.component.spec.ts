@@ -3,7 +3,17 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import { ClubRepository } from './data/club.repository';
-import { emptyPartnerForm, formFromPartner, partnerFromDoc, partnerPayload, type Partner, type PartnerPayload } from './data/partner';
+import type { PrivateCouponWrite } from './data/club.repository';
+import {
+  emptyPartnerForm,
+  formFromPartner,
+  partnerFromDoc,
+  partnerPayload,
+  partnerPrivateFromDoc,
+  type Partner,
+  type PartnerPayload,
+  type PartnerPrivate,
+} from './data/partner';
 import { PartnerEditorComponent } from './partner-editor.component';
 
 const FAST: Partner = partnerFromDoc('fast-acai', {
@@ -25,13 +35,17 @@ const FAST: Partner = partnerFromDoc('fast-acai', {
 
 describe('PartnerEditorComponent', () => {
   let create: jasmine.Spy<(id: string, payload: PartnerPayload) => Promise<void>>;
-  let update: jasmine.Spy<(id: string, payload: PartnerPayload) => Promise<void>>;
+  let update: jasmine.Spy<(id: string, payload: PartnerPayload, priv?: PrivateCouponWrite) => Promise<void>>;
+  let notify: jasmine.Spy;
   let navigate: jasmine.Spy;
   let fixture: { componentInstance: PartnerEditorComponent };
 
-  async function mount(id: string): Promise<HTMLElement> {
+  async function mount(id: string, priv: PartnerPrivate = partnerPrivateFromDoc(undefined)): Promise<HTMLElement> {
     create = jasmine.createSpy('createPartner').and.resolveTo();
     update = jasmine.createSpy('updatePartner').and.resolveTo();
+    notify = jasmine.createSpy('notifyPartner').and.callFake((_id: string, _kind: string, dryRun: boolean) =>
+      Promise.resolve(dryRun ? { recipients: 12, sent: 0 } : { recipients: 12, sent: 11 }),
+    );
     await TestBed.configureTestingModule({
       imports: [PartnerEditorComponent],
       providers: [
@@ -48,6 +62,9 @@ describe('PartnerEditorComponent', () => {
             updatePartner: update,
             deletePartner: jasmine.createSpy('deletePartner').and.resolveTo(),
             uploadLogo: jasmine.createSpy('uploadLogo'),
+            uploadCover: jasmine.createSpy('uploadCover'),
+            partnerPrivate: () => Promise.resolve(priv),
+            notifyPartner: notify,
           },
         },
       ],
@@ -129,11 +146,72 @@ describe('PartnerEditorComponent', () => {
     const [id, payload] = update.calls.mostRecent().args;
     expect(id).toBe('fast-acai');
     expect(payload).toEqual({ ...partnerPayload(formFromPartner(FAST)), benefitHighlight: '15% OFF' });
-    expect(Object.keys(payload).length).toBe(21);
+    // 21 campos da v1 + 10 da versão premium (allowlist da rule, sem autoria).
+    expect(Object.keys(payload).length).toBe(31);
     expect(payload.link).toBe('https://fast.example');
     expect(payload.couponCode).toBe('NEXAGO10');
     expect(create).not.toHaveBeenCalled();
     expect(fixture.componentInstance.canLeave()).toBeTrue();
+  });
+
+  const buttonByText = (host: Element, text: string) =>
+    [...host.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent!.trim() === text)!;
+
+  it('requisito: o cupom fixo sai do doc público e vai para o privado no mesmo lote', async () => {
+    const host = await mount('fast-acai');
+    buttonByText(host.querySelector('bo-partner-premium-fields')!, 'Squad').click();
+    await settle();
+    expect(host.querySelector('bo-partner-preview')!.textContent).toContain('Exclusivo para embaixadores do Squad');
+
+    saveButton(host).click();
+    await settle();
+    const [, payload, priv] = update.calls.mostRecent().args;
+    expect(payload.requirement).toEqual({ type: 'squad' });
+    expect(payload.couponCode).toBeNull();
+    expect(priv).toEqual({ couponCode: 'NEXAGO10' });
+  });
+
+  it('sem requisito, um cupom que sobrou no privado é limpo no mesmo lote', async () => {
+    const host = await mount('fast-acai', { couponCode: 'SQUAD20', notifiedNewAt: null, notifiedEndingAt: null });
+    // FAST não tem requisito: o form usa o cupom público.
+    expect((field(host, 'Código fixo') as HTMLInputElement).value).toBe('NEXAGO10');
+    type(host, 'Selo curto', '20% OFF');
+    await settle();
+    saveButton(host).click();
+    await settle();
+    expect(update.calls.mostRecent().args[2]).toEqual({ couponCode: null });
+  });
+
+  it('aviso já enviado aparece com a data e o botão fica desligado', async () => {
+    const host = await mount('fast-acai', { couponCode: null, notifiedNewAt: new Date(2026, 10, 10, 9, 0), notifiedEndingAt: null });
+    const notifyBox = host.querySelector('bo-partner-notify')!;
+    expect(notifyBox.textContent).toContain('Enviado em 10/11/2026');
+    expect(notifyBox.querySelectorAll<HTMLButtonElement>('.row button')[0]!.disabled).toBeTrue();
+  });
+
+  it('avisar atletas: conta antes (dryRun), confirma com o número e envia', async () => {
+    const host = await mount('fast-acai');
+    const avisar = host.querySelectorAll<HTMLButtonElement>('bo-partner-notify .row button');
+    expect(avisar[1]!.disabled).toBeTrue(); // "Oferta acabando" sem data de fim
+    avisar[0]!.click();
+    await settle();
+    expect(notify).toHaveBeenCalledWith('fast-acai', 'new', true);
+    expect(host.querySelector('bo-partner-notify bo-confirm-dialog')!.textContent).toContain('Vai para 12 pessoas');
+
+    buttonByText(host, 'Enviar push').click();
+    await settle();
+    expect(notify).toHaveBeenCalledWith('fast-acai', 'new', false);
+    expect(host.querySelector('bo-partner-notify')!.textContent).toContain('enviado para 11 de 12 pessoas');
+    expect(avisar[0]!.disabled).toBeTrue();
+  });
+
+  it('avisar fica desligado com alteração não salva', async () => {
+    const host = await mount('fast-acai');
+    type(host, 'Selo curto', '15% OFF');
+    await settle();
+    const avisar = host.querySelectorAll<HTMLButtonElement>('bo-partner-notify .row button');
+    expect(avisar[0]!.disabled).toBeTrue();
+    expect(host.querySelector('bo-partner-notify')!.textContent).toContain('Salve as alterações');
   });
 
   it('id que não existe mostra "Parceiro não encontrado"', async () => {

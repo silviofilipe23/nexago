@@ -4,6 +4,10 @@
 /// tolerante a campo faltando ou com tipo errado.
 library;
 
+import 'partner_extras.dart';
+
+export 'partner_extras.dart';
+
 /// Categoria do parceiro. A ordem do enum é a ordem dos chips da tela do clube.
 enum PartnerCategory {
   food('food', 'Alimentação'),
@@ -99,6 +103,17 @@ class Partner {
     this.audience = PartnerAudience.all,
     this.leadConsentText,
     this.leadSuccessMessage,
+    this.coverUrl,
+    this.startsAt,
+    this.validUntil,
+    this.createdAt,
+    this.featured = false,
+    this.placements = const [],
+    this.couponUrlParam,
+    this.termsTags = const [],
+    this.locations = const [],
+    this.requirement = PartnerRequirement.none,
+    this.requirementLabel,
   });
 
   /// Lê o doc sem confiar em nenhum campo: ausente ou com tipo errado vira o
@@ -128,6 +143,20 @@ class Partner {
       audience: PartnerAudience.fromKey(d['audience']),
       leadConsentText: _textOrNull(d['leadConsentText']),
       leadSuccessMessage: _textOrNull(d['leadSuccessMessage']),
+      coverUrl: _httpsOrNull(d['coverUrl']),
+      startsAt: readPartnerDate(d['startsAt']),
+      validUntil: readPartnerDate(d['validUntil']),
+      createdAt: readPartnerDate(d['createdAt']),
+      featured: d['featured'] == true,
+      placements: readPartnerEnumList(
+        d['placements'],
+        PartnerPlacement.fromKey,
+      ),
+      couponUrlParam: _couponParamOrNull(d['couponUrlParam']),
+      termsTags: readPartnerEnumList(d['termsTags'], PartnerTermsTag.fromKey),
+      locations: readPartnerLocations(d['locations']),
+      requirement: PartnerRequirement.fromMap(d['requirement']),
+      requirementLabel: _textOrNull(d['requirementLabel']),
     );
   }
 
@@ -164,6 +193,36 @@ class Partner {
   final PartnerAudience audience;
   final String? leadConsentText;
   final String? leadSuccessMessage;
+
+  /// Foto de capa 16:9 (só https).
+  final String? coverUrl;
+
+  /// Antes disso o parceiro não aparece.
+  final DateTime? startsAt;
+
+  /// Depois disso some; nos 7 dias antes mostra "Termina em N dias".
+  final DateTime? validUntil;
+
+  /// Gravado pelo backoffice; "Novo" nos primeiros 14 dias.
+  final DateTime? createdAt;
+
+  /// Candidato ao "Destaque da semana".
+  final bool featured;
+
+  /// Onde mais o benefício aparece (pós-jogo, dia de torneio).
+  final List<PartnerPlacement> placements;
+
+  /// Se definido, o link leva `&<param>=<cupom>`.
+  final String? couponUrlParam;
+  final List<PartnerTermsTag> termsTags;
+  final List<PartnerLocation> locations;
+
+  /// Quem pode usar; com requisito o `couponCode` público vem `null` e o
+  /// cupom sai da callable `claimBenefit`.
+  final PartnerRequirement requirement;
+
+  /// Frase do bloqueio ("Exclusivo para embaixadores do Squad").
+  final String? requirementLabel;
 }
 
 String _text(Object? value) => value is String ? value.trim() : '';
@@ -171,6 +230,22 @@ String _text(Object? value) => value is String ? value.trim() : '';
 String? _textOrNull(Object? value) {
   final text = _text(value);
   return text.isEmpty ? null : text;
+}
+
+String? _httpsOrNull(Object? value) {
+  final text = _text(value);
+  final uri = Uri.tryParse(text);
+  if (uri == null || uri.scheme.toLowerCase() != 'https' || uri.host.isEmpty) {
+    return null;
+  }
+  return text;
+}
+
+final RegExp _couponParamPattern = RegExp(r'^[A-Za-z0-9_]{1,30}$');
+
+String? _couponParamOrNull(Object? value) {
+  final text = _text(value);
+  return _couponParamPattern.hasMatch(text) ? text : null;
 }
 
 List<String> _texts(Object? value) {

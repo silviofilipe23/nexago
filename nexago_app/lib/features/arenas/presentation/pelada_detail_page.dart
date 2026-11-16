@@ -7,6 +7,8 @@ import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../athlete/presentation/booking_details_page.dart';
+import '../../benefits_club/domain/partner_extras.dart';
+import '../../benefits_club/presentation/widgets/benefits_game_moment_card.dart';
 import '../domain/arena_booking_success_actions.dart';
 import '../domain/booking_result.dart';
 import '../domain/booking_result_record.dart';
@@ -265,6 +267,12 @@ class _Body extends StatelessWidget {
           const SizedBox(height: 10),
           _BookingLink(saved: saved, onTap: onOpenBooking),
         ],
+        // Clube de Vantagens no pós-jogo: sem parceiro elegível ou com o
+        // clube invisível para a pessoa, não ocupa espaço.
+        const BenefitsGameMomentCard(
+          placement: PartnerPlacement.postGame,
+          padding: EdgeInsets.only(top: 20),
+        ),
       ],
     );
   }

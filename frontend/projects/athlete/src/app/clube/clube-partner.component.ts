@@ -13,6 +13,9 @@ import {
   emphasize,
   heroLine,
   howToUseSteps,
+  isLocked,
+  lockLabel,
+  LOCKED_BENEFIT_NOTICE,
   parseClubSource,
   trackedPartnerUrl,
 } from './clube.logic';
@@ -47,8 +50,10 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /**
- * `/clube/:partnerId`: hero na cor da marca, benefício, "Como usar", termos e o card lateral com
- * o cupom e o botão. Link abre o site do parceiro (nova aba, marcado); formulário abre o modal.
+ * `/clube/:partnerId`: hero na cor da marca (com a capa, se houver), benefício, "Como usar", termos
+ * e o card lateral com o cupom e o botão. Link abre o site do parceiro (nova aba, marcado);
+ * formulário abre o modal. Parceiro com requisito fica bloqueado: sem cupom, sem botão, sem "Como
+ * usar" e sem eventos de uso; o benefício sai só no app.
  */
 @Component({
   selector: 'app-clube-partner',
@@ -70,6 +75,15 @@ export class ClubePartnerComponent {
   });
 
   protected readonly partner = computed(() => this.store.partner(this.partnerId()));
+  protected readonly locked = computed(() => {
+    const p = this.partner();
+    return !!p && isLocked(p);
+  });
+  protected readonly lockText = computed(() => {
+    const p = this.partner();
+    return p ? lockLabel(p) : '';
+  });
+  protected readonly lockedNotice = LOCKED_BENEFIT_NOTICE;
   protected readonly darkText = computed(() => {
     const p = this.partner();
     return !!p && brandTextTone(p.brandColor) === 'dark';
@@ -81,11 +95,11 @@ export class ClubePartnerComponent {
   protected readonly ctaUrl = computed(() => {
     const p = this.partner();
     const uid = this.store.uid();
-    return p?.ctaType === 'link' && uid ? trackedPartnerUrl(p.link, athleteCode(uid)) : null;
+    return p?.ctaType === 'link' && uid && !isLocked(p) ? trackedPartnerUrl(p.link, athleteCode(uid)) : null;
   });
   protected readonly steps = computed(() => {
     const p = this.partner();
-    if (!p) return [];
+    if (!p || isLocked(p)) return [];
     const coupon = this.coupon();
     return howToUseSteps(p, coupon).map((step) => emphasize(step, [p.ctaLabel, coupon]));
   });
@@ -121,7 +135,7 @@ export class ClubePartnerComponent {
   protected async copyCoupon(): Promise<void> {
     const p = this.partner();
     const code = this.coupon();
-    if (!p || !code) return;
+    if (!p || !code || isLocked(p)) return;
     const focused = document.activeElement as HTMLElement | null;
     const copied = await copyText(code);
     focused?.focus();
@@ -140,12 +154,12 @@ export class ClubePartnerComponent {
   /** Link: o `<a>` abre a nova aba sozinho; aqui só conta o clique. */
   protected onLinkClick(): void {
     const p = this.partner();
-    if (p) this.store.track('cta_click', this.source, p.id);
+    if (p && !isLocked(p)) this.store.track('cta_click', this.source, p.id);
   }
 
   protected openLead(): void {
     const p = this.partner();
-    if (!p) return;
+    if (!p || isLocked(p)) return;
     this.store.track('cta_click', this.source, p.id);
     this.leadOpen.set(true);
   }

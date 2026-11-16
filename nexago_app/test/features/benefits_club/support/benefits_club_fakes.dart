@@ -3,17 +3,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/location/user_location_providers.dart';
+import 'package:nexago_app/core/location/user_location_snapshot.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
+import 'package:nexago_app/features/benefits_club/application/benefits_club_onboarding_store.dart';
 import 'package:nexago_app/features/benefits_club/application/benefits_club_providers.dart';
 import 'package:nexago_app/features/benefits_club/domain/benefit_event.dart';
 import 'package:nexago_app/features/benefits_club/domain/benefits_club_config.dart';
 import 'package:nexago_app/features/benefits_club/domain/benefits_club_repository.dart';
+import 'package:nexago_app/features/benefits_club/domain/my_benefits.dart';
 import 'package:nexago_app/features/benefits_club/domain/partner.dart';
 import 'package:nexago_app/features/benefits_club/domain/partner_lead.dart';
 import 'package:nexago_app/features/benefits_club/presentation/benefit_partner_page.dart';
 import 'package:nexago_app/features/benefits_club/presentation/benefits_club_page.dart';
+import 'package:nexago_app/features/benefits_club/presentation/my_benefits_page.dart';
 import 'package:nexago_app/features/benefits_club/presentation/partner_lead_form_page.dart';
 
 const testUid = 'abcd1234';
@@ -24,12 +29,20 @@ typedef TrackedEvent = ({
   String? partnerId,
 });
 
-/// Callables do clube sem Firebase: guarda eventos e leads.
+/// Callables do clube sem Firebase: guarda eventos, leads, resgates e
+/// respostas; `getMyBenefits` devolve [myBenefits].
 class FakeBenefitsClubService implements BenefitsClubService {
+  FakeBenefitsClubService({this.myBenefits = MyBenefits.empty});
+
   final events = <TrackedEvent>[];
   final leads = <PartnerLeadSubmission>[];
+  final claims = <String>[];
+  final answers = <({String partnerId, bool used})>[];
   String successMessage = 'Pronto! A LinQ vai falar com você pelo WhatsApp';
   Exception? leadError;
+  Exception? claimError;
+  String? claimCoupon = 'SQUAD20';
+  MyBenefits myBenefits;
 
   List<TrackedEvent> of(BenefitEventType type) =>
       events.where((e) => e.type == type).toList();
@@ -50,7 +63,84 @@ class FakeBenefitsClubService implements BenefitsClubService {
     leads.add(lead);
     return successMessage;
   }
+
+  @override
+  Future<String?> claimBenefit({
+    required String partnerId,
+    required BenefitSource source,
+  }) async {
+    final error = claimError;
+    if (error != null) throw error;
+    claims.add(partnerId);
+    return claimCoupon;
+  }
+
+  @override
+  Future<MyBenefits> getMyBenefits() async => myBenefits;
+
+  @override
+  Future<void> answerBenefitUse({
+    required String partnerId,
+    required bool used,
+  }) async {
+    answers.add((partnerId: partnerId, used: used));
+  }
 }
+
+/// Salvos sem Firestore (a vitrine e a flag vêm pelos overrides).
+class FakeBenefitsClubRepository implements BenefitsClubRepository {
+  FakeBenefitsClubRepository({Set<String> saved = const {}})
+    : _saved = {...saved};
+
+  final Set<String> _saved;
+  final _controller = StreamController<Set<String>>.broadcast();
+  final writes = <({String partnerId, bool saved})>[];
+
+  Set<String> get saved => Set.unmodifiable(_saved);
+
+  @override
+  Stream<List<Partner>> watchActivePartners() => const Stream.empty();
+
+  @override
+  Stream<BenefitsClubConfig> watchConfig() => const Stream.empty();
+
+  @override
+  Stream<Set<String>> watchSavedPartnerIds(String uid) async* {
+    yield saved;
+    yield* _controller.stream;
+  }
+
+  @override
+  Future<void> setSaved({
+    required String uid,
+    required String partnerId,
+    required bool saved,
+  }) async {
+    writes.add((partnerId: partnerId, saved: saved));
+    saved ? _saved.add(partnerId) : _saved.remove(partnerId);
+    _controller.add(this.saved);
+  }
+}
+
+/// "Como funciona o clube" já visto (ou não, com [seen] falso).
+class FakeOnboardingStore extends BenefitsClubOnboardingStore {
+  FakeOnboardingStore({this.seen = true});
+
+  bool seen;
+  int marks = 0;
+
+  @override
+  Future<bool> hasSeenHowItWorks(String uid) async => seen;
+
+  @override
+  Future<void> markHowItWorksSeen(String uid) async {
+    marks++;
+    seen = true;
+  }
+}
+
+/// Relógio fixo dos testes (16/11/2026, meio-dia).
+final DateTime testNow = DateTime(2026, 11, 16, 12);
 
 const fastAcai = Partner(
   id: 'fast-acai',
@@ -101,25 +191,44 @@ List<Override> benefitsOverrides({
   BenefitsClubConfig config = const BenefitsClubConfig(enabled: true),
   Stream<BenefitsClubConfig>? configStream,
   List<Partner> partners = const [fastAcai, linq],
+  Stream<List<Partner>>? partnersStream,
   String uid = testUid,
   bool isAdmin = false,
   AthleteProfile? profile = athleteProfile,
+  FakeBenefitsClubRepository? repository,
+  FakeOnboardingStore? onboarding,
+  UserLocationSnapshot location = const UserLocationSnapshot(
+    source: UserLocationSource.none,
+  ),
+  DateTime? memberSince,
+  DateTime? now,
 }) => [
   benefitsClubUidProvider.overrideWithValue(uid),
   benefitsClubConfigProvider.overrideWith(
     (ref) => configStream ?? Stream.value(config),
   ),
   benefitsClubIsAdminProvider.overrideWith((ref) async => isAdmin),
-  benefitsActivePartnersProvider.overrideWith((ref) => Stream.value(partners)),
+  benefitsActivePartnersProvider.overrideWith(
+    (ref) => partnersStream ?? Stream.value(partners),
+  ),
   athleteProfileProvider.overrideWith((ref) => Stream.value(profile)),
   benefitsClubServiceProvider.overrideWithValue(service),
+  benefitsClubRepositoryProvider.overrideWithValue(
+    repository ?? FakeBenefitsClubRepository(),
+  ),
+  benefitsOnboardingStoreProvider.overrideWithValue(
+    onboarding ?? FakeOnboardingStore(),
+  ),
+  userLocationProvider.overrideWith((ref) async => location),
+  benefitsMemberSinceProvider.overrideWithValue(memberSince),
+  benefitsClockProvider.overrideWithValue(() => now ?? testNow),
 ];
 
 BenefitSource _source(GoRouterState state) => BenefitSource.fromQuery(
   state.uri.queryParameters[BenefitSource.queryParam],
 );
 
-/// As três rotas do clube (como no app_router) mais uma Início de mentira.
+/// As quatro rotas do clube (como no app_router) mais uma Início de mentira.
 GoRouter benefitsTestRouter(String initialLocation) => GoRouter(
   initialLocation: initialLocation,
   routes: [
@@ -131,6 +240,11 @@ GoRouter benefitsTestRouter(String initialLocation) => GoRouter(
       path: AppRoutes.benefitsClub,
       name: AppRouteNames.benefitsClub,
       builder: (_, state) => BenefitsClubPage(source: _source(state)),
+    ),
+    GoRoute(
+      path: AppRoutes.benefitsMine,
+      name: AppRouteNames.benefitsMine,
+      builder: (_, __) => const MyBenefitsPage(),
     ),
     GoRoute(
       path: AppRoutes.benefitsPartner,

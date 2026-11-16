@@ -13,6 +13,9 @@ export const BENEFIT_EVENT_TYPES = [
   'cta_click',
   'code_copy',
   'lead_submit',
+  // v2: resposta do "Conseguiu usar?" (gravada pelo servidor).
+  'use_confirmed',
+  'use_denied',
 ] as const;
 export type BenefitEventType = (typeof BENEFIT_EVENT_TYPES)[number];
 
@@ -24,6 +27,8 @@ export const EVENT_LABELS: Record<BenefitEventType, string> = {
   cta_click: 'Clique no botão',
   code_copy: 'Cupom copiado',
   lead_submit: 'Lead enviado',
+  use_confirmed: 'Confirmou que usou',
+  use_denied: 'Disse que não conseguiu usar',
 };
 
 /** Origem da visita (`source` do evento e do lead). */
@@ -35,6 +40,13 @@ export const SOURCE_LABELS: Record<string, string> = {
   push: 'Push',
   club_list: 'Lista do clube',
   sponsor_banner: 'Banner do patrocinador',
+  // v2
+  post_game: 'Pós-jogo',
+  tournament_day: 'Dia de torneio',
+  featured: 'Destaque da semana',
+  search: 'Busca',
+  map: 'Mapa',
+  my_benefits: 'Meus benefícios',
   unknown: 'Não informada',
 };
 
@@ -202,6 +214,8 @@ export interface PartnerMetricRow {
   clickers: number;
   codeCopies: number;
   leads: number;
+  /** Atletas que responderam "usei" no "Conseguiu usar?" (não é resgate confirmado pelo parceiro). */
+  usedConfirmed: number;
   /** Atletas que clicaram ÷ atletas que viram. `null` sem visita. */
   clickRate: number | null;
   /** Cupom e lead só fazem sentido em parte dos parceiros: o resto mostra "—". */
@@ -231,6 +245,7 @@ export function partnerMetricRows(metrics: BenefitMetrics, partners: readonly Pa
         clickers: c.cta_click.athletes,
         codeCopies: c.code_copy.total,
         leads: c.lead_submit.athletes,
+        usedConfirmed: c.use_confirmed.athletes,
         clickRate: c.partner_view.athletes > 0 ? c.cta_click.athletes / c.partner_view.athletes : null,
         couponApplies: p ? p.couponMode !== 'none' || c.code_copy.total > 0 : true,
         leadApplies: p ? p.ctaType === 'lead_form' || c.lead_submit.total > 0 : true,

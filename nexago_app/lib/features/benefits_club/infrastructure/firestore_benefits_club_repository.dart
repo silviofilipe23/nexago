@@ -5,8 +5,9 @@ import '../domain/benefits_club_repository.dart';
 import '../domain/partner.dart';
 
 /// Vitrine (`partners`) e flag (`appConfig/benefitsClub`) direto do Firestore:
-/// as rules liberam leitura para quem está logado. `benefitEvents` e
-/// `partnerLeads` o app não lê nem grava — só pelas callables.
+/// as rules liberam leitura para quem está logado. Salvos em
+/// `users/{uid}/benefits` (o dono só grava `saved`/`savedAt`). `benefitEvents`
+/// e `partnerLeads` o app não lê nem grava — só pelas callables.
 class FirestoreBenefitsClubRepository implements BenefitsClubRepository {
   FirestoreBenefitsClubRepository(this._db);
 
@@ -32,4 +33,23 @@ class FirestoreBenefitsClubRepository implements BenefitsClubRepository {
       .doc('appConfig/benefitsClub')
       .snapshots()
       .map((snap) => BenefitsClubConfig.fromMap(snap.data()));
+
+  @override
+  Stream<Set<String>> watchSavedPartnerIds(String uid) => _benefits(uid)
+      .where('saved', isEqualTo: true)
+      .snapshots()
+      .map((snap) => Set.unmodifiable(snap.docs.map((doc) => doc.id)));
+
+  @override
+  Future<void> setSaved({
+    required String uid,
+    required String partnerId,
+    required bool saved,
+  }) => _benefits(uid).doc(partnerId).set({
+    'saved': saved,
+    'savedAt': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
+
+  CollectionReference<Map<String, dynamic>> _benefits(String uid) =>
+      _db.collection('users').doc(uid).collection('benefits');
 }

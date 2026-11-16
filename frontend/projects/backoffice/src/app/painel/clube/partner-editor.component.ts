@@ -39,15 +39,26 @@ import {
   normalizeColor,
   parseSteps,
   partnerPayload,
+  privateCouponCode,
   uniquePartnerId,
   validatePartnerForm,
   type PartnerForm,
+  type PartnerFormErrors,
   type PartnerFormField,
+  type PartnerPrivate,
 } from './data/partner';
+import type { PrivateCouponWrite } from './data/club.repository';
 import { PartnerLogoComponent } from './ui/partner-logo.component';
+import { PartnerNotifyComponent } from './ui/partner-notify.component';
+import { PartnerPremiumFieldsComponent } from './ui/partner-premium-fields.component';
 import { PartnerPreviewComponent } from './ui/partner-preview.component';
 
 type LoadState = 'loading' | 'ok' | 'missing' | 'error';
+
+/** O que conta como "alterado": o doc público e o cupom privado (parceiro com requisito). */
+function snapshotOf(form: PartnerForm): string {
+  return JSON.stringify({ doc: partnerPayload(form), privateCoupon: privateCouponCode(form) });
+}
 
 /**
  * Editor de parceiro do clube (`/painel/clube/parceiros/:id`, `novo` = criar). O id é o slug do
@@ -69,6 +80,8 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
     ConfirmDialogComponent,
     PartnerLogoComponent,
     PartnerPreviewComponent,
+    PartnerPremiumFieldsComponent,
+    PartnerNotifyComponent,
   ],
   template: `
     <bo-panel-shell>
@@ -78,6 +91,9 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
         }
         <a class="bo-mini-btn" routerLink="/painel/clube">Voltar</a>
         @if (!isNew() && state() === 'ok') {
+          <a class="bo-mini-btn" [routerLink]="['/painel/clube/parceiros', partnerId(), 'relatorio']">
+            <bo-icon name="file" [size]="13" /> Relatório
+          </a>
           <button type="button" class="bo-mini-btn danger" [disabled]="busy()" (click)="openDelete()">
             <bo-icon name="trash" [size]="13" /> Excluir
           </button>
@@ -277,7 +293,7 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                         </div>
                       </div>
                       @if (form().couponMode === 'fixed') {
-                        <bo-field label="Código fixo" hint="O mesmo para todos: NEXAGO10.">
+                        <bo-field label="Código fixo" [hint]="form().requirementType === 'none' ? 'O mesmo para todos: NEXAGO10.' : 'Guardado à parte: só quem pode usar recebe.'">
                           <span class="counted">
                             <input class="bo-input mono" [class.invalid]="err('couponCode')" [value]="form().couponCode" (input)="patch({ couponCode: text($event) })" (blur)="touch('couponCode')" />
                             <span class="count" [class.over]="len(form().couponCode) > limits.coupon">{{ len(form().couponCode) }}/{{ limits.coupon }}</span>
@@ -290,6 +306,15 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                         <p class="explain">Cada atleta vê o próprio código (NEXA- + 4 caracteres do cadastro). Combine com o parceiro antes.</p>
                       }
                     </div>
+
+                    @if (form().ctaType === 'link' && form().couponMode !== 'none') {
+                      <bo-field label="Cupom na URL (opcional)" [hint]="urlParamHint()">
+                        <input class="bo-input mono" placeholder="coupon" maxlength="30" [class.invalid]="err('couponUrlParam')" [value]="form().couponUrlParam" (input)="patch({ couponUrlParam: text($event) })" (blur)="touch('couponUrlParam')" />
+                        @if (err('couponUrlParam'); as e) {
+                          <span class="err">{{ e }}</span>
+                        }
+                      </bo-field>
+                    }
 
                     @if (form().ctaType === 'lead_form') {
                       <bo-field label="Texto do consentimento (opcional)" [hint]="len(form().leadConsentText) + '/' + limits.consent + ' · Vazio usa o padrão mostrado. O texto aceito fica guardado em cada lead.'">
@@ -307,6 +332,17 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                     }
                   </div>
                 </bo-panel-card>
+
+                <bo-partner-premium-fields
+                  [form]="form()"
+                  [errors]="visibleErrors()"
+                  [showLocationErrors]="submitted() || touched().has('locations')"
+                  [partnerId]="partnerId() ?? newId() ?? ''"
+                  [disabled]="saving()"
+                  (patch)="patch($event)"
+                  (touch)="touch($event)"
+                  (uploadingChange)="coverUploading.set($event)"
+                />
 
                 <bo-panel-card title="Publicação">
                   <div class="g3">
@@ -335,10 +371,20 @@ type LoadState = 'loading' | 'ok' | 'missing' | 'error';
                     </div>
                   </div>
                 </bo-panel-card>
+
+                @if (!isNew()) {
+                  <bo-partner-notify
+                    [partnerId]="partnerId()"
+                    [context]="notifyContext()"
+                    [privateInfo]="privateInfo()"
+                    [privateError]="privateError()"
+                    (notified)="reloadPrivate()"
+                  />
+                }
               </div>
 
               <aside class="rail">
-                <bo-partner-preview [partner]="payload()" />
+                <bo-partner-preview [partner]="payload()" [createdAt]="savedCreatedAt()" [unsaved]="isNew()" />
               </aside>
             </div>
           }
@@ -449,12 +495,19 @@ export class PartnerEditorComponent {
   protected readonly loadError = signal('');
   protected readonly form = signal<PartnerForm>(emptyPartnerForm());
   /** O payload como está gravado (ou o do form em branco, no novo): base do "não salvo". */
-  private readonly savedJson = signal(JSON.stringify(partnerPayload(emptyPartnerForm())));
+  private readonly savedJson = signal(snapshotOf(emptyPartnerForm()));
   protected readonly savedName = signal('');
   private readonly existingIds = signal<ReadonlySet<string>>(new Set());
 
-  private readonly touched = signal<ReadonlySet<PartnerFormField>>(new Set());
-  private readonly submitted = signal(false);
+  protected readonly touched = signal<ReadonlySet<PartnerFormField>>(new Set());
+  protected readonly submitted = signal(false);
+  protected readonly coverUploading = signal(false);
+  /** `partnerPrivate/{id}` como lido: cupom de parceiro com requisito e avisos já enviados. */
+  protected readonly privateInfo = signal<PartnerPrivate | null>(null);
+  protected readonly privateError = signal(false);
+  protected readonly savedCreatedAt = signal<Date | null>(null);
+  private readonly savedActive = signal(false);
+  private readonly savedValidUntil = signal<Date | null>(null);
   protected readonly saving = signal(false);
   protected readonly uploadPercent = signal<number | null>(null);
   protected readonly logoError = signal('');
@@ -468,8 +521,26 @@ export class PartnerEditorComponent {
 
   protected readonly payload = computed(() => partnerPayload(this.form()));
   protected readonly errors = computed(() => validatePartnerForm(this.form()));
-  protected readonly dirty = computed(() => JSON.stringify(this.payload()) !== this.savedJson());
-  protected readonly busy = computed(() => this.saving() || this.uploadPercent() !== null);
+  protected readonly dirty = computed(() => snapshotOf(this.form()) !== this.savedJson());
+  protected readonly busy = computed(() => this.saving() || this.uploadPercent() !== null || this.coverUploading());
+  /** Os erros que a tela mostra: dos campos tocados, ou todos depois de tentar salvar. */
+  protected readonly visibleErrors = computed<PartnerFormErrors>(() => {
+    const all = this.errors();
+    if (this.submitted()) return all;
+    const touched = this.touched();
+    return Object.fromEntries(Object.entries(all).filter(([field]) => touched.has(field as PartnerFormField)));
+  });
+  /** O aviso leva o que está gravado: ativo e fim do doc salvo, não do form. */
+  protected readonly notifyContext = computed(() => ({
+    saved: !this.isNew(),
+    dirty: this.dirty(),
+    active: this.savedActive(),
+    validUntil: this.savedValidUntil(),
+  }));
+  protected readonly urlParamHint = computed(() => {
+    const param = this.form().couponUrlParam.trim() || 'coupon';
+    return `O link leva &${param}=<cupom>. Só se o site do parceiro aceitar; vazio = não manda.`;
+  });
   protected readonly canSave = computed(() => this.state() === 'ok' && !this.busy() && (this.isNew() || this.dirty()));
   /** Id que o parceiro novo vai ganhar (slug do nome, sem repetir). */
   protected readonly newId = computed(() => (this.isNew() ? uniquePartnerId(this.form().name, this.existingIds()) : null));
@@ -520,15 +591,44 @@ export class PartnerEditorComponent {
         this.state.set('missing');
         return;
       }
-      const form = formFromPartner(partner);
+      const priv = await this.readPrivate(id);
+      const form = formFromPartner(partner, priv?.couponCode ?? null);
       this.form.set(form);
-      this.savedJson.set(JSON.stringify(partnerPayload(form)));
+      this.savedJson.set(snapshotOf(form));
       this.savedName.set(partner.name);
+      this.savedCreatedAt.set(partner.createdAt);
+      this.savedActive.set(partner.active);
+      this.savedValidUntil.set(partner.validUntil);
       this.state.set('ok');
     } catch (error) {
       this.loadError.set(clubErrorMessage(error));
       this.state.set('error');
     }
+  }
+
+  /**
+   * `partnerPrivate` é só admin e chegou na v2: sem leitura (rule ainda não publicada, rede), o
+   * editor segue e avisa; o cupom privado fica vazio e a validação pede para preencher de novo.
+   */
+  private async readPrivate(id: string): Promise<PartnerPrivate | null> {
+    try {
+      const priv = await this.repository.partnerPrivate(id);
+      this.privateInfo.set(priv);
+      this.privateError.set(false);
+      return priv;
+    } catch {
+      this.privateInfo.set(null);
+      this.privateError.set(true);
+      return null;
+    }
+  }
+
+  protected async reloadPrivate(): Promise<void> {
+    const id = this.partnerId();
+    if (id === null) return;
+    const priv = await this.readPrivate(id);
+    // Só atualiza os avisos: o cupom do form pode ter alteração não salva.
+    if (priv) this.privateInfo.set(priv);
   }
 
   protected patch(change: Partial<PartnerForm>): void {
@@ -587,6 +687,7 @@ export class PartnerEditorComponent {
       return;
     }
     const payload = this.payload();
+    const privateWrite = this.privateWrite();
     const existingId = this.partnerId();
     const id = existingId ?? this.newId();
     if (!id) {
@@ -596,12 +697,17 @@ export class PartnerEditorComponent {
     this.saving.set(true);
     try {
       if (existingId === null) {
-        await this.repository.createPartner(id, payload);
+        await this.repository.createPartner(id, payload, privateWrite);
       } else {
-        await this.repository.updatePartner(id, payload);
+        await this.repository.updatePartner(id, payload, privateWrite);
       }
-      this.savedJson.set(JSON.stringify(payload));
+      this.savedJson.set(snapshotOf(this.form()));
       this.savedName.set(payload.name);
+      this.savedActive.set(payload.active);
+      this.savedValidUntil.set(payload.validUntil);
+      if (privateWrite) {
+        this.privateInfo.update((p) => ({ notifiedNewAt: null, notifiedEndingAt: null, ...p, couponCode: privateWrite.couponCode }));
+      }
       this.submitted.set(false);
       this.touched.set(new Set());
       this.showNotice(this.savedMessage(existingId === null, payload.active));
@@ -623,6 +729,16 @@ export class PartnerEditorComponent {
     }
   }
 
+  /**
+   * O que gravar em `partnerPrivate`: o código do parceiro com requisito; `null` para limpar um
+   * código que havia (o parceiro deixou de ter requisito); nada quando não há o que mudar.
+   */
+  private privateWrite(): PrivateCouponWrite {
+    const code = privateCouponCode(this.form());
+    if (code !== null) return { couponCode: code };
+    return this.privateInfo()?.couponCode ? { couponCode: null } : undefined;
+  }
+
   private savedMessage(created: boolean, active: boolean): string {
     if (!active) return created ? 'Parceiro criado, desligado: ainda não aparece no app.' : 'Alterações salvas. O parceiro está desligado.';
     return created ? 'Parceiro criado. Já aparece no clube do app.' : 'Alterações salvas. O app já mostra a versão nova.';
@@ -641,7 +757,7 @@ export class PartnerEditorComponent {
     try {
       await this.repository.deletePartner(id);
       // Nada mais a salvar: sai sem o "Sair sem salvar?".
-      this.savedJson.set(JSON.stringify(this.payload()));
+      this.savedJson.set(snapshotOf(this.form()));
       this.deleteOpen.set(false);
       await this.router.navigate(['/painel/clube']);
     } catch (error) {

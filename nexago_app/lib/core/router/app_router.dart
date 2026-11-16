@@ -180,6 +180,7 @@ import '../../features/blog/presentation/blog_post_page.dart';
 import '../../features/benefits_club/domain/benefit_event.dart';
 import '../../features/benefits_club/presentation/benefit_partner_page.dart';
 import '../../features/benefits_club/presentation/benefits_club_page.dart';
+import '../../features/benefits_club/presentation/my_benefits_page.dart';
 import '../../features/benefits_club/presentation/partner_lead_form_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
 import '../../features/weather/presentation/booking_weather_choice_page.dart';
@@ -1692,6 +1693,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             state.uri.queryParameters[BenefitSource.queryParam],
           ),
         ),
+      ),
+      // Literal antes de `:partnerId` (senão "meus" vira id de parceiro).
+      GoRoute(
+        path: AppRoutes.benefitsMine,
+        name: AppRouteNames.benefitsMine,
+        builder: (context, state) => const MyBenefitsPage(),
       ),
       GoRoute(
         path: AppRoutes.benefitsPartner,

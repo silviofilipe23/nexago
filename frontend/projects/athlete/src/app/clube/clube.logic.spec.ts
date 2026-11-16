@@ -1,5 +1,6 @@
 import {
   CATEGORY_LABELS,
+  DEFAULT_REQUIREMENT_LABEL,
   FALLBACK_BRAND_COLOR,
   athleteCode,
   brandTextTone,
@@ -17,16 +18,21 @@ import {
   heroLine,
   howToUseSteps,
   isAdminClaims,
+  isLocked,
   isTester,
+  lockLabel,
   maskCep,
   masterSponsor,
   parseClubSource,
   partnerFromDoc,
   partnerInitials,
   partnersInCategory,
+  requirementFromDoc,
+  toMillisOrNull,
   trackedPartnerUrl,
   validateLead,
   visiblePartners,
+  withinWindow,
   type LeadFormInput,
   type Partner,
 } from './clube.logic';
@@ -55,6 +61,11 @@ function partner(overrides: Partial<Partner> = {}): Partner {
     audience: 'all',
     leadConsentText: null,
     leadSuccessMessage: null,
+    coverUrl: null,
+    startsAt: null,
+    validUntil: null,
+    requirement: { type: 'none' },
+    requirementLabel: null,
     ...overrides,
   };
 }
@@ -143,6 +154,95 @@ describe('clube.logic — partnerFromDoc', () => {
   });
 });
 
+describe('clube.logic — campos da v2 (capa, validade, requisito)', () => {
+  const NOW = Date.UTC(2026, 10, 16, 12);
+
+  it('doc antigo, sem os campos novos, vira parceiro sem capa, sem janela e sem requisito', () => {
+    const p = partnerFromDoc('fast-acai', { name: 'Fast Açaí' })!;
+    expect(p.coverUrl).toBeNull();
+    expect(p.startsAt).toBeNull();
+    expect(p.validUntil).toBeNull();
+    expect(p.requirement).toEqual({ type: 'none' });
+    expect(p.requirementLabel).toBeNull();
+    expect(isLocked(p)).toBeFalse();
+  });
+
+  it('capa só https', () => {
+    expect(partnerFromDoc('x', { name: 'X', coverUrl: ' https://cdn.example.com/c.jpg ' })!.coverUrl)
+      .toBe('https://cdn.example.com/c.jpg');
+    expect(partnerFromDoc('x', { name: 'X', coverUrl: 'http://cdn.example.com/c.jpg' })!.coverUrl).toBeNull();
+    expect(partnerFromDoc('x', { name: 'X', coverUrl: 'javascript:alert(1)' })!.coverUrl).toBeNull();
+    expect(partnerFromDoc('x', { name: 'X', coverUrl: 7 })!.coverUrl).toBeNull();
+  });
+
+  it('datas: Timestamp (toMillis/toDate), {seconds}, Date e ms; o resto vira null', () => {
+    expect(toMillisOrNull({ toMillis: () => NOW, toDate: () => new Date(0) })).toBe(NOW);
+    expect(toMillisOrNull({ toDate: () => new Date(NOW) })).toBe(NOW);
+    expect(toMillisOrNull({ seconds: NOW / 1000, nanoseconds: 5_000_000 })).toBe(NOW + 5);
+    expect(toMillisOrNull(new Date(NOW))).toBe(NOW);
+    expect(toMillisOrNull(NOW)).toBe(NOW);
+    expect(toMillisOrNull(null)).toBeNull();
+    expect(toMillisOrNull(undefined)).toBeNull();
+    expect(toMillisOrNull('2026-11-16')).toBeNull();
+    expect(toMillisOrNull(new Date('não é data'))).toBeNull();
+    expect(toMillisOrNull(Number.NaN)).toBeNull();
+    expect(toMillisOrNull({ toMillis: () => { throw new Error('x'); } })).toBeNull();
+    expect(toMillisOrNull({ toDate: () => 'ontem' })).toBeNull();
+  });
+
+  it('partnerFromDoc lê startsAt/validUntil do Timestamp', () => {
+    const p = partnerFromDoc('x', {
+      name: 'X',
+      startsAt: { toMillis: () => NOW - 1000 },
+      validUntil: { toDate: () => new Date(NOW + 1000) },
+    })!;
+    expect(p.startsAt).toBe(NOW - 1000);
+    expect(p.validUntil).toBe(NOW + 1000);
+  });
+
+  it('janela: antes do início e depois do fim fica fora; bordas e datas ausentes ficam dentro', () => {
+    expect(withinWindow({ startsAt: null, validUntil: null }, NOW)).toBeTrue();
+    expect(withinWindow({ startsAt: NOW + 1, validUntil: null }, NOW)).toBeFalse();
+    expect(withinWindow({ startsAt: NOW, validUntil: null }, NOW)).toBeTrue();
+    expect(withinWindow({ startsAt: null, validUntil: NOW - 1 }, NOW)).toBeFalse();
+    expect(withinWindow({ startsAt: null, validUntil: NOW }, NOW)).toBeTrue();
+  });
+
+  it('requirement: ausente, estranho ou tipo desconhecido = none', () => {
+    expect(requirementFromDoc(undefined)).toEqual({ type: 'none' });
+    expect(requirementFromDoc('squad')).toEqual({ type: 'none' });
+    expect(requirementFromDoc({ type: 'vip' })).toEqual({ type: 'none' });
+    expect(requirementFromDoc({ type: 'none' })).toEqual({ type: 'none' });
+  });
+
+  it('requirement: tipos conhecidos ficam bloqueados mesmo com detalhe estranho', () => {
+    expect(requirementFromDoc({ type: 'squad' })).toEqual({ type: 'squad' });
+    expect(requirementFromDoc({ type: 'tournament', tournamentIds: ['t1', '', 'a/b', 3] }))
+      .toEqual({ type: 'tournament', tournamentIds: ['t1'] });
+    expect(requirementFromDoc({ type: 'tournament' })).toEqual({ type: 'tournament', tournamentIds: [] });
+    expect(requirementFromDoc({ type: 'min_level', minLevel: ' advanced ' })).toEqual({ type: 'min_level', minLevel: 'advanced' });
+    expect(requirementFromDoc({ type: 'min_level' })).toEqual({ type: 'min_level', minLevel: null });
+  });
+
+  it('requirementLabel: até 80 caracteres; vazio usa o padrão no cadeado', () => {
+    const long = 'x'.repeat(100);
+    expect(partnerFromDoc('x', { name: 'X', requirementLabel: long })!.requirementLabel!.length).toBe(80);
+    expect(partnerFromDoc('x', { name: 'X', requirementLabel: '   ' })!.requirementLabel).toBeNull();
+    const squad = partnerFromDoc('x', { name: 'X', requirement: { type: 'squad' }, requirementLabel: 'Exclusivo do Squad' })!;
+    expect(isLocked(squad)).toBeTrue();
+    expect(lockLabel(squad)).toBe('Exclusivo do Squad');
+    expect(lockLabel(partner({ requirement: { type: 'squad' } }))).toBe(DEFAULT_REQUIREMENT_LABEL);
+    expect(DEFAULT_REQUIREMENT_LABEL).toBe('Benefício exclusivo');
+  });
+
+  it('parceiro bloqueado nunca mostra cupom, nem o código do atleta', () => {
+    const locked = { requirement: { type: 'squad' } as const };
+    expect(couponFor({ couponMode: 'fixed', couponCode: 'NEXAGO10', ...locked }, 'abcd1234')).toBeNull();
+    expect(couponFor({ couponMode: 'athlete', couponCode: null, ...locked }, 'abcd1234')).toBeNull();
+    expect(couponFor(partner({ requirement: { type: 'none' } }), 'abcd1234')).toBe('NEXAGO10');
+  });
+});
+
 describe('clube.logic — config e quem testa', () => {
   it('config ausente é clube desligado sem testadores', () => {
     expect(clubConfigFromDoc(undefined)).toEqual({ enabled: false, testerUids: [] });
@@ -198,6 +298,23 @@ describe('clube.logic — visiblePartners', () => {
     const input = [b, a];
     expect(visiblePartners(input, false, null).map((p) => p.id)).toEqual(['a', 'b']);
     expect(input.map((p) => p.id)).toEqual(['b', 'a']);
+  });
+
+  it('esconde parceiro fora da janela de validade e mantém o bloqueado na vitrine', () => {
+    const now = Date.UTC(2026, 10, 16, 12);
+    const future = partner({ id: 'future', name: 'Futuro', startsAt: now + 60_000 });
+    const expired = partner({ id: 'expired', name: 'Vencido', validUntil: now - 60_000 });
+    const current = partner({ id: 'current', name: 'Vigente', startsAt: now - 60_000, validUntil: now + 60_000 });
+    const locked = partner({ id: 'locked', name: 'Squad', requirement: { type: 'squad' } });
+    const list = visiblePartners([future, expired, current, locked], false, null, now);
+    expect(list.map((p) => p.id)).toEqual(['locked', 'current']);
+    expect(visiblePartners([future], false, null, now + 60_000).map((p) => p.id)).toEqual(['future']);
+  });
+
+  it('sem `now` usa o relógio atual', () => {
+    const expired = partner({ id: 'expired', validUntil: Date.now() - 60_000 });
+    const open = partner({ id: 'open', validUntil: Date.now() + 3_600_000 });
+    expect(visiblePartners([expired, open], false, null).map((p) => p.id)).toEqual(['open']);
   });
 
   it('patrocinador oficial e categorias presentes', () => {

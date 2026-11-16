@@ -1,6 +1,11 @@
 <app-at-panel-shell [userName]="store.accountLabel()">
   @if (partner(); as p) {
-    <div class="cp-hero" [class.cp-hero--dark-text]="darkText()" [style.--clube-brand]="p.brandColor">
+    <div class="cp-hero" [class.cp-hero--dark-text]="darkText()" [class.cp-hero--cover]="!!p.coverUrl" [style.--clube-brand]="p.brandColor">
+      @if (p.coverUrl; as cover) {
+        <div class="cp-cover">
+          <img [src]="cover" alt="" width="1280" height="720" decoding="async" />
+        </div>
+      }
       <a class="cp-back" routerLink="/clube" [queryParams]="linkQuery">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
         Clube de Vantagens
@@ -27,18 +32,20 @@
           }
         </section>
 
-        <section class="cp-card" aria-labelledby="cp-steps-title">
-          <h2 class="cp-kicker" id="cp-steps-title">Como usar</h2>
-          <ol class="cp-steps">
-            @for (step of steps(); track $index) {
-              <li class="cp-step">
-                <span class="cp-step-n" aria-hidden="true">{{ $index + 1 }}</span>
-                <!-- Numa linha só: quebra de linha entre os pedaços vira espaço antes do ponto. -->
-                <span>@for (part of step; track $index) {@if (part.strong) {<b>{{ part.text }}</b>} @else {<span>{{ part.text }}</span>}}</span>
-              </li>
-            }
-          </ol>
-        </section>
+        @if (!locked()) {
+          <section class="cp-card" aria-labelledby="cp-steps-title">
+            <h2 class="cp-kicker" id="cp-steps-title">Como usar</h2>
+            <ol class="cp-steps">
+              @for (step of steps(); track $index) {
+                <li class="cp-step">
+                  <span class="cp-step-n" aria-hidden="true">{{ $index + 1 }}</span>
+                  <!-- Numa linha só: quebra de linha entre os pedaços vira espaço antes do ponto. -->
+                  <span>@for (part of step; track $index) {@if (part.strong) {<b>{{ part.text }}</b>} @else {<span>{{ part.text }}</span>}}</span>
+                </li>
+              }
+            </ol>
+          </section>
+        }
 
         @if (p.terms) {
           <section class="cp-card" aria-labelledby="cp-terms-title">
@@ -49,51 +56,61 @@
       </div>
 
       <div class="cp-col cp-col--side">
-        <section class="cp-card cp-card--cta" [attr.aria-label]="coupon() ? 'Seu cupom' : 'Aproveitar o benefício'">
-          @if (coupon(); as code) {
-            <h2 class="cp-kicker">Seu cupom</h2>
-            <div class="cp-code">
-              <span class="cp-code-value">{{ code }}</span>
-              <button type="button" class="cp-copy" [class.cp-copy--done]="copyState() === 'copied'" (click)="copyCoupon()">
-                @if (copyState() === 'copied') {
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>
-                  Copiado
-                } @else {
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a1 1 0 0 1 1-1h10" /></svg>
-                  Copiar
-                }
-              </button>
+        @if (locked()) {
+          <section class="cp-card cp-card--cta cp-card--locked" aria-labelledby="cp-lock-title">
+            <div class="cp-lock">
+              <span class="cp-lock-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg></span>
+              <h2 class="cp-lock-title" id="cp-lock-title">{{ lockText() }}</h2>
             </div>
-            <p class="cp-sr" role="status" aria-live="polite">
-              @if (copyState() === 'copied') {
-                Cupom {{ code }} copiado.
+            <p class="cp-lock-notice">{{ lockedNotice }}</p>
+          </section>
+        } @else {
+          <section class="cp-card cp-card--cta" [attr.aria-label]="coupon() ? 'Seu cupom' : 'Aproveitar o benefício'">
+            @if (coupon(); as code) {
+              <h2 class="cp-kicker">Seu cupom</h2>
+              <div class="cp-code">
+                <span class="cp-code-value">{{ code }}</span>
+                <button type="button" class="cp-copy" [class.cp-copy--done]="copyState() === 'copied'" (click)="copyCoupon()">
+                  @if (copyState() === 'copied') {
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>
+                    Copiado
+                  } @else {
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a1 1 0 0 1 1-1h10" /></svg>
+                    Copiar
+                  }
+                </button>
+              </div>
+              <p class="cp-sr" role="status" aria-live="polite">
+                @if (copyState() === 'copied') {
+                  Cupom {{ code }} copiado.
+                }
+              </p>
+              @if (copyState() === 'failed') {
+                <p class="cp-copy-failed" role="alert">Não deu para copiar. Selecione o código e copie manualmente.</p>
               }
-            </p>
-            @if (copyState() === 'failed') {
-              <p class="cp-copy-failed" role="alert">Não deu para copiar. Selecione o código e copie manualmente.</p>
             }
-          }
 
-          @if (p.ctaType === 'lead_form') {
-            <button type="button" class="cp-cta" (click)="openLead()">
-              {{ p.ctaLabel }}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-            </button>
-          } @else if (ctaUrl(); as url) {
-            <a class="cp-cta" [href]="url" target="_blank" rel="noopener" (click)="onLinkClick()">
-              {{ p.ctaLabel }}
-              <span class="cp-sr">(abre numa nova aba)</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></svg>
-            </a>
-          } @else {
-            <button type="button" class="cp-cta" disabled>{{ p.ctaLabel }}</button>
-          }
-          <p class="cp-hint">{{ hint() }}</p>
-        </section>
+            @if (p.ctaType === 'lead_form') {
+              <button type="button" class="cp-cta" (click)="openLead()">
+                {{ p.ctaLabel }}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </button>
+            } @else if (ctaUrl(); as url) {
+              <a class="cp-cta" [href]="url" target="_blank" rel="noopener" (click)="onLinkClick()">
+                {{ p.ctaLabel }}
+                <span class="cp-sr">(abre numa nova aba)</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></svg>
+              </a>
+            } @else {
+              <button type="button" class="cp-cta" disabled>{{ p.ctaLabel }}</button>
+            }
+            <p class="cp-hint">{{ hint() }}</p>
+          </section>
+        }
       </div>
     </div>
 
-    @if (leadOpen()) {
+    @if (leadOpen() && !locked()) {
       <app-clube-lead-modal
         [partner]="p"
         [profile]="store.profile()"

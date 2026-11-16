@@ -70,6 +70,15 @@ describe('ClubStore', () => {
     expect(store.sponsor()?.id).toBe('linq');
   });
 
+  it('parceiro vencido ou que ainda não começou fica fora da vitrine', async () => {
+    const expired = { ...FAST, id: 'expired', validUntil: Date.now() - 60_000 };
+    const future = { ...FAST, id: 'future', startsAt: Date.now() + 3_600_000 };
+    partners = [FAST, expired, future];
+    const store = setup();
+    await store.reload();
+    expect(store.partners().map((p) => p.id)).toEqual(['fast-acai']);
+  });
+
   it('flag desligada para quem não testa: clube fechado', async () => {
     config = { enabled: false, testerUids: [] };
     const store = setup();

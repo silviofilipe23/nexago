@@ -445,6 +445,13 @@ abstract final class AppRoutes {
   static const String blogSaved = '/athlete/blog/salvos';
   static const String blogPost = '/athlete/blog/:postId';
 
+  /// Clube de Vantagens Nexa: vitrine, parceiro e formulário "Quero
+  /// contratar". A origem da visita vai em `?origem=` (ver `BenefitSource`).
+  static const String benefitsClub = '/athlete/clube';
+  static const String benefitsPartner = '/athlete/clube/:partnerId';
+  static const String benefitsPartnerLead =
+      '/athlete/clube/:partnerId/contratar';
+
   /// Meu cashback (saldo, regras e extrato). Mesmo caminho do portal e do
   /// `url` dos pushes `cashback_released` / `cashback_expiring`.
   static const String athleteCashback = '/cashback';
@@ -1311,6 +1318,9 @@ abstract final class AppRouteNames {
   static const String blog = 'blog';
   static const String blogSaved = 'blogSaved';
   static const String blogPost = 'blogPost';
+  static const String benefitsClub = 'benefitsClub';
+  static const String benefitsPartner = 'benefitsPartner';
+  static const String benefitsPartnerLead = 'benefitsPartnerLead';
   static const String athleteCashback = 'athleteCashback';
   static const String bookingWeatherChoice = 'bookingWeatherChoice';
   static const String bookingArenaReview = 'bookingArenaReview';

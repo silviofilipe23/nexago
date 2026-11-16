@@ -177,6 +177,10 @@ import '../../features/app_news/presentation/app_news_stories_page.dart';
 import '../../features/blog/presentation/blog_feed_page.dart';
 import '../../features/blog/presentation/blog_library_page.dart';
 import '../../features/blog/presentation/blog_post_page.dart';
+import '../../features/benefits_club/domain/benefit_event.dart';
+import '../../features/benefits_club/presentation/benefit_partner_page.dart';
+import '../../features/benefits_club/presentation/benefits_club_page.dart';
+import '../../features/benefits_club/presentation/partner_lead_form_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
 import '../../features/weather/presentation/booking_weather_choice_page.dart';
 import '../../features/athlete/presentation/arena_review_page.dart';
@@ -1676,6 +1680,37 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.blogPost,
         builder: (context, state) => BlogPostPage(
           postId: state.pathParameters['postId']?.trim() ?? '',
+        ),
+      ),
+      // Clube de Vantagens Nexa: a origem da visita (`?origem=`) acompanha o
+      // clube, o parceiro e o formulário; sem ela (link direto) = deeplink.
+      GoRoute(
+        path: AppRoutes.benefitsClub,
+        name: AppRouteNames.benefitsClub,
+        builder: (context, state) => BenefitsClubPage(
+          source: BenefitSource.fromQuery(
+            state.uri.queryParameters[BenefitSource.queryParam],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.benefitsPartner,
+        name: AppRouteNames.benefitsPartner,
+        builder: (context, state) => BenefitPartnerPage(
+          partnerId: state.pathParameters['partnerId']?.trim() ?? '',
+          source: BenefitSource.fromQuery(
+            state.uri.queryParameters[BenefitSource.queryParam],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.benefitsPartnerLead,
+        name: AppRouteNames.benefitsPartnerLead,
+        builder: (context, state) => PartnerLeadFormPage(
+          partnerId: state.pathParameters['partnerId']?.trim() ?? '',
+          source: BenefitSource.fromQuery(
+            state.uri.queryParameters[BenefitSource.queryParam],
+          ),
         ),
       ),
       GoRoute(

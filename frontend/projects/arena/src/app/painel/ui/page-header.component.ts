@@ -120,6 +120,11 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     }
 
     @include ar.below(sm) {
+      .header {
+        padding-top: 12px;
+        padding-bottom: 12px;
+      }
+
       h1 {
         font-size: 18px;
       }

@@ -1,4 +1,4 @@
-import { NgTemplateOutlet } from '@angular/common';
+import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -239,6 +239,26 @@ function pathOnly(url: string): string {
        qualquer rodapé fixo/sticky das telas. */
     :host(.phone) .content {
       padding-bottom: var(--ar-bottom-nav-h, calc(60px + env(safe-area-inset-bottom, 0px)));
+    }
+
+    /* Celular: quem rola é o documento, não a '.content'. Com a rolagem num
+       container interno o navegador nunca recolhe as barras dele (endereço e
+       ferramentas); rolando o documento elas somem ao descer e a tela útil
+       cresce. O topo do shell rola junto pelo mesmo motivo -- o menu segue no
+       "Mais" da bottom-nav. Desktop e tablet continuam com a rolagem interna. */
+    :host(.phone) .shell {
+      height: auto;
+      min-height: calc(100 * var(--ar-vh, 1dvh) - 56px);
+      overflow: visible;
+    }
+
+    :host(.phone) .content {
+      height: auto;
+      overflow: visible;
+    }
+
+    :host(.phone) .topbar {
+      position: relative;
     }
 
     .sidebar {
@@ -869,6 +889,11 @@ export class PanelShellComponent implements OnDestroy {
    *  `toggleGroup` grava direto no signal; este efeito só re-sincroniza quando
    *  o `arenaId` muda, nunca por causa da própria escrita do toggle. */
   constructor() {
+    // Celular: a página rola no documento (ver ':host(.phone) .shell'), e a janela guarda a
+    // rolagem da tela anterior. Cada tela monta o próprio shell, então tela nova começa no topo;
+    // trocar só parâmetro da URL (aba, mês) reaproveita o shell e não pula.
+    if (this.viewport.isPhone()) inject(DOCUMENT).defaultView?.scrollTo(0, 0);
+
     effect(() => {
       this.storedGroup.set(this.navState.openGroup(this.arenaContext.arenaId()));
     });

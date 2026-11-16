@@ -418,7 +418,7 @@ function timeToMinutes(time: string): number {
          quadras fixo e empurrando a lista lá pra baixo. Altura própria:
          rola por dentro com o cabeçalho de quadras sempre à vista. */
       @include ar.below(lg) {
-        height: min(68dvh, 640px);
+        height: min(calc(68 * var(--ar-vh, 1dvh)), 640px);
       }
     }
 

@@ -68,6 +68,13 @@
      zona 2). Barra fixa/sticky no rodapé de uma tela soma isto ao `bottom`
      para não ficar escondida atrás da navegação. ---- */
   --ar-bottom-nav-h: 0px;
+
+  /* ---- Escala do celular (zona 2): o `zoom` do html encolhe texto, ícones e
+     espaços juntos. Ele também encolhe as unidades de tela -- `100dvh` vira
+     90% da tela --, então quem precisa da altura cheia usa `--ar-vh`, que
+     desfaz a escala. No desktop os dois são neutros. ---- */
+  --ar-zoom: 1;
+  --ar-vh: 1dvh;
 }
 
 *,
@@ -644,9 +651,39 @@ button {
 
 @include ar.below(sm) {
   :root {
-    --ar-pad-page-x: 16px;
-    --ar-card-pad: 16px;
+    --ar-pad-page-x: 12px;
+    --ar-card-pad: 12px;
     --ar-bottom-nav-h: calc(60px + env(safe-area-inset-bottom, 0px));
+    --ar-zoom: 0.9;
+    --ar-vh: calc(1dvh / var(--ar-zoom));
+  }
+
+  /* Celular: tudo 10% menor (texto, ícones, espaços) pra caber mais na tela.
+     As fontes do painel são px fixos em ~400 regras de componente; o `zoom`
+     é o único ajuste que alcança todas sem tocar em cada uma. Media queries
+     e `innerWidth` não mudam com ele. */
+  html {
+    zoom: var(--ar-zoom);
+  }
+
+  /* Corpo das telas do painel: o padding de 22px 32px do desktop vive em
+     ~50 componentes, cada um com o seu. Um recorte só aqui, para o `.body`
+     filho direto do conteúdo do shell (é o corpo da tela, projetado). `!important`
+     porque a regra de componente compila com atributo de encapsulamento e
+     ganharia por especificidade. */
+  ar-panel-shell > .shell > .content > .body {
+    padding: 12px var(--ar-pad-page-x) 16px !important;
+  }
+
+  .ar-split {
+    gap: 12px;
+  }
+
+  /* Com a página rolando no documento (shell no celular), modal e menu
+     abertos travam a rolagem de fundo. */
+  html:has(ar-modal),
+  html:has(ar-drawer) {
+    overflow: hidden;
   }
 
   /* Busca de 220px fixos ao lado de botões não cabe no celular: ocupa a
@@ -704,7 +741,10 @@ button {
   input,
   select,
   textarea {
-    font-size: 16px !important;
+    /* 16px VISÍVEIS: no celular o html tem zoom 0.9, então o valor computado
+       sobe na mesma proporção -- senão o campo aparece com 14,4px e o Safari
+       dá zoom ao focar. */
+    font-size: calc(16px / var(--ar-zoom, 1)) !important;
   }
 
   /* Alvo de toque dos botões e chips globais: 32px (26px nas abas) é pequeno

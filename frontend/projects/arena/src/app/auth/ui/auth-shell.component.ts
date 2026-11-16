@@ -72,7 +72,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     }
 
     .shell {
-      min-height: 100dvh;
+      min-height: calc(100 * var(--ar-vh, 1dvh));
       display: grid;
       grid-template-columns: minmax(420px, 560px) 1fr;
       background: var(--nx-bg);

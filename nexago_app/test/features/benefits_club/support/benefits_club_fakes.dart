@@ -19,6 +19,7 @@ import 'package:nexago_app/features/benefits_club/domain/partner_lead.dart';
 import 'package:nexago_app/features/benefits_club/presentation/benefit_partner_page.dart';
 import 'package:nexago_app/features/benefits_club/presentation/benefits_club_page.dart';
 import 'package:nexago_app/features/benefits_club/presentation/my_benefits_page.dart';
+import 'package:nexago_app/features/benefits_club/presentation/benefits_search_page.dart';
 import 'package:nexago_app/features/benefits_club/presentation/partner_lead_form_page.dart';
 
 const testUid = 'abcd1234';
@@ -245,6 +246,11 @@ GoRouter benefitsTestRouter(String initialLocation) => GoRouter(
       path: AppRoutes.benefitsMine,
       name: AppRouteNames.benefitsMine,
       builder: (_, __) => const MyBenefitsPage(),
+    ),
+    GoRoute(
+      path: AppRoutes.benefitsSearch,
+      name: AppRouteNames.benefitsSearch,
+      builder: (_, __) => const BenefitsSearchPage(),
     ),
     GoRoute(
       path: AppRoutes.benefitsPartner,

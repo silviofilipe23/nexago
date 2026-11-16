@@ -273,7 +273,8 @@ const STATE_TONE = { live: 'red', next: 'orange', done: 'dim', canceled: 'dim' }
       .mark { flex: 1 1 0; min-width: 0; height: 40px; padding: 0 6px; }
       .card-actions { flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
       .dirty {
-        position: sticky; bottom: 0; z-index: 1; flex-wrap: wrap;
+        /* A página rola no documento no celular: gruda acima da bottom-nav, não atrás dela. */
+        position: sticky; bottom: var(--ar-bottom-nav-h, 0px); z-index: 1; flex-wrap: wrap;
         background: var(--nx-surface-0); padding-bottom: 12px;
       }
       .dirty .ar-mini-btn { min-height: 40px; }

@@ -69,7 +69,7 @@ import { PersonPhotoService } from './person-photo.service';
       .panel.lg,
       .panel.xl {
         max-width: none;
-        max-height: calc(100dvh - 12px);
+        max-height: calc(100 * var(--ar-vh, 1dvh) - 12px);
         border-bottom: none;
         border-radius: var(--nx-r-4) var(--nx-r-4) 0 0;
         overscroll-behavior: contain;

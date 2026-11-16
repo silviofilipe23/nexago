@@ -167,7 +167,7 @@ import { AulasChatService } from './aulas-chat.service';
        campo de mensagem para baixo da bottom-nav. A altura sai da tela visível (dvh) menos o que
        fica em volta (topbar, cabeçalho, abas, botão "Conversas" e bottom-nav). */
     @include ar.below(sm) {
-      .chat { height: clamp(320px, calc(100dvh - 270px - var(--ar-bottom-nav-h)), 760px); }
+      .chat { height: clamp(320px, calc(100 * var(--ar-vh, 1dvh) - 270px - var(--ar-bottom-nav-h)), 760px); }
       .chat-head { padding: 10px 14px; }
       .head-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .scroller { padding: 14px; }

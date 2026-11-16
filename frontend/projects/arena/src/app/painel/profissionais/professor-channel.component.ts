@@ -200,7 +200,7 @@ import { ProfessorNoteComponent } from './professor-ui';
     /* Celular: mesma conta do chat de Aulas — 100vh com piso de 420px jogava o campo de
        mensagem para baixo da bottom-nav; usa a tela visível (dvh) menos o entorno. */
     @include ar.below(sm) {
-      .chat { height: clamp(320px, calc(100dvh - 270px - var(--ar-bottom-nav-h)), 760px); }
+      .chat { height: clamp(320px, calc(100 * var(--ar-vh, 1dvh) - 270px - var(--ar-bottom-nav-h)), 760px); }
       .chat-head { padding: 10px 14px; }
       .head-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .scroller { padding: 14px; }

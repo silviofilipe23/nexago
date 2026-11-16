@@ -52,7 +52,8 @@ export type PanelIconName =
   | 'mic'
   | 'sponsor'
   | 'phone'
-  | 'percent';
+  | 'percent'
+  | 'gift';
 
 /** Ícones stroke-24 do painel (mesmo conjunto do protótipo BoIc*), um componente para evitar repetir SVG. */
 @Component({
@@ -233,6 +234,9 @@ export type PanelIconName =
         }
         @case ('phone') {
           <rect x="6" y="2.5" width="12" height="19" rx="2.5" /><path d="M10.5 18.5h3" />
+        }
+        @case ('gift') {
+          <path d="M20 12v9H4v-9" /><path d="M2 7h20v5H2z" /><path d="M12 22V7" /><path d="M12 7H8.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h3.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
         }
       }
     </svg>

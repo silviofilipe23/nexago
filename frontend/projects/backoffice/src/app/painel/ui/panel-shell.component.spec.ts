@@ -92,6 +92,19 @@ describe('PanelShellComponent', () => {
     ]);
   });
 
+  it('o grupo App do atleta termina no Clube de Vantagens', async () => {
+    const host = await mount();
+    groupButton(host, 'App do atleta').click();
+    await TestBed.inject(ApplicationRef).whenStable();
+    const links = [...host.querySelectorAll('.subnav a.nav-item')];
+    expect(links.map((e) => [e.textContent!.trim(), e.getAttribute('href')])).toEqual([
+      ['Banner da Home', '/painel/app/novidades'],
+      ['Novidades', '/painel/app/versoes'],
+      ['Central de ajuda', '/painel/app/ajuda'],
+      ['Clube de Vantagens', '/painel/clube'],
+    ]);
+  });
+
   it('o badge de Comissões é o número de embaixadores com repasse a fazer', async () => {
     const host = await mount();
     TestBed.inject(SquadBadgesService).set(14);

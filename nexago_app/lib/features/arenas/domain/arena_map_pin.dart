@@ -24,12 +24,23 @@ class ArenaMapPin {
     required this.latitude,
     required this.longitude,
     required this.kind,
+    this.iconImageId,
+    this.selected = false,
   });
 
   final String arenaId;
   final double latitude;
   final double longitude;
   final ArenaMapPinKind kind;
+
+  /// Imagem própria do pino, registrada no mapa por `ArenaMapView.pinImages`
+  /// (ex.: a logo de um parceiro do Clube de Vantagens). Nulo, ou ainda não
+  /// registrada, = a arte padrão da quadra — é o caso de toda arena.
+  final String? iconImageId;
+
+  /// Pino em destaque (o tocado): fica maior e por cima dos outros. Só vale
+  /// para pino com [iconImageId]; a arte da quadra não muda.
+  final bool selected;
 }
 
 /// Caixa que envolve um conjunto de pinos, para enquadrar a câmera.

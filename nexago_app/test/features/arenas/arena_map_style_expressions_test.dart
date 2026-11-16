@@ -98,4 +98,33 @@ void main() {
       expect(image.width / ArenaPinAsset.scale, ArenaPinAsset.displayWidth);
     });
   });
+
+  group('pino com imagem própria (Clube de Vantagens)', () {
+    test('imagem: a própria quando registrada, senão a quadra', () {
+      final expr = mapPinImageExpression();
+      expect(expr.first, 'coalesce');
+      final valores = _flatten(expr).whereType<String>();
+      expect(valores, contains('icon'));
+      expect(expr.last, ['image', ArenaMapIds.pinImage]);
+    });
+
+    test('tamanho: arena segue a expressão de sempre', () {
+      final expr = mapPinSizeExpression();
+      expect(expr.first, 'case');
+      expect(expr[1], ['has', 'icon']);
+      expect(expr.last, arenaPinSizeExpression());
+      final numeros = _flatten(expr[2] as List<Object?>).whereType<num>();
+      expect(numeros, [customPinSelectedIconSize, customPinIconSize]);
+      expect(customPinSelectedIconSize, greaterThan(customPinIconSize));
+    });
+
+    test('ordem: o tocado por cima; depois a ordem das arenas', () {
+      final expr = mapPinSortKeyExpression();
+      expect(expr.first, 'case');
+      expect(expr[2], -1);
+      final arenas = expr.last as List<Object?>;
+      expect(arenas.first, 'match');
+      expect(_flatten(arenas).whereType<num>(), [0, 1, 2]);
+    });
+  });
 }

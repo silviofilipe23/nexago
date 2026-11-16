@@ -23,6 +23,107 @@ class ArenaMapIds {
   static const pinImage = 'nexago-arena-pin';
 }
 
+/// Imagem própria de um pino (ex.: a logo de um parceiro do clube), já em PNG.
+///
+/// [scale] é a densidade do PNG: 3 = arte exportada com o triplo das medidas
+/// de tela, como o pino da quadra.
+class ArenaMapPinImage {
+  const ArenaMapPinImage({
+    required this.id,
+    required this.image,
+    this.scale = 3,
+  });
+
+  final String id;
+  final MbxImage image;
+  final double scale;
+}
+
+/// Tamanho do pino com imagem própria; o tocado cresce.
+const double customPinIconSize = 1.0;
+const double customPinSelectedIconSize = 1.25;
+
+/// Imagem do pino: a própria (`icon`) quando já registrada, senão a quadra.
+///
+/// `coalesce` + `image` cai na quadra também enquanto a imagem própria ainda
+/// não foi registrada: o pino nunca some.
+List<Object> mapPinImageExpression() {
+  return <Object>[
+    'coalesce',
+    [
+      'image',
+      ['get', 'icon'],
+    ],
+    ['image', ArenaMapIds.pinImage],
+  ];
+}
+
+/// Tamanho: pino com imagem própria segue o seu tamanho (maior se tocado);
+/// a arena segue [arenaPinSizeExpression], sem mudança.
+List<Object> mapPinSizeExpression() {
+  return <Object>[
+    'case',
+    ['has', 'icon'],
+    [
+      'case',
+      [
+        '==',
+        ['get', 'selected'],
+        true,
+      ],
+      customPinSelectedIconSize,
+      customPinIconSize,
+    ],
+    arenaPinSizeExpression(),
+  ];
+}
+
+/// Quem fica por cima: o pino tocado; depois a ordem das arenas (com horário,
+/// parceira sem horário, pré-cadastrada).
+List<Object> mapPinSortKeyExpression() {
+  return <Object>[
+    'case',
+    [
+      '==',
+      ['get', 'selected'],
+      true,
+    ],
+    -1,
+    <Object>[
+      'match',
+      ['get', 'kind'],
+      'available',
+      0,
+      'unavailable',
+      1,
+      2,
+    ],
+  ];
+}
+
+/// Registra (ou troca) as imagens próprias dos pinos. Uma imagem recusada não
+/// derruba as outras: o pino dela cai na arte da quadra.
+Future<void> installArenaMapPinImages(
+  MapboxMap map,
+  List<ArenaMapPinImage> images,
+) async {
+  for (final image in images) {
+    try {
+      await map.style.addStyleImage(
+        image.id,
+        image.scale,
+        image.image,
+        false,
+        const <ImageStretches?>[],
+        const <ImageStretches?>[],
+        null,
+      );
+    } catch (error) {
+      debugPrint('[mapa] imagem do pino "${image.id}" recusada: $error');
+    }
+  }
+}
+
 /// Opacidade do pino conforme o vínculo da arena.
 ///
 /// Só a pré-cadastrada apaga: parceira fica cheia mesmo sem horário livre.
@@ -70,6 +171,7 @@ List<Object> arenaPinSizeExpression() {
 Future<void> installArenaMapStyle(
   MapboxMap map, {
   required List<ArenaMapPin> pins,
+  List<ArenaMapPinImage> pinImages = const [],
 }) async {
   final style = map.style;
 
@@ -90,6 +192,8 @@ Future<void> installArenaMapStyle(
       null,
     );
   }
+
+  await installArenaMapPinImages(map, pinImages);
 
   if (await style.styleSourceExists(ArenaMapIds.source)) {
     await updateArenaMapPins(map, pins);
@@ -112,7 +216,8 @@ Future<void> installArenaMapStyle(
       sourceId: ArenaMapIds.source,
       // Sem slot, o Standard pode empilhar o pino atrás de um prédio 3D.
       slot: mapboxPinSlot,
-      iconImage: ArenaMapIds.pinImage,
+      // A quadra, ou a imagem própria do pino quando ele tem uma.
+      iconImageExpression: mapPinImageExpression(),
       // CENTER, não BOTTOM: a arte é uma quadra apoiada, sem ponta. Ancorar
       // pela base deixaria a coordenada na borda da frente e a quadra inteira
       // acima dela — como se a arena estivesse atrás do ponto. Centrada, a
@@ -125,18 +230,10 @@ Future<void> installArenaMapStyle(
       iconAllowOverlap: true,
       iconIgnorePlacement: true,
       iconOpacityExpression: arenaPinOpacityExpression(),
-      iconSizeExpression: arenaPinSizeExpression(),
-      // Quando dois pinos se sobrepõem: com horário por cima, depois a
-      // parceira sem horário, e a pré-cadastrada embaixo.
-      symbolSortKeyExpression: <Object>[
-        'match',
-        ['get', 'kind'],
-        'available',
-        0,
-        'unavailable',
-        1,
-        2,
-      ],
+      iconSizeExpression: mapPinSizeExpression(),
+      // Quando dois pinos se sobrepõem: o tocado por cima; depois com horário,
+      // a parceira sem horário, e a pré-cadastrada embaixo.
+      symbolSortKeyExpression: mapPinSortKeyExpression(),
     ),
   );
 }

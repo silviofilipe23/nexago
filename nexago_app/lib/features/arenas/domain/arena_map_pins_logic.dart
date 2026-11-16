@@ -91,9 +91,12 @@ Map<String, dynamic> arenaMapPinsToGeoJson(List<ArenaMapPin> pins) {
           },
           'properties': <String, dynamic>{
             'arenaId': pin.arenaId,
-            // Única propriedade que o estilo lê: escolhe entre pino cheio e
-            // pino apagado.
+            // Escolhe entre pino cheio e pino apagado.
             'kind': pin.kind.name,
+            // Só nos pinos com imagem própria (Clube de Vantagens): a arena
+            // não grava nada a mais e o estilo cai na arte da quadra.
+            if (pin.iconImageId != null) 'icon': pin.iconImageId,
+            if (pin.selected) 'selected': true,
           },
         },
     ],

@@ -23,6 +23,24 @@ enum BenefitSource {
   home('home'),
   deeplink('deeplink'),
   push('push'),
+
+  /// Card do clube no detalhe da pelada.
+  postGame('post_game'),
+
+  /// Card do clube no dia de torneio (Modo Focus).
+  tournamentDay('tournament_day'),
+
+  /// "Destaque da semana" no topo do clube.
+  featured('featured'),
+
+  /// Resultado da busca do clube.
+  search('search'),
+
+  /// Pino do mapa do clube.
+  map('map'),
+
+  /// "Meus benefícios".
+  myBenefits('my_benefits'),
   unknown('unknown');
 
   const BenefitSource(this.key);

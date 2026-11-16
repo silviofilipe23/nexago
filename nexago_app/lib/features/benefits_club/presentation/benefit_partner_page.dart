@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/errors/friendly_error_message.dart';
 import '../../../core/links/open_external_url.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/location/user_location_providers.dart';
+import '../../../core/router/routes.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/system_ui_overlay_style.dart';
 import '../../../core/theme/app_theme_colors.dart';
@@ -14,15 +16,23 @@ import '../../athlete/domain/athlete_profile_providers.dart';
 import '../application/benefits_club_providers.dart';
 import '../domain/benefit_event.dart';
 import '../domain/benefits_club_logic.dart';
+import '../domain/benefits_club_premium_logic.dart';
 import '../domain/partner.dart';
 import 'benefits_club_navigation.dart';
+import 'widgets/benefit_partner_extras.dart';
 import 'widgets/benefit_partner_parts.dart';
 import 'widgets/benefits_club_parts.dart';
+import 'widgets/benefits_member_card.dart';
 import 'widgets/partner_visuals.dart';
 
-/// Tela de um parceiro: hero na cor da marca, benefício, cupom copiável,
-/// "Como usar", termos e o botão fixo no pé. Grava `partner_view`,
-/// `code_copy` e `cta_click` com a origem com que a pessoa entrou no clube.
+/// Aviso do coração: curto, para não cobrir o botão do pé por muito tempo.
+const Duration _saveToastDuration = Duration(seconds: 2);
+
+/// Tela de um parceiro: capa, logo, salvar, benefício, termos em chips,
+/// cupom, "Onde usar", "Como usar" e o botão fixo no pé. O botão de link
+/// copia o cupom antes de abrir o site. Parceiro com requisito que a pessoa
+/// não cumpre aparece bloqueado, com "Como desbloquear". Grava
+/// `partner_view`, `code_copy` e `cta_click` com a origem da visita.
 class BenefitPartnerPage extends ConsumerStatefulWidget {
   const BenefitPartnerPage({
     super.key,
@@ -39,6 +49,11 @@ class BenefitPartnerPage extends ConsumerStatefulWidget {
 
 class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
   bool _viewTracked = false;
+
+  /// Cupom que veio da `claimBenefit` (parceiro com requisito).
+  String? _claimedCoupon;
+  bool _claiming = false;
+  bool _redeeming = false;
 
   @override
   void initState() {
@@ -111,19 +126,37 @@ class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
     );
   }
 
+  /// Cupom que a tela já conhece: o público/do atleta ou o da `claimBenefit`.
+  String? _knownCoupon(Partner partner, String uid) =>
+      partner.requirement.isNone ? couponFor(partner, uid) : _claimedCoupon;
+
   Widget _partnerView(Partner partner) {
     final uid = ref.watch(benefitsClubUidProvider);
     final city = ref.watch(athleteProfileProvider).valueOrNull?.city;
-    final coupon = couponFor(partner, uid);
+    final locked = isPartnerLocked(
+      partner,
+      ref.watch(benefitsEligibleIdsProvider),
+    );
+    final saved = ref.watch(benefitsSavedIdsProvider).valueOrNull;
+    final now = ref.watch(benefitsClockProvider)();
+    final coupon = locked ? null : _knownCoupon(partner, uid);
     final isLead = partner.ctaType == PartnerCtaType.leadForm;
-    // O hero na cor da marca fica atrás da barra de status: os ícones seguem
-    // a marca, não o tema (marca escura no tema claro sumiria com ícone escuro).
-    final heroIsDark =
-        onPartnerBrand(partnerBrandColor(partner)) == AppColors.white;
+    final ending = endingBadge(partner, now);
+    final showClaim =
+        !locked &&
+        !partner.requirement.isNone &&
+        partner.couponMode != PartnerCouponMode.none &&
+        _claimedCoupon == null;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: systemUiOverlayForBrightness(
-        heroIsDark ? Brightness.dark : Brightness.light,
+        BenefitPartnerHero.isDark(
+              partner,
+              locked: locked,
+              themeIsDark: Theme.of(context).brightness == Brightness.dark,
+            )
+            ? Brightness.dark
+            : Brightness.light,
       ),
       child: Scaffold(
         backgroundColor: context.themeColors.canvas,
@@ -135,41 +168,70 @@ class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
                 children: [
                   BenefitPartnerHero(
                     partner: partner,
-                    locationLabel: partnerLocationLabel(
-                      partner,
-                      athleteCity: city,
-                    ),
                     onBack: _back,
+                    locked: locked,
+                    saved: uid.isEmpty ? null : saved?.contains(partner.id),
+                    onToggleSaved: () => _toggleSaved(
+                      partner,
+                      uid,
+                      !(saved?.contains(partner.id) ?? false),
+                    ),
+                    badge: locked ? requirementBadge(partner) : ending,
+                    badgeIcon: locked
+                        ? Icons.lock_outline_rounded
+                        : Icons.schedule_rounded,
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
                       AppSpacing.screenH,
-                      AppSpacing.lg,
+                      AppSpacing.sm,
                       AppSpacing.screenH,
                       AppSpacing.xl,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        BenefitPartnerIdentity(
+                          partner: partner,
+                          locationLabel: partnerLocationLabel(
+                            partner,
+                            athleteCity: city,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
                         BenefitDetailsCard(partner: partner),
-                        if (coupon != null) ...[
-                          const SizedBox(height: AppSpacing.md + 2),
-                          BenefitCouponBox(
-                            coupon: coupon,
-                            onCopy: () => _copyCoupon(coupon),
+                        if (partner.termsTags.isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          BenefitTermsChips(tags: partner.termsTags),
+                        ],
+                        ..._couponSection(
+                          partner,
+                          uid,
+                          locked,
+                          coupon,
+                          showClaim,
+                        ),
+                        if (locked) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          BenefitUnlockCard(partner: partner),
+                        ],
+                        if (partner.locations.isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.lg + 2),
+                          const BenefitsEyebrow('Onde usar'),
+                          const SizedBox(height: 10),
+                          ..._locationTiles(partner),
+                        ],
+                        if (!locked) ...[
+                          const SizedBox(height: AppSpacing.lg + 2),
+                          BenefitsEyebrow(
+                            isLead ? 'Como funciona' : 'Como usar',
+                          ),
+                          const SizedBox(height: 10),
+                          BenefitSteps(
+                            steps: howToUseSteps(partner, coupon: coupon),
+                            bold: [partner.ctaLabel, ?coupon, 'WhatsApp'],
                           ),
                         ],
-                        const SizedBox(height: AppSpacing.lg + 2),
-                        BenefitsEyebrow(isLead ? 'Como funciona' : 'Como usar'),
-                        const SizedBox(height: 10),
-                        BenefitSteps(
-                          steps: howToUseSteps(partner, coupon: coupon),
-                          bold: [
-                            partner.ctaLabel,
-                            if (coupon != null) coupon,
-                            'WhatsApp',
-                          ],
-                        ),
                         if (partner.terms.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
                           BenefitTermsSection(terms: partner.terms),
@@ -180,23 +242,78 @@ class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
                 ],
               ),
             ),
-            isLead ? _leadBar(partner) : _linkBar(partner, uid),
+            if (locked)
+              _lockedBar(partner)
+            else if (isLead)
+              _leadBar(partner)
+            else
+              _linkBar(partner, uid),
           ],
         ),
       ),
     );
   }
 
+  List<Widget> _couponSection(
+    Partner partner,
+    String uid,
+    bool locked,
+    String? coupon,
+    bool showClaim,
+  ) {
+    if (locked) {
+      if (partner.couponMode == PartnerCouponMode.none) return const [];
+      return const [SizedBox(height: AppSpacing.md), BenefitMaskedCoupon()];
+    }
+    if (showClaim) {
+      return [
+        const SizedBox(height: AppSpacing.md),
+        BenefitClaimCouponBox(busy: _claiming, onClaim: () => _claim(partner)),
+      ];
+    }
+    if (coupon == null) return const [];
+    return [
+      const SizedBox(height: AppSpacing.md),
+      BenefitCodeRow(
+        label: 'Seu cupom',
+        code: coupon,
+        copyKey: const Key('benefits-copy-coupon'),
+        onCopy: () => _copyCoupon(coupon),
+      ),
+    ];
+  }
+
+  List<Widget> _locationTiles(Partner partner) {
+    final location = ref.watch(userLocationProvider).valueOrNull;
+    final lat = location?.latitude;
+    final lng = location?.longitude;
+    return [
+      for (final place in partner.locations) ...[
+        BenefitLocationTile(
+          location: place,
+          distance: lat == null || lng == null
+              ? null
+              : formatDistanceKm(distanceToLocationKm(place, lat, lng)),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+      ],
+    ];
+  }
+
   Widget _linkBar(Partner partner, String uid) {
     final url = trackedPartnerUrl(partner.link, athleteCode(uid));
+    final copies = partner.couponMode != PartnerCouponMode.none;
     return BenefitCtaBar(
       buttonKey: const Key('benefits-partner-cta'),
       label: partner.ctaLabel,
       icon: Icons.open_in_new_rounded,
+      busy: _redeeming,
       hint: url == null
           ? 'O site deste parceiro está indisponível agora.'
+          : copies
+          ? 'Copia o cupom e abre o site da ${partner.name}'
           : 'Abre o site da ${partner.name}',
-      onPressed: url == null ? null : () => _openLink(partner, url),
+      onPressed: url == null ? null : () => _redeem(partner, uid),
     );
   }
 
@@ -207,22 +324,145 @@ class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
     onPressed: _openLeadForm,
   );
 
+  Widget _lockedBar(Partner partner) {
+    final req = partner.requirement;
+    const hint = 'Sem botão de resgate enquanto o benefício estiver bloqueado';
+    final tournamentId = req.tournamentIds.firstOrNull;
+    return switch (req.type) {
+      PartnerRequirementType.squad => BenefitCtaBar(
+        buttonKey: const Key('benefits-unlock-cta'),
+        label: 'Conhecer o Squad',
+        icon: Icons.arrow_forward_rounded,
+        secondary: true,
+        hint: hint,
+        onPressed: () => context.pushNamed(AppRouteNames.squad),
+      ),
+      PartnerRequirementType.tournament when tournamentId != null =>
+        BenefitCtaBar(
+          buttonKey: const Key('benefits-unlock-cta'),
+          label: 'Ver o torneio',
+          icon: Icons.arrow_forward_rounded,
+          secondary: true,
+          hint: hint,
+          onPressed: () => context.pushNamed(
+            AppRouteNames.tournamentDetail,
+            pathParameters: {'tournamentId': tournamentId},
+          ),
+        ),
+      _ => const BenefitCtaBar(label: null, hint: hint, onPressed: null),
+    };
+  }
+
+  Future<void> _toggleSaved(Partner partner, String uid, bool saved) async {
+    if (uid.isEmpty) return;
+    HapticFeedback.lightImpact();
+    try {
+      await ref
+          .read(benefitsClubRepositoryProvider)
+          .setSaved(uid: uid, partnerId: partner.id, saved: saved);
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        saved
+            ? '${partner.name} salvo em Meus benefícios.'
+            : '${partner.name} saiu dos salvos.',
+        duration: _saveToastDuration,
+      );
+    } on Exception catch (error) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        friendlyErrorMessage(
+          error,
+          action: 'Não foi possível salvar o parceiro',
+          logReason: 'clube:salvar',
+        ),
+        isError: true,
+      );
+    }
+  }
+
+  /// Pede o cupom à `claimBenefit` (parceiro com requisito). `null` em erro
+  /// (a mensagem amigável já apareceu).
+  Future<String?> _claim(Partner partner) async {
+    final known = _claimedCoupon;
+    if (known != null) return known;
+    setState(() => _claiming = true);
+    try {
+      final coupon = await ref
+          .read(benefitsClubServiceProvider)
+          .claimBenefit(partnerId: partner.id, source: widget.source);
+      if (mounted) setState(() => _claimedCoupon = coupon);
+      return coupon;
+    } on Exception catch (error) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          friendlyErrorMessage(
+            error,
+            action: 'Não foi possível liberar o cupom',
+            logReason: 'clube:claim',
+          ),
+          isError: true,
+        );
+      }
+      return null;
+    } finally {
+      if (mounted) setState(() => _claiming = false);
+    }
+  }
+
   Future<void> _copyCoupon(String coupon) async {
     await Clipboard.setData(ClipboardData(text: coupon));
+    HapticFeedback.lightImpact();
     _track(BenefitEventType.codeCopy);
     if (!mounted) return;
     showAppSnackBar(context, 'Cupom copiado');
   }
 
-  Future<void> _openLink(Partner partner, String url) async {
-    _track(BenefitEventType.ctaClick);
-    final opened = await openExternalUrl(url);
-    if (opened || !mounted) return;
-    showAppSnackBar(
-      context,
-      'Não foi possível abrir o site da ${partner.name}.',
-      isError: true,
-    );
+  /// Resgate em um toque: copia o cupom (avisando), registra `code_copy` e
+  /// `cta_click` e abre o site já com o cupom quando o parceiro aceita.
+  Future<void> _redeem(Partner partner, String uid) async {
+    if (_redeeming) return;
+    setState(() => _redeeming = true);
+    try {
+      String? coupon = _knownCoupon(partner, uid);
+      final needsClaim =
+          !partner.requirement.isNone &&
+          partner.couponMode != PartnerCouponMode.none &&
+          coupon == null;
+      if (needsClaim) {
+        coupon = await _claim(partner);
+        if (coupon == null) return;
+      }
+      if (coupon != null) {
+        await Clipboard.setData(ClipboardData(text: coupon));
+        HapticFeedback.lightImpact();
+        _track(BenefitEventType.codeCopy);
+        if (mounted) {
+          showAppSnackBar(
+            context,
+            'Cupom $coupon copiado. É só colar no fechamento.',
+          );
+        }
+      }
+      _track(BenefitEventType.ctaClick);
+      final url = trackedPartnerUrl(
+        partner.link,
+        athleteCode(uid),
+        couponParam: partner.couponUrlParam,
+        coupon: coupon,
+      );
+      final opened = url != null && await openExternalUrl(url);
+      if (opened || !mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível abrir o site da ${partner.name}.',
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _redeeming = false);
+    }
   }
 
   Future<void> _openLeadForm() async {

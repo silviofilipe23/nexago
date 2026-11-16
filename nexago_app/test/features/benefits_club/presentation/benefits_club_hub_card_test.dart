@@ -199,4 +199,49 @@ void main() {
     expect(find.byKey(_card), findsNothing);
     expect(find.text('Organizadores'), findsOneWidget);
   });
+
+  testWidgets('hubSponsorPartnerId visível: card em modo patrocinador', (
+    tester,
+  ) async {
+    await _pumpHub(
+      tester,
+      service: FakeBenefitsClubService(),
+      config: const BenefitsClubConfig(
+        enabled: true,
+        testerUids: [testUid],
+        hubSponsorPartnerId: 'linq',
+      ),
+    );
+
+    expect(find.byKey(_card), findsOneWidget);
+    expect(find.text('OFERECIDO POR LINQ TELECOM'), findsOneWidget);
+    expect(
+      find.descendant(of: find.byKey(_card), matching: find.text('NOVO')),
+      findsNothing,
+    );
+    await tester.tap(find.byKey(_card));
+    await tester.pumpAndSettle();
+    expect(find.text('clube hub_card'), findsOneWidget);
+  });
+
+  testWidgets('patrocinador invisível para a pessoa: o card de sempre', (
+    tester,
+  ) async {
+    await _pumpHub(
+      tester,
+      service: FakeBenefitsClubService(),
+      // A LinQ é só de quem testa; esta pessoa não testa.
+      config: const BenefitsClubConfig(
+        enabled: true,
+        hubSponsorPartnerId: 'linq',
+      ),
+    );
+
+    expect(find.byKey(_card), findsOneWidget);
+    expect(find.textContaining('OFERECIDO POR'), findsNothing);
+    expect(
+      find.descendant(of: find.byKey(_card), matching: find.text('NOVO')),
+      findsOneWidget,
+    );
+  });
 }

@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/location/user_location_snapshot.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/benefits_club/domain/benefit_event.dart';
 import 'package:nexago_app/features/benefits_club/domain/benefits_club_config.dart';
+import 'package:nexago_app/features/benefits_club/domain/my_benefits.dart';
 import 'package:nexago_app/features/benefits_club/domain/partner.dart';
 import 'package:nexago_app/features/benefits_club/presentation/benefit_partner_page.dart';
+import 'package:nexago_app/features/benefits_club/presentation/widgets/benefits_member_card.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../support/benefits_club_fakes.dart';
 
@@ -29,8 +34,14 @@ Future<GoRouter> _pumpClub(
   BenefitsClubConfig config = const BenefitsClubConfig(enabled: true),
   List<Partner> partners = const [fastAcai, linq, _gym],
   String location = '/athlete/clube?origem=hub_card',
+  FakeOnboardingStore? onboarding,
+  UserLocationSnapshot userLocation = const UserLocationSnapshot(
+    source: UserLocationSource.none,
+  ),
+  DateTime? memberSince,
+  bool settle = true,
 }) async {
-  await tester.binding.setSurfaceSize(const Size(430, 1800));
+  await tester.binding.setSurfaceSize(const Size(430, 2400));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   final router = benefitsTestRouter(location);
   addTearDown(router.dispose);
@@ -40,17 +51,46 @@ Future<GoRouter> _pumpClub(
         service: service,
         config: config,
         partners: partners,
+        onboarding: onboarding,
+        location: userLocation,
+        memberSince: memberSince,
       ),
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) await tester.pumpAndSettle();
   return router;
 }
 
+/// Parceiros comuns para os testes de descoberta (busca só com 8+).
+List<Partner> _manyPartners(int count) => [
+  for (var i = 0; i < count; i++)
+    Partner(
+      id: 'p$i',
+      name: i == 0 ? 'Café Açaí da Praia' : 'Parceiro $i',
+      category: i.isEven ? PartnerCategory.food : PartnerCategory.sports,
+      benefitHighlight: '$i% OFF',
+      benefitTitle: 'Desconto $i',
+      ctaLabel: 'Usar',
+      link: 'https://p$i.example',
+      active: true,
+      priority: 100.0 - i,
+      locations: [
+        PartnerLocation(
+          name: 'Loja $i',
+          address: 'Rua $i',
+          latitude: -16.68 - i * 0.01,
+          longitude: -49.25,
+        ),
+      ],
+    ),
+];
+
 void main() {
-  testWidgets('quem testa vê o banner do patrocinador, chips só das categorias '
-      'presentes e o filtro local', (tester) async {
+  testWidgets('quem testa vê "Oferecido por" do patrocinador, o oficial na '
+      'lista, chips só das categorias presentes e o filtro local', (
+    tester,
+  ) async {
     final service = FakeBenefitsClubService();
     await _pumpClub(
       tester,
@@ -59,6 +99,10 @@ void main() {
     );
 
     expect(find.text('Clube de Vantagens'), findsOneWidget);
+    expect(find.text('Oferecido por LinQ Telecom'), findsOneWidget);
+    expect(find.byKey(const Key('benefits-open-mine')), findsOneWidget);
+
+    // Banner do patrocinador oficial (v1), logo abaixo da carteirinha.
     final banner = find.byKey(const Key('benefits-sponsor-banner'));
     expect(banner, findsOneWidget);
     expect(
@@ -66,8 +110,28 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.descendant(of: banner, matching: find.text('Instalação grátis')),
+      findsOneWidget,
+    );
+    expect(
       find.descendant(of: banner, matching: find.text('Quero contratar')),
       findsOneWidget,
+    );
+    expect(
+      find.descendant(of: banner, matching: find.text('PATROCINADOR OFICIAL')),
+      findsOneWidget,
+    );
+    expect(
+      tester.getTopLeft(banner).dy,
+      greaterThan(
+        tester.getBottomLeft(find.byKey(BenefitsMemberCard.cardKey)).dy,
+      ),
+    );
+    expect(
+      tester.getBottomLeft(banner).dy,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('benefits-chip-all'))).dy,
+      ),
     );
 
     // A academia é só de Anápolis: o atleta é de Goiânia.
@@ -88,12 +152,18 @@ void main() {
       ),
       findsOneWidget,
     );
+    // Com menos de 8 parceiros não há busca, mapa nem "Perto de você".
+    expect(find.byKey(const Key('benefits-search')), findsNothing);
+    expect(find.byKey(const Key('benefits-near')), findsNothing);
 
     await tester.tap(find.byKey(const Key('benefits-chip-food')));
     await tester.pump();
     expect(find.byKey(const Key('benefits-partner-fast-acai')), findsOneWidget);
     expect(find.byKey(const Key('benefits-partner-linq')), findsNothing);
     expect(find.text('1 PARCEIRO EM GOIÂNIA'), findsOneWidget);
+
+    // O banner fica fixo com o filtro.
+    expect(find.byKey(const Key('benefits-sponsor-banner')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('benefits-chip-all')));
     await tester.pump();
@@ -106,10 +176,14 @@ void main() {
     );
   });
 
-  testWidgets('quem não testa não vê a LinQ nem o banner', (tester) async {
+  testWidgets('quem não testa não vê a LinQ, o banner nem o "Oferecido por"', (
+    tester,
+  ) async {
     await _pumpClub(tester, service: FakeBenefitsClubService());
 
     expect(find.byKey(const Key('benefits-sponsor-banner')), findsNothing);
+    expect(find.text('Oferecido por LinQ Telecom'), findsNothing);
+    expect(find.text('Descontos dos parceiros NexaGO'), findsOneWidget);
     expect(find.byKey(const Key('benefits-partner-linq')), findsNothing);
     expect(find.byKey(const Key('benefits-chip-services')), findsNothing);
     expect(find.byKey(const Key('benefits-chip-food')), findsOneWidget);
@@ -120,6 +194,26 @@ void main() {
     await _pumpClub(tester, service: FakeBenefitsClubService(), partners: []);
 
     expect(find.text('Nenhum parceiro por aqui ainda'), findsOneWidget);
+  });
+
+  testWidgets('carregando mostra o esqueleto com brilho', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(430, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final router = benefitsTestRouter('/athlete/clube');
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: benefitsOverrides(
+          service: FakeBenefitsClubService(),
+          partnersStream: pendingStream(),
+        ),
+        child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
+      ),
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('benefits-skeleton')), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(find.byKey(const Key('benefits-skeleton')), findsOneWidget);
   });
 
   testWidgets('link direto (sem origem) grava deeplink e passa adiante', (
@@ -146,5 +240,438 @@ void main() {
       source: BenefitSource.deeplink,
       partnerId: 'fast-acai',
     ));
+  });
+
+  group('carteirinha', () {
+    testWidgets('sem resgate confirmado: nome, nível, membro desde e código, '
+        'sem linha de economia', (tester) async {
+      await _pumpClub(
+        tester,
+        service: FakeBenefitsClubService(
+          myBenefits: const MyBenefits(
+            savings: BenefitSavings(confirmedCount: 0, totalDiscountCents: 0),
+          ),
+        ),
+        memberSince: DateTime(2025, 3, 10),
+      );
+
+      final card = find.byKey(BenefitsMemberCard.cardKey);
+      expect(card, findsOneWidget);
+      expect(find.text('NEXA · MEMBRO'), findsOneWidget);
+      expect(find.text('Silvio Dionizio'), findsOneWidget);
+      expect(find.text('Membro desde mar/2025'), findsOneWidget);
+      expect(find.textContaining('beach_tennis · '), findsOneWidget);
+      expect(find.text('NEXA-ABCD'), findsOneWidget);
+      expect(find.byKey(BenefitsMemberCard.savingsKey), findsNothing);
+      expect(find.textContaining('Economia'), findsNothing);
+    });
+
+    testWidgets('com resgate confirmado mostra o valor real', (tester) async {
+      await _pumpClub(
+        tester,
+        service: FakeBenefitsClubService(
+          myBenefits: const MyBenefits(
+            savings: BenefitSavings(
+              confirmedCount: 2,
+              totalDiscountCents: 1250,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(BenefitsMemberCard.savingsKey), findsOneWidget);
+      expect(find.text('Economia confirmada pelos parceiros'), findsOneWidget);
+      expect(find.textContaining('12,50'), findsOneWidget);
+      // Sem data da conta, a linha "Membro desde" some.
+      expect(find.textContaining('Membro desde'), findsNothing);
+    });
+
+    testWidgets('"Mostrar QR" abre a folha com o QR do código e o Copiar', (
+      tester,
+    ) async {
+      String? copied;
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      await _pumpClub(tester, service: FakeBenefitsClubService());
+
+      await tester.tap(find.byKey(BenefitsMemberCard.qrButtonKey));
+      await tester.pumpAndSettle();
+      expect(find.text('Seu código de membro'), findsOneWidget);
+      final qr = tester.widget<QrImageView>(find.byType(QrImageView));
+      expect(qr.semanticsLabel, 'QR do código NEXA-ABCD');
+      expect(
+        find.text('Mostre no balcão do parceiro. O código é só seu.'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('benefits-qr-copy')));
+      await tester.pump();
+      expect(copied, 'NEXA-ABCD');
+      expect(find.text('Código NEXA-ABCD copiado'), findsOneWidget);
+    });
+  });
+
+  testWidgets('destaque da semana no topo (com selo de prazo), fora da lista, '
+      'e abre com a origem featured; "Novo" no card novo', (tester) async {
+    final service = FakeBenefitsClubService();
+    final featured = Partner(
+      id: 'promo',
+      name: 'Promo Açaí',
+      category: PartnerCategory.food,
+      benefitHighlight: '20% OFF',
+      benefitTitle: '20% no combo',
+      ctaLabel: 'Pedir',
+      link: 'https://promo.example',
+      active: true,
+      featured: true,
+      validUntil: testNow.add(const Duration(days: 3)),
+    );
+    final fresh = Partner(
+      id: 'fresh',
+      name: 'Loja Nova',
+      category: PartnerCategory.sports,
+      benefitTitle: 'Brinde',
+      ctaLabel: 'Usar',
+      link: 'https://fresh.example',
+      active: true,
+      createdAt: testNow.subtract(const Duration(days: 2)),
+    );
+    await _pumpClub(
+      tester,
+      service: service,
+      partners: [featured, fastAcai, fresh],
+    );
+
+    expect(find.byKey(const Key('benefits-featured-promo')), findsOneWidget);
+    expect(find.text('DESTAQUE DA SEMANA'), findsOneWidget);
+    expect(find.text('TERMINA EM 3 DIAS'), findsOneWidget);
+    expect(find.byKey(const Key('benefits-partner-promo')), findsNothing);
+    expect(find.text('NOVO'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('benefits-featured-promo')));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<BenefitPartnerPage>(find.byType(BenefitPartnerPage)).source,
+      BenefitSource.featured,
+    );
+  });
+
+  testWidgets('parceiro fora da validade some', (tester) async {
+    await _pumpClub(
+      tester,
+      service: FakeBenefitsClubService(),
+      partners: [
+        fastAcai,
+        Partner(
+          id: 'old',
+          name: 'Antigo',
+          ctaLabel: 'Usar',
+          active: true,
+          validUntil: testNow.subtract(const Duration(hours: 1)),
+        ),
+        Partner(
+          id: 'later',
+          name: 'Depois',
+          ctaLabel: 'Usar',
+          active: true,
+          startsAt: testNow.add(const Duration(days: 1)),
+        ),
+      ],
+    );
+
+    expect(find.byKey(const Key('benefits-partner-old')), findsNothing);
+    expect(find.byKey(const Key('benefits-partner-later')), findsNothing);
+    expect(find.byKey(const Key('benefits-partner-fast-acai')), findsOneWidget);
+  });
+
+  testWidgets('parceiro com requisito aparece bloqueado com a frase', (
+    tester,
+  ) async {
+    const squadOnly = Partner(
+      id: 'squad-shop',
+      name: 'Loja do Squad',
+      category: PartnerCategory.sports,
+      benefitHighlight: '30% OFF',
+      benefitTitle: '30% em tudo',
+      ctaLabel: 'Usar',
+      link: 'https://squad.example',
+      couponMode: PartnerCouponMode.fixed,
+      active: true,
+      requirement: PartnerRequirement(type: PartnerRequirementType.squad),
+      requirementLabel: 'Exclusivo para embaixadores do Squad',
+    );
+    await _pumpClub(
+      tester,
+      service: FakeBenefitsClubService(),
+      partners: const [fastAcai, squadOnly],
+    );
+
+    final card = find.byKey(const Key('benefits-partner-squad-shop'));
+    expect(card, findsOneWidget);
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.text('Exclusivo para embaixadores do Squad'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.byIcon(Icons.lock_outline_rounded),
+      ),
+      findsWidgets,
+    );
+  });
+
+  group('descoberta (8+ parceiros)', () {
+    testWidgets('com 7 parceiros não há busca nem controles', (tester) async {
+      await _pumpClub(
+        tester,
+        service: FakeBenefitsClubService(),
+        partners: _manyPartners(7),
+      );
+      expect(find.byKey(const Key('benefits-search')), findsNothing);
+      expect(find.byKey(const Key('benefits-near')), findsNothing);
+    });
+
+    testWidgets('com 8 a busca filtra sem acento e abre com a origem search', (
+      tester,
+    ) async {
+      await _pumpClub(
+        tester,
+        service: FakeBenefitsClubService(),
+        partners: _manyPartners(8),
+      );
+      expect(find.byKey(const Key('benefits-search')), findsOneWidget);
+      // Sem localização liberada, nada de "Perto de você".
+      expect(find.byKey(const Key('benefits-near')), findsNothing);
+
+      await tester.enterText(find.byKey(const Key('benefits-search')), 'acai');
+      await tester.pump();
+      expect(find.byKey(const Key('benefits-partner-p0')), findsOneWidget);
+      expect(find.byKey(const Key('benefits-partner-p1')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('benefits-partner-p0')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<BenefitPartnerPage>(find.byType(BenefitPartnerPage))
+            .source,
+        BenefitSource.search,
+      );
+    });
+
+    testWidgets('busca sem resultado avisa', (tester) async {
+      await _pumpClub(
+        tester,
+        service: FakeBenefitsClubService(),
+        partners: _manyPartners(8),
+      );
+      await tester.enterText(find.byKey(const Key('benefits-search')), 'zzz');
+      await tester.pump();
+      expect(
+        find.text('Nenhum parceiro encontrado para "zzz".'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('"Perto de você" só com GPS já liberado e ordena pela '
+        'distância', (tester) async {
+      await _pumpClub(
+        tester,
+        service: FakeBenefitsClubService(),
+        partners: _manyPartners(8),
+        // O atleta está ao lado da loja 7 (a de menor prioridade).
+        userLocation: const UserLocationSnapshot(
+          source: UserLocationSource.profile,
+          latitude: -16.75,
+          longitude: -49.25,
+          city: 'Goiânia',
+        ),
+      );
+      expect(find.byKey(const Key('benefits-near')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('benefits-near')));
+      await tester.pump();
+      expect(find.text('8 PARCEIROS PERTO DE VOCÊ'), findsOneWidget);
+
+      final y7 = tester
+          .getTopLeft(find.byKey(const Key('benefits-partner-p7')))
+          .dy;
+      final y0 = tester
+          .getTopLeft(find.byKey(const Key('benefits-partner-p0')))
+          .dy;
+      expect(y7, lessThan(y0));
+    });
+  });
+
+  group('folhas da entrada', () {
+    testWidgets('primeira visita mostra "Como funciona o clube" uma vez', (
+      tester,
+    ) async {
+      final onboarding = FakeOnboardingStore(seen: false);
+      await _pumpClub(
+        tester,
+        service: FakeBenefitsClubService(),
+        onboarding: onboarding,
+      );
+
+      expect(find.text('Como funciona o clube'), findsOneWidget);
+      expect(find.text('Um toque e pronto'), findsOneWidget);
+      expect(onboarding.marks, 1);
+      await tester.tap(find.byKey(const Key('benefits-how-it-works-ok')));
+      await tester.pumpAndSettle();
+      expect(find.text('Como funciona o clube'), findsNothing);
+    });
+
+    testWidgets('pergunta pendente: "Sim" responde pela callable', (
+      tester,
+    ) async {
+      final service = FakeBenefitsClubService(
+        myBenefits: MyBenefits(
+          uses: [
+            BenefitUse(
+              partnerId: 'fast-acai',
+              useCount: 1,
+              lastUsedAt: testNow.subtract(const Duration(days: 1)),
+            ),
+          ],
+          pendingQuestionPartnerId: 'fast-acai',
+        ),
+      );
+      await _pumpClub(tester, service: service);
+
+      expect(
+        find.text('Conseguiu usar o desconto na Fast Açaí?'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('NEXAGO10 ontem'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('benefits-question-yes')));
+      await tester.pumpAndSettle();
+      expect(service.answers.single, (partnerId: 'fast-acai', used: true));
+    });
+
+    testWidgets('"Agora não" só fecha e não pergunta de novo na sessão', (
+      tester,
+    ) async {
+      final service = FakeBenefitsClubService(
+        myBenefits: const MyBenefits(pendingQuestionPartnerId: 'fast-acai'),
+      );
+      final router = await _pumpClub(tester, service: service);
+
+      await tester.tap(find.byKey(const Key('benefits-question-later')));
+      await tester.pumpAndSettle();
+      expect(service.answers, isEmpty);
+
+      router.go('/');
+      await tester.pumpAndSettle();
+      router.go('/athlete/clube');
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Conseguiu usar o desconto na Fast Açaí?'),
+        findsNothing,
+      );
+    });
+  });
+
+  testWidgets('toque no banner abre o patrocinador com a origem da visita', (
+    tester,
+  ) async {
+    final service = FakeBenefitsClubService();
+    await _pumpClub(
+      tester,
+      service: service,
+      config: const BenefitsClubConfig(testerUids: [testUid]),
+    );
+
+    await tester.tap(find.byKey(const Key('benefits-sponsor-banner')));
+    await tester.pumpAndSettle();
+    final page = tester.widget<BenefitPartnerPage>(
+      find.byType(BenefitPartnerPage),
+    );
+    expect(page.partnerId, 'linq');
+    expect(page.source, BenefitSource.hubCard);
+  });
+
+  testWidgets('ordem: banner antes do destaque; master que também é destaque '
+      'aparece só no banner', (tester) async {
+    const featuredSponsor = Partner(
+      id: 'linq',
+      name: 'LinQ Telecom',
+      category: PartnerCategory.services,
+      benefitTitle: 'Instalação grátis',
+      ctaType: PartnerCtaType.leadForm,
+      ctaLabel: 'Quero contratar',
+      isMasterSponsor: true,
+      featured: true,
+      priority: 100,
+      active: true,
+    );
+    const otherFeatured = Partner(
+      id: 'promo',
+      name: 'Promo',
+      category: PartnerCategory.food,
+      benefitTitle: 'Combo',
+      ctaLabel: 'Pedir',
+      link: 'https://promo.example',
+      featured: true,
+      priority: 10,
+      active: true,
+    );
+
+    // Master também é o destaque de maior prioridade: só o banner.
+    await _pumpClub(
+      tester,
+      service: FakeBenefitsClubService(),
+      partners: const [featuredSponsor, otherFeatured, fastAcai],
+    );
+    expect(find.byKey(const Key('benefits-sponsor-banner')), findsOneWidget);
+    expect(find.byKey(const Key('benefits-featured-linq')), findsNothing);
+    expect(find.text('DESTAQUE DA SEMANA'), findsNothing);
+  });
+
+  testWidgets('master diferente do destaque: banner e depois o destaque', (
+    tester,
+  ) async {
+    const promo = Partner(
+      id: 'promo',
+      name: 'Promo',
+      category: PartnerCategory.food,
+      benefitTitle: 'Combo',
+      ctaLabel: 'Pedir',
+      link: 'https://promo.example',
+      featured: true,
+      priority: 10,
+      active: true,
+    );
+    await _pumpClub(
+      tester,
+      service: FakeBenefitsClubService(),
+      config: const BenefitsClubConfig(testerUids: [testUid]),
+      partners: const [linq, promo, fastAcai],
+    );
+
+    final banner = find.byKey(const Key('benefits-sponsor-banner'));
+    final featured = find.byKey(const Key('benefits-featured-promo'));
+    expect(banner, findsOneWidget);
+    expect(featured, findsOneWidget);
+    expect(
+      tester.getBottomLeft(banner).dy,
+      lessThan(tester.getTopLeft(featured).dy),
+    );
+    expect(
+      tester.getBottomLeft(featured).dy,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('benefits-chip-all'))).dy,
+      ),
+    );
   });
 }

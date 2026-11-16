@@ -5,11 +5,19 @@ import '../../../core/firebase/firebase_providers.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/benefits_club_config.dart';
 import '../domain/benefits_club_logic.dart';
+import '../domain/benefits_club_premium_logic.dart';
 import '../domain/benefits_club_repository.dart';
+import '../domain/my_benefits.dart';
 import '../domain/partner.dart';
 import '../infrastructure/callable_benefits_club_service.dart';
 import '../infrastructure/firestore_benefits_club_repository.dart';
+import 'benefits_club_onboarding_store.dart';
 import 'benefits_club_tracker.dart';
+
+/// Relógio do clube (validade, selos); trocado nos testes.
+final benefitsClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
 
 final benefitsClubRepositoryProvider = Provider<BenefitsClubRepository>(
   (ref) => FirestoreBenefitsClubRepository(ref.watch(firestoreProvider)),
@@ -117,6 +125,7 @@ final benefitsVisiblePartnersProvider =
           list,
           tester: isTesterValue,
           athleteCity: profile.valueOrNull?.city,
+          now: ref.watch(benefitsClockProvider)(),
         ),
       );
     });
@@ -128,3 +137,62 @@ final benefitsPartnerProvider = Provider.autoDispose
           .watch(benefitsVisiblePartnersProvider)
           .whenData((visible) => partnerById(visible, partnerId)),
     );
+
+/// `getMyBenefits`: usos, pergunta pendente, economia confirmada e os
+/// parceiros com requisito que a pessoa cumpre. Deslogado = vazio.
+final benefitsMyBenefitsProvider = FutureProvider.autoDispose<MyBenefits>((
+  ref,
+) async {
+  if (ref.watch(benefitsClubUidProvider).isEmpty) return MyBenefits.empty;
+  return ref.watch(benefitsClubServiceProvider).getMyBenefits();
+});
+
+/// Parceiros com requisito liberados para a pessoa; `null` enquanto o
+/// servidor não respondeu ou com erro (aí o parceiro fica bloqueado).
+final benefitsEligibleIdsProvider = Provider.autoDispose<Set<String>?>(
+  (ref) =>
+      ref.watch(benefitsMyBenefitsProvider).valueOrNull?.eligiblePartnerIds,
+);
+
+/// Ids salvos (coração) pela pessoa.
+final benefitsSavedIdsProvider = StreamProvider.autoDispose<Set<String>>((ref) {
+  final uid = ref.watch(benefitsClubUidProvider);
+  if (uid.isEmpty) return Stream.value(const <String>{});
+  return ref.watch(benefitsClubRepositoryProvider).watchSavedPartnerIds(uid);
+});
+
+/// Patrocinador do card do Hub: o `hubSponsorPartnerId` da config, só se o
+/// parceiro é visível para a pessoa; senão o card fica no modo de sempre.
+final benefitsHubSponsorProvider = Provider.autoDispose<Partner?>((ref) {
+  final id = ref
+      .watch(benefitsClubConfigProvider)
+      .valueOrNull
+      ?.hubSponsorPartnerId;
+  if (id == null) return null;
+  final visible = ref.watch(benefitsVisiblePartnersProvider).valueOrNull;
+  return visible == null ? null : partnerById(visible, id);
+});
+
+/// Parceiro do card "Bateu a fome?" (pós-jogo / dia de torneio). `null` com o
+/// clube invisível para a pessoa, carregando, com erro ou sem parceiro: a
+/// tela que hospeda o card não muda nada.
+final benefitsGameMomentPartnerProvider = Provider.autoDispose
+    .family<Partner?, PartnerPlacement>((ref, placement) {
+      if (!ref.watch(benefitsHubCardVisibleProvider)) return null;
+      final visible = ref.watch(benefitsVisiblePartnersProvider).valueOrNull;
+      if (visible == null) return null;
+      return gameMomentPartner(visible, placement);
+    });
+
+/// Data de criação da conta (metadados do Firebase Auth), para o "Membro
+/// desde". `null` = a linha some.
+final benefitsMemberSinceProvider = Provider.autoDispose<DateTime?>(
+  (ref) => ref.watch(authProvider).valueOrNull?.metadata.creationTime,
+);
+
+/// "Conseguiu usar?" aparece uma vez por sessão do app.
+final benefitsQuestionAskedProvider = StateProvider<bool>((ref) => false);
+
+final benefitsOnboardingStoreProvider = Provider<BenefitsClubOnboardingStore>(
+  (ref) => BenefitsClubOnboardingStore(),
+);

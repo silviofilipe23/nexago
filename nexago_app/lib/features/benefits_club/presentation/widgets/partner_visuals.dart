@@ -36,6 +36,22 @@ Color onPartnerBrand(Color brand) => Color(
 Color partnerInkOnWhite(Color brand) =>
     onPartnerBrand(brand) == AppColors.white ? brand : AppColors.canvas;
 
+/// Cor da marca como texto sobre [surface] (claro ou escuro): a própria marca
+/// quando contrasta o bastante (4.5:1), senão o texto padrão do tema.
+Color partnerInkOnSurface(Color brand, Color surface) {
+  const minContrast = 4.5;
+  if (contrastRatio(brand.toARGB32(), surface.toARGB32()) >= minContrast) {
+    return brand;
+  }
+  return Color(
+    pickForeground(
+      surface.toARGB32(),
+      light: AppColors.white.toARGB32(),
+      dark: AppColors.canvas.toARGB32(),
+    ),
+  );
+}
+
 /// Rótulo em caixa alta e monoespaçado ("SEU CUPOM", "COMO USAR").
 class BenefitsEyebrow extends StatelessWidget {
   const BenefitsEyebrow(this.text, {super.key, this.color});
@@ -144,31 +160,33 @@ class _Initials extends StatelessWidget {
   );
 }
 
-/// Selo verde do benefício ("10% OFF").
+/// Selo verde do benefício ("10% OFF"); [muted] = parceiro bloqueado.
 class BenefitHighlightBadge extends StatelessWidget {
-  const BenefitHighlightBadge(this.text, {super.key});
+  const BenefitHighlightBadge(this.text, {super.key, this.muted = false});
 
   final String text;
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final tone = muted ? colors.onSurfaceMuted : AppColors.win;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm,
         vertical: 5,
       ),
       decoration: BoxDecoration(
-        color: AppColors.win.withValues(alpha: 0.10),
+        color: tone.withValues(alpha: muted ? 0.06 : 0.10),
         borderRadius: AppRadii.smAll,
-        border: Border.all(color: AppColors.win.withValues(alpha: 0.35)),
+        border: Border.all(color: tone.withValues(alpha: 0.35)),
       ),
       child: Text(
         text,
         style: AppTypography.mono(
           fontSize: benefitsMinFontSize,
           fontWeight: FontWeight.w700,
-          color: colors.win,
+          color: muted ? colors.onSurfaceMuted : colors.win,
         ),
       ),
     );

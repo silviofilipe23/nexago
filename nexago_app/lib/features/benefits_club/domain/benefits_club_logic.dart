@@ -29,23 +29,36 @@ bool isTester({
 bool hubCardVisible(BenefitsClubConfig config, {required bool tester}) =>
     config.enabled || tester;
 
-/// Parceiros que o atleta vê: ativos, do público dele (`testers` só para quem
-/// testa) e da cidade dele (lista de cidades vazia = todas; a comparação
-/// ignora acento e caixa). Ordem: prioridade maior primeiro, depois nome.
+/// Parceiros que o atleta vê: ativos, dentro da validade (`startsAt` /
+/// `validUntil`), do público dele (`testers` só para quem testa) e da cidade
+/// dele (lista de cidades vazia = todas; a comparação ignora acento e caixa).
+/// Ordem: prioridade maior primeiro, depois nome.
 List<Partner> visiblePartners(
   Iterable<Partner> partners, {
   required bool tester,
   String? athleteCity,
+  DateTime? now,
 }) {
   final city = normalizeSearchTerm(athleteCity ?? '');
+  final at = now ?? DateTime.now();
   final visible =
       partners
           .where((p) => p.active)
+          .where((p) => isWithinValidity(p, at))
           .where((p) => p.audience == PartnerAudience.all || tester)
           .where((p) => _servesCity(p, city))
           .toList()
         ..sort(comparePartners);
   return List.unmodifiable(visible);
+}
+
+/// Antes de `startsAt` o parceiro não aparece; a partir de `validUntil`, some.
+bool isWithinValidity(Partner partner, DateTime now) {
+  final starts = partner.startsAt;
+  if (starts != null && now.isBefore(starts)) return false;
+  final until = partner.validUntil;
+  if (until != null && !now.isBefore(until)) return false;
+  return true;
 }
 
 bool _servesCity(Partner partner, String normalizedCity) {
@@ -118,17 +131,27 @@ const Map<String, String> benefitsAppUtm = {
 };
 
 /// Link do parceiro com as UTMs do clube e `ref=<código do atleta>`,
-/// preservando a query e o fragmento que já existiam. `null` quando o link
-/// não é https (o botão não abre nada fora do padrão do backoffice).
-String? trackedPartnerUrl(String? link, String code) {
+/// preservando a query e o fragmento que já existiam. Com [couponParam] e
+/// [coupon], leva também `&<couponParam>=<cupom>` (o parceiro já recebe o
+/// cupom aplicado). `null` quando o link não é https (o botão não abre nada
+/// fora do padrão do backoffice).
+String? trackedPartnerUrl(
+  String? link,
+  String code, {
+  String? couponParam,
+  String? coupon,
+}) {
   final uri = Uri.tryParse(link?.trim() ?? '');
   if (uri == null || uri.scheme.toLowerCase() != 'https' || uri.host.isEmpty) {
     return null;
   }
+  final param = couponParam?.trim() ?? '';
+  final couponValue = coupon?.trim() ?? '';
   final params = <String, List<String>>{
     ...uri.queryParametersAll,
     for (final entry in benefitsAppUtm.entries) entry.key: [entry.value],
     if (code.isNotEmpty) 'ref': [code],
+    if (param.isNotEmpty && couponValue.isNotEmpty) param: [couponValue],
   };
   return uri.replace(queryParameters: params).toString();
 }

@@ -6,6 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/sports/sport_catalog.dart';
 import '../../../../arenas/domain/booking_story.dart';
+import '../../../../benefits_club/domain/partner_extras.dart';
+import '../../../../benefits_club/presentation/widgets/benefits_game_moment_card.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_typography.dart';
@@ -295,6 +297,17 @@ class FocusAgoraSection extends ConsumerWidget {
               message: a.message,
             ),
         ],
+        // Clube de Vantagens no dia de torneio: sem parceiro elegível ou com
+        // o clube invisível para a pessoa, não ocupa espaço.
+        const BenefitsGameMomentCard(
+          placement: PartnerPlacement.tournamentDay,
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.screenH,
+            AppSpacing.lg,
+            AppSpacing.screenH,
+            0,
+          ),
+        ),
       ],
     );
   }

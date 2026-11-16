@@ -7,7 +7,6 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/nexa_icon_square_button.dart';
-import '../../domain/benefits_club_logic.dart';
 import '../../domain/partner.dart';
 import 'partner_visuals.dart';
 
@@ -21,15 +20,25 @@ class BenefitsTitleHeader extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onBack,
+    this.subtitleLeading,
+    this.trailing,
   });
 
   final String title;
   final String subtitle;
   final VoidCallback onBack;
 
+  /// Antes do subtítulo (a logo do patrocinador em "Oferecido por").
+  final Widget? subtitleLeading;
+
+  /// Botão da direita ("Meus benefícios"); sem ele, um vão do mesmo tamanho
+  /// mantém o título centralizado.
+  final Widget? trailing;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
+    final leading = subtitleLeading;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenH,
@@ -62,21 +71,30 @@ class BenefitsTitleHeader extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.bodyS.copyWith(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w500,
-                    color: colors.onSurfaceMuted,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (leading != null) ...[leading, const SizedBox(width: 6)],
+                    Flexible(
+                      child: Text(
+                        subtitle,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.bodyS.copyWith(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: colors.onSurfaceMuted,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(width: AppSpacing.md + benefitsTapTarget),
+          const SizedBox(width: AppSpacing.md),
+          trailing ?? const SizedBox(width: benefitsTapTarget),
         ],
       ),
     );
@@ -287,80 +305,6 @@ class _CategoryChip extends StatelessWidget {
                 color: selected ? colors.brandText : colors.onSurfaceMuted,
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Card de um parceiro na lista do clube.
-class BenefitsPartnerCard extends StatelessWidget {
-  const BenefitsPartnerCard({
-    super.key,
-    required this.partner,
-    required this.onTap,
-  });
-
-  final Partner partner;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final highlight = partner.benefitHighlight;
-    return Material(
-      color: colors.surfaceCard,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: AppRadii.lgAll,
-        side: AppBorders.subtleSide(colors),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Row(
-            children: [
-              PartnerLogo(
-                partner: partner,
-                size: 52,
-                borderRadius: AppRadii.mdAll,
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      partner.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.titleS.copyWith(
-                        fontSize: 15,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    BenefitsEyebrow(partnerListCategoryLabel(partner)),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      partner.benefitTitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.bodyS.copyWith(
-                        fontSize: 12.5,
-                        color: colors.onSurfaceMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (highlight.isNotEmpty) ...[
-                const SizedBox(width: AppSpacing.sm),
-                BenefitHighlightBadge(highlight),
-              ],
-            ],
           ),
         ),
       ),

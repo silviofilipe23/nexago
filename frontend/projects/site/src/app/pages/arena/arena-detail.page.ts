@@ -106,7 +106,7 @@ import type { ArenaDetail } from '../../../lib/firestore/types';
                 Baixe o nexaGO para encontrar torneios e etapas nesta e em outras arenas da areia.
               </p>
               <div class="mt-6 flex justify-center">
-                <a nxButton="primary" href="https://linktr.ee/nexago" target="_blank" rel="noopener noreferrer">Baixar o app</a>
+                <a nxButton="primary" routerLink="/baixar">Baixar o app</a>
               </div>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Title } from '@angular/platform-browser';
+import { RouterLink } from '@angular/router';
 import { ButtonDirective } from '../../shared/ui/button.directive';
 
 interface RankingHow {
@@ -21,7 +22,7 @@ const HOW: RankingHow[] = [
 @Component({
   selector: 'app-rankings-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ButtonDirective],
+  imports: [ButtonDirective, RouterLink],
   template: `
     <main class="mx-auto max-w-6xl px-5 pb-24 pt-28 sm:px-6 sm:pt-32">
       <header class="max-w-2xl">
@@ -56,7 +57,7 @@ const HOW: RankingHow[] = [
           acompanhar sua posição.
         </p>
         <div class="mt-7 flex justify-center">
-          <a nxButton="primary" href="https://linktr.ee/nexago" target="_blank" rel="noopener noreferrer">Baixar o app</a>
+          <a nxButton="primary" routerLink="/baixar">Baixar o app</a>
         </div>
       </section>
     </main>

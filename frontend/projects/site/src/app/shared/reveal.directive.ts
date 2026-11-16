@@ -26,12 +26,14 @@ export class RevealDirective {
       return;
     }
 
+    // O navegador pode entregar vários avisos de uma vez (o inicial, "fora da tela", junto com o
+    // de entrada, se a página estava ocupada). Olhar só o primeiro deixaria o elemento invisível
+    // para sempre: basta um deles dizer que entrou.
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          this.visible.set(true);
-          observer.disconnect();
-        }
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        this.visible.set(true);
+        observer.disconnect();
       },
       { rootMargin: '0px 0px -80px 0px', threshold: 0.1 },
     );

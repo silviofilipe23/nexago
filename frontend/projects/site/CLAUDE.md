@@ -6,16 +6,16 @@
 > Server Components aqui.
 
 ## O que é
-Site público do ecossistema nexaGO — plataforma de gestão de torneios e ligas de esportes de areia (beach tennis, vôlei de praia). O site cumpre **dois papéis**:
+Site público do ecossistema nexaGO — app multiesporte (vôlei de praia e de quadra, futevôlei, beach tennis, tênis, padel e mais) para reservar quadra, jogar torneios e ligas e acompanhar ranking. O site cumpre **dois papéis**:
 
-1. **Landing / marketing** — apresentação do app, features, Liga nexaGO, prova social, CTA de download (App Store / Play Store).
+1. **Landing / marketing** — a home existe para levar o visitante a **baixar o app** (App Store / Google Play); ver "Home — Dia de jogo" abaixo.
 2. **Hub público dinâmico** — conteúdo aberto vindo do Firestore: rankings, torneios/etapas, arenas, ligas, mini-sites de arena e páginas de link, e perfis públicos.
 
 ## Stack
 - **Framework**: Angular 20, standalone components, **zoneless** (sem `zone.js`), signals para estado local, `computed()` para estado derivado
 - **CSR puro, sem SSR/SSG** — cada visita busca dados do Firestore direto no navegador (`firebase/firestore/lite`). Decisão deliberada da migração: mesmo padrão dos outros apps do workspace, em troca de perder HTML pré-renderizado por rota (ver seção SEO abaixo pra como isso é compensado)
 - **Estilo**: Tailwind CSS v4 (`@theme` em `src/styles/tokens.scss`, mesmos valores 1:1 do site antigo)
-- **Animação**: **GSAP + ScrollTrigger** para cenas cinematográficas de scroll (hero, heroes de torneio/liga/arena — `afterNextRender` + `gsap.context()` + cleanup via `DestroyRef`); `RevealDirective` (`[nxReveal]`) para reveal-on-scroll simples via `IntersectionObserver` puro — não há Framer Motion aqui (era React-only), tudo virou GSAP ou CSS transitions
+- **Animação**: **GSAP + ScrollTrigger** para cenas de scroll (home, heroes de torneio/liga/arena — `afterNextRender` + `gsap.context()` + cleanup via `DestroyRef`); `RevealDirective` (`[nxReveal]`) para reveal-on-scroll simples via `IntersectionObserver` puro — não há Framer Motion aqui (era React-only), tudo virou GSAP ou CSS transitions
 - **Ícones**: sem pacote de ícones — SVGs desenhados à mão no estilo lucide (24×24, stroke), inline nos componentes. Docs tem um lookup central (`DocIcon`, nome kebab-case → SVG)
 - **Roteamento**: `@angular/router` com `withComponentInputBinding()` — parâmetros de rota (`:id`, `:slug`) chegam direto como `input.required<string>()`, sem `ActivatedRoute` manual
 - **Dados**: Firebase JS SDK **lite** (`firebase/firestore/lite`) — só leitura pública, sem listeners em tempo real. `liteDb` em `src/lib/firebase-lite.ts`. Config compartilhada via `@nexago/firebase-config` (mesmo path alias dos outros apps Angular do workspace)
@@ -28,7 +28,8 @@ src/
     app.ts/.html          # shell — esconde header/footer em /s, /a, /o (mini-sites e link pages)
     app.routes.ts          # todas as rotas, lazy-loaded via loadComponent
     pages/                 # uma pasta por rota — página + seus componentes de apoio
-      home/sections/       # ~20 seções da landing, compostas em home.page.ts
+      home/sections/       # seções da home (ver "Home — Dia de jogo") + as reaproveitadas por /arenas e /ligas
+      baixar/              # /baixar: manda cada aparelho à loja certa; no desktop mostra lojas + QR
       torneios/ ligas/ arenas/ arena/  # hub público (listagem + detalhe), dados reais do Firestore
       s/                    # mini-site de arena (/s/{slug}) — tema dinâmico por arena
       a/ o/ link-bio/       # link-in-bio de arena/organizador — componente único compartilhado
@@ -36,9 +37,10 @@ src/
       blog/                 # /blog e /blog/:slug: posts do backoffice (Firestore `blogPosts`) + estáticos antigos de lib/blog/posts.ts
     shared/
       hub/                  # StatusBadge, ArenaCard, filter-controls — compartilhados entre páginas do hub
-      ui/                   # ButtonDirective, StoreButtons, ToastService, ThemeToggle
+      ui/                   # ButtonDirective, DownloadCta, DownloadQr, PhoneFrame, PhoneAppShell, StoreButtons (blog), ToastService, ThemeToggle
       layout/               # SiteHeader, SiteFooter
       reveal.directive.ts
+      replay-animation.directive.ts  # [nxReplay]: toca de novo a animação CSS quando o valor muda
   lib/
     firestore/              # repositórios de leitura (tournaments, arenas, leagues, arena-sites, link-pages, blog, store-showcase, rankings)
     blog/                   # posts estáticos antigos, categorias (6 de origem ⊕ `blogCategories`, categories.ts) e a junção com os do Firestore (feed.ts)
@@ -48,7 +50,8 @@ src/
   styles/tokens.scss        # fonte da verdade dos design tokens (@theme do Tailwind)
 public/
   brand/                    # logo oficial
-  app/                      # screenshots reais do app (showcase da home + docs)
+  app/                      # screenshots reais do app (docs)
+  img/home/                 # fotos, pôsteres e vídeo da home: {nome}-{largura}.webp, hero.mp4, hero-m.mp4, og.jpg
   .htaccess                 # SPA rewrite + regra de bot pra prévia de OG (ver Deploy)
 ```
 
@@ -58,6 +61,29 @@ public/
 Regras de cor: tokens semânticos sempre (`bg-brand`, `text-fg`, nunca hex cru); `live`/`pending`/`win` sempre acompanhados de ícone/label, nunca só cor.
 
 Exceção: cor de categoria do blog criada no backoffice (`blogCategories/{id}.color`/`colorLight`) é dado dinâmico em hex — entra só como custom property no elemento (`BlogCategoryChip`: `--cat-dark`/`--cat-light`, o tema escolhe; `BlogCover`: tom escuro na arte). As 6 de origem usam os tokens `--color-cat-*` (fora do `@theme`, em `:root`, para sempre saírem no CSS).
+
+## Home — Dia de jogo
+A home é um dia de jogo contado de cima para baixo, e tudo termina no download:
+
+1. `Opening` — a arena ao anoitecer em vídeo (laço mudo de 7 s; o pôster é o 1º quadro do laço), título "Hoje tem jogo." com a data de quem lê, `DownloadCta` e QR. `SportsTicker` fecha a primeira tela.
+2. `MatchPoint` — a cena-assinatura: os últimos pontos de uma semifinal jogados pela rolagem (ScrollTrigger com pin). Sequência e regras em `match-point-beats.ts` (com spec). Confete (`canvas-confetti`, import dinâmico) só ao chegar na vitória.
+3. `BookingScene` — mesma mecânica, lados trocados no desktop: a reserva de uma quadra em cinco etapas (buscar, esporte, horário, pagar, reservado). O quadro de horários e as telas do app (`BookingPhone`, com os rótulos reais do app) saem da mesma agenda em `booking-beats.ts` (com spec). O desfecho é a casa carimbada "Você", sem confete.
+4. `GameDay` — três horários (07:40 agenda do dia, 12:30 galera, 16:50 torneio), cada um com foto e um recorte de tela do app desenhado em HTML. Reserva e ranking não se repetem aqui: têm cena própria.
+5. `AthleteScene` — terceira cena, fechando o dia: o que fica com o atleta depois do jogo, em seis passos (Modo Focus, histórico, nível, ranking, XP/missões/conquistas, card no story). O quadro é a ficha do atleta, com quatro casas que acendem uma a uma; as telas (`AthletePhone`) e a ficha saem de `athlete-beats.ts` (com spec). Mesmos lados do placar, sem confete. Fica de fora de propósito: elos (trilha ainda não confirmada para todos), nexaGO+, cashback, loja, aulas e Squad.
+6. `OrganizerScene` — quarta cena: o mesmo torneio visto por quem organiza, em cinco passos (inscrições, sorteio da chave, agenda por quadra, mesa ao vivo, campeões e caixa). O quadro é a chave da categoria: nasce como lista de inscritos, vira chave, ganha hora e quadra, recebe os placares e fecha com os campeões. Chave, grade e telas do painel (`OrganizerPhone`) saem de `organizer-beats.ts` (com spec). Lados da reserva (celular à esquerda), sem confete. O link do desfecho leva a `/docs/organizadores`, não ao download.
+7. `NumbersSection` — três indicadores no numeral de placar (1.000+ atletas, 20+ torneios, 5+ arenas), como ponte entre as cenas e o que é real. Os valores foram informados pelo dono em 16/11/2026 e são pisos fixos no componente, não contagem do Firestore: atualizar ali quando mudarem de faixa.
+8. Dados reais do Firestore (`TorneiosDestaqueSection`, `ArenasCarouselSection`), `AudienceDoors` (organizadores/arenas), FAQ e `FinalCall`. `StickyDownload` é a barra de download do celular.
+
+Cenas jogadas pela rolagem (`beat-scene.ts` + `beat-scene.scss`): `pinBeatScene` prende um palco de uma tela e a rolagem só escolhe o `beat`; o que aparece em cada um é template guiado por signal. Uma cena nova segue o molde: dados e funções puras num `*-beats.ts` com spec, componente com `styleUrls: ['./beat-scene.scss', './minha-cena.scss']`, tela do app dentro de `PhoneFrame` + `PhoneAppShell` (`[active]="null"` para tela imersiva, sem as abas: Modo Focus, editor de story). O número de passos é livre: ajuste `PIN_VIEWPORTS` para manter cerca de 0,6 tela por passo. Os `@keyframes` são isolados por folha: uma folha não enxerga os da outra.
+
+Regras que valem só aqui:
+- **Download**: todo "Baixar o app" do site vai para `/baixar` (`DOWNLOAD_PATH`), que detecta o aparelho (`lib/platform.ts`) e redireciona; `DownloadCta` mostra só a loja do aparelho no celular e as duas no desktop. O QR (`lib/download-qr.ts`) é um caminho SVG fixo de `https://nexago.com.br/baixar` — mudou o endereço, gere de novo.
+- **Tipografia**: `--font-athletic` (Archivo, variável em largura) em três vozes — `.nx-shout` (chamada em caixa alta, itálica, estreita), `.nx-title` (título calmo) e `.nx-score` (numeral de placar). Dentro de `.nx-home`, `font-display` também vira Archivo; o resto do site segue em Sora.
+- **`.nx-night`**: trecho sobre foto/vídeo (e a UI do app no celular) é sempre escuro, em qualquer tema — a classe redeclara os tokens escuros no elemento. Fora dela a home segue o tema.
+- **Cor**: `sand` (areia) é a segunda cor, para horários e contornos; ação continua sendo só o laranja.
+- **Imagens**: `NgOptimizedImage` com o loader `HOME_IMAGE_LOADER` (`lib/home-images.ts`) no `providers` da página — `ngSrc="hero"` + `ngSrcset="960w, 1920w"` vira `img/home/hero-960.webp`. Fotos e vídeo foram gerados por IA; conferir logos/textos inventados antes de trocar alguma.
+- **Movimento**: só a entrada do título (CSS) toca sozinha; o resto responde à rolagem. `prefers-reduced-motion` tira o vídeo, o pin e as paralaxes. Seções com ScrollTrigger ficam **antes** das que carregam dados, para a altura que chega depois não deslocar gatilho.
+- Nomes de atletas, arena e torneio nas telas desenhadas são fictícios; números (ex.: +50 XP por vitória em torneio) são os reais do app.
 
 ## Dados (Firestore)
 - Config em `@nexago/firebase-config` (projeto `volley-track-dev-4596c` — mesmo projeto dev usado pelos outros apps Angular do workspace). Chaves de cliente não são secretas; a segurança vive nas `firestore.rules`.

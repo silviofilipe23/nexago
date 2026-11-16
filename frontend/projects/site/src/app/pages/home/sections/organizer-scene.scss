@@ -1,0 +1,253 @@
+// O clarão acompanha o quadro, que nesta cena fica do lado direito no desktop.
+:host {
+  --flash-x: 50%;
+  --gap-x: clamp(10px, 2.4vw, 26px);
+  --gap-y: clamp(10px, 1.3vw, 14px);
+
+  @media (min-width: 1024px) {
+    --flash-x: 68%;
+  }
+}
+
+.status {
+  animation: appear 400ms ease both;
+}
+
+.live-dot {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+// Corpo do quadro: mesma altura para a lista de inscritos e para a chave, para a troca entre as
+// duas (o sorteio) não empurrar o resto da cena.
+.body {
+  display: grid;
+  min-height: clamp(13.75rem, 30vw, 18.5rem);
+  padding: clamp(0.6rem, 1.6vw, 1rem);
+}
+
+// Lista de inscritos, em duas colunas.
+.entries {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: clamp(5px, 0.9vw, 9px) clamp(6px, 1.2vw, 12px);
+  animation: appear 420ms ease both;
+
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0 clamp(0.55rem, 1.4vw, 0.9rem);
+    border: 1px solid var(--color-line-strong);
+    border-radius: 10px;
+    font-size: clamp(0.72rem, 1.5vw, 0.9rem);
+  }
+}
+
+.paid {
+  flex: none;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-win);
+}
+
+// A chave: três fases lado a lado; cada par de partidas se junta na fase seguinte.
+.bracket {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--gap-x);
+  animation: appear 420ms ease both;
+}
+
+.round {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.round-title {
+  margin-bottom: 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-mute);
+}
+
+.round-body,
+.pair {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: var(--gap-y);
+}
+
+// Colchete que liga as duas partidas do par à fase seguinte.
+.pair-joined::after {
+  content: '';
+  position: absolute;
+  top: 25%;
+  right: calc(var(--gap-x) / -2);
+  bottom: 25%;
+  width: calc(var(--gap-x) / 2);
+  border: 1px solid var(--color-line-strong);
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+}
+
+.match {
+  position: relative;
+  padding: 0.3rem clamp(0.4rem, 1vw, 0.65rem) 0.2rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 10px;
+  background: rgb(12 12 13);
+  font-size: clamp(0.66rem, 1.35vw, 0.84rem);
+  transition:
+    border-color 300ms ease,
+    background-color 300ms ease;
+}
+
+// Traço que chega do colchete da fase anterior.
+.round + .round .match::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc(var(--gap-x) / -2);
+  width: calc(var(--gap-x) / 2);
+  border-top: 1px solid var(--color-line-strong);
+}
+
+.match-live {
+  border-color: var(--color-brand);
+  background: rgb(27 16 10);
+}
+
+// Hora e quadra: uma etiqueta sobre a borda de cima da partida, para não custar uma linha.
+.when {
+  position: absolute;
+  top: -0.5rem;
+  left: 0.45rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.3rem;
+  background: rgb(12 12 13);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  line-height: 1.5;
+  color: var(--color-sand);
+  animation: appear 400ms ease both;
+
+  span {
+    color: var(--color-text-mute);
+  }
+}
+
+.when-live {
+  background: rgb(27 16 10);
+  font-family: inherit;
+  font-weight: 700;
+  color: var(--color-brand);
+
+  .live-dot {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: var(--color-brand);
+  }
+}
+
+.side {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  line-height: 1.55;
+  color: var(--color-fg);
+}
+
+// Quem venceu segue em destaque; quem perdeu recua. O placar ao lado diz o resultado.
+.side-won {
+  font-weight: 700;
+}
+
+.side-lost,
+.side-open {
+  color: var(--color-text-dim);
+}
+
+// A final decidida: o lado campeão em verde.
+.match-final {
+  border-color: var(--color-win);
+
+  .side-won {
+    color: var(--color-win);
+  }
+}
+
+.sets {
+  flex: none;
+  font-size: 1.05em;
+  animation: tick 480ms cubic-bezier(0.19, 1, 0.22, 1) both;
+}
+
+// O desfecho: a marca dos campeões carimbada acima da final, dentro da coluna (o quadro não
+// muda de altura).
+.champions {
+  position: absolute;
+  right: 0;
+  bottom: calc(50% + 2.1rem);
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font-family: var(--font-athletic);
+  font-size: clamp(0.8rem, 1.7vw, 1.1rem);
+  font-weight: 800;
+  color: var(--color-win);
+  animation: stamp 520ms var(--ease-spring) both;
+
+  svg {
+    width: 1.1em;
+    height: 1.1em;
+  }
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tick {
+  from {
+    opacity: 0;
+    transform: translateY(-62%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes stamp {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}

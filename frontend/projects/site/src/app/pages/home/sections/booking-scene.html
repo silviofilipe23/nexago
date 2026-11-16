@@ -1,0 +1,111 @@
+<section class="nx-night relative bg-black" aria-labelledby="bk-title">
+  <div #stage class="relative isolate flex h-[100svh] min-h-[620px] items-start overflow-hidden pt-24 lg:items-center lg:pt-0">
+    <div class="absolute inset-0 -z-10" aria-hidden="true">
+      <div #backdrop class="absolute inset-0 will-change-transform">
+        <img
+          ngSrc="quadras"
+          ngSrcset="960w, 1920w"
+          [loaderParams]="{ fallback: 1920 }"
+          sizes="100vw"
+          fill
+          alt=""
+          class="object-cover"
+        />
+      </div>
+      <!-- A foto é clara (areia iluminada): o véu escurece tudo e pesa mais do lado do texto. -->
+      <div class="absolute inset-0 bg-black/45 lg:bg-black/20"></div>
+      <div class="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.5)_0%,rgba(0,0,0,0.86)_55%,#000_100%)] lg:bg-[linear-gradient(to_right,rgba(0,0,0,0.1)_0%,rgba(0,0,0,0.3)_34%,rgba(0,0,0,0.9)_62%,rgba(0,0,0,0.93)_100%)]"></div>
+      <div class="absolute inset-0 bg-[linear-gradient(to_bottom,#000_0%,transparent_22%,transparent_74%,#000_100%)]"></div>
+      <div
+        class="flash absolute inset-0"
+        [nxReplay]="beat()"
+        [class.hidden]="step() !== 'slot' && !done()"
+        [class.flash-win]="done()"
+      ></div>
+    </div>
+
+    <div class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 px-5 sm:px-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-center lg:gap-14">
+      <div class="lg:order-2">
+        <h2 id="bk-title" class="nx-title text-xl text-sand sm:text-2xl">Quadra garantida antes de sair de casa.</h2>
+
+        <div class="board mt-5">
+          <div class="flex items-center gap-4 border-b border-line-strong px-4 py-2.5 text-[13px] font-500 text-text-mute sm:px-6 sm:text-sm">
+            <span class="font-700 text-fg">{{ booking.arena }}</span>
+            <span>{{ booking.day }}</span>
+            @if (sportChosen()) {
+              <span class="chip ml-auto rounded-pill bg-brand-tint px-3 py-1 font-600 text-brand">{{ booking.sport }}</span>
+            } @else {
+              <span class="ml-auto text-text-dim">Escolha o esporte</span>
+            }
+          </div>
+
+          <table class="slots">
+            <caption class="sr-only">
+              Quadro de horários da {{ booking.arena }}
+            </caption>
+            <thead>
+              <tr>
+                <td></td>
+                @for (time of times; track time) {
+                  <th scope="col" class="nx-score" [class.on]="slotChosen() && time === booking.time" [class.won]="done() && time === booking.time">
+                    {{ time }}
+                  </th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rows(); track row.court) {
+                <tr>
+                  <th scope="row" class="nx-title" [class.on]="slotChosen() && row.chosen" [class.won]="done() && row.chosen">{{ row.court }}</th>
+                  @for (cell of row.cells; track cell.time) {
+                    <td>
+                      <span [class]="'cell cell-' + cell.state">
+                        <span [class.sr-only]="cell.state === 'busy'">{{ cell.label }}</span>
+                      </span>
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-6 min-h-[9.5rem] sm:mt-8 sm:min-h-[12rem]" aria-live="polite">
+          <p
+            class="call nx-shout text-[clamp(2.5rem,7.2vw,5.75rem)]"
+            [nxReplay]="beat()"
+            [class.text-brand]="step() === 'pay'"
+            [class.text-win]="done()"
+          >
+            {{ current().call }}
+          </p>
+          <p class="note mt-3 max-w-[30rem] text-pretty text-base leading-relaxed text-fg/80 sm:text-lg" [nxReplay]="beat()">
+            {{ current().note }}
+          </p>
+        </div>
+
+        <div class="mt-5 flex items-center gap-5">
+          <ol class="flex gap-1.5" aria-hidden="true">
+            @for (b of beats; track b.step) {
+              <li class="h-1 w-7 rounded-full transition-colors duration-300" [class]="$index <= beat() ? 'bg-brand' : 'bg-fg/20'"></li>
+            }
+          </ol>
+          @if (done()) {
+            <a
+              [routerLink]="downloadPath"
+              class="cta inline-flex items-center gap-2 rounded-1 text-base font-700 text-fg underline decoration-brand decoration-2 underline-offset-[6px] transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4 focus-visible:ring-offset-black"
+            >
+              Reserve a sua: baixe o app
+            </a>
+          }
+        </div>
+      </div>
+
+      <div class="flex justify-center lg:order-1 lg:justify-start">
+        <app-phone-frame class="[--phone-w:232px] sm:[--phone-w:264px] lg:[--phone-w:min(21.5rem,36svh)]" aria-hidden="true">
+          <app-booking-phone [step]="step()" />
+        </app-phone-frame>
+      </div>
+    </div>
+  </div>
+</section>

@@ -16,19 +16,19 @@ const COLUMNS: FooterColumn[] = [
   {
     title: 'Plataforma',
     links: [
-      { label: 'Como funciona', href: '/#como-funciona' },
+      { label: 'Como funciona', href: '/docs' },
       { label: 'Ligas nexaGO', href: '/ligas' },
       { label: 'Rankings', href: '/rankings' },
       { label: 'Torneios', href: '/torneios' },
       { label: 'Blog', href: '/blog' },
-      { label: 'Baixar o app', href: 'https://linktr.ee/nexago', external: true },
+      { label: 'Baixar o app', href: '/baixar' },
     ],
   },
   {
     title: 'Para você',
     links: [
-      { label: 'Atletas', href: 'https://linktr.ee/nexago', external: true },
-      { label: 'Organizadores', href: '/organizadores' },
+      { label: 'Atletas', href: '/docs/atletas' },
+      { label: 'Organizadores', href: '/docs/organizadores' },
       { label: 'Arenas', href: '/arenas' },
       { label: 'Embaixadores · Squad', href: '/squad' },
     ],

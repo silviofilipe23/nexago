@@ -1,0 +1,155 @@
+<section class="nx-night relative bg-black" aria-labelledby="at-title">
+  <div #stage class="relative isolate flex h-[100svh] min-h-[620px] items-start overflow-hidden pt-24 lg:items-center lg:pt-0">
+    <div class="absolute inset-0 -z-10" aria-hidden="true">
+      <div #backdrop class="absolute inset-0 will-change-transform">
+        <img
+          ngSrc="atleta"
+          ngSrcset="960w, 1920w"
+          [loaderParams]="{ fallback: 1920 }"
+          sizes="100vw"
+          fill
+          alt=""
+          class="object-cover object-[78%_50%]"
+        />
+      </div>
+      <div class="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.9)_0%,rgba(0,0,0,0.62)_48%,rgba(0,0,0,0.4)_100%)]"></div>
+      <div class="absolute inset-0 bg-[linear-gradient(to_bottom,#000_0%,transparent_22%,transparent_74%,#000_100%)]"></div>
+      <div class="flash absolute inset-0" [nxReplay]="beat()" [class.hidden]="step() === 'focus'"></div>
+    </div>
+
+    <div class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 px-5 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:items-center lg:gap-14">
+      <div>
+        <h2 id="at-title" class="nx-title text-xl text-sand sm:text-2xl">No fim do dia, o jogo fica com você.</h2>
+
+        <!-- A ficha do atleta: quem é e o próximo jogo em cima, quatro casas que acendem embaixo. -->
+        <div class="board ficha mt-5" [class.ficha-ready]="shared()">
+          <div class="flex items-center gap-3 border-b border-line-strong px-4 py-3 sm:gap-4 sm:px-6">
+            <span class="avatar" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+              </svg>
+            </span>
+            <span class="min-w-0">
+              <span class="nx-title block text-[clamp(1.15rem,2.6vw,1.6rem)] leading-none">{{ athlete.name }}</span>
+              <span class="mt-1 block text-[13px] text-text-mute sm:text-sm">{{ athlete.sport }}</span>
+            </span>
+            <span class="ml-auto text-right text-[13px] sm:text-sm">
+              <span
+                class="flex items-center justify-end gap-2 font-700 transition-colors duration-300"
+                [class]="step() === 'focus' ? 'text-brand' : 'text-fg'"
+              >
+                <span class="live-dot size-2 rounded-full bg-brand" aria-hidden="true"></span>
+                {{ athlete.next.when }}
+              </span>
+              <span class="block text-text-mute">{{ athlete.next.round }}, {{ athlete.next.court }}</span>
+            </span>
+          </div>
+
+          <dl class="stats">
+            <div class="stat" [class.stat-now]="now('history')">
+              <dt>Jogos</dt>
+              <dd>
+                @if (lit('history')) {
+                  <span class="value nx-score">{{ athlete.games }}</span>
+                  <span class="detail">
+                    <span class="form" aria-hidden="true">
+                      @for (result of form; track $index) {
+                        <span class="result" [class.result-win]="result === 'win'">{{ result === 'win' ? 'V' : 'D' }}</span>
+                      }
+                    </span>
+                    <span>{{ winRate }}% de vitórias</span>
+                  </span>
+                } @else {
+                  <span class="value value-off nx-score" aria-hidden="true">—</span>
+                }
+              </dd>
+            </div>
+
+            <div class="stat" [class.stat-now]="now('level')">
+              <dt>Nível</dt>
+              <dd>
+                @if (lit('level')) {
+                  <span class="value value-text nx-title">{{ athlete.level.name }}</span>
+                  <span class="detail">
+                    <span class="bar" aria-hidden="true"><span [style.width.%]="levelProgress"></span></span>
+                    <span>faltam {{ pointsToPromotion }} pts para subir</span>
+                  </span>
+                } @else {
+                  <span class="value value-off nx-score" aria-hidden="true">—</span>
+                }
+              </dd>
+            </div>
+
+            <div class="stat" [class.stat-now]="now('ranking')">
+              <dt>Ranking</dt>
+              <dd>
+                @if (lit('ranking')) {
+                  <span class="value nx-score">{{ position }}º</span>
+                  <span class="detail">
+                    <span class="up">
+                      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 5 21 19H3L12 5Z" /></svg>
+                      subiu {{ climb }}
+                    </span>
+                    <span>no esporte</span>
+                  </span>
+                } @else {
+                  <span class="value value-off nx-score" aria-hidden="true">—</span>
+                }
+              </dd>
+            </div>
+
+            <div class="stat" [class.stat-now]="now('xp')">
+              <dt>XP</dt>
+              <dd>
+                @if (lit('xp')) {
+                  <span class="value nx-score">{{ xpTotal }}</span>
+                  <span class="detail">
+                    <span>{{ athlete.xp.achievements }} conquistas</span>
+                  </span>
+                } @else {
+                  <span class="value value-off nx-score" aria-hidden="true">—</span>
+                }
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="mt-6 min-h-[9.5rem] sm:mt-8 sm:min-h-[12rem]" aria-live="polite">
+          <p
+            class="call nx-shout text-[clamp(2.5rem,7.2vw,5.75rem)]"
+            [nxReplay]="beat()"
+            [class.text-win]="step() === 'level' || step() === 'ranking'"
+            [class.text-brand]="shared()"
+          >
+            {{ current().call }}
+          </p>
+          <p class="note mt-3 max-w-[30rem] text-pretty text-base leading-relaxed text-fg/80 sm:text-lg" [nxReplay]="beat()">
+            {{ current().note }}
+          </p>
+        </div>
+
+        <div class="mt-5 flex items-center gap-5">
+          <ol class="flex gap-1.5" aria-hidden="true">
+            @for (b of beats; track b.step) {
+              <li class="h-1 w-6 rounded-full transition-colors duration-300" [class]="$index <= beat() ? 'bg-brand' : 'bg-fg/20'"></li>
+            }
+          </ol>
+          @if (shared()) {
+            <a
+              [routerLink]="downloadPath"
+              class="cta inline-flex items-center gap-2 rounded-1 text-base font-700 text-fg underline decoration-brand decoration-2 underline-offset-[6px] transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4 focus-visible:ring-offset-black"
+            >
+              Comece a sua: baixe o app
+            </a>
+          }
+        </div>
+      </div>
+
+      <div class="flex justify-center lg:justify-end">
+        <app-phone-frame class="[--phone-w:232px] sm:[--phone-w:264px] lg:[--phone-w:min(21.5rem,36svh)]" aria-hidden="true">
+          <app-athlete-phone [step]="step()" />
+        </app-phone-frame>
+      </div>
+    </div>
+  </div>
+</section>

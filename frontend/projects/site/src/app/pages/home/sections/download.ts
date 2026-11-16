@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RevealDirective } from '../../../shared/reveal.directive';
-import { StoreButtons } from '../../../shared/ui/store-buttons';
+import { DownloadCta } from '../../../shared/ui/download-cta';
 
-/** Porta de `Download` (site Next.js) — CTA final da home para baixar o app. */
+/** CTA de download no fim das páginas de liga (a home tem o seu próprio fecho, `FinalCall`). */
 @Component({
   selector: 'app-download-section',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RevealDirective, StoreButtons],
+  imports: [RevealDirective, DownloadCta],
   template: `
     <section id="download" class="relative scroll-mt-24 overflow-hidden px-5 py-16 sm:px-6 sm:py-36">
       <div
@@ -23,11 +23,7 @@ import { StoreButtons } from '../../../shared/ui/store-buttons';
           Baixe o nexaGO, crie seu perfil e entre na próxima etapa da Liga. Grátis para atletas.
         </p>
 
-        <app-store-buttons
-          size="md"
-          className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row"
-          itemClassName="w-full sm:w-auto"
-        />
+        <app-download-cta align="center" class="mt-10" />
       </div>
     </section>
   `,

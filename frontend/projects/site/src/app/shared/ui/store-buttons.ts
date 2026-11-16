@@ -1,6 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
-import { APP_STORE_URL, GOOGLE_PLAY_COMING_SOON, GOOGLE_PLAY_URL, isGooglePlayAvailable } from '../../../lib/store-links';
-import { ToastService } from './toast';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { APP_STORE_URL, GOOGLE_PLAY_URL } from '../../../lib/store-links';
 
 @Component({
   selector: 'app-store-buttons',
@@ -24,11 +23,10 @@ import { ToastService } from './toast';
         </span>
       </a>
       <a
-        [href]="playReady ? googlePlayUrl : '#'"
-        (click)="onGooglePlayClick($event)"
-        [attr.aria-label]="playReady ? 'Disponível no Google Play' : 'Google Play — em breve'"
-        [attr.target]="playReady ? '_blank' : null"
-        [attr.rel]="playReady ? 'noopener noreferrer' : null"
+        [href]="googlePlayUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Disponível no Google Play"
         [class]="itemClasses()"
       >
         <svg [class]="playIconClasses() + ' shrink-0'" fill="currentColor" viewBox="0 0 512 512" aria-hidden="true">
@@ -49,9 +47,6 @@ export class StoreButtons {
 
   protected readonly appStoreUrl = APP_STORE_URL;
   protected readonly googlePlayUrl = GOOGLE_PLAY_URL;
-  protected readonly playReady = isGooglePlayAvailable();
-
-  private readonly toastService = inject(ToastService);
 
   private static readonly BASE =
     'group inline-flex items-center justify-center gap-3 rounded-4 border border-line-strong bg-surface-1 ' +
@@ -82,11 +77,5 @@ export class StoreButtons {
 
   protected mainLabelClasses(): string {
     return `block ${StoreButtons.SIZES[this.size()].main} font-700 leading-none tracking-tight`;
-  }
-
-  protected onGooglePlayClick(event: MouseEvent): void {
-    if (this.playReady) return;
-    event.preventDefault();
-    this.toastService.show(GOOGLE_PLAY_COMING_SOON);
   }
 }

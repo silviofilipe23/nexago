@@ -1,0 +1,172 @@
+<section class="nx-night relative bg-black" aria-labelledby="mp-title">
+  <div #stage class="relative isolate flex h-[100svh] min-h-[620px] items-start overflow-hidden pt-24 lg:items-center lg:pt-0">
+    <div class="absolute inset-0 -z-10" aria-hidden="true">
+      <div #backdrop class="absolute inset-0 will-change-transform">
+        <img
+          ngSrc="match"
+          ngSrcset="960w, 1920w"
+          [loaderParams]="{ fallback: 1920 }"
+          sizes="100vw"
+          fill
+          alt=""
+          class="object-cover object-[62%_50%]"
+        />
+      </div>
+      <div class="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.9)_0%,rgba(0,0,0,0.62)_48%,rgba(0,0,0,0.4)_100%)]"></div>
+      <div class="absolute inset-0 bg-[linear-gradient(to_bottom,#000_0%,transparent_22%,transparent_74%,#000_100%)]"></div>
+      <div
+        class="flash absolute inset-0"
+        [nxReplay]="beat()"
+        [class.hidden]="!current().scorer"
+        [class.flash-cold]="current().scorer === 'them'"
+      ></div>
+    </div>
+
+    <div class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 px-5 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:items-center lg:gap-14">
+      <div>
+        <h2 id="mp-title" class="nx-title text-xl text-sand sm:text-2xl">Seu jogo, com placar de final.</h2>
+
+        <div class="board mt-5" role="group" aria-label="Placar ao vivo">
+          <div class="flex items-center gap-4 border-b border-line-strong px-4 py-2.5 text-[13px] font-500 text-text-mute sm:px-6 sm:text-sm">
+            @if (won()) {
+              <span class="font-700 text-win">Encerrado</span>
+            } @else {
+              <span class="flex items-center gap-2 font-700 text-fg">
+                <span class="live-dot size-2 rounded-full bg-live" aria-hidden="true"></span>
+                Ao vivo
+              </span>
+            }
+            <span>Semifinal, 2º set</span>
+            <span class="ml-auto">Quadra 2</span>
+          </div>
+
+          @for (side of sides; track side) {
+            <div class="row" [class.row-won]="won() && side === 'us'">
+              <span class="serve" [class.serve-on]="!won() && current().serving === side" aria-hidden="true"></span>
+              <span class="nx-title truncate text-[clamp(1.15rem,3.4vw,2rem)]">{{ teams[side] }}</span>
+              <span class="nx-score ml-auto w-[1.6ch] text-center text-[clamp(1.5rem,4vw,2.5rem)] text-text-mute">
+                {{ setsFor(side) }}
+              </span>
+              <span class="points nx-score">
+                <span class="tick" [nxReplay]="current()[side]">{{ current()[side] }}</span>
+              </span>
+            </div>
+          }
+        </div>
+
+        <div class="mt-6 min-h-[9.5rem] sm:mt-8 sm:min-h-[12rem]" aria-live="polite">
+          <p
+            class="call nx-shout text-[clamp(2.5rem,7.2vw,5.75rem)]"
+            [nxReplay]="beat()"
+            [class.text-brand]="matchPoint()"
+            [class.text-win]="won()"
+          >
+            {{ current().call }}
+          </p>
+          <p class="note mt-3 max-w-[30rem] text-pretty text-base leading-relaxed text-fg/80 sm:text-lg" [nxReplay]="beat()">
+            {{ current().note }}
+          </p>
+        </div>
+
+        <div class="mt-5 flex items-center gap-5">
+          <ol class="flex gap-1.5" aria-hidden="true">
+            @for (b of beats; track $index) {
+              <li class="h-1 w-7 rounded-full transition-colors duration-300" [class]="$index <= beat() ? 'bg-brand' : 'bg-fg/20'"></li>
+            }
+          </ol>
+          @if (won()) {
+            <a
+              [routerLink]="downloadPath"
+              class="cta inline-flex items-center gap-2 rounded-1 text-base font-700 text-fg underline decoration-brand decoration-2 underline-offset-[6px] transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4 focus-visible:ring-offset-black"
+            >
+              Agora jogue o seu: baixe o app
+            </a>
+          }
+        </div>
+      </div>
+
+      <div class="flex justify-center lg:justify-end">
+        <app-phone-frame class="[--phone-w:232px] sm:[--phone-w:264px] lg:[--phone-w:min(21.5rem,36svh)]" aria-hidden="true">
+          <app-phone-app-shell time="19:42" active="Competir">
+            @if (!won()) {
+              <div class="screen flex flex-1 flex-col px-[5.5cqw] pt-[6cqw]">
+                <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-brand">Ao vivo · Quadra 2</p>
+                <p class="mt-[1.2cqw] font-display text-[6.6cqw] font-700 leading-tight tracking-tight">Open de Verão</p>
+                <p class="text-[3.5cqw] text-text-mute">Semifinal, dupla mista</p>
+
+                <div class="mt-[5cqw] rounded-[5.5cqw] border border-line bg-surface-1 p-[4.5cqw]">
+                  @for (side of sides; track side) {
+                    <div class="flex items-center gap-[2.5cqw] py-[1.6cqw]" [class.border-b]="side === 'us'" [class.border-line]="side === 'us'">
+                      <span class="size-[2cqw] rounded-full" [class]="current().serving === side ? 'bg-brand' : 'bg-transparent'"></span>
+                      <span class="font-display text-[4.3cqw] font-600">{{ teams[side] }}</span>
+                      <span class="ml-auto font-mono text-[3.6cqw] text-text-mute">{{ setsFor(side) }}</span>
+                      <span class="w-[9.5cqw] text-right font-display text-[7.4cqw] font-800 leading-none [font-variant-numeric:tabular-nums]" [class.text-brand]="current()[side] > current()[side === 'us' ? 'them' : 'us']">
+                        {{ current()[side] }}
+                      </span>
+                    </div>
+                  }
+                  <p class="mt-[2.8cqw] font-mono text-[2.8cqw] uppercase tracking-[0.12em] text-text-dim">1º set {{ firstSet }}</p>
+                </div>
+
+                <p class="mt-[5.5cqw] font-display text-[4.4cqw] font-700">Ponto a ponto</p>
+                <ul class="mt-[2.5cqw] space-y-[1.8cqw]">
+                  @for (p of log(); track p.score) {
+                    <li class="log flex items-center gap-[3cqw] rounded-[3.6cqw] bg-surface-1 px-[3.6cqw] py-[2.8cqw] text-[3.5cqw]">
+                      <span class="font-mono font-700" [class.text-brand]="p.scorer === 'us'">{{ p.score }}</span>
+                      <span class="text-text-mute">Ponto de {{ teams[p.scorer] }}</span>
+                    </li>
+                  } @empty {
+                    <li class="rounded-[3.6cqw] border border-dashed border-line-strong px-[3.6cqw] py-[2.8cqw] text-[3.5cqw] text-text-dim">Saque de {{ teams.them }}</li>
+                  }
+                </ul>
+
+                <div class="mt-auto rounded-[4.5cqw] border border-line bg-surface-1 p-[3.8cqw]">
+                  <p class="font-mono text-[2.8cqw] uppercase tracking-[0.12em] text-text-dim">Quem vencer joga</p>
+                  <p class="mt-[1cqw] font-display text-[4.3cqw] font-700 leading-tight">Final, domingo às 10:30</p>
+                </div>
+              </div>
+            } @else {
+              <div class="screen flex flex-1 flex-col px-[5.5cqw] pt-[9cqw]">
+                <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-win">Fim de jogo</p>
+                <p class="mt-[1.5cqw] font-display text-[11cqw] font-800 leading-none tracking-tight">Vitória</p>
+                <p class="mt-[2cqw] text-[3.9cqw] text-text-mute">{{ teams.us }}, 2 sets a 0</p>
+
+                <div class="mt-[5cqw] flex gap-[2.4cqw]">
+                  <span class="rounded-full border border-line-strong px-[3.6cqw] py-[1.6cqw] font-mono text-[3.4cqw]">{{ firstSet }}</span>
+                  <span class="rounded-full border border-brand/50 bg-brand-tint px-[3.6cqw] py-[1.6cqw] font-mono text-[3.4cqw] text-brand">22–20</span>
+                </div>
+
+                <div class="mt-[5cqw] space-y-[2.4cqw]">
+                  <div class="flex items-center gap-[3.4cqw] rounded-[4.5cqw] border border-line bg-surface-1 p-[3.8cqw]">
+                    <span class="flex size-[10cqw] items-center justify-center rounded-[3cqw] bg-brand-tint text-brand">
+                      <svg class="size-[5.4cqw]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" /></svg>
+                    </span>
+                    <span>
+                      <span class="block font-display text-[4.6cqw] font-700 leading-tight">+50 XP</span>
+                      <span class="block text-[3.3cqw] text-text-mute">Vitória em torneio</span>
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-[3.4cqw] rounded-[4.5cqw] border border-line bg-surface-1 p-[3.8cqw]">
+                    <span class="flex size-[10cqw] items-center justify-center rounded-[3cqw] bg-brand-tint text-brand">
+                      <svg class="size-[5.4cqw]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                      </svg>
+                    </span>
+                    <span>
+                      <span class="block font-display text-[4.6cqw] font-700 leading-tight">Você está na final</span>
+                      <span class="block text-[3.3cqw] text-text-mute">Domingo às 10:30, Quadra 1</span>
+                    </span>
+                  </div>
+                </div>
+
+                <span class="mt-[5cqw] flex h-[12.5cqw] items-center justify-center rounded-full bg-brand font-display text-[4.2cqw] font-700 text-on-brand">
+                  Compartilhar resultado
+                </span>
+              </div>
+            }
+          </app-phone-app-shell>
+        </app-phone-frame>
+      </div>
+    </div>
+  </div>
+</section>

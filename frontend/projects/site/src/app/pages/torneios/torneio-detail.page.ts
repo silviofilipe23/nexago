@@ -193,9 +193,7 @@ const CTA_COPY: Record<TournamentListingStatus, { title: string; description: st
                 }
                 <a
                   nxButton="secondary"
-                  href="https://linktr.ee/nexago"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  routerLink="/baixar"
                   class="w-full sm:w-auto"
                 >
                   Baixar o app

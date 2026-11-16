@@ -3,7 +3,7 @@
 // já usados pelo site Next.js legado e por projects/athlete/src/styles/_nx-tokens.scss).
 // Dark-first, laranja #FF6A1A. Não usar hex cru em componentes — sempre as classes utilitárias
 // geradas por este @theme (bg-brand, text-fg, rounded-pill, etc.).
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,400..900;1,62..125,400..900&family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 @theme {
   /* Marca — escala laranja */
@@ -38,9 +38,15 @@
   --color-pending: #f4c543;
   --color-win: #2bd17e;
 
+  /* Areia — segunda cor da home (horários, linhas de quadra). Vem do assunto: a superfície
+     onde o jogo acontece. Nunca em botão: ação continua sendo só o laranja. */
+  --color-sand: #e6cfa4;
 
   /* Tipografia */
   --font-display: 'Sora', system-ui, sans-serif;
+  /* Voz de transmissão da home (placar, chamadas, títulos). Variável em largura (62–125) e
+     peso: a mesma família faz o numeral estreito do placar e o título largo. */
+  --font-athletic: 'Archivo', 'Sora', system-ui, sans-serif;
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
@@ -51,6 +57,7 @@
   --font-weight-600: 600;
   --font-weight-700: 700;
   --font-weight-800: 800;
+  --font-weight-900: 900;
 
   /* Raios */
   --radius-1: 6px;
@@ -111,6 +118,7 @@
   --color-live: #dc2626;
   --color-pending: #b45309;
   --color-win: #15803d;
+  --color-sand: #7a5a0f;
 
   /* Categorias no claro: `colorLight` de BLOG_DEFAULT_CATEGORIES (functions/src/blog-taxonomy.ts),
      o mesmo par que app e backoffice usam — tom de texto com ≥4,5:1 sobre o fundo claro. */

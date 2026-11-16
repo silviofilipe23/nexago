@@ -22,13 +22,11 @@ import type { TournamentSummary } from '../../../../lib/firestore/types';
     <section id="torneios-destaque" class="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-16 sm:px-6 sm:py-32">
       <div nxReveal class="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div class="max-w-2xl">
-          <p class="mb-3 font-mono text-sm font-600 uppercase tracking-[0.2em] text-brand">Hub público</p>
           <h2 class="font-display text-[clamp(1.9rem,5vw,3.25rem)] font-700 leading-tight tracking-tight text-fg">
-            Torneios abertos na areia
+            Torneios com inscrição aberta
           </h2>
           <p class="mt-4 text-balance text-base text-text-mute sm:text-lg">
-            Etapas de beach tennis e vôlei de praia com inscrições abertas. Acompanhe chaves e resultados em tempo
-            real.
+            Direto do app, agora: escolha o torneio, veja as categorias e acompanhe chaves e placar ao vivo.
           </p>
         </div>
         <a nxButton="secondary" routerLink="/torneios" class="shrink-0">
@@ -128,7 +126,9 @@ import type { TournamentSummary } from '../../../../lib/firestore/types';
                       @if (t.liveMatchesNow > 0) {
                         <span class="font-600 text-live">{{ t.liveMatchesNow }} ao vivo</span>
                       }
-                      <span>{{ t.enrolledCount }} inscritos</span>
+                      @if (t.enrolledCount > 0) {
+                        <span>{{ t.enrolledCount }} {{ t.enrolledCount === 1 ? 'inscrito' : 'inscritos' }}</span>
+                      }
                       @if (t.leagueStageName) {
                         <span class="truncate">· {{ t.leagueStageName }}</span>
                       }

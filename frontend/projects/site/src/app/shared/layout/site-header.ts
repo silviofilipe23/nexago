@@ -22,8 +22,8 @@ const NAV: NavItem[] = [
 ];
 
 const PERSONAS: PersonaItem[] = [
-  { label: 'Atletas', href: 'https://linktr.ee/nexago', description: 'Competir, ranquear e reservar quadra', external: true },
-  { label: 'Organizadores', href: '/organizadores', description: 'Gerir torneios sem planilha', external: false },
+  { label: 'Atletas', href: '/baixar', description: 'Competir, ranquear e reservar quadra', external: false },
+  { label: 'Organizadores', href: '/docs/organizadores', description: 'Gerir torneios sem planilha', external: false },
   { label: 'Arenas', href: '/arenas', description: 'Encher as quadras e receber etapas', external: false },
 ];
 

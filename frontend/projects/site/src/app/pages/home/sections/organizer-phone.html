@@ -1,0 +1,186 @@
+<app-phone-app-shell [time]="clock()" [active]="null">
+  @switch (step()) {
+    @case ('signup') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pb-[5cqw] pt-[6cqw]">
+        <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-brand">Torneio · Gerenciar</p>
+        <p class="mt-[1.2cqw] font-display text-[6.6cqw] font-700 leading-tight tracking-tight">{{ event.name }}</p>
+        <p class="mt-[2.4cqw] inline-flex items-center gap-[1.8cqw] self-start rounded-full border border-win/50 bg-win/10 px-[3cqw] py-[1.4cqw] text-[3.1cqw] font-600 text-win">
+          <span class="live-dot size-[1.8cqw] rounded-full bg-win"></span>
+          Inscrições abertas
+        </p>
+
+        <div class="mt-[4cqw] grid grid-cols-3 gap-[2cqw]">
+          <div class="rounded-[4cqw] border border-line bg-surface-1 p-[3cqw]">
+            <p class="font-mono text-[2.4cqw] uppercase tracking-[0.1em] text-text-dim">Inscritos</p>
+            <p class="mt-[0.8cqw] font-display text-[5.6cqw] font-800 leading-none">{{ teamCount }}</p>
+          </div>
+          <div class="rounded-[4cqw] border border-line bg-surface-1 p-[3cqw]">
+            <p class="font-mono text-[2.4cqw] uppercase tracking-[0.1em] text-text-dim">Pendentes</p>
+            <p class="mt-[0.8cqw] font-display text-[5.6cqw] font-800 leading-none">0</p>
+          </div>
+          <div class="rounded-[4cqw] border border-line bg-surface-1 p-[3cqw]">
+            <p class="font-mono text-[2.4cqw] uppercase tracking-[0.1em] text-text-dim">Arrecadado</p>
+            <p class="mt-[0.8cqw] whitespace-nowrap font-display text-[4.3cqw] font-800 leading-[1.3] text-win">{{ collected }}</p>
+          </div>
+        </div>
+
+        <span class="mt-[3cqw] flex h-[12cqw] items-center justify-center gap-[2cqw] rounded-full border border-brand/60 font-display text-[4cqw] font-700 text-brand">
+          <svg class="size-[4.4cqw]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+          </svg>
+          Compartilhar inscrição
+        </span>
+
+        <p class="mt-[4.5cqw] font-mono text-[2.8cqw] uppercase tracking-[0.12em] text-text-dim">Inscrições</p>
+        <ul class="mt-[2cqw] space-y-[1.8cqw] text-[3.6cqw]">
+          @for (team of latestSignups; track team) {
+            <li class="flex items-center gap-[3cqw] rounded-[4cqw] border border-line bg-surface-1 px-[3.6cqw] py-[2.8cqw]">
+              <span class="min-w-0">
+                <span class="block truncate font-display font-700 leading-tight">{{ team }}</span>
+                <span class="block text-[3cqw] text-text-mute">{{ event.category }}</span>
+              </span>
+              <span class="ml-auto rounded-full bg-win/15 px-[2.6cqw] py-[1cqw] text-[2.9cqw] font-700 text-win">Pago</span>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+
+    @case ('draw') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pb-[5cqw] pt-[6cqw]">
+        <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-brand">{{ event.category }} · {{ teamCount }} duplas</p>
+        <p class="mt-[1.2cqw] font-display text-[6.6cqw] font-700 leading-tight tracking-tight">Gerar chave</p>
+
+        <div class="mt-[4cqw] flex items-center justify-between rounded-[4cqw] border border-line bg-surface-1 px-[3.8cqw] py-[3.2cqw] text-[3.6cqw]">
+          <span class="text-text-mute">Formato</span>
+          <span class="font-display font-700">Eliminatória simples</span>
+        </div>
+        <div class="mt-[2cqw] flex items-center justify-between rounded-[4cqw] border border-line bg-surface-1 px-[3.8cqw] py-[3.2cqw] text-[3.6cqw]">
+          <span>Respeitar ordem de seeds</span>
+          <span class="flex h-[5.6cqw] w-[10cqw] items-center justify-end rounded-full bg-brand p-[0.7cqw]">
+            <span class="size-[4.2cqw] rounded-full bg-on-brand"></span>
+          </span>
+        </div>
+
+        <p class="mt-[4.5cqw] font-mono text-[2.8cqw] uppercase tracking-[0.12em] text-text-dim">Cabeças de chave</p>
+        <ol class="mt-[2cqw] space-y-[1.6cqw] text-[3.6cqw]">
+          @for (team of seeds; track team; let index = $index) {
+            <li class="flex items-center gap-[3cqw] rounded-[4cqw] border border-line bg-surface-1 px-[3.6cqw] py-[2.4cqw]">
+              <span class="flex size-[6cqw] items-center justify-center rounded-full bg-brand-tint font-mono text-[3.1cqw] font-700 text-brand">{{ index + 1 }}</span>
+              <span class="font-display font-600">{{ team }}</span>
+            </li>
+          }
+        </ol>
+
+        <p class="mt-auto flex items-center gap-[2cqw] text-[3.4cqw] font-700 text-win">
+          <svg class="size-[4.2cqw]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5 10 17.5 19 7" /></svg>
+          Chave publicada!
+        </p>
+        <div class="mt-[2.6cqw] grid grid-cols-2 gap-[2cqw]">
+          <span class="flex h-[12cqw] items-center justify-center rounded-full border border-line-strong font-display text-[3.7cqw] font-700">Sortear de novo</span>
+          <span class="flex h-[12cqw] items-center justify-center rounded-full bg-brand font-display text-[3.7cqw] font-700 text-on-brand">Publicar chave</span>
+        </div>
+      </div>
+    }
+
+    @case ('schedule') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pb-[5cqw] pt-[6cqw]">
+        <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-brand">Auto-programação</p>
+        <p class="mt-[1.2cqw] font-display text-[6.6cqw] font-700 leading-tight tracking-tight">Grade de quadras</p>
+
+        <div class="mt-[4cqw] grid grid-cols-[11cqw_1fr_1fr] items-center gap-[1.8cqw] text-[3.3cqw]">
+          <span></span>
+          @for (court of courts; track court) {
+            <span class="text-center font-mono text-[2.7cqw] uppercase tracking-[0.1em] text-text-dim">Quadra {{ court }}</span>
+          }
+          @for (row of grid; track row.time) {
+            <span class="font-mono font-700 text-text-mute">{{ row.time }}</span>
+            @for (cell of row.courts; track $index) {
+              @if (cell) {
+                <span class="rounded-[3cqw] border border-brand/50 bg-brand-tint py-[3.4cqw] text-center font-display font-700 text-brand">{{ cell }}</span>
+              } @else {
+                <span class="rounded-[3cqw] border border-dashed border-line-strong py-[3.4cqw] text-center text-text-dim">livre</span>
+              }
+            }
+          }
+        </div>
+
+        <div class="mt-[3.6cqw] rounded-[4cqw] border border-line bg-surface-1 p-[3.6cqw] text-[3.4cqw]">
+          <p class="font-display text-[4cqw] font-700">{{ matchCount }} partidas na prévia</p>
+          <p class="mt-[0.8cqw] text-text-mute">Sem conflito de atleta, na ordem da chave.</p>
+        </div>
+
+        <span class="mt-auto flex h-[12.5cqw] items-center justify-center rounded-full bg-brand font-display text-[4.2cqw] font-700 text-on-brand">
+          Aplicar
+        </span>
+      </div>
+    }
+
+    @case ('live') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pb-[5cqw] pt-[6cqw]">
+        <p class="flex items-center gap-[2cqw] font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-live">
+          <span class="live-dot size-[2cqw] rounded-full bg-live"></span>
+          Ao vivo · Quadra {{ live.match.court }}
+        </p>
+        <p class="mt-[1.2cqw] font-display text-[6.6cqw] font-700 leading-tight tracking-tight">Mesa da semifinal</p>
+        <p class="mt-[1cqw] font-mono text-[3cqw] uppercase tracking-[0.1em] text-text-dim">1º set {{ live.firstSet }}</p>
+
+        <div class="mt-[4cqw] grid flex-1 grid-cols-2 gap-[2.4cqw]">
+          <div class="flex flex-col items-center justify-between rounded-[5.5cqw] border border-line bg-surface-1 p-[3.6cqw] text-center">
+            <p class="font-display text-[3.7cqw] font-700 leading-tight">{{ live.match.home.name }}</p>
+            <p class="font-display text-[21cqw] font-800 leading-none [font-variant-numeric:tabular-nums]">{{ live.points[0] }}</p>
+            <span class="flex h-[13cqw] w-full items-center justify-center rounded-[3.6cqw] bg-surface-2 font-display text-[5cqw] font-800">+1</span>
+          </div>
+          <div class="flex flex-col items-center justify-between rounded-[5.5cqw] border border-brand/60 bg-brand-tint p-[3.6cqw] text-center">
+            <p class="font-display text-[3.7cqw] font-700 leading-tight">{{ live.match.away.name }}</p>
+            <p class="font-display text-[21cqw] font-800 leading-none text-brand [font-variant-numeric:tabular-nums]">{{ live.points[1] }}</p>
+            <span class="flex h-[13cqw] w-full items-center justify-center rounded-[3.6cqw] bg-brand font-display text-[5cqw] font-800 text-on-brand">+1</span>
+          </div>
+        </div>
+
+        <p class="mt-[4cqw] font-mono text-[2.8cqw] uppercase tracking-[0.12em] text-text-dim">Últimos lances</p>
+        <p class="mt-[2cqw] flex items-center gap-[3cqw] rounded-[4cqw] bg-surface-1 px-[3.6cqw] py-[2.8cqw] text-[3.5cqw]">
+          <span class="font-mono font-700 text-brand">{{ lastPoint }}</span>
+          <span class="truncate text-text-mute">Ponto de {{ live.match.away.name }}</span>
+        </p>
+
+        <span class="mt-[3cqw] flex h-[12cqw] items-center justify-center rounded-full border border-line-strong font-display text-[4cqw] font-700">
+          Abrir telão
+        </span>
+      </div>
+    }
+
+    @case ('podium') {
+      <div class="screen flex flex-1 flex-col px-[5.5cqw] pb-[5cqw] pt-[6cqw]">
+        <p class="font-mono text-[2.9cqw] font-500 uppercase tracking-[0.14em] text-win">Torneio · Encerrado</p>
+        <p class="mt-[1.2cqw] font-display text-[6.6cqw] font-700 leading-tight tracking-tight">{{ event.name }}</p>
+
+        <div class="mt-[4cqw] rounded-[5.5cqw] border border-win/40 bg-win/10 p-[4.5cqw]">
+          <p class="flex items-center gap-[2cqw] font-mono text-[2.8cqw] font-700 uppercase tracking-[0.12em] text-win">
+            <svg class="size-[4.4cqw]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.7V17c0 .6-.5 1-1 1.2-1.2.5-2 2-2 3.8M14 14.7V17c0 .6.5 1 1 1.2 1.2.5 2 2 2 3.8M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+            </svg>
+            Campeões
+          </p>
+          <p class="mt-[1.6cqw] font-display text-[7.4cqw] font-800 leading-none tracking-tight">{{ champions }}</p>
+          <p class="mt-[2.4cqw] text-[3.4cqw] text-text-mute">Vice: {{ runnersUp }}</p>
+        </div>
+
+        <div class="mt-[2.4cqw] flex items-center justify-between rounded-[4.5cqw] border border-line bg-surface-1 p-[3.8cqw] text-[3.5cqw]">
+          <span class="font-display text-[4cqw] font-700">Ranking atualizado</span>
+          <span class="text-text-mute">{{ teamCount }} duplas pontuaram</span>
+        </div>
+
+        <div class="mt-[2.4cqw] rounded-[5.5cqw] border border-line bg-surface-1 p-[4.5cqw]">
+          <p class="font-mono text-[2.6cqw] uppercase tracking-[0.12em] text-text-dim">Arrecadado na plataforma</p>
+          <p class="mt-[1cqw] font-display text-[8cqw] font-800 leading-none tracking-tight">{{ collected }}</p>
+          <p class="mt-[2.4cqw] text-[3.3cqw] text-text-mute">Cai na carteira, com saque por Pix.</p>
+        </div>
+
+        <span class="mt-auto flex h-[12.5cqw] items-center justify-center rounded-full bg-brand font-display text-[4.2cqw] font-700 text-on-brand">
+          Financeiro
+        </span>
+      </div>
+    }
+  }
+</app-phone-app-shell>

@@ -23,7 +23,9 @@ import type { ArenaSummary } from '../../../../lib/firestore/types';
       <div class="mx-auto max-w-6xl px-5 sm:px-6">
         <div nxReveal class="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div class="max-w-2xl">
-            <p class="mb-3 font-mono text-sm font-600 uppercase tracking-[0.2em] text-brand">{{ eyebrow() }}</p>
+            @if (eyebrow()) {
+              <p class="mb-3 font-mono text-sm font-600 uppercase tracking-[0.2em] text-brand">{{ eyebrow() }}</p>
+            }
             <h2 class="font-display text-[clamp(1.9rem,5vw,3rem)] font-700 leading-tight tracking-tight text-fg">
               {{ title() }}
             </h2>

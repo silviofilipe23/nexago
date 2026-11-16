@@ -1,14 +1,5 @@
 import { NgOptimizedImage } from '@angular/common';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  ElementRef,
-  afterNextRender,
-  inject,
-  signal,
-  viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, inject, viewChild } from '@angular/core';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { DownloadCta } from '../../../shared/ui/download-cta';
@@ -22,9 +13,11 @@ function todayLabel(): string {
 }
 
 /**
- * Abertura da home: a arena ao anoitecer em vídeo, o título e o download. O vídeo é um laço mudo
- * de 7 s; o pôster é o primeiro quadro desse mesmo laço, então a troca imagem → vídeo não salta.
- * Com `prefers-reduced-motion` o vídeo nem é criado e fica só a foto.
+ * Abertura da home: uma foto só, o título e o download. A foto é o ecossistema numa cena: a vista
+ * aérea de um complexo esportivo ao anoitecer com tudo acontecendo ao mesmo tempo (final de torneio
+ * com arquibancada, aula, padel, tênis, society, corrida, a galera no bar e quem está chegando).
+ * Não há vídeo: o hero era um laço de vôlei de praia e foi trocado por esta imagem em 16/11/2026.
+ * No celular entra um recorte vertical próprio, centrado na quadra do torneio.
  */
 @Component({
   selector: 'app-opening',
@@ -35,9 +28,9 @@ function todayLabel(): string {
     <section class="nx-night relative isolate flex min-h-[calc(100svh-4.75rem)] flex-col justify-end overflow-hidden bg-black">
       <div #media class="absolute inset-0 -z-10 will-change-transform">
         <picture>
-          <source media="(max-width: 767px)" srcset="img/home/hero-m-720.webp" />
+          <source media="(max-width: 767px)" srcset="img/home/ecossistema-m-720.webp" />
           <img
-            ngSrc="hero"
+            ngSrc="ecossistema"
             ngSrcset="960w, 1920w"
             [loaderParams]="{ fallback: 1920 }"
             sizes="100vw"
@@ -47,22 +40,6 @@ function todayLabel(): string {
             class="object-cover"
           />
         </picture>
-        @if (!reducedMotion) {
-          <video
-            #video
-            class="absolute inset-0 size-full object-cover transition-opacity duration-700 ease-out"
-            [class.opacity-0]="!playing()"
-            loop
-            playsinline
-            preload="auto"
-            aria-hidden="true"
-            tabindex="-1"
-            (playing)="playing.set(true)"
-          >
-            <source src="img/home/hero-m.mp4" type="video/mp4" media="(max-width: 767px)" />
-            <source src="img/home/hero.mp4" type="video/mp4" />
-          </video>
-        }
       </div>
       <!-- Véus: o de baixo sustenta o texto, o de cima dá fundo ao menu. -->
       <div class="absolute inset-0 -z-10 bg-[linear-gradient(to_top,#000_0%,rgba(0,0,0,0.82)_22%,rgba(0,0,0,0.28)_55%,rgba(0,0,0,0.45)_100%)]" aria-hidden="true"></div>
@@ -163,32 +140,20 @@ function todayLabel(): string {
 })
 export class Opening {
   protected readonly today = todayLabel();
-  protected readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  protected readonly playing = signal(false);
+  private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly destroyRef = inject(DestroyRef);
   private readonly media = viewChild.required<ElementRef<HTMLElement>>('media');
   private readonly content = viewChild.required<ElementRef<HTMLElement>>('content');
-  private readonly video = viewChild<ElementRef<HTMLVideoElement>>('video');
 
   constructor() {
     afterNextRender(() => {
-      this.startVideo();
       if (!this.reducedMotion) this.setupScrollOut();
     });
   }
 
-  /** `muted` precisa ser a propriedade (o atributo do template não basta para o navegador liberar
-   *  o autoplay); se ainda assim o play for recusado, a foto continua lá. */
-  private startVideo(): void {
-    const video = this.video()?.nativeElement;
-    if (!video) return;
-    video.muted = true;
-    video.play().catch(() => undefined);
-  }
-
-  /** Ao rolar, a imagem afunda devagar e o texto some antes de sair — a arena fica para trás. */
+  /** Ao rolar, a imagem afunda devagar e o texto some antes de sair — o complexo fica para trás. */
   private setupScrollOut(): void {
     const ctx = gsap.context(() => {
       const scrollTrigger = { trigger: this.host.nativeElement, start: 'top top', end: 'bottom top', scrub: true };

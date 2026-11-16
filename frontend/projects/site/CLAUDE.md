@@ -51,7 +51,7 @@ src/
 public/
   brand/                    # logo oficial
   app/                      # screenshots reais do app (docs)
-  img/home/                 # fotos, pôsteres e vídeo da home: {nome}-{largura}.webp, hero.mp4, hero-m.mp4, og.jpg
+  img/home/                 # fotos da home: {nome}-{largura}.webp (o hero é ecossistema-*.webp), og.jpg
   .htaccess                 # SPA rewrite + regra de bot pra prévia de OG (ver Deploy)
 ```
 
@@ -65,7 +65,7 @@ Exceção: cor de categoria do blog criada no backoffice (`blogCategories/{id}.c
 ## Home — Dia de jogo
 A home é um dia de jogo contado de cima para baixo, e tudo termina no download:
 
-1. `Opening` — a arena ao anoitecer em vídeo (laço mudo de 7 s; o pôster é o 1º quadro do laço), título "Hoje tem jogo." com a data de quem lê, `DownloadCta` e QR. `SportsTicker` fecha a primeira tela.
+1. `Opening` — uma foto só, sem vídeo (decisão do dono em 16/11/2026): a vista aérea de um complexo esportivo ao anoitecer com tudo acontecendo ao mesmo tempo (final de torneio com arquibancada, futevôlei e beach tennis, padel, tênis, society, aula, corrida, o bar e quem está chegando), o ecossistema numa imagem. O celular tem recorte vertical próprio (`ecossistema-m-720.webp`). Título "Hoje tem jogo." com a data de quem lê, `DownloadCta` e QR. `SportsTicker` fecha a primeira tela.
 2. `MatchPoint` — a cena-assinatura: os últimos pontos de uma semifinal jogados pela rolagem (ScrollTrigger com pin). Sequência e regras em `match-point-beats.ts` (com spec). Confete (`canvas-confetti`, import dinâmico) só ao chegar na vitória.
 3. `BookingScene` — mesma mecânica, lados trocados no desktop: a reserva de uma quadra em cinco etapas (buscar, esporte, horário, pagar, reservado). O quadro de horários e as telas do app (`BookingPhone`, com os rótulos reais do app) saem da mesma agenda em `booking-beats.ts` (com spec). O desfecho é a casa carimbada "Você", sem confete.
 4. `GameDay` — três horários (07:40 agenda do dia, 12:30 galera, 16:50 torneio), cada um com foto e um recorte de tela do app desenhado em HTML. Reserva e ranking não se repetem aqui: têm cena própria.
@@ -80,10 +80,10 @@ Cenas jogadas pela rolagem (`beat-scene.ts` + `beat-scene.scss`): `pinBeatScene`
 Regras que valem só aqui:
 - **Download**: todo "Baixar o app" do site vai para `/baixar` (`DOWNLOAD_PATH`), que detecta o aparelho (`lib/platform.ts`) e redireciona; `DownloadCta` mostra só a loja do aparelho no celular e as duas no desktop. O QR (`lib/download-qr.ts`) é um caminho SVG fixo de `https://nexago.com.br/baixar` — mudou o endereço, gere de novo.
 - **Tipografia**: `--font-athletic` (Archivo, variável em largura) em três vozes — `.nx-shout` (chamada em caixa alta, itálica, estreita), `.nx-title` (título calmo) e `.nx-score` (numeral de placar). Dentro de `.nx-home`, `font-display` também vira Archivo; o resto do site segue em Sora.
-- **`.nx-night`**: trecho sobre foto/vídeo (e a UI do app no celular) é sempre escuro, em qualquer tema — a classe redeclara os tokens escuros no elemento. Fora dela a home segue o tema.
+- **`.nx-night`**: trecho sobre foto (e a UI do app no celular) é sempre escuro, em qualquer tema — a classe redeclara os tokens escuros no elemento. Fora dela a home segue o tema.
 - **Cor**: `sand` (areia) é a segunda cor, para horários e contornos; ação continua sendo só o laranja.
-- **Imagens**: `NgOptimizedImage` com o loader `HOME_IMAGE_LOADER` (`lib/home-images.ts`) no `providers` da página — `ngSrc="hero"` + `ngSrcset="960w, 1920w"` vira `img/home/hero-960.webp`. Fotos e vídeo foram gerados por IA; conferir logos/textos inventados antes de trocar alguma.
-- **Movimento**: só a entrada do título (CSS) toca sozinha; o resto responde à rolagem. `prefers-reduced-motion` tira o vídeo, o pin e as paralaxes. Seções com ScrollTrigger ficam **antes** das que carregam dados, para a altura que chega depois não deslocar gatilho.
+- **Imagens**: `NgOptimizedImage` com o loader `HOME_IMAGE_LOADER` (`lib/home-images.ts`) no `providers` da página — `ngSrc="ecossistema"` + `ngSrcset="960w, 1920w"` vira `img/home/ecossistema-960.webp`. As fotos foram geradas por IA; conferir logos/textos inventados antes de trocar alguma.
+- **Movimento**: só a entrada do título (CSS) toca sozinha; o resto responde à rolagem. `prefers-reduced-motion` tira o pin e as paralaxes. Seções com ScrollTrigger ficam **antes** das que carregam dados, para a altura que chega depois não deslocar gatilho.
 - Nomes de atletas, arena e torneio nas telas desenhadas são fictícios; números (ex.: +50 XP por vitória em torneio) são os reais do app.
 
 ## Dados (Firestore)

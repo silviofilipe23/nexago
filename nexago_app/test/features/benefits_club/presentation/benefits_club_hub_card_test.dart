@@ -5,12 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/auth/active_role_providers.dart';
 import 'package:nexago_app/core/observability/analytics_service.dart';
 import 'package:nexago_app/core/router/routes.dart';
+import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arena/domain/arena_access_provider.dart';
 import 'package:nexago_app/features/benefits_club/application/benefits_club_providers.dart';
 import 'package:nexago_app/features/benefits_club/domain/benefit_event.dart';
 import 'package:nexago_app/features/benefits_club/domain/benefits_club_config.dart';
 import 'package:nexago_app/features/benefits_club/presentation/widgets/benefits_club_hub_card.dart';
+import 'package:nexago_app/features/benefits_club/presentation/widgets/partner_visuals.dart';
 import 'package:nexago_app/features/tournaments/presentation/tournament_discovery_page.dart';
 
 import '../../../support/recording_analytics.dart';
@@ -215,9 +217,39 @@ void main() {
 
     expect(find.byKey(_card), findsOneWidget);
     expect(find.text('OFERECIDO POR LINQ TELECOM'), findsOneWidget);
+    // Selo NOVO continua no modo patrocinador.
     expect(
       find.descendant(of: find.byKey(_card), matching: find.text('NOVO')),
-      findsNothing,
+      findsOneWidget,
+    );
+    // Só a logo do patrocinador na faixa: nada de bolinhas dos parceiros.
+    expect(
+      find.descendant(
+        of: find.byKey(_card),
+        matching: find.byType(PartnerLogo),
+      ),
+      findsOneWidget,
+    );
+    // Título e subtítulo em uma linha, cortando com "…".
+    for (final label in [
+      'Clube de Vantagens Nexa',
+      'Descontos dos parceiros NexaGO',
+    ]) {
+      final text = tester.widget<Text>(
+        find.descendant(of: find.byKey(_card), matching: find.text(label)),
+      );
+      expect(text.maxLines, 1);
+      expect(text.overflow, TextOverflow.ellipsis);
+    }
+    // Borda laranja da NexaGO, não a cor da marca do patrocinador.
+    final material = tester.widget<Material>(
+      find
+          .descendant(of: find.byKey(_card), matching: find.byType(Material))
+          .first,
+    );
+    expect(
+      (material.shape! as RoundedRectangleBorder).side.color,
+      AppColors.brand,
     );
     await tester.tap(find.byKey(_card));
     await tester.pumpAndSettle();

@@ -72,9 +72,15 @@ class ArenaMapView extends StatefulWidget {
     this.initialCenter,
     this.logoPadding = EdgeInsets.zero,
     this.showUserLocation = false,
+    this.pinImages = const [],
   });
 
   final List<ArenaMapPin> pins;
+
+  /// Imagens próprias dos pinos ([ArenaMapPin.iconImageId]). Vazio na busca de
+  /// arenas: todo pino é a quadra. Uma lista nova (outra instância) registra de
+  /// novo — é assim que a logo que terminou de baixar substitui as iniciais.
+  final List<ArenaMapPinImage> pinImages;
 
   /// Recebe o `arenaId` do pino tocado.
   final ValueChanged<String> onPinTap;
@@ -128,6 +134,10 @@ class _ArenaMapViewState extends State<ArenaMapView> {
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller?._detach();
       _attachController(widget.controller);
+    }
+
+    if (!identical(oldWidget.pinImages, widget.pinImages)) {
+      _syncPinImages();
     }
 
     if (!identical(oldWidget.pins, widget.pins)) {
@@ -252,7 +262,11 @@ class _ArenaMapViewState extends State<ArenaMapView> {
     final map = _map;
     if (map == null) return;
 
-    await installArenaMapStyle(map, pins: widget.pins);
+    await installArenaMapStyle(
+      map,
+      pins: widget.pins,
+      pinImages: widget.pinImages,
+    );
     if (!mounted) return;
 
     _styleInstalled = true;
@@ -279,6 +293,12 @@ class _ArenaMapViewState extends State<ArenaMapView> {
   /// sintoma exato de um id trocado entre a expressão e o registro.
   void _onStyleImageMissing(StyleImageMissingEventData event) {
     debugPrint('[mapa de arenas] imagem faltando no estilo: ${event.id}');
+  }
+
+  Future<void> _syncPinImages() async {
+    final map = _map;
+    if (map == null || !_styleInstalled) return;
+    await installArenaMapPinImages(map, widget.pinImages);
   }
 
   Future<void> _syncPins() async {

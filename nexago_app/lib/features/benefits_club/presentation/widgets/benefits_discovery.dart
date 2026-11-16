@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' show MbxImage;
 
 import '../../../../core/map/mapbox_config.dart';
 import '../../../../core/theme/app_borders.dart';
@@ -8,9 +9,12 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../arenas/domain/arena_map_pin.dart';
+import '../../../arenas/presentation/widgets/arena_map/arena_map_style.dart';
 import '../../../arenas/presentation/widgets/arena_map/arena_map_view.dart';
+import '../../domain/benefits_club_logic.dart';
 import '../../domain/partner.dart';
 import 'benefits_club_parts.dart';
+import 'partner_map_pins.dart';
 import 'partner_visuals.dart';
 
 /// Busca do clube (nome, categoria, benefício; sem acento).
@@ -238,7 +242,14 @@ bool benefitsMapAvailable(List<Partner> partners) =>
 const String _pinSeparator = '#';
 
 /// Pinos das unidades; o id do pino é `<partnerId>#<índice da unidade>`.
-List<ArenaMapPin> benefitsMapPins(List<Partner> partners) => [
+///
+/// Parceiro em [withImage] usa o pino com a logo/iniciais dele
+/// ([partnerPinImageId]); o de [selectedId] fica em destaque.
+List<ArenaMapPin> benefitsMapPins(
+  List<Partner> partners, {
+  Set<String> withImage = const {},
+  String? selectedId,
+}) => [
   for (final partner in partners)
     for (var i = 0; i < partner.locations.length; i++)
       ArenaMapPin(
@@ -246,6 +257,10 @@ List<ArenaMapPin> benefitsMapPins(List<Partner> partners) => [
         latitude: partner.locations[i].latitude,
         longitude: partner.locations[i].longitude,
         kind: ArenaMapPinKind.available,
+        iconImageId: withImage.contains(partner.id)
+            ? partnerPinImageId(partner.id)
+            : null,
+        selected: partner.id == selectedId,
       ),
 ];
 
@@ -283,6 +298,70 @@ class _BenefitsPartnerMapState extends State<BenefitsPartnerMap> {
   final _controller = ArenaMapController();
   String? _selectedId;
 
+  /// PNG do pino de cada parceiro (iniciais e, quando chegar, a logo).
+  final Map<String, MbxImage> _images = {};
+
+  /// A partir de que dado o pino de cada parceiro foi desenhado: muda a logo
+  /// ou a cor, desenha de novo.
+  final Map<String, String> _renderedFrom = {};
+
+  /// Instância nova a cada imagem pronta: é o que faz o mapa registrar de novo.
+  List<ArenaMapPinImage> _pinImages = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _renderPins();
+  }
+
+  @override
+  void didUpdateWidget(covariant BenefitsPartnerMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.partners, widget.partners)) _renderPins();
+  }
+
+  /// Desenha as iniciais na hora e troca pela logo quando ela baixar. Um
+  /// parceiro sem logo, ou com a logo falhando, fica nas iniciais.
+  void _renderPins() {
+    for (final partner in widget.partners) {
+      final key = '${partner.logoUrl}|${partner.brandColor}|${partner.name}';
+      if (_renderedFrom[partner.id] == key) continue;
+      _renderedFrom[partner.id] = key;
+      _renderPartner(partner, key);
+    }
+  }
+
+  Future<void> _renderPartner(Partner partner, String key) async {
+    final initials = await renderPartnerInitialsPin(partner);
+    if (!mounted || _renderedFrom[partner.id] != key) return;
+    _setImage(partner.id, initials);
+
+    final logo = await loadPartnerLogoImage(partner.logoUrl);
+    if (logo == null) return;
+    final withLogo = await renderPartnerPinImage(
+      brand: partnerBrandColor(partner),
+      initials: partnerInitials(partner.name),
+      logo: logo,
+    );
+    logo.dispose();
+    if (!mounted || _renderedFrom[partner.id] != key) return;
+    _setImage(partner.id, withLogo);
+  }
+
+  void _setImage(String partnerId, MbxImage image) {
+    setState(() {
+      _images[partnerId] = image;
+      _pinImages = [
+        for (final entry in _images.entries)
+          ArenaMapPinImage(
+            id: partnerPinImageId(entry.key),
+            image: entry.value,
+            scale: PartnerMapPin.scale,
+          ),
+      ];
+    });
+  }
+
   /// Volta a câmera para a pessoa (só existe com a localização liberada).
   void _recenter() {
     final center = widget.center;
@@ -302,7 +381,12 @@ class _BenefitsPartnerMapState extends State<BenefitsPartnerMap> {
           Positioned.fill(
             child: ArenaMapView(
               controller: _controller,
-              pins: benefitsMapPins(widget.partners),
+              pinImages: _pinImages,
+              pins: benefitsMapPins(
+                widget.partners,
+                withImage: _images.keys.toSet(),
+                selectedId: _selectedId,
+              ),
               initialCenter: widget.center,
               showUserLocation: widget.showUserLocation,
               onPinTap: (pinId) =>

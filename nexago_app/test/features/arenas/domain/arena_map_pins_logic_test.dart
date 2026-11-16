@@ -214,6 +214,38 @@ void main() {
       expect(props['kind'], 'available');
     });
 
+    test('pino de arena não grava imagem própria nem destaque', () {
+      final split = splitArenaMapResults(
+        results: [_item(_arena(id: 'a', name: 'Arena Um'))],
+      );
+      final feature =
+          (arenaMapPinsToGeoJson(split.pins)['features'] as List).single
+              as Map<String, dynamic>;
+      final props = feature['properties'] as Map<String, dynamic>;
+      // Sem `icon`, o estilo cai na quadra: a busca de arenas não muda.
+      expect(props.containsKey('icon'), isFalse);
+      expect(props.containsKey('selected'), isFalse);
+    });
+
+    test('pino com imagem própria grava `icon` e o destaque', () {
+      const pins = [
+        ArenaMapPin(
+          arenaId: 'fast#0',
+          latitude: -16.7,
+          longitude: -49.2,
+          kind: ArenaMapPinKind.available,
+          iconImageId: 'nexago-partner-pin-fast',
+          selected: true,
+        ),
+      ];
+      final feature =
+          (arenaMapPinsToGeoJson(pins)['features'] as List).single
+              as Map<String, dynamic>;
+      final props = feature['properties'] as Map<String, dynamic>;
+      expect(props['icon'], 'nexago-partner-pin-fast');
+      expect(props['selected'], isTrue);
+    });
+
     // O estilo decide a opacidade por `kind`. Se o nome ou o valor mudar aqui
     // sem mudar lá, todo pino nasce apagado e nada denuncia o erro.
     test('o tipo vai como o mesmo texto que o estilo compara', () {

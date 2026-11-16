@@ -106,8 +106,8 @@ function formatBRL(n: number): string {
                     <div class="avatar">{{ c.initials }}</div>
                     <div class="client-name">{{ c.name }}</div>
                   </div>
-                  <div class="right cell-games">{{ c.games }}</div>
-                  <div class="right cell-spend">{{ formatBRL(c.spend) }}</div>
+                  <div class="right cell-games"><span class="col-label">Jogos</span>{{ c.games }}</div>
+                  <div class="right cell-spend"><span class="col-label">Gasto total</span>{{ formatBRL(c.spend) }}</div>
                   <div class="score-track">
                     <div class="score-fill" [style.width.%]="scoreOf(c)"></div>
                   </div>
@@ -163,6 +163,8 @@ function formatBRL(n: number): string {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -170,6 +172,10 @@ function formatBRL(n: number): string {
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -258,6 +264,9 @@ function formatBRL(n: number): string {
       font-weight: 700;
       font-size: 15px;
       color: var(--nx-text);
+      max-width: 100%;
+      text-align: center;
+      overflow-wrap: anywhere;
     }
 
     .podium-meta {
@@ -308,6 +317,23 @@ function formatBRL(n: number): string {
     .table-head {
       padding: 0 0 8px;
       border-bottom: 1px solid var(--nx-line-strong);
+
+      @include ar.below(sm) {
+        display: none;
+      }
+    }
+
+    .col-label {
+      display: none;
+
+      @include ar.below(sm) {
+        display: block;
+        font-family: var(--nx-font-mono);
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--nx-text-dim);
+      }
     }
 
     .table-head span {
@@ -330,6 +356,23 @@ function formatBRL(n: number): string {
       cursor: pointer;
       border-radius: var(--nx-r-2);
       transition: background 140ms var(--nx-ease-out);
+
+      /* 5 colunas (~300px fixos) não cabem em 360px: o nome sumia. Posição à
+         esquerda, cliente em cima, jogos e gasto embaixo, barra de pontuação no fim. */
+      @include ar.below(sm) {
+        grid-template-columns: 28px minmax(0, 1fr) auto;
+        grid-template-areas:
+          'rank client client'
+          'rank games spend'
+          'rank score score';
+        gap: 8px 12px;
+
+        .rank-num { grid-area: rank; align-self: start; padding-top: 9px; }
+        .client-cell { grid-area: client; }
+        .cell-games { grid-area: games; text-align: left; }
+        .cell-spend { grid-area: spend; }
+        .score-track { grid-area: score; }
+      }
     }
 
     .table-row:hover {
@@ -425,10 +468,16 @@ function formatBRL(n: number): string {
       color: var(--nx-orange-500);
     }
 
+    .drawer-head {
+      @include ar.touch {
+        --ranking-close: 40px;
+      }
+    }
+
     .drawer-identity {
       flex: 1;
       min-width: 0;
-      padding-right: 28px;
+      padding-right: var(--ranking-close, 28px);
     }
 
     .drawer-name {
@@ -436,6 +485,7 @@ function formatBRL(n: number): string {
       font-weight: 800;
       font-size: 18px;
       color: var(--nx-text);
+      overflow-wrap: anywhere;
     }
 
     .drawer-meta {
@@ -448,8 +498,8 @@ function formatBRL(n: number): string {
       position: absolute;
       top: 0;
       right: 0;
-      width: 28px;
-      height: 28px;
+      width: var(--ranking-close, 28px);
+      height: var(--ranking-close, 28px);
       border-radius: 8px;
       background: var(--nx-surface-1);
       border: 1px solid var(--nx-line);
@@ -475,6 +525,8 @@ function formatBRL(n: number): string {
 
     .stat {
       flex: 1;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .stat-label {
@@ -484,6 +536,11 @@ function formatBRL(n: number): string {
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
+
+      @include ar.below(sm) {
+        font-size: 10px;
+        letter-spacing: 0.06em;
+      }
     }
 
     .stat-value {
@@ -511,7 +568,7 @@ function formatBRL(n: number): string {
 
     .history-row {
       display: grid;
-      grid-template-columns: 40px 1fr auto auto;
+      grid-template-columns: 40px minmax(0, 1fr) auto auto;
       gap: 12px;
       align-items: center;
       padding: 12px 0;
@@ -533,6 +590,7 @@ function formatBRL(n: number): string {
       font-weight: 600;
       font-size: 13px;
       color: var(--nx-text);
+      overflow-wrap: anywhere;
     }
 
     .history-time {
@@ -549,10 +607,20 @@ function formatBRL(n: number): string {
       text-align: right;
     }
 
-    @media (max-width: 720px) {
+    @include ar.below(sm) {
       .podium-row {
         grid-template-columns: 1fr;
         gap: 16px;
+      }
+
+      /* Pódio empilhado: os degraus de 64/104px viravam ~400px de altura. */
+      .podium-block {
+        height: 40px;
+        margin-top: 12px;
+      }
+
+      .podium-col.first .podium-block {
+        height: 52px;
       }
 
       .podium-col.first {

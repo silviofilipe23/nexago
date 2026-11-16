@@ -382,6 +382,7 @@ function discountOk(n: number): boolean {
     </ar-aulas-page>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .head-hint { font-size: 12px; color: var(--nx-text-dim); margin-right: 6px; }
@@ -425,7 +426,12 @@ function discountOk(n: number): boolean {
     .cta { color: var(--nx-orange-500); font-weight: 600; text-decoration: none; }
     .sm-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 99px; font-family: var(--nx-font-display); font-weight: 600; font-size: 11.5px; background: var(--nx-surface-0); border: 1px solid var(--nx-line); color: var(--nx-text-mute); white-space: nowrap; }
     @media (max-width: 1280px) { .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-    @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+    @include ar.below(md) { .layout { grid-template-columns: minmax(0, 1fr); } }
+    @include ar.below(sm) {
+      .teachers { grid-template-columns: minmax(0, 1fr); }
+      .cycle { column-gap: 8px; }
+      .disc input { width: 40px; min-height: 28px; }
+    }
   `,
 })
 export class PanelAulaPlanEditorComponent {

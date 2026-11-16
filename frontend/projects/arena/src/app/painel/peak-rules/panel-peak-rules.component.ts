@@ -72,7 +72,7 @@ import { fetchAllPeakRules, setPeakRuleActive } from './peak-rules-repository';
                 <div class="table-list">
                   @for (rule of rules(); track rule.id) {
                     <div class="table-row">
-                      <div>
+                      <div class="rule-main">
                         <div class="rule-name">{{ rule.label }}</div>
                         <div class="rule-scope">{{ peakRuleScopeLabel(rule) }}</div>
                       </div>
@@ -80,7 +80,7 @@ import { fetchAllPeakRules, setPeakRuleActive } from './peak-rules-repository';
                       <div class="rule-days">{{ formatWeekdays(rule.weekdays) }}</div>
                       <div class="rule-min">{{ formatMinDuration(rule.minDurationMinutes) }}</div>
                       <div class="rule-release">{{ formatRelease(rule.releaseHoursBefore) }}</div>
-                      <div><ar-pill [tone]="rule.active ? 'green' : 'dim'">{{ rule.active ? 'Ativa' : 'Pausada' }}</ar-pill></div>
+                      <div class="rule-status"><ar-pill [tone]="rule.active ? 'green' : 'dim'">{{ rule.active ? 'Ativa' : 'Pausada' }}</ar-pill></div>
                       <div class="rule-actions">
                         <button type="button" class="ar-mini-btn" (click)="editRule(rule.id)">
                           <ar-icon name="edit" [size]="13" />
@@ -103,6 +103,8 @@ import { fetchAllPeakRules, setPeakRuleActive } from './peak-rules-repository';
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -253,9 +255,70 @@ import { fetchAllPeakRules, setPeakRuleActive } from './peak-rules-repository';
       gap: 8px;
     }
 
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .summary-row {
         flex-wrap: wrap;
+      }
+    }
+
+    /* Celular: a tabela de 7 colunas vira um card por regra -- rolar ~850px
+       na horizontal pra achar "Editar" não é usável. Mesmos dados; o
+       cabeçalho de coluna sai porque cada célula se explica sozinha. */
+    @include ar.below(sm) {
+      .body {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
+      .summary-card {
+        max-width: none;
+      }
+      .ar-table-inner {
+        min-width: 0;
+      }
+      .table-head {
+        display: none;
+      }
+      .table-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          'main status'
+          'range min'
+          'days release'
+          'actions actions';
+        gap: 6px 12px;
+      }
+      .rule-main {
+        grid-area: main;
+        min-width: 0;
+      }
+      .rule-status {
+        grid-area: status;
+        justify-self: end;
+      }
+      .rule-range {
+        grid-area: range;
+      }
+      .rule-min {
+        grid-area: min;
+        justify-self: end;
+      }
+      .rule-days {
+        grid-area: days;
+        min-width: 0;
+      }
+      .rule-release {
+        grid-area: release;
+        justify-self: end;
+        text-align: right;
+      }
+      .rule-actions {
+        grid-area: actions;
+        justify-content: stretch;
+        margin-top: 6px;
+      }
+      .rule-actions .ar-mini-btn {
+        flex: 1 1 0;
+        justify-content: center;
+        height: 40px;
       }
     }
   `,

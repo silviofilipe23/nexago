@@ -81,10 +81,15 @@ import { AulasPageComponent } from './aulas-ui';
     }
     .hint { font-size: 13px; color: var(--nx-text-mute); line-height: 1.5; margin: 0; }
     @include ar.below(md) {
-      .layout { grid-template-columns: 1fr; }
+      .layout { grid-template-columns: minmax(0, 1fr); }
       .layout.has-open .list-card { display: none; }
       .layout:not(.has-open) .chat-col { display: none; }
       .back { display: inline-flex; }
+    }
+    @include ar.below(sm) {
+      .row { min-height: 56px; }
+      .row-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .back { min-height: 40px; }
     }
   `,
 })

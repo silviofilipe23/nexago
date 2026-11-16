@@ -140,10 +140,10 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
                       </div>
                       <div class="product-name">{{ p.name }}</div>
                       <div class="product-category">{{ categoryLabel[p.category] }}</div>
-                      <div class="product-price">{{ formatBRL(p.priceCents) }}</div>
-                      <div class="product-margin" [class.negative]="marginIsNegative(p)">{{ marginOf(p) }}</div>
-                      <div class="product-stock" [class]="'tone-' + statusOf(p)">{{ p.stockQuantity }} <span class="unit">un</span></div>
-                      <div><ar-pill [tone]="statusTone[statusOf(p)]">{{ statusLabel[statusOf(p)] }}</ar-pill></div>
+                      <div class="product-price" data-label="Preço">{{ formatBRL(p.priceCents) }}</div>
+                      <div class="product-margin" data-label="Margem" [class.negative]="marginIsNegative(p)">{{ marginOf(p) }}</div>
+                      <div class="product-stock" data-label="Estoque" [class]="'tone-' + statusOf(p)">{{ p.stockQuantity }} <span class="unit">un</span></div>
+                      <div class="product-level"><ar-pill [tone]="statusTone[statusOf(p)]">{{ statusLabel[statusOf(p)] }}</ar-pill></div>
                       <div class="product-actions">
                         <button type="button" class="ar-mini-btn" [disabled]="readOnly()" (click)="editProduct(p.id)">
                           <ar-icon name="edit" [size]="13" />
@@ -172,6 +172,8 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -179,6 +181,10 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -224,16 +230,30 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
       cursor: pointer;
       font-size: 15px;
       line-height: 1;
+      flex: none;
+
+      @include ar.touch {
+        min-width: 40px;
+        min-height: 40px;
+      }
     }
 
     .summary-row {
       display: flex;
       gap: 16px;
       flex: none;
+
+      /* 4 KPIs em 360px: grade 2x2. */
+      @include ar.below(sm) {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
     }
 
     .summary-card {
       flex: 1;
+      min-width: 0;
     }
 
     .summary-label {
@@ -255,6 +275,11 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
       letter-spacing: -0.02em;
       color: var(--nx-text);
       margin-top: 8px;
+      overflow-wrap: anywhere;
+
+      @include ar.below(sm) {
+        font-size: 20px;
+      }
     }
 
     .summary-value.tone-pending {
@@ -288,6 +313,34 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
       padding: 0 0 8px;
       border-bottom: 1px solid var(--nx-line-strong);
       flex: none;
+
+      @include ar.below(sm) {
+        display: none;
+      }
+    }
+
+    /* Celular: a tabela de 8 colunas vira cartão empilhado (o "Editar" ficava
+       fora da tela, no fim da rolagem horizontal). Desliga o max-content do
+       .ar-table-scroll para o cartão caber na largura do card. */
+    .ar-table-inner {
+      @include ar.below(sm) {
+        min-width: 0;
+      }
+    }
+
+    /* Rótulo da célula no cartão do celular. Vem do atributo (pseudo-elemento),
+       não de um <span>, para não entrar no textContent da célula. */
+    [data-label]::before {
+      @include ar.below(sm) {
+        content: attr(data-label);
+        display: block;
+        font-family: var(--nx-font-mono);
+        font-size: 9px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--nx-text-dim);
+      }
     }
 
     .table-head span {
@@ -307,6 +360,24 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
     .table-row {
       padding: 12px 0;
       border-bottom: 1px solid var(--nx-line);
+
+      @include ar.below(sm) {
+        grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr) auto;
+        grid-template-areas:
+          'thumb name name actions'
+          'thumb category category level'
+          'price price margin stock';
+        gap: 8px 12px;
+
+        .thumb { grid-area: thumb; align-self: start; }
+        .product-name { grid-area: name; min-width: 0; overflow-wrap: anywhere; }
+        .product-category { grid-area: category; }
+        .product-price { grid-area: price; }
+        .product-margin { grid-area: margin; }
+        .product-stock { grid-area: stock; text-align: right; }
+        .product-level { grid-area: level; justify-self: end; }
+        .product-actions { grid-area: actions; }
+      }
     }
 
     .table-row:last-child {
@@ -381,7 +452,13 @@ const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
       justify-content: flex-end;
     }
 
-    @media (max-width: 1180px) {
+    .product-actions .ar-mini-btn {
+      @include ar.touch {
+        height: 40px;
+      }
+    }
+
+    @include ar.below(lg) {
       .summary-row {
         flex-wrap: wrap;
       }

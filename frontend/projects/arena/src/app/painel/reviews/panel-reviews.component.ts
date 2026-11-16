@@ -130,6 +130,8 @@ const FILTERS: { key: ReviewFilter; label: string }[] = [
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -137,6 +139,10 @@ const FILTERS: { key: ReviewFilter; label: string }[] = [
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -153,10 +159,18 @@ const FILTERS: { key: ReviewFilter; label: string }[] = [
       display: flex;
       gap: 16px;
       flex: none;
+
+      /* 4 KPIs em 360px: grade 2x2. */
+      @include ar.below(sm) {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
     }
 
     .summary-card {
       flex: 1;
+      min-width: 0;
     }
 
     .summary-label {
@@ -182,6 +196,10 @@ const FILTERS: { key: ReviewFilter; label: string }[] = [
       letter-spacing: -0.02em;
       color: var(--nx-text);
       margin-top: 8px;
+
+      @include ar.below(sm) {
+        font-size: 22px;
+      }
     }
 
     .summary-value.tone-red {
@@ -238,12 +256,17 @@ const FILTERS: { key: ReviewFilter; label: string }[] = [
       font-weight: 700;
       font-size: 13.5px;
       color: var(--nx-text);
+      overflow-wrap: anywhere;
     }
 
     .review-date {
       font-family: var(--nx-font-mono);
       font-size: 10px;
       color: var(--nx-text-dim);
+
+      @include ar.below(sm) {
+        font-size: 11px;
+      }
     }
 
     .spacer {
@@ -251,6 +274,7 @@ const FILTERS: { key: ReviewFilter; label: string }[] = [
     }
 
     .review-comment {
+      overflow-wrap: anywhere;
       font-size: 13.5px;
       line-height: 1.55;
       color: var(--nx-text-mute);
@@ -286,6 +310,18 @@ const FILTERS: { key: ReviewFilter; label: string }[] = [
       height: 30px;
       padding: 0 10px;
       font-size: 12px;
+
+      @include ar.touch {
+        height: 40px;
+        padding: 0 14px;
+      }
+    }
+
+    .reply-btn,
+    .reply-actions .ar-mini-btn {
+      @include ar.touch {
+        height: 40px;
+      }
     }
 
     .reply-btn {
@@ -332,9 +368,10 @@ const FILTERS: { key: ReviewFilter; label: string }[] = [
       justify-content: flex-end;
       gap: 12px;
       margin-top: 10px;
+      flex-wrap: wrap;
     }
 
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .summary-row {
         flex-wrap: wrap;
       }

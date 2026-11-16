@@ -95,14 +95,14 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
                 <div class="table-list">
                   @for (row of filteredPromotions(); track row.promo.id) {
                     <div class="table-row">
-                      <div>
+                      <div class="promo-main">
                         <div class="promo-name">{{ row.promo.label }}</div>
                         <div class="promo-scope">{{ scopeLabel(row.promo) }}</div>
                       </div>
                       <div class="promo-discount">{{ formatDiscount(row.promo) }}</div>
                       <div class="promo-days">{{ formatWeekdays(row.promo.weekdays) }}</div>
                       <div class="promo-time">{{ row.promo.startTime }}-{{ row.promo.endTime }}</div>
-                      <div><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
+                      <div class="promo-status"><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
                       <div class="promo-actions">
                         <button type="button" class="ar-mini-btn" (click)="editPromotion(row.promo.id)">
                           <ar-icon name="edit" [size]="13" />
@@ -122,6 +122,8 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -129,6 +131,10 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -167,6 +173,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
     .summary-card {
       flex: 1;
       max-width: 240px;
+      min-width: 0;
     }
 
     .summary-label {
@@ -204,6 +211,18 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       padding: 0 0 8px;
       border-bottom: 1px solid var(--nx-line-strong);
       flex: none;
+
+      @include ar.below(sm) {
+        display: none;
+      }
+    }
+
+    /* Celular: cada promoção vira cartão empilhado (o "Editar" ficava no fim da
+       rolagem horizontal). Desliga o max-content do .ar-table-scroll. */
+    .ar-table-inner {
+      @include ar.below(sm) {
+        min-width: 0;
+      }
     }
 
     .table-head span {
@@ -223,6 +242,29 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
     .table-row {
       padding: 14px 0;
       border-bottom: 1px solid var(--nx-line);
+
+      @include ar.below(sm) {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          'main status'
+          'discount time'
+          'days days'
+          'actions actions';
+        gap: 8px 12px;
+
+        .promo-main { grid-area: main; min-width: 0; overflow-wrap: anywhere; }
+        .promo-status { grid-area: status; }
+        .promo-discount { grid-area: discount; }
+        .promo-time { grid-area: time; text-align: right; }
+        .promo-days { grid-area: days; }
+        .promo-actions { grid-area: actions; justify-content: flex-start; }
+      }
+    }
+
+    .promo-actions .ar-mini-btn {
+      @include ar.touch {
+        height: 40px;
+      }
     }
 
     .table-row:last-child {
@@ -261,7 +303,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       justify-content: flex-end;
     }
 
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .summary-row {
         flex-wrap: wrap;
       }

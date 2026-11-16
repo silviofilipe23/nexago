@@ -195,6 +195,7 @@ import {
     </ar-aulas-page>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; line-height: 1.5; }
     .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     .s-label {
@@ -263,9 +264,14 @@ import {
     .reply-actions .counter { flex: 1; margin: 0; }
     .more { align-self: center; }
 
-    @media (max-width: 900px) {
+    @include ar.below(md) {
       .stats { grid-template-columns: minmax(0, 1fr); }
-      .prof-select { width: 100%; }
+      .prof-select { width: 100%; min-width: 0; }
+    }
+    @include ar.below(sm) {
+      .chip { height: 36px; }
+      .parts { flex-wrap: wrap; }
+      .r-head { flex-wrap: wrap; }
     }
   `,
 })

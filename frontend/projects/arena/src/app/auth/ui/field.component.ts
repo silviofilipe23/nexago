@@ -78,6 +78,8 @@ let nextFieldId = 0;
     </div>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .field {
       display: flex;
       flex-direction: column;
@@ -171,6 +173,23 @@ let nextFieldId = 0;
     .hint-line {
       font-size: 12px;
       color: var(--nx-text-dim);
+    }
+
+    @include ar.below(sm) {
+      label {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+      }
+    }
+
+    /* Dedo: o olho da senha tinha 32px; 44px sem crescer a caixa (a margem
+       negativa devolve o espaço do padding da .box). */
+    @include ar.touch {
+      .eye {
+        min-width: var(--ar-tap);
+        min-height: var(--ar-tap);
+        margin-right: -10px;
+      }
     }
   `,
 })

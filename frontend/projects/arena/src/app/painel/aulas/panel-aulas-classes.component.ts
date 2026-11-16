@@ -123,6 +123,7 @@ import { fetchClasses } from './classes-repository';
     </ar-aulas-page>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; line-height: 1.5; }
     .filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex: none; }
     .grow { flex: 1; }
@@ -168,6 +169,16 @@ import { fetchClasses } from './classes-repository';
       background: rgba(255, 59, 48, 0.08); border: 1px solid rgba(255, 59, 48, 0.28); color: var(--nx-live);
     }
     .foot { display: flex; align-items: center; justify-content: space-between; padding-top: 11px; border-top: 1px solid var(--nx-line); }
+    @include ar.below(sm) {
+      .grid { grid-template-columns: minmax(0, 1fr); }
+      .card { padding: 16px; min-width: 0; }
+      .name-row { flex-wrap: wrap; }
+      .name { min-width: 0; overflow-wrap: anywhere; }
+      .days-row { flex-wrap: wrap; gap: 8px; }
+      .teacher { flex-wrap: wrap; }
+      .teacher-name { min-width: 0; overflow-wrap: anywhere; }
+      .foot .ar-ghost-btn { min-height: 40px; }
+    }
   `,
 })
 export class PanelAulasClassesComponent {

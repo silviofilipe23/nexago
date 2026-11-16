@@ -122,6 +122,8 @@ const SLOT_LABEL: Record<ArenaSlotDuration, string> = { 30: '30 min', 60: '1 hor
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -263,6 +265,39 @@ const SLOT_LABEL: Record<ArenaSlotDuration, string> = { 30: '30 min', 60: '1 hor
       color: var(--nx-text-dim);
     }
 
+    /* Celular: chips de duração quebram linha; cada dia vira "switch + nome"
+       numa linha e o intervalo ocupa a linha de baixo inteira, em vez do
+       rótulo travado em 130px empurrar os horários para fora do card. */
+    @include ar.below(sm) {
+      .body {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
+
+      .chip-row {
+        flex-wrap: wrap;
+      }
+
+      .day-row {
+        gap: 10px 12px;
+      }
+
+      .day-label {
+        width: auto;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .interval-row {
+        flex: 1 1 100%;
+        min-width: 0;
+      }
+
+      .time-input {
+        flex: 1 1 0;
+        min-width: 0;
+        width: auto;
+      }
+    }
   `,
 })
 export class PanelProfileHoursComponent {

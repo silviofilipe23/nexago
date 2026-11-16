@@ -60,6 +60,8 @@ import { arenaProfileFromDoc, saveArenaContacts } from './arena-profile-reposito
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -117,9 +119,21 @@ import { arenaProfileFromDoc, saveArenaContacts } from './arena-profile-reposito
       gap: 16px;
     }
 
-    @media (max-width: 720px) {
+    .row-2 > * {
+      min-width: 0;
+    }
+
+    @include ar.below(sm) {
+      .body {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
+
       .row-2 {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .field-label {
+        font-size: 10.5px;
       }
     }
   `,

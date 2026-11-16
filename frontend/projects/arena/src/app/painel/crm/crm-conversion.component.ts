@@ -166,6 +166,21 @@ import { CrmStore } from './crm.store';
     @include ar.below(md) {
       .funnel { grid-template-columns: 1fr 1fr; }
     }
+    @include ar.below(sm) {
+      .c-h { padding: 16px; }
+      .seg { display: flex; width: 100%; }
+      .seg button { flex: 1; min-width: 0; padding: 7px 6px; }
+      .st { padding: 14px; min-width: 0; }
+      .st-v { font-size: 24px; }
+      /* Na 2ª linha do funil, a borda vertical sobra; separa as linhas por cima. */
+      .st:nth-child(2) { border-right: none; }
+      .st:nth-child(n + 3) { border-top: 1px solid var(--nx-line); }
+      .send { flex-wrap: wrap; }
+    }
+    @include ar.touch {
+      .seg button { min-height: 38px; }
+      .tpl button { min-height: 38px; }
+    }
   `,
 })
 export class CrmConversionComponent {

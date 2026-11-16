@@ -112,6 +112,7 @@ import {
     </ar-aulas-page>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .state-text.empty { margin: 14px 0 4px; }
     .month-nav { display: flex; align-items: center; gap: 8px; }
@@ -144,6 +145,11 @@ import {
     .state { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
     .warn { font-family: var(--nx-font-mono); font-size: 10px; color: var(--nx-pending); }
     @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    /* Celular: setas do mês com alvo de dedo; o rótulo do mês divide a linha em vez de 150px fixos. */
+    @include ar.below(sm) {
+      .icon { width: 40px; height: 40px; }
+      .month-label { flex: 1; min-width: 0; }
+    }
   `,
 })
 export class PanelAulasPayoutsComponent {

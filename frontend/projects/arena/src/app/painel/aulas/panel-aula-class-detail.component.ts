@@ -334,6 +334,7 @@ export function spotsByWeekday(cls: Pick<ArenaClass, 'weekdays' | 'capacity'>, s
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .state-text.empty { margin: 14px 0 4px; }
     .banner {
@@ -378,9 +379,25 @@ export function spotsByWeekday(cls: Pick<ArenaClass, 'weekdays' | 'capacity'>, s
     .small { height: 26px; font-size: 11.5px; }
     .first { margin-top: 0; }
     .archive { margin-top: 14px; align-self: flex-start; color: var(--nx-live); }
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .layout { grid-template-columns: minmax(0, 1fr); }
       .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    /* Celular: alunos da turma em card (aluno em cima; plano/contato, frequência/ações embaixo)
+       no lugar da tabela de ~770px; fila de espera com as ações numa linha própria. */
+    @include ar.below(sm) {
+      .ar-table-inner { min-width: 0; }
+      .table-head { display: none; }
+      .table-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; }
+      .table-row > :nth-child(1) { grid-column: 1 / -1; }
+      .table-row > :nth-child(3) { justify-self: end; }
+      .table-row > :nth-child(5) { justify-self: end; }
+      .name { overflow-wrap: anywhere; }
+      .wait-row { flex-wrap: wrap; row-gap: 8px; }
+      .wait-row .actions { flex: 1 1 100%; }
+      .small { height: 34px; }
+      .next-row { flex-wrap: wrap; row-gap: 6px; }
+      .next-row .ar-ghost-btn { margin-left: auto; }
     }
   `,
 })

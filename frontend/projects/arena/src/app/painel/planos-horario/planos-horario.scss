@@ -1,5 +1,6 @@
 // Peças comuns das telas de Planos de horário (campos, chips pequenos, modais) — mesmo visual
 // dos formulários de Aulas. Fica enxuto: soma no orçamento de estilo de cada componente.
+@use 'breakpoints' as ar;
 
 .field-label {
   font-family: var(--nx-font-mono);
@@ -135,8 +136,26 @@ button.sm-chip:disabled {
   gap: 14px;
 }
 
-@media (max-width: 720px) {
+@include ar.below(sm) {
   .row-2 {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  // Chip que é escolha (dia, quadra, modo) precisa de alvo de dedo no celular.
+  // Texto longo (nome de plano, "Trimestral · R$ 690,00/mês") quebra em vez de
+  // passar da largura do modal.
+  button.sm-chip {
+    height: auto;
+    min-height: 36px;
+    max-width: 100%;
+    padding: 6px 12px;
+    white-space: normal;
+    text-align: left;
+    line-height: 1.3;
+  }
+
+  .modal-actions > * {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }

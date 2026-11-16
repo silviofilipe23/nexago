@@ -237,6 +237,7 @@ interface TeacherDraft {
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .state-text.empty { margin: 14px 0 4px; }
     .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; flex: none; }
@@ -287,6 +288,27 @@ interface TeacherDraft {
     .suggest-row { display: flex; flex-wrap: wrap; gap: 6px; }
     .suggest { display: inline-flex; align-items: center; gap: 6px; }
     @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    /* Celular: a tabela (7–9 colunas) vira card — professor em cima, números rotulados e o
+       "Editar" no alcance do dedo, sem rolar a tabela até a última coluna. */
+    @include ar.below(sm) {
+      .ar-table-inner { min-width: 0; }
+      .table-head { display: none; }
+      .table-row, .table-row.with-payout { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+      .who { flex: 1 1 100%; }
+      .name { overflow-wrap: anywhere; }
+      .table-row > :nth-child(3)::before { content: 'Aulas/sem '; }
+      .table-row > :nth-child(4)::before { content: 'Alunos '; }
+      .table-row.with-payout > :nth-child(7)::before { content: 'A pagar '; }
+      .table-row > :nth-child(3)::before,
+      .table-row > :nth-child(4)::before,
+      .table-row.with-payout > :nth-child(7)::before { font-weight: 500; color: var(--nx-text-dim); }
+      .occ { flex: 1 1 100%; }
+      .actions { margin-left: auto; }
+      .actions .ar-mini-btn { min-height: 40px; }
+      .link-warn { min-height: 32px; font-size: 11px; }
+      .payout-value { flex-wrap: wrap; }
+      .account-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    }
   `,
 })
 export class PanelAulasTeachersComponent {

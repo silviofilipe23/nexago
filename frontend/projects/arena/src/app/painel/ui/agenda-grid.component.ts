@@ -243,6 +243,9 @@ const MIN_COURT_COL_PX = 120;
       display: flex;
       width: max-content;
       min-width: 100%;
+      /* O rótulo de hora sobe 6px pra centralizar na linha; sem esta folga o
+         primeiro ("07:00") ficava escondido atrás do cabeçalho fixo. */
+      margin-top: 6px;
     }
 
     /* Coluna de horário fixada: sticky em 'left', fundo opaco e z-index acima de

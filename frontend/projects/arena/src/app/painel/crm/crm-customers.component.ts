@@ -176,6 +176,24 @@ const STATUS_FILTERS: ReadonlyArray<{ id: Filter; label: string; color?: string 
       .summary { grid-template-columns: 1fr 1fr; }
       .search { width: 100%; }
     }
+    /* Celular: 8 chips de status quebravam em 4 linhas -- viram uma faixa que rola
+       de lado; a barra de ferramentas ocupa a largura toda. */
+    @include ar.below(sm) {
+      .bar { flex-direction: column; align-items: stretch; }
+      .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+      .chips::-webkit-scrollbar { display: none; }
+      .chip { flex: none; }
+      .tools { min-width: 0; }
+      .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+      .seg button { flex: none; }
+      .sum { padding: 10px 12px; }
+      .sum-v { font-size: 20px; }
+    }
+    @include ar.touch {
+      .chip { min-height: 40px; }
+      .seg button { min-height: 38px; }
+      .icon-btn { width: 40px; height: 40px; }
+    }
   `,
 })
 export class CrmCustomersComponent {

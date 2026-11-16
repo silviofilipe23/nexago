@@ -248,6 +248,10 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -285,6 +289,8 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
     .balance-kicker {
@@ -315,6 +321,12 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       font-size: 10px;
       font-weight: 700;
       cursor: pointer;
+
+      @include ar.touch {
+        height: 36px;
+        padding: 0 12px;
+        font-size: 11px;
+      }
     }
 
     .period-chip.active {
@@ -328,6 +340,11 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       font-size: 32px;
       color: var(--nx-text);
       margin-top: 10px;
+      overflow-wrap: anywhere;
+
+      @include ar.below(sm) {
+        font-size: 28px;
+      }
     }
     /* "A liberar": cartão aprovado que ainda não liquidou — dinheiro a caminho, não sacável. */
     .a-liberar { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--nx-line); }
@@ -349,6 +366,9 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       flex-direction: column;
       align-items: center;
       gap: 4px;
+      min-width: 0;
+      text-align: center;
+      overflow-wrap: anywhere;
     }
 
     .stat-label {
@@ -576,6 +596,10 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       height: 30px;
       padding: 0 10px;
       font-size: 11px;
+
+      @include ar.touch {
+        height: 36px;
+      }
     }
 
     .submit-btn {
@@ -631,6 +655,7 @@ const HISTORY_FILTERS: { key: FinancialHistoryFilter; label: string }[] = [
       justify-content: flex-end;
       gap: 12px;
       margin-top: 8px;
+      flex-wrap: wrap;
     }
   `,
 })

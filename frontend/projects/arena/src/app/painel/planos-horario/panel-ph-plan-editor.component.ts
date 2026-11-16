@@ -460,6 +460,15 @@ const DUE_DAYS: ReadonlyArray<{ value: number; label: string }> = [
     @include ar.below(md) {
       .layout { grid-template-columns: minmax(0, 1fr); }
     }
+    /* Celular: grade de janela com célula de dedo (7 colunas cabem em ~30px de
+       largura, então ganha altura); campo de desconto legível com a fonte de 16px. */
+    @include ar.below(sm) {
+      .wgrid { grid-template-columns: 48px repeat(7, minmax(0, 1fr)); gap: 3px; }
+      .wcell { height: 38px; }
+      .disc input { width: 44px; }
+      .head-hint { flex-basis: 100%; margin-right: 0; }
+      .archive .danger { height: var(--ar-tap); }
+    }
   `,
 })
 export class PanelPhPlanEditorComponent {

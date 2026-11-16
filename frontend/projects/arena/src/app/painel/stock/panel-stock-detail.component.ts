@@ -250,10 +250,16 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -318,8 +324,12 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
 
     .row-2 {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 16px;
+
+      @include ar.below(sm) {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
 
     .row-gap {
@@ -375,6 +385,10 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
     .table-head {
       padding: 0 0 8px;
       border-bottom: 1px solid var(--nx-line-strong);
+
+      @include ar.below(sm) {
+        display: none;
+      }
     }
 
     .table-head span {
@@ -389,6 +403,19 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
     .table-row {
       padding: 12px 0;
       border-bottom: 1px solid var(--nx-line);
+
+      /* Celular: data e quantidade na linha de cima, motivo inteiro embaixo. */
+      @include ar.below(sm) {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          'date qty'
+          'reason reason';
+        gap: 4px 12px;
+
+        .mv-date { grid-area: date; }
+        .mv-qty { grid-area: qty; }
+        .mv-reason { grid-area: reason; min-width: 0; overflow-wrap: anywhere; }
+      }
     }
 
     .table-row:last-child {
@@ -481,6 +508,7 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 12px;
       padding: 8px 0;
     }
 
@@ -580,11 +608,6 @@ const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', lo
       background: #ff564c;
     }
 
-    @media (max-width: 720px) {
-      .row-2 {
-        grid-template-columns: 1fr;
-      }
-    }
   `,
 })
 export class PanelStockDetailComponent {

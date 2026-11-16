@@ -130,6 +130,8 @@ function formatBRL(n: number): string {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -139,6 +141,10 @@ function formatBRL(n: number): string {
       overflow: hidden;
       overflow-y: auto;
       scrollbar-width: none;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .body::-webkit-scrollbar {
@@ -158,6 +164,7 @@ function formatBRL(n: number): string {
 
     .kpi-card {
       flex: 1;
+      min-width: 0;
     }
 
     .kpi-label {
@@ -175,6 +182,11 @@ function formatBRL(n: number): string {
       font-size: 28px;
       color: var(--nx-text);
       margin-top: 8px;
+      overflow-wrap: anywhere;
+
+      @include ar.below(sm) {
+        font-size: 22px;
+      }
     }
 
     .grid-wrap {
@@ -188,6 +200,7 @@ function formatBRL(n: number): string {
     }
 
     .card {
+      min-width: 0;
       background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-4);
@@ -220,6 +233,7 @@ function formatBRL(n: number): string {
       font-weight: 700;
       font-size: 16px;
       color: var(--nx-text);
+      overflow-wrap: anywhere;
     }
 
     .card-meta {
@@ -297,19 +311,27 @@ function formatBRL(n: number): string {
       margin: 0;
     }
 
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
-    @media (max-width: 720px) {
+    @include ar.below(sm) {
       .grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
 
+      /* flex: 1 nos 3 KPIs não quebrava linha: o valor em R$ estourava o card.
+         Contagens lado a lado, arrecadado na linha de baixo inteira. */
       .kpi-row {
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .kpi-card:last-child {
+        grid-column: 1 / -1;
       }
     }
   `,

@@ -91,10 +91,10 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
                   @for (row of filteredCoupons(); track row.coupon.id) {
                     <div class="table-row">
                       <div class="coupon-code">{{ row.coupon.code }}</div>
-                      <div class="coupon-discount">{{ formatCouponDiscount(row.coupon) }}</div>
-                      <div class="coupon-validity">{{ formatCouponValidity(row.coupon) }}</div>
-                      <div class="coupon-usage">{{ formatCouponUsage(row.coupon) }}</div>
-                      <div><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
+                      <div class="coupon-discount"><span class="col-label">Desconto</span>{{ formatCouponDiscount(row.coupon) }}</div>
+                      <div class="coupon-validity"><span class="col-label">Validade</span>{{ formatCouponValidity(row.coupon) }}</div>
+                      <div class="coupon-usage"><span class="col-label">Usos</span>{{ formatCouponUsage(row.coupon) }}</div>
+                      <div class="coupon-status"><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
                       <div class="coupon-actions">
                         <button type="button" class="ar-mini-btn" (click)="editCoupon(row.coupon)">
                           <ar-icon name="edit" [size]="13" />
@@ -138,6 +138,8 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -145,6 +147,10 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -166,6 +172,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
     .summary-card {
       flex: 1;
       max-width: 240px;
+      min-width: 0;
     }
 
     .summary-label {
@@ -203,6 +210,32 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       padding: 0 0 8px;
       border-bottom: 1px solid var(--nx-line-strong);
       flex: none;
+
+      @include ar.below(sm) {
+        display: none;
+      }
+    }
+
+    /* Celular: cada cupom vira cartão empilhado (Editar/Desativar ficavam no fim
+       da rolagem horizontal). Desliga o max-content do .ar-table-scroll. */
+    .ar-table-inner {
+      @include ar.below(sm) {
+        min-width: 0;
+      }
+    }
+
+    .col-label {
+      display: none;
+
+      @include ar.below(sm) {
+        display: block;
+        font-family: var(--nx-font-mono);
+        font-size: 9px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--nx-text-dim);
+      }
     }
 
     .table-head span {
@@ -222,6 +255,29 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
     .table-row {
       padding: 14px 0;
       border-bottom: 1px solid var(--nx-line);
+
+      @include ar.below(sm) {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas:
+          'code status'
+          'discount usage'
+          'validity validity'
+          'actions actions';
+        gap: 8px 12px;
+
+        .coupon-code { grid-area: code; min-width: 0; overflow-wrap: anywhere; }
+        .coupon-status { grid-area: status; justify-self: end; }
+        .coupon-discount { grid-area: discount; }
+        .coupon-usage { grid-area: usage; }
+        .coupon-validity { grid-area: validity; }
+        .coupon-actions { grid-area: actions; justify-content: flex-start; flex-wrap: wrap; }
+      }
+    }
+
+    .coupon-actions .ar-mini-btn {
+      @include ar.touch {
+        height: 40px;
+      }
     }
 
     .table-row:last-child {
@@ -282,6 +338,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       align-items: center;
       justify-content: flex-end;
       gap: 16px;
+      flex-wrap: wrap;
     }
 
     .danger-btn {
@@ -296,7 +353,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       background: #ff564c;
     }
 
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .summary-row {
         flex-wrap: wrap;
       }

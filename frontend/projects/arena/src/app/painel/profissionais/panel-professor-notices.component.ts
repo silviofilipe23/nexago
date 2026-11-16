@@ -263,6 +263,12 @@ interface Notice {
     .form-error { margin-top: 14px; margin-bottom: 0; }
     .send-note { margin-top: 14px; }
     .actions { display: flex; justify-content: flex-end; margin-top: 16px; }
+
+    @include ar.below(sm) {
+      .notice-dismiss { width: 36px; height: 36px; flex: none; font-size: 18px; }
+      .pick { min-height: 40px; }
+      .actions .ar-mini-btn { min-height: 44px; }
+    }
   `,
 })
 export class PanelProfessorNoticesComponent {

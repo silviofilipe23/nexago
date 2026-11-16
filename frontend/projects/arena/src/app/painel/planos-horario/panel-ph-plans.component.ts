@@ -262,6 +262,9 @@ interface AlertView {
       .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .main { grid-template-columns: minmax(0, 1fr); }
     }
+    @include ar.below(sm) {
+      .alert .cta, .cta.green { padding: 8px 0; margin-top: 0; }
+    }
     @include ar.below(xs) {
       .stats { grid-template-columns: minmax(0, 1fr); }
     }

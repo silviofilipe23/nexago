@@ -63,6 +63,11 @@
   /* ---- Toque. Sempre 44/8; quem decide se valem é a zona 4. ---- */
   --ar-tap: 44px;
   --ar-tap-gap: 8px;
+
+  /* ---- Altura ocupada pela bottom-nav do shell (só existe no celular, ver
+     zona 2). Barra fixa/sticky no rodapé de uma tela soma isto ao `bottom`
+     para não ficar escondida atrás da navegação. ---- */
+  --ar-bottom-nav-h: 0px;
 }
 
 *,
@@ -161,7 +166,9 @@ button {
 
 .ar-grid-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …): `1fr` nasce com min-width auto e um <select> de opção longa
+     estoura a coluna em vez de encolher. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -639,6 +646,20 @@ button {
   :root {
     --ar-pad-page-x: 16px;
     --ar-card-pad: 16px;
+    --ar-bottom-nav-h: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Busca de 220px fixos ao lado de botões não cabe no celular: ocupa a
+     linha. */
+  .ar-search-box {
+    width: 100%;
+  }
+}
+
+@include ar.below(xs) {
+  /* Dois campos lado a lado sobram ~150px cada num celular: um por linha. */
+  .ar-grid-2 {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -684,5 +705,23 @@ button {
   select,
   textarea {
     font-size: 16px !important;
+  }
+
+  /* Alvo de toque dos botões e chips globais: 32px (26px nas abas) é pequeno
+     pro dedo. `min-height` e não `height`: as telas que reduzem a altura por
+     classe local (ex.: `.nav-btn { height: 34px }`) também sobem, sem cada
+     uma precisar repetir a regra. */
+  .ar-mini-btn,
+  .ar-ghost-btn,
+  .ar-chip {
+    min-height: 40px;
+  }
+
+  .ar-chart-tabs button {
+    min-height: 36px;
+  }
+
+  .ar-back-link {
+    min-height: 40px;
   }
 }

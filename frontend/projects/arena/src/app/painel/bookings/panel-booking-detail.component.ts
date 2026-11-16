@@ -569,6 +569,8 @@ export function bookingChannelLabel(channel: string | null): string {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -1319,6 +1321,64 @@ export function bookingChannelLabel(channel: string | null): string {
       }
       .players {
         grid-template-columns: 1fr;
+      }
+    }
+
+    /* Celular: card com o respiro do painel, WhatsApp do jogador numa linha
+       própria (senão o nome fica com ~60px) e ações com alvo de dedo. */
+    @include ar.below(sm) {
+      .body {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
+      .card {
+        padding: var(--ar-card-pad);
+      }
+      .hero {
+        padding: 0;
+      }
+      .hero-top {
+        padding: var(--ar-card-pad);
+        gap: 16px;
+      }
+      .hero-actions {
+        padding: 12px var(--ar-card-pad);
+      }
+      .hero .notice {
+        margin: 0 var(--ar-card-pad) 16px;
+      }
+      .hero-actions .act {
+        flex: 1 1 auto;
+        justify-content: center;
+      }
+      .hero-actions .spacer {
+        display: none;
+      }
+      .danger-link {
+        height: var(--ar-tap);
+      }
+      .player {
+        flex-wrap: wrap;
+      }
+      .wa-btn {
+        flex: 1 0 100%;
+        justify-content: center;
+        height: 40px;
+      }
+      .confirm-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .confirm-actions .ar-ghost-btn {
+        height: var(--ar-tap);
+      }
+      .confirm-btn,
+      .danger-btn {
+        flex: 1 1 auto;
+        justify-content: center;
+        min-width: 0;
+      }
+      .tile-tag {
+        font-size: 9.5px;
       }
     }
   `,

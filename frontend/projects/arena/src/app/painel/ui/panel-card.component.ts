@@ -24,6 +24,8 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     </div>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     :host {
       display: block;
       min-width: 0;
@@ -87,6 +89,19 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
     .spacer {
       flex: 1;
+    }
+
+    /* Celular: título longo + ações do card na mesma linha espremiam o título
+       até uma palavra por linha; a linha passa a quebrar e as ações descem. */
+    @include ar.below(sm) {
+      .head {
+        flex-wrap: wrap;
+        row-gap: 8px;
+      }
+
+      .kicker {
+        font-size: 10px;
+      }
     }
   `,
 })

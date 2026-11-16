@@ -1,6 +1,8 @@
 // Campos dos formulários do módulo Aulas (turma, aula avulsa, professor) — mesmo visual do
 // formulário do clubinho.
 
+@use 'breakpoints' as ar;
+
 .field-label {
   font-family: var(--nx-font-mono);
   font-size: 9px;
@@ -155,10 +157,25 @@ textarea.input-box {
   margin-top: 20px;
 }
 
-@media (max-width: 720px) {
+@include ar.below(sm) {
   .row-2,
   .row-3,
   .row-4 {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  // Ações do rodapé dos modais: quebram em vez de estourar a largura.
+  .modal-actions {
+    flex-wrap: wrap;
+  }
+
+  .stepper button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .color-swatch {
+    width: 36px;
+    height: 36px;
   }
 }

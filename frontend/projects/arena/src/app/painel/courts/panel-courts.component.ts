@@ -124,6 +124,8 @@ function formatBRL(n: number): string {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -268,19 +270,52 @@ function formatBRL(n: number): string {
       gap: 8px;
     }
 
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .grid {
         grid-template-columns: repeat(2, 1fr);
       }
     }
 
-    @media (max-width: 720px) {
+    /* Celular: respiro do painel, KPIs dois por linha, nome de quadra longo
+       quebra e os botões do card dividem a linha com altura de dedo. */
+    @include ar.below(sm) {
+      .body {
+        padding: 16px var(--ar-pad-page-x) 24px;
+        gap: 12px;
+      }
+
       .grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
       }
 
       .kpi-row {
         flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .kpi-card {
+        flex: 1 1 140px;
+        min-width: 0;
+      }
+
+      .kpi-value {
+        font-size: 22px;
+      }
+
+      .card {
+        padding: var(--ar-card-pad);
+        min-width: 0;
+      }
+
+      .card-title {
+        overflow-wrap: anywhere;
+      }
+
+      .card-foot .ar-mini-btn {
+        flex: 1 1 0;
+        justify-content: center;
+        height: 40px;
       }
     }
   `,

@@ -28,6 +28,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
     </div>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .chart {
       display: flex;
       flex-direction: column;
@@ -51,6 +53,21 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
+    }
+
+    /* Celular: 12 rótulos de mês de 9px colavam um no outro; ganham 1px e um
+       respiro mínimo, e o eixo nunca empurra a largura do card. */
+    @include ar.below(sm) {
+      .axis {
+        gap: 4px;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .axis span {
+        font-size: 10px;
+        letter-spacing: 0.04em;
+      }
     }
   `,
 })

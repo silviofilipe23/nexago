@@ -180,6 +180,10 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -221,10 +225,18 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       display: flex;
       gap: 16px;
       flex: none;
+
+      /* 3 KPIs lado a lado não cabem em 360px: 2 por linha, valor menor. */
+      @include ar.below(sm) {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
     }
 
     .summary-card {
       flex: 1;
+      min-width: 0;
     }
 
     .summary-label {
@@ -250,6 +262,11 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       letter-spacing: -0.02em;
       color: var(--nx-text);
       margin-top: 8px;
+      overflow-wrap: anywhere;
+
+      @include ar.below(sm) {
+        font-size: 20px;
+      }
     }
 
     .summary-value.tone-green {
@@ -368,12 +385,16 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       font-weight: 600;
       font-size: 14px;
       color: var(--nx-text);
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .order-client,
     .order-items {
       font-size: 13px;
       color: var(--nx-text-mute);
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .order-total {
@@ -385,6 +406,11 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
 
     .right {
       text-align: right;
+
+      /* Linha empilhada no celular: total alinhado com o rótulo, à esquerda. */
+      @include ar.below(sm) {
+        text-align: left;
+      }
     }
 
     .modal-title {
@@ -438,6 +464,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       align-items: center;
       justify-content: flex-end;
       gap: 16px;
+      flex-wrap: wrap;
     }
 
     .confirm-btn {
@@ -445,7 +472,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
       padding: 0 20px;
     }
 
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .summary-row {
         flex-wrap: wrap;
       }

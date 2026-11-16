@@ -471,6 +471,12 @@ interface Notice {
     @include ar.below(md) {
       .grid { grid-template-columns: minmax(0, 1fr); }
     }
+
+    @include ar.below(sm) {
+      .notice-dismiss { width: 36px; height: 36px; flex: none; font-size: 18px; }
+      .fact { flex-wrap: wrap; }
+      .discount-field, .discount-time-input { height: 40px; }
+    }
   `,
 })
 export class PanelProfessionalDetailComponent {

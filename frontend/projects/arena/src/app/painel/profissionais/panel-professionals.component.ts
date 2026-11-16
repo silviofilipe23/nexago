@@ -432,6 +432,23 @@ const TYPE_CHIPS: ReadonlyArray<{ id: ProfessorLinkType; label: string; color: s
       .search { width: 100%; }
       .empty-types { flex-direction: column; }
     }
+
+    /* Celular: a tabela (~730px) vira card — professor e seta em cima, tipo e status no meio,
+       permissões embaixo. O "×" do aviso e o badge de não lidas ganham área de toque. */
+    @include ar.below(sm) {
+      .table-inner { min-width: 0; }
+      .table-head { display: none; }
+      .table-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; padding: 12px 0; }
+      .table-row > * { min-width: 0; }
+      .table-row > :nth-child(1) { grid-column: 1; grid-row: 1; }
+      .table-row > :nth-child(5) { grid-column: 2; grid-row: 1; }
+      .table-row > :nth-child(2) { grid-column: 1; grid-row: 2; padding-left: 42px; }
+      .table-row > :nth-child(3) { grid-column: 2; grid-row: 2; justify-self: end; text-align: right; }
+      .table-row > :nth-child(4) { grid-column: 1 / -1; grid-row: 3; padding-left: 42px; }
+      .unread { height: 24px; padding: 0 8px; }
+      .notice-dismiss { width: 36px; height: 36px; flex: none; font-size: 18px; }
+      .pending-actions .ar-mini-btn, .pending-actions .ar-ghost-btn { min-height: 40px; }
+    }
   `,
 })
 export class PanelProfessionalsComponent {

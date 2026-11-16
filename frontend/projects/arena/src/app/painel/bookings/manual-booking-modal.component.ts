@@ -97,7 +97,7 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
           <button type="button" class="ar-ghost-btn clear-btn" (click)="clearAthlete()">Trocar</button>
         </div>
       } @else {
-        <div class="row">
+        <div class="row row-stack">
         <div class="col">
         <ar-athlete-search-field [arenaId]="arenaId()" searchPlatform (selected)="onAthleteSelected($event)" />
         </div>
@@ -161,7 +161,8 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
         (input)="note.set($any($event.target).value)"
       />
 
-      <div class="actions">
+      <!-- modal-actions: no celular o ar-modal fixa este rodapé no fim da folha. -->
+      <div class="actions modal-actions">
         <button type="button" class="ar-ghost-btn" [disabled]="saving()" (click)="close.emit()">Cancelar</button>
         <button type="button" class="ar-mini-btn ar-mini-btn-primary confirm-btn" [disabled]="saving()" (click)="submit()">
           {{ saving() ? 'Criando…' : 'Criar reserva' }}
@@ -170,6 +171,8 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
     </ar-modal>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .modal-title {
       font-family: var(--nx-font-display);
       font-weight: 800;
@@ -237,6 +240,14 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
       gap: 12px;
     }
 
+    /* Busca de atleta + nome livre: lado a lado não cabe no celular. */
+    .row-stack {
+      @include ar.below(sm) {
+        flex-direction: column;
+        gap: 18px;
+      }
+    }
+
     .col {
       flex: 1;
       min-width: 0;
@@ -262,12 +273,20 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
       font-weight: 600;
       font-size: 14px;
       color: var(--nx-text);
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .clear-btn {
       height: 30px;
       padding: 0 12px;
       flex: none;
+
+      @include ar.below(sm) {
+        height: var(--ar-tap);
+      }
     }
 
     .member-box {
@@ -322,6 +341,16 @@ import { createManualBooking, quoteManualBooking } from './manual-booking-reposi
       align-items: center;
       justify-content: flex-end;
       gap: 16px;
+
+      @include ar.below(sm) {
+        gap: 8px;
+      }
+    }
+
+    .actions .ar-ghost-btn {
+      @include ar.below(sm) {
+        height: var(--ar-tap);
+      }
     }
 
     .confirm-btn {

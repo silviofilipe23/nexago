@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterRenderEffect, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
@@ -68,14 +68,16 @@ type HoursTab = 'Lista' | 'Quadro';
             <a routerLink="/painel/agenda" [queryParams]="{ visao: 'quadras' }">Quadras</a>
             <a class="on" aria-current="page">Por horário</a>
           </nav>
-          <button type="button" class="ar-ghost-btn nav-btn" (click)="goToday()">Hoje</button>
-          <button type="button" class="ar-ghost-btn nav-btn icon-btn" aria-label="Dia anterior" (click)="shiftDay(-1)">
-            <ar-icon name="chevron-right" [size]="14" style="transform: rotate(180deg)" />
-          </button>
-          <ar-date-picker [selected]="dateKey()" (dateChange)="onDateKeySelected($event)" />
-          <button type="button" class="ar-ghost-btn nav-btn icon-btn" aria-label="Próximo dia" (click)="shiftDay(1)">
-            <ar-icon name="chevron-right" [size]="14" />
-          </button>
+          <div class="date-nav">
+            <button type="button" class="ar-ghost-btn nav-btn" (click)="goToday()">Hoje</button>
+            <button type="button" class="ar-ghost-btn nav-btn icon-btn" aria-label="Dia anterior" (click)="shiftDay(-1)">
+              <ar-icon name="chevron-right" [size]="14" style="transform: rotate(180deg)" />
+            </button>
+            <ar-date-picker [selected]="dateKey()" (dateChange)="onDateKeySelected($event)" />
+            <button type="button" class="ar-ghost-btn nav-btn icon-btn" aria-label="Próximo dia" (click)="shiftDay(1)">
+              <ar-icon name="chevron-right" [size]="14" />
+            </button>
+          </div>
           <button
             type="button"
             class="ar-mini-btn ar-mini-btn-primary"
@@ -98,8 +100,9 @@ type HoursTab = 'Lista' | 'Quadro';
           <ar-panel-card pad="lg"><p class="state-text">Nenhum horário de quadra neste dia.</p></ar-panel-card>
         } @else {
           <div class="split">
-            <div class="hours" role="listbox" aria-label="Horários do dia">
-              <div class="field-label">Horários do dia</div>
+            <div class="hours-col">
+            <div class="field-label">Horários do dia</div>
+            <div #hoursStrip class="hours" role="listbox" aria-label="Horários do dia">
               @for (h of hours(); track h.start) {
                 <button
                   type="button"
@@ -124,6 +127,7 @@ type HoursTab = 'Lista' | 'Quadro';
                   }
                 </button>
               }
+            </div>
             </div>
 
             @if (active(); as hour) {
@@ -207,7 +211,10 @@ type HoursTab = 'Lista' | 'Quadro';
                     @if (readOnly()) {
                       Quadras do horário. Seu cargo não permite mudar reservas de quadra.
                     } @else {
-                      Arraste uma reserva para outra quadra. Se a quadra de destino tiver uma reserva provisória, as duas trocam de lugar.
+                      <!-- Arrastar (drag and drop do HTML) não existe no toque: no celular o
+                           caminho é o "Trocar" da Lista. -->
+                      <span class="hint-mouse">Arraste uma reserva para outra quadra. Se a quadra de destino tiver uma reserva provisória, as duas trocam de lugar.</span>
+                      <span class="hint-touch">Toque numa reserva para abrir. Para mudar de quadra, use <b>Trocar</b> ou <b>Definir quadra</b> na aba Lista.</span>
                     }
                   </p>
                   <div class="board-wrap" [class.locked]="moving() !== null" [attr.aria-busy]="moving() !== null">
@@ -339,13 +346,14 @@ type HoursTab = 'Lista' | 'Quadro';
     @use 'breakpoints' as ar;
 
     .header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .date-nav { display: flex; align-items: center; gap: 10px; }
     .nav-btn { height: 34px; padding: 0 12px; }
     .icon-btn { width: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
     .seg { display: inline-flex; padding: 3px; border-radius: var(--nx-r-2); background: var(--nx-surface-1); border: 1px solid var(--nx-line); }
-    .seg a { padding: 6px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--nx-text-mute); text-decoration: none; cursor: pointer; }
+    .seg a { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--nx-text-mute); text-decoration: none; cursor: pointer; }
     .seg a.on { background: var(--nx-orange-500); color: var(--nx-text-on-orange); cursor: default; }
 
-    .body { flex: 1; padding: 22px 32px 28px; min-height: 0; }
+    .body { flex: 1; padding: var(--ar-pad-page-y) var(--ar-pad-page-x) 28px; min-height: 0; }
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); }
     .split { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 16px; align-items: start; }
 
@@ -365,7 +373,7 @@ type HoursTab = 'Lista' | 'Quadro';
     .bar i { display: block; height: 100%; background: var(--nx-orange-500); border-radius: 6px; }
     .bar i.full { background: var(--nx-live); }
 
-    .dhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+    .dhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px 16px; margin-bottom: 16px; flex-wrap: wrap; }
     .time { font-family: var(--nx-font-display); font-weight: 800; font-size: 30px; letter-spacing: -0.02em; color: var(--nx-text); }
     .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
     .k { background: var(--nx-surface-1); border-radius: var(--nx-r-3); padding: 12px 14px; }
@@ -398,6 +406,12 @@ type HoursTab = 'Lista' | 'Quadro';
     .note b { color: var(--nx-pending); }
 
     .hint { font-size: 12.5px; color: var(--nx-text-mute); margin: 10px 0 0; }
+    .hint b { color: var(--nx-text); font-weight: 600; }
+    .hint-touch { display: none; }
+    @include ar.touch {
+      .hint-mouse { display: none; }
+      .hint-touch { display: inline; }
+    }
     .board { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 14px; }
     .board-wrap { position: relative; }
     .board-wrap.locked .board { pointer-events: none; opacity: 0.5; transition: opacity 0.15s; }
@@ -440,11 +454,55 @@ type HoursTab = 'Lista' | 'Quadro';
     .crow b { font-family: var(--nx-font-mono); font-size: 12.5px; color: var(--nx-win); }
 
     @include ar.below(lg) {
-      .split { grid-template-columns: 1fr; }
+      .split { grid-template-columns: minmax(0, 1fr); }
+      /* Empilhado, a lista de horários (até ~30 botões) ficava em cima e o
+         detalhe do horário escolhido ia parar lá embaixo: tocar num horário
+         não dava retorno nenhum na tela. Vira uma faixa que rola de lado, com
+         o detalhe logo abaixo. */
+      .hours {
+        flex-direction: row;
+        overflow-x: auto;
+        scroll-snap-type: x proximity;
+        scroll-padding-inline: var(--ar-pad-page-x);
+        scrollbar-width: none;
+        margin: 0 calc(-1 * var(--ar-pad-page-x));
+        padding: 0 var(--ar-pad-page-x) 4px;
+      }
+      .hours::-webkit-scrollbar { display: none; }
+      .hour {
+        flex: 0 0 156px;
+        scroll-snap-align: start;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas: 't pill' 'mid mid';
+        gap: 8px;
+        padding: 10px 12px;
+      }
+      .hour-t { grid-area: t; }
+      .hour-mid { grid-area: mid; }
+      .hour > ar-pill { grid-area: pill; }
       .kpis { grid-template-columns: repeat(2, 1fr); }
       .bk { grid-template-columns: minmax(0, 1fr); }
       .bk > .court-pill, .bk-a { margin-left: 50px; justify-content: flex-start; }
       .bk > .court-pill { justify-self: start; }
+    }
+
+    @include ar.below(md) {
+      .header-actions { flex-direction: column; align-items: stretch; }
+      .seg { align-self: flex-start; }
+      .seg a { min-height: 36px; }
+      .date-nav { flex-wrap: wrap; gap: 8px; }
+    }
+
+    @include ar.below(sm) {
+      .time { font-size: 24px; }
+      .dhead > .ar-mini-btn { width: 100%; justify-content: center; }
+      .tabs button { min-height: var(--ar-tap); }
+      .board { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+    }
+
+    @include ar.below(xs) {
+      .confirm-actions { gap: 10px; }
+      .confirm-actions > button { flex: 1 1 0; justify-content: center; min-height: var(--ar-tap); }
     }
   `,
 })
@@ -544,7 +602,23 @@ export class PanelAgendaHoursComponent {
   });
 
 
+  private readonly hoursStrip = viewChild<ElementRef<HTMLElement>>('hoursStrip');
+
   constructor() {
+    // Celular/tablet: a lista de horários vira faixa horizontal e o horário escolhido (por padrão
+    // o atual) pode nascer fora da tela. Centraliza ele na faixa. Só mexe no `scrollLeft` da
+    // própria faixa — no desktop, lista vertical sem rolagem lateral, não faz nada.
+    afterRenderEffect(() => {
+      const strip = this.hoursStrip()?.nativeElement;
+      const start = this.activeHourStart();
+      if (!strip || start == null || strip.scrollWidth <= strip.clientWidth) return;
+      const active = strip.querySelector<HTMLElement>('.hour.on');
+      if (!active) return;
+      const box = strip.getBoundingClientRect();
+      const item = active.getBoundingClientRect();
+      strip.scrollLeft += item.left - box.left - (box.width - item.width) / 2;
+    });
+
     const destroyRef = inject(DestroyRef);
     const clock = setInterval(() => this.now.set(new Date()), 60_000);
     let unsubscribeBookings: (() => void) | null = null;

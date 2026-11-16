@@ -26,6 +26,8 @@ const COLORS = [
     </div>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .meter {
       display: flex;
       flex-direction: column;
@@ -51,6 +53,15 @@ const COLORS = [
       letter-spacing: 0.14em;
       text-transform: uppercase;
       min-height: 12px;
+    }
+
+    /* Celular: é a regra da senha, não enfeite -- 10px em caixa alta some. */
+    @include ar.below(sm) {
+      .label {
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        line-height: 1.4;
+      }
     }
   `,
 })

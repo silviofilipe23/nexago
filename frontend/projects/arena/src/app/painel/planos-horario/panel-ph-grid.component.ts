@@ -38,7 +38,7 @@ const ALL = 'Todas';
   imports: [PhPageComponent, PhBarComponent, PhLineComponent, PhIconComponent, PanelCardComponent, PillComponent, ChartTabsComponent, RouterLink],
   template: `
     <ar-ph-page [subtitle]="'Grade da semana · ' + store.activeCourts().length + ' quadra' + (store.activeCourts().length === 1 ? '' : 's')" tab="grade">
-      <div page-actions>
+      <div page-actions class="court-tabs">
         @if (courtTabs().length > 2) {
           <ar-chart-tabs [tabs]="courtTabs()" [active]="courtFilter()" (change)="courtFilter.set($event)" />
         }
@@ -188,6 +188,16 @@ const ALL = 'Todas';
     .cta { display: inline-block; margin-top: 12px; font-family: var(--nx-font-display); font-weight: 600; font-size: 12px; color: var(--nx-orange-500); text-decoration: none; }
     @include ar.below(lg) {
       .layout { grid-template-columns: minmax(0, 1fr); }
+    }
+    /* Celular: muitas quadras nas abas rolam de lado em vez de quebrar o nome;
+       célula da grade com altura de dedo; legenda sem a nota empurrada. */
+    @include ar.below(sm) {
+      .court-tabs { overflow-x: auto; min-width: 0; scrollbar-width: none; }
+      .court-tabs > ar-chart-tabs { display: block; width: max-content; }
+      .grid { grid-auto-rows: 34px; }
+      .legend { gap: 8px 14px; }
+      .legend-note { margin-left: 0; }
+      .cta { padding: 8px 0; }
     }
   `,
 })

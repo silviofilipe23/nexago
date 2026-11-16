@@ -256,6 +256,19 @@ interface QueueRow {
       .flag { display: none; }
       .acts { grid-column: 1 / -1; justify-content: flex-start; }
     }
+    @include ar.below(sm) {
+      /* Receita recorrente ganha a linha toda; os outros 3 KPIs dividem 2 colunas. */
+      .kpi { padding: 14px; min-width: 0; }
+      .kpi.hero { grid-column: 1 / -1; }
+      .k-v { overflow-wrap: anywhere; }
+      .q { padding: 12px; min-width: 0; }
+      /* Até 3 botões (WhatsApp, Cobrar online, Registrar pagamento) não cabem numa linha de 360px. */
+      .acts { flex-wrap: wrap; }
+      .opp-f { flex-wrap: wrap; }
+    }
+    @include ar.touch {
+      .acts .btn, .opp-f .btn { min-height: 40px; }
+    }
   `,
 })
 export class CrmTodayComponent {

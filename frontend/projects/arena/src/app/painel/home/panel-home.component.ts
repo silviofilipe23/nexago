@@ -515,9 +515,55 @@ function formatBRL(n: number): string {
       gap: 10px;
     }
 
+    /* Abaixo de lg o .ar-split empilha as duas colunas. Com .body e
+       .main-grid presos à altura da tela (flex: 1 + min-height: 0) e as
+       colunas/cards com overflow: hidden, a grade dividia a sobra da tela
+       entre as duas linhas e CORTAVA reservas, torneios e avaliações. Empilhado,
+       a página inteira rola e cada card mostra tudo. */
+    @include ar.below(lg) {
+      .body {
+        flex: none;
+        overflow: visible;
+      }
+
+      .main-grid {
+        flex: none;
+      }
+
+      .col-left,
+      .col-right,
+      .reservations-card,
+      .reviews-card {
+        flex: none;
+        overflow: visible;
+      }
+    }
+
     @include ar.below(sm) {
+      .body {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
+
+      /* flex-wrap não quebrava nada: os KPIs têm flex: 1 (base 0), então os
+         quatro "cabiam" numa linha de ~70px cada. Grade 2x2. */
       .kpi-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .review-head {
         flex-wrap: wrap;
+        row-gap: 2px;
+      }
+
+      .tournament-pct,
+      .review-time {
+        font-size: 10.5px;
+      }
+
+      .shortcuts-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
   `,

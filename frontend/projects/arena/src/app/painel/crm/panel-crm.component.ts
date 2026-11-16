@@ -98,6 +98,7 @@ type CrmTab = 'hoje' | 'clientes' | 'conversao';
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .subnav {
       display: flex; gap: 22px; padding: 0 var(--ar-pad-page-x); border-bottom: 1px solid var(--nx-line);
       flex: none; overflow-x: auto; scrollbar-width: none;
@@ -117,8 +118,13 @@ type CrmTab = 'hoje' | 'clientes' | 'conversao';
     .skeleton { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
     .skeleton i { height: 120px; border-radius: 16px; background: var(--nx-surface-0); border: 1px solid var(--nx-line); animation: pulse 1.4s ease-in-out infinite; }
     @keyframes pulse { 50% { opacity: 0.5; } }
+    @include ar.below(sm) {
+      .body { padding: 16px var(--ar-pad-page-x) 24px; }
+      .skeleton { grid-template-columns: 1fr 1fr; gap: 10px; }
+    }
     .toast {
-      position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 1100;
+      position: fixed; left: 50%; bottom: calc(var(--ar-bottom-nav-h) + 24px); transform: translateX(-50%); z-index: 1100;
+      max-width: calc(100vw - 2 * var(--ar-pad-page-x)); box-sizing: border-box;
       background: var(--nx-surface-2); border: 1px solid var(--nx-line-strong); color: var(--nx-text);
       padding: 12px 18px; border-radius: 12px; font-size: 13px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
     }

@@ -13,7 +13,9 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
         }
       </div>
       <div class="spacer"></div>
-      <ng-content />
+      <div class="actions">
+        <ng-content />
+      </div>
     </header>
   `,
   styles: `
@@ -64,6 +66,12 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       min-width: 0;
     }
 
+    /* No desktop o invólucro some do layout: as ações projetadas continuam
+       sendo itens flex do .header, exatamente como antes do invólucro existir. */
+    .actions {
+      display: contents;
+    }
+
     /* Tablet/celular (sidebar vira topbar): título em cima, ações embaixo —
        evita o título ser esmagado ao lado da busca. */
     @include ar.below(md) {
@@ -81,11 +89,44 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       .spacer {
         display: none;
       }
+
+      /* Ações viram uma fileira que quebra: antes cada botão projetado virava
+         uma linha de largura total (coluna + stretch), e três botões comiam
+         ~130px de altura antes do conteúdo. Botão/link/pill mantém o tamanho
+         natural; invólucro, busca ou formulário projetado ocupa o que sobra
+         da linha, como já ocupava. min-width: 0 + max-width deixa o filho
+         encolher em vez de estourar a largura da tela. */
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .actions:empty {
+        display: none;
+      }
+
+      .actions ::ng-deep > * {
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      .actions ::ng-deep > :not(button):not(a):not(ar-pill) {
+        flex-grow: 1;
+      }
     }
 
     @include ar.below(sm) {
       h1 {
         font-size: 18px;
+      }
+
+      .subtitle {
+        font-size: 10.5px;
+        letter-spacing: 0.1em;
       }
     }
   `,

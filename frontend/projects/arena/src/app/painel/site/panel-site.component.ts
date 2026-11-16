@@ -859,11 +859,10 @@ interface PlanFormItem {
       gap: 14px;
     }
 
-    @media (max-width: 640px) {
-      .two-col {
-        grid-template-columns: 1fr;
-      }
+    .two-col > * {
+      min-width: 0;
     }
+
 
     .section-toggle {
       display: flex;
@@ -994,6 +993,70 @@ interface PlanFormItem {
     .upload-box,
     .image-row {
       position: relative;
+    }
+
+    /* Bloco de texto ao lado do switch: sem min-width: 0 a descrição empurra
+       o toggle para fora do card em tela estreita. */
+    .auto-row > div {
+      min-width: 0;
+    }
+
+    /* Dedo: o "×" de remover foto tinha 20px e os botões "Remover" 32px. */
+    @include ar.touch {
+      .thumb-remove {
+        width: 28px;
+        height: 28px;
+        top: -8px;
+        right: -8px;
+      }
+
+      .ar-ghost-btn.small {
+        min-height: 40px;
+      }
+    }
+
+    /* Celular. Fica no fim do bloco: um @media antes da regra base perde para
+       ela em silêncio (mesma especificidade, ganha a última). O recorte de
+       duas colunas era um 640px solto; passa para a faixa sm do projeto. */
+    @include ar.below(sm) {
+      .body {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
+
+      .two-col {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      /* Prefixo do endereço ("dominio/s/") cede espaço ao campo do slug. */
+      .slug-prefix {
+        min-width: 0;
+        max-width: 55%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .stat-row {
+        grid-template-columns: 84px minmax(0, 1fr) auto;
+        gap: 8px;
+      }
+
+      .upload-copy {
+        min-width: 0;
+        flex-basis: 140px;
+      }
+
+      .section-toggle {
+        gap: 12px;
+      }
+
+      .field-label {
+        font-size: 10.5px;
+      }
+
+      .upload-meta,
+      .item-title {
+        font-size: 11px;
+      }
     }
   `,
 })

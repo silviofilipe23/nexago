@@ -247,6 +247,8 @@ function initialsOfName(name: string): string {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -578,6 +580,56 @@ function initialsOfName(name: string): string {
       font-family: var(--nx-font-mono);
       font-size: 11px;
       color: var(--nx-text-dim);
+    }
+
+    /* Dedo não tem hover: o botão de trocar o logo era um overlay de
+       opacidade 0 que só aparecia no :hover -- tocável, mas invisível. No
+       touch fica sempre à vista como um degradê com a câmera embaixo, e o
+       "Trocar capa" ganha alvo de 40px. */
+    @include ar.touch {
+      .avatar-edit-btn {
+        opacity: 1;
+        align-items: flex-end;
+        padding-bottom: 6px;
+        background: linear-gradient(to top, rgba(10, 10, 10, 0.65), rgba(10, 10, 10, 0) 60%);
+      }
+
+      .cover-edit-btn {
+        height: 40px;
+      }
+    }
+
+    @include ar.below(sm) {
+      .body {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
+
+      .cover {
+        height: 120px;
+      }
+
+      .identity-name-row h1 {
+        font-size: 19px;
+        overflow-wrap: anywhere;
+      }
+
+      .field-label,
+      .stat-label {
+        font-size: 10.5px;
+      }
+
+      .amenity-row {
+        gap: 12px;
+      }
+
+      .contact-row > div:last-child {
+        min-width: 0;
+      }
+
+      .contact-value {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
     }
   `,
 })

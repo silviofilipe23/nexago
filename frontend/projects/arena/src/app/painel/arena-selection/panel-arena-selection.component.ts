@@ -39,6 +39,8 @@ import { initialsOf } from '../ui/initials';
     </ar-auth-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .list {
       display: flex;
       flex-direction: column;
@@ -114,6 +116,13 @@ import { initialsOf } from '../ui/initials';
 
     .signout-link:hover {
       color: var(--nx-text);
+    }
+
+    /* Dedo: "Sair da conta" tinha ~24px de altura. */
+    @include ar.touch {
+      .signout-link {
+        min-height: var(--ar-tap);
+      }
     }
   `,
 })

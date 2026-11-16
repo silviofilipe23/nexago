@@ -322,6 +322,7 @@ export class OccupancyBarComponent {
     </ar-panel-card>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     :host { display: block; flex: 1; min-width: 0; }
     .label {
       font-family: var(--nx-font-mono); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em;
@@ -335,6 +336,10 @@ export class OccupancyBarComponent {
     .value.tone-red { color: var(--nx-live); }
     .value.tone-orange { color: var(--nx-orange-500); }
     .sub { font-family: var(--nx-font-mono); font-size: 10.5px; color: var(--nx-text-dim); margin-top: 4px; }
+    /* Duas colunas de indicador no celular: valor em reais ("R$ 12.345,00") não cabe em 26px. */
+    @include ar.below(sm) {
+      .value { font-size: 20px; overflow-wrap: anywhere; }
+    }
   `,
 })
 export class AulaStatComponent {

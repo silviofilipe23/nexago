@@ -125,6 +125,7 @@ import { ProfessorNoteComponent } from './professor-ui';
     </ar-panel-card>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     :host { display: block; min-width: 0; }
     .chat-card { display: block; }
     .chat {
@@ -196,6 +197,18 @@ import { ProfessorNoteComponent } from './professor-ui';
       color: var(--nx-live); padding: 8px 12px; font-size: 12.5px;
     }
     .closed-note { display: block; margin: 0 20px 16px; }
+    /* Celular: mesma conta do chat de Aulas — 100vh com piso de 420px jogava o campo de
+       mensagem para baixo da bottom-nav; usa a tela visível (dvh) menos o entorno. */
+    @include ar.below(sm) {
+      .chat { height: clamp(320px, calc(100dvh - 270px - var(--ar-bottom-nav-h)), 760px); }
+      .chat-head { padding: 10px 14px; }
+      .head-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .scroller { padding: 14px; }
+      .msg { max-width: 88%; }
+      .composer { padding: 10px 14px 12px; }
+      .composer-input { max-height: 120px; }
+      .closed-note { margin: 0 14px 12px; }
+    }
   `,
 })
 export class ProfessorChannelComponent {

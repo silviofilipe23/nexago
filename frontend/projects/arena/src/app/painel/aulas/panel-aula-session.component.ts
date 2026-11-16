@@ -217,6 +217,7 @@ const STATE_TONE = { live: 'red', next: 'orange', done: 'dim', canceled: 'dim' }
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .banner, .notice {
       border-radius: var(--nx-r-2); border: 1px solid var(--nx-line-strong); background: var(--nx-surface-1);
@@ -262,10 +263,20 @@ const STATE_TONE = { live: 'red', next: 'orange', done: 'dim', canceled: 'dim' }
     .facts span { color: var(--nx-text-dim); }
     .facts strong { font-family: var(--nx-font-display); font-weight: 600; color: var(--nx-text); }
     .first { margin-top: 0; }
-    @media (max-width: 1180px) { .layout { grid-template-columns: minmax(0, 1fr); } }
-    @media (max-width: 640px) {
+    @include ar.below(lg) { .layout { grid-template-columns: minmax(0, 1fr); } }
+    /* Celular: os três botões de presença ocupam a linha inteira com alvo de dedo; as ações do
+       card quebram (o cabeçalho do card não quebra sozinho) e o aviso de "não salvo" gruda no
+       rodapé do card enquanto se faz a chamada. */
+    @include ar.below(sm) {
       .row { grid-template-columns: 28px minmax(0, 1fr); }
       .marks { grid-column: 1 / -1; }
+      .mark { flex: 1 1 0; min-width: 0; height: 40px; padding: 0 6px; }
+      .card-actions { flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
+      .dirty {
+        position: sticky; bottom: 0; z-index: 1; flex-wrap: wrap;
+        background: var(--nx-surface-0); padding-bottom: 12px;
+      }
+      .dirty .ar-mini-btn { min-height: 40px; }
     }
   `,
 })

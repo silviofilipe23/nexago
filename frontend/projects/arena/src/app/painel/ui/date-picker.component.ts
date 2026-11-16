@@ -57,6 +57,8 @@ function todayDateKey(): string {
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     :host {
       position: relative;
       display: block;
@@ -163,6 +165,43 @@ function todayDateKey(): string {
       background: var(--nx-orange-500);
       color: var(--nx-text-on-orange);
       font-weight: 700;
+    }
+
+    /* Celular: o popover de 292px ancorado à esquerda do gatilho estourava a
+       tela quando o gatilho ficava à direita (barra de filtros, cabeçalho).
+       Vira uma folha fixa, centralizada e acima da bottom-nav, com alvos de
+       toque de 40px e o rótulo dos dias legível. */
+    @include ar.below(sm) {
+      .popover {
+        position: fixed;
+        z-index: 1001;
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: calc(var(--ar-bottom-nav-h, 0px) + 12px);
+        width: min(340px, calc(100vw - 32px));
+        margin-inline: auto;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+      }
+
+      .nav-btn {
+        width: 40px;
+        height: 40px;
+      }
+
+      .weekdays span {
+        font-size: 11px;
+      }
+
+      .day {
+        height: 40px;
+        font-size: 14px;
+      }
+
+      .trigger {
+        min-height: 40px;
+        max-width: 100%;
+      }
     }
   `,
 })

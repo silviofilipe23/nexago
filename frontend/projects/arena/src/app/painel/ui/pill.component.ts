@@ -12,6 +12,8 @@ export type PillTone = 'orange' | 'green' | 'yellow' | 'red' | 'dim' | 'blue';
     </span>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .pill {
       display: inline-flex;
       align-items: center;
@@ -63,6 +65,15 @@ export type PillTone = 'orange' | 'green' | 'yellow' | 'red' | 'dim' | 'blue';
       background: rgba(91, 155, 255, 0.1);
       border-color: rgba(91, 155, 255, 0.3);
       color: #5b9bff;
+    }
+
+    /* Celular: o status da pill é informação, não enfeite -- 9.5px some na
+       tela pequena. */
+    @include ar.below(sm) {
+      .pill {
+        font-size: 10.5px;
+        letter-spacing: 0.08em;
+      }
     }
   `,
 })

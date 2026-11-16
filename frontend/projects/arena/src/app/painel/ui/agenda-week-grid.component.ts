@@ -223,6 +223,9 @@ const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       display: flex;
       width: max-content;
       min-width: 100%;
+      /* O rótulo de hora sobe 6px pra centralizar na linha; sem esta folga o
+         primeiro ("07:00") ficava escondido atrás do cabeçalho fixo. */
+      margin-top: 6px;
     }
 
     /* Coluna de horário fixada: sticky em 'left', fundo opaco e z-index acima de

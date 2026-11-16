@@ -155,8 +155,11 @@ const PREVIEW = 4;
       .layout { grid-template-columns: minmax(0, 1fr); }
     }
     @include ar.below(sm) {
-      .person { grid-template-columns: 24px minmax(0, 1fr) 24px; }
+      .person { grid-template-columns: 24px minmax(0, 1fr) 36px; row-gap: 4px; }
       .person > .mute, .person > .since { grid-column: 2; }
+      .person > .since { text-align: left; }
+      .person > .rm { grid-column: 3; grid-row: 1; width: 36px; height: 36px; font-size: 16px; }
+      .more { padding: 12px 0 4px; }
     }
   `,
 })

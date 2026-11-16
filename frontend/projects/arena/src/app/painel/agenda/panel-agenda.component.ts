@@ -117,14 +117,17 @@ function timeToMinutes(time: string): number {
     <ar-panel-shell>
       <ar-page-header title="Agenda de quadras" [subtitle]="subtitleLabel()">
         <div class="header-actions">
-          <button type="button" class="ar-ghost-btn nav-btn" (click)="goToday()">Hoje</button>
-          <button type="button" class="ar-ghost-btn nav-btn icon-btn" (click)="shiftDay(-1)">
-            <ar-icon name="chevron-right" [size]="14" style="transform: rotate(180deg)" />
-          </button>
-          <ar-date-picker [selected]="selectedDateKey()" (dateChange)="onDateKeySelected($event)" />
-          <button type="button" class="ar-ghost-btn nav-btn icon-btn" (click)="shiftDay(1)">
-            <ar-icon name="chevron-right" [size]="14" />
-          </button>
+          <div class="date-nav">
+            <button type="button" class="ar-ghost-btn nav-btn" (click)="goToday()">Hoje</button>
+            <button type="button" class="ar-ghost-btn nav-btn icon-btn" aria-label="Dia anterior" (click)="shiftDay(-1)">
+              <ar-icon name="chevron-right" [size]="14" style="transform: rotate(180deg)" />
+            </button>
+            <ar-date-picker [selected]="selectedDateKey()" (dateChange)="onDateKeySelected($event)" />
+            <button type="button" class="ar-ghost-btn nav-btn icon-btn" aria-label="Próximo dia" (click)="shiftDay(1)">
+              <ar-icon name="chevron-right" [size]="14" />
+            </button>
+          </div>
+          <div class="page-actions">
           <ar-chart-tabs [tabs]="views" [active]="view()" (change)="view.set($any($event))" />
           @if (capacityMode()) {
             <a class="ar-mini-btn" routerLink="/painel/agenda/horarios" title="Ocupação por horário, quadras provisórias, chegada e quadro de alocação">
@@ -148,6 +151,7 @@ function timeToMinutes(time: string): number {
             <ar-icon name="plus" [size]="14" />
             Nova reserva
           </button>
+          </div>
         </div>
       </ar-page-header>
 
@@ -162,7 +166,9 @@ function timeToMinutes(time: string): number {
           </ar-panel-card>
         } @else {
           <ar-panel-card class="grid-card">
-            <div class="filters-row" card-actions>
+            <!-- Conteúdo comum do card, não [card-actions]: o ar-panel-card só projeta as ações
+                 quando tem título ou kicker, e este card não tem — os filtros nunca apareciam. -->
+            <div class="filters-row">
               <div class="ar-filter-bar">
                 @for (f of statusFilters; track f.id) {
                   <button type="button" class="ar-chip" [class.active]="statusFilter() === f.id" (click)="statusFilter.set(f.id)">
@@ -333,10 +339,43 @@ function timeToMinutes(time: string): number {
   styles: `
     @use 'breakpoints' as ar;
 
-    .header-actions {
+    .header-actions,
+    .date-nav,
+    .page-actions {
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+
+    /* Celular/tablet: o cabeçalho empilha (page-header) e as ações iam numa
+       fileira só de ~9 controles, sem quebra — passava da tela e o "Nova
+       reserva" ficava fora de alcance. Duas fileiras: navegação de data +
+       Dia/Semana em cima, atalhos embaixo; cada uma quebra se precisar. */
+    @include ar.below(md) {
+      .header-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+
+      .date-nav,
+      .page-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+    }
+
+    @include ar.below(sm) {
+      /* Dia/Semana + atalhos dividem a fileira; "Nova reserva", a ação
+         principal no balcão, fecha o cabeçalho na largura toda. */
+      .page-actions .ar-mini-btn {
+        flex: 1 1 auto;
+        justify-content: center;
+      }
+
+      .page-actions .ar-mini-btn-primary {
+        flex-basis: 100%;
+      }
     }
 
     .nav-btn {
@@ -354,8 +393,15 @@ function timeToMinutes(time: string): number {
 
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      padding: var(--ar-pad-page-y) var(--ar-pad-page-x) 28px;
       min-height: 0;
+
+      /* Quando grade e lista empilham, o conteúdo passa da tela: o corpo
+         cresce com ele (quem rola é a página) em vez de espremer os dois
+         cards na altura que sobra. */
+      @include ar.below(lg) {
+        flex: none;
+      }
     }
 
     .state-text {
@@ -366,6 +412,14 @@ function timeToMinutes(time: string): number {
     .grid-card {
       min-height: 0;
       overflow: hidden;
+
+      /* Empilhado, a grade não tem mais a altura da linha pra herdar e
+         crescia até o fim do dia (15h × 34px), soltando o cabeçalho de
+         quadras fixo e empurrando a lista lá pra baixo. Altura própria:
+         rola por dentro com o cabeçalho de quadras sempre à vista. */
+      @include ar.below(lg) {
+        height: min(68dvh, 640px);
+      }
     }
 
     .filters-row {
@@ -374,6 +428,26 @@ function timeToMinutes(time: string): number {
       justify-content: space-between;
       gap: 12px;
       width: 100%;
+      flex: none;
+      margin-bottom: 14px;
+
+      @include ar.below(sm) {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+    }
+
+    /* Chips de status rolam de lado no celular em vez de quebrar em duas
+       linhas e roubar altura da grade. */
+    .filters-row .ar-filter-bar {
+      @include ar.below(sm) {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+        margin: 0 calc(-1 * var(--ar-card-pad));
+        padding: 0 var(--ar-card-pad);
+      }
     }
 
     .court-select {
@@ -385,6 +459,12 @@ function timeToMinutes(time: string): number {
       font-family: var(--nx-font-ui);
       font-size: 12.5px;
       padding: 0 10px;
+      min-width: 0;
+
+      @include ar.below(sm) {
+        width: 100%;
+        height: 40px;
+      }
     }
 
     .list-card {
@@ -420,6 +500,14 @@ function timeToMinutes(time: string): number {
       cursor: pointer;
     }
 
+    @include ar.below(sm) {
+      .agenda-row {
+        gap: 8px;
+        padding: 12px 0;
+        min-height: var(--ar-tap);
+      }
+    }
+
     .agenda-row:last-child {
       border-bottom: none;
     }
@@ -443,6 +531,7 @@ function timeToMinutes(time: string): number {
       font-weight: 600;
       font-size: 12.5px;
       color: var(--nx-text);
+      overflow-wrap: anywhere;
     }
 
     .modal-title,
@@ -515,6 +604,18 @@ function timeToMinutes(time: string): number {
       align-items: center;
       justify-content: flex-end;
       gap: 16px;
+
+      /* Celular: botões lado a lado com largura igual, fáceis de alcançar com
+         o polegar; o principal fica à direita como no desktop. */
+      @include ar.below(xs) {
+        gap: 10px;
+
+        > button {
+          flex: 1 1 0;
+          justify-content: center;
+          min-height: var(--ar-tap);
+        }
+      }
     }
 
     .confirm-btn {

@@ -23,6 +23,8 @@ export type BarRowTone = 'orange' | 'green' | 'yellow' | 'red';
     </div>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .row {
       padding: 9px 0;
       border-bottom: 1px solid var(--nx-line);
@@ -96,6 +98,27 @@ export type BarRowTone = 'orange' | 'green' | 'yellow' | 'red';
       height: 100%;
       border-radius: 4px;
       background: currentColor;
+    }
+
+    /* Celular: rótulo + subtítulo longos empurravam o percentual para fora da
+       linha; o par passa a quebrar e o percentual fica sempre visível. */
+    @include ar.below(sm) {
+      .head {
+        gap: 8px;
+      }
+
+      .labels {
+        flex-wrap: wrap;
+        row-gap: 2px;
+      }
+
+      .label {
+        overflow-wrap: anywhere;
+      }
+
+      .pct {
+        flex: none;
+      }
     }
   `,
 })

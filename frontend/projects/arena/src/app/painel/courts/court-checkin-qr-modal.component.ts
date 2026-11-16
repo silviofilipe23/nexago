@@ -60,6 +60,8 @@ import { courtQrFileName, courtQrPngDataUrl, courtQrSvgDataUrl, fetchCourtChecki
     </ar-modal>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .modal-title {
       font-family: var(--nx-font-display);
       font-weight: 800;
@@ -131,6 +133,23 @@ import { courtQrFileName, courtQrPngDataUrl, courtQrSvgDataUrl, fetchCourtChecki
       justify-content: flex-end;
       gap: 8px;
       margin-top: 12px;
+    }
+
+    /* Celular: ações com alvo de dedo; o QR encolhe se a tela for mais
+       estreita que 240px + margens (iPhone SE de lado não, mas 320px sim). */
+    @include ar.below(sm) {
+      .actions .ar-ghost-btn,
+      .actions .ar-mini-btn {
+        height: var(--ar-tap);
+      }
+      .actions .ar-mini-btn-primary {
+        flex: 1 1 auto;
+        justify-content: center;
+      }
+      .qr-tile img {
+        width: min(240px, 100%);
+        height: auto;
+      }
     }
   `,
 })

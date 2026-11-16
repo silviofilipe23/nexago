@@ -56,6 +56,7 @@ import { CrmStore } from './crm.store';
     </ar-modal>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .m-t { font-family: var(--nx-font-display); font-weight: 700; font-size: 20px; margin: 0; color: var(--nx-text); }
     .ok { width: 48px; height: 48px; border-radius: 50%; background: rgba(43,209,126,.12); border: 1px solid rgba(43,209,126,.45); display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
     .late { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(255,59,48,.08); border: 1px solid rgba(255,59,48,.35); color: var(--nx-live); font-size: 12.5px; font-weight: 600; }
@@ -75,6 +76,17 @@ import { CrmStore } from './crm.store';
     .grow { flex: 1; }
     .link { margin-top: 16px; padding: 12px 14px; border-radius: 10px; background: var(--nx-surface-1); border: 1px dashed rgba(255,106,26,.5); font: 12px var(--nx-font-mono); color: var(--nx-orange-400); word-break: break-all; }
     .sub { margin-top: 10px; }
+    @include ar.below(sm) {
+      .seg { flex-wrap: wrap; }
+      .seg button { flex: 1 0 auto; }
+      .acts { flex-wrap: wrap; }
+      .ways { flex-wrap: wrap; }
+      .ways span { min-width: 0; }
+      .box b { font-size: 20px; }
+    }
+    @include ar.touch {
+      .seg button { min-height: 40px; }
+    }
   `,
 })
 export class CrmChargeModalComponent implements OnInit {

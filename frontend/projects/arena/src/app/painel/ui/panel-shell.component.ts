@@ -127,7 +127,7 @@ function pathOnly(url: string): string {
         }
       </div>
 
-      <a class="switcher" routerLink="/painel/perfil" title="Ver perfil">
+      <a class="switcher" routerLink="/painel/perfil" title="Ver perfil" (click)="drawerOpen.set(false)">
         <div class="switcher-avatar" aria-hidden="true">{{ arenaInitials() }}</div>
         <div class="switcher-body">
           <div class="switcher-name">{{ arenaName() }}</div>
@@ -136,7 +136,7 @@ function pathOnly(url: string): string {
       </a>
 
       @if (hasMultipleArenas()) {
-        <a class="switch-arena-link" routerLink="/painel/selecionar-arena">
+        <a class="switch-arena-link" routerLink="/painel/selecionar-arena" (click)="drawerOpen.set(false)">
           <ar-icon name="repeat" [size]="12" />
           Trocar arena
         </a>
@@ -175,7 +175,7 @@ function pathOnly(url: string): string {
       </div>
 
       <div class="user-row">
-        <a class="user-link" routerLink="/painel/perfil" title="Ver perfil">
+        <a class="user-link" routerLink="/painel/perfil" title="Ver perfil" (click)="drawerOpen.set(false)">
           <div class="avatar" aria-hidden="true">{{ userInitials() }}</div>
           <div class="who">
             <div class="who-name">{{ displayName() }}</div>
@@ -214,6 +214,8 @@ function pathOnly(url: string): string {
     </ng-template>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     :host {
       display: block;
     }
@@ -232,8 +234,11 @@ function pathOnly(url: string): string {
       grid-template-columns: minmax(0, 1fr);
     }
 
+    /* Mesma altura que a bottom-nav ocupa: o token vem do styles.scss (0 no
+       desktop, 60px + safe-area no celular), uma fonte só para a barra e para
+       qualquer rodapé fixo/sticky das telas. */
     :host(.phone) .content {
-      padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+      padding-bottom: var(--ar-bottom-nav-h, calc(60px + env(safe-area-inset-bottom, 0px)));
     }
 
     .sidebar {
@@ -294,9 +299,9 @@ function pathOnly(url: string): string {
        sidebar fixa do desktop fechar não faz sentido, já que ela nunca se
        fecha. Mesmo tamanho/alvo de toque do .nav-trigger da topbar (44px,
        var(--ar-tap)) porque os dois resolvem o mesmo problema: entrar e sair
-       do drawer sem depender de Escape (teclado físico) ou do scrim, que o
-       painel de 100%/420px de largura cobre por completo em qualquer celular
-       (375/390/393/414px não sobra nada tocável fora do painel). */
+       do drawer sem depender de Escape (teclado físico) ou do scrim -- no
+       celular sobra só uma faixa de 48px de scrim à direita (ver
+       drawer.component), pouco descobrível para ser a única saída. */
     .drawer-close {
       width: var(--ar-tap);
       height: var(--ar-tap);
@@ -708,6 +713,37 @@ function pathOnly(url: string): string {
 
     .bottom-slot.active {
       color: var(--nx-orange-500);
+    }
+
+    /* Rótulo da bottom-nav: 10px era pequeno demais para o único texto da
+       navegação principal no celular; com 5 slots em 360px cabe 11px, e o
+       ellipsis segura um rótulo longo sem empurrar o vizinho. */
+    .bottom-slot span {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    @include ar.below(sm) {
+      .bottom-slot {
+        font-size: 11px;
+        min-width: 0;
+      }
+
+      /* No drawer do celular os rótulos de grupo e o "Trocar arena" (9-9.5px
+         no desktop denso) viram texto que se lê com o dedo no vidro. */
+      .nav-group-head {
+        font-size: 10.5px;
+      }
+
+      .switch-arena-link {
+        font-size: 11px;
+      }
+
+      .who-role {
+        font-size: 10px;
+      }
     }
 
     @media (pointer: coarse) {

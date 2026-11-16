@@ -183,6 +183,8 @@ function formatBRL(n: number): string {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .back-link {
       display: inline-flex;
       align-items: center;
@@ -202,6 +204,10 @@ function formatBRL(n: number): string {
     .body {
       flex: 1;
       padding: 22px 32px 28px;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .col-left,
@@ -235,6 +241,10 @@ function formatBRL(n: number): string {
       display: flex;
       gap: 8px;
       margin-top: 14px;
+
+      @include ar.below(sm) {
+        flex-wrap: wrap;
+      }
     }
 
     .legend-chip {
@@ -273,6 +283,11 @@ function formatBRL(n: number): string {
       font-size: 24px;
       letter-spacing: -0.02em;
       color: var(--nx-text);
+      overflow-wrap: anywhere;
+
+      @include ar.below(sm) {
+        font-size: 20px;
+      }
     }
 
     .recent-card {
@@ -331,9 +346,9 @@ function formatBRL(n: number): string {
       margin-top: 2px;
     }
 
-    @media (max-width: 720px) {
+    @include ar.below(sm) {
       .summary-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         row-gap: 18px;
       }
     }

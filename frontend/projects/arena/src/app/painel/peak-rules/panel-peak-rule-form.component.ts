@@ -168,6 +168,8 @@ const MIN_DURATION_OPTIONS = [
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -313,9 +315,44 @@ const MIN_DURATION_OPTIONS = [
       background: #ff564c;
     }
 
-    @media (max-width: 720px) {
+    /* Celular: respiro do painel, ações com alvo de dedo (Salvar ocupa a
+       linha; Excluir fica à direita de Cancelar) e checkbox maior. */
+    @include ar.below(sm) {
+      .body {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
       .field-row {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .checkbox-label {
+        min-height: 40px;
+      }
+      .checkbox-label input {
+        width: 20px;
+        height: 20px;
+        flex: none;
+      }
+      .actions-row {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .actions-row .ar-mini-btn-primary {
+        flex: 1 0 100%;
+        justify-content: center;
+        height: var(--ar-tap);
+      }
+      .actions-row .ar-ghost-btn {
+        height: var(--ar-tap);
+      }
+      .confirm-actions {
+        gap: 8px;
+      }
+      .confirm-actions .ar-ghost-btn {
+        height: var(--ar-tap);
+      }
+      .danger-btn {
+        flex: 1 1 auto;
+        justify-content: center;
       }
     }
   `,

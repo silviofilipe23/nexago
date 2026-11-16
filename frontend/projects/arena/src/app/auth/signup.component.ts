@@ -129,6 +129,18 @@ function documentValidator(control: AbstractControl): ValidationErrors | null {
       </form>
     </ar-auth-shell>
   `,
+  // Celular estreito: a grade global .ar-grid-2 (1fr 1fr, sem recorte) deixava
+  // ~150px por campo -- CNPJ e e-mail cortados. Até xs vira uma coluna;
+  // minmax(0, 1fr) para o campo nunca empurrar a largura do card.
+  styles: `
+    @use 'breakpoints' as ar;
+
+    @include ar.below(xs) {
+      .ar-grid-2 {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+  `,
 })
 export class SignupComponent {
   private readonly auth = inject(AuthService);

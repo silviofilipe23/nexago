@@ -251,9 +251,13 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      min-height: 0;
+      /* --ar-pad-page-x vale 32px no desktop (igual ao fixo de antes) e 16px no celular. */
+      padding: 22px var(--ar-pad-page-x) 28px;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -554,9 +558,65 @@ const PARTICIPANT_TONE: Record<ClubParticipantStatus, PillTone> = {
       box-sizing: border-box;
     }
 
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .summary-row {
         grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    /* Celular: cada participante vira linha de dois andares (nome + remover em cima, valor +
+       situação embaixo) no lugar da grade de ~430px; o "×" ganha alvo de dedo. */
+    @include ar.below(sm) {
+      .body {
+        padding-top: 16px;
+      }
+
+      .summary-row {
+        gap: 10px;
+      }
+
+      .ar-table-inner {
+        min-width: 0;
+      }
+
+      .participant-row {
+        grid-template-columns: 22px 34px minmax(0, 1fr) auto;
+        column-gap: 10px;
+        row-gap: 4px;
+      }
+
+      .participant-row > :nth-child(1) { grid-column: 1; grid-row: 1 / span 2; }
+      .participant-row > :nth-child(2) { grid-column: 2; grid-row: 1 / span 2; }
+      .participant-row > :nth-child(3) { grid-column: 3; grid-row: 1; }
+      .participant-row > :nth-child(6) { grid-column: 4; grid-row: 1; }
+      .participant-row > :nth-child(4) { grid-column: 3; grid-row: 2; }
+      .participant-row > :nth-child(5) { grid-column: 4; grid-row: 2; justify-self: end; }
+
+      .participant-name {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .remove-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+      }
+
+      .search-result {
+        min-height: 44px;
+      }
+
+      .guest-row {
+        flex-wrap: wrap;
+      }
+
+      .guest-row .ar-mini-btn {
+        min-height: 40px;
+      }
+
+      .modal-actions {
+        flex-wrap: wrap;
       }
     }
   `,

@@ -141,12 +141,18 @@ import { createProduct, newProductId, uploadProductImage } from './products-repo
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
       display: flex;
       justify-content: center;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .form-col {
@@ -199,8 +205,12 @@ import { createProduct, newProductId, uploadProductImage } from './products-repo
 
     .row-2 {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 16px;
+
+      @include ar.below(sm) {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
 
     .margin-hint {
@@ -244,12 +254,6 @@ import { createProduct, newProductId, uploadProductImage } from './products-repo
       color: var(--nx-text);
       font-family: var(--nx-font-ui);
       font-size: 14px;
-    }
-
-    @media (max-width: 720px) {
-      .row-2 {
-        grid-template-columns: 1fr;
-      }
     }
   `,
 })

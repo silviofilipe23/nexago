@@ -441,6 +441,7 @@ export function cpfDigitsOk(raw: string): boolean {
     </ar-aulas-page>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .wizard-steps { display: flex; align-items: center; gap: 10px; flex: none; }
     .st { display: flex; align-items: center; gap: 9px; }
@@ -513,11 +514,24 @@ export function cpfDigitsOk(raw: string): boolean {
       .layout { grid-template-columns: minmax(0, 1fr); }
       .plan-grid, .method-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
-    @media (max-width: 720px) {
+    /* Celular: cada horário vira card de três linhas com posição explícita (antes o "Vagas"
+       caía na coluna de 30px do check e estourava; o professor sumia). */
+    @include ar.below(sm) {
       .st-l { display: none; }
       .slot-head { display: none; }
-      .slot-row { grid-template-columns: 30px minmax(0, 1fr) auto; }
-      .slot-row .teacher, .slot-row > span:last-child:empty { display: none; }
+      .slot-row { grid-template-columns: 36px minmax(0, 1fr) auto; row-gap: 6px; }
+      .slot-row > :nth-child(1) { grid-column: 1; grid-row: 1 / span 2; align-self: start; }
+      .slot-row > :nth-child(2) { grid-column: 2; grid-row: 1; }
+      .slot-row > :nth-child(3) { grid-column: 3; grid-row: 1; justify-self: end; }
+      .slot-row > :nth-child(4) { grid-column: 2; grid-row: 2; }
+      .slot-row > :nth-child(5) { grid-column: 3; grid-row: 2; justify-self: end; }
+      .slot-row > :nth-child(6) { grid-column: 2 / span 2; grid-row: 3; justify-self: end; }
+      .slot-row > span:last-child:empty { display: none; }
+      .check { width: 32px; height: 32px; font-size: 14px; }
+      .small { height: 34px; }
+      .p-price { overflow-wrap: anywhere; }
+      .nav .ar-mini-btn { min-height: 44px; }
+      .done-actions .ar-mini-btn { min-height: 40px; }
     }
   `,
 })

@@ -306,6 +306,7 @@ type Confirm = 'pause' | 'resume' | 'cancel';
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
     .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -343,11 +344,19 @@ type Confirm = 'pause' | 'resume' | 'cancel';
     .online { color: var(--nx-orange-500); }
     .mono-v { font-family: var(--nx-font-mono); font-size: 12px; }
     .small { height: 28px; font-size: 11.5px; text-decoration: none; display: inline-flex; align-items: center; }
-    @media (max-width: 1180px) { .layout { grid-template-columns: minmax(0, 1fr); } }
-    @media (max-width: 720px) {
+    @include ar.below(lg) { .layout { grid-template-columns: minmax(0, 1fr); } }
+    @include ar.below(sm) {
       .stats { grid-template-columns: minmax(0, 1fr); }
-      .pay-row { grid-template-columns: minmax(0, 1fr) auto; }
+      /* Mensalidade: descrição à esquerda, valor e situação empilhados à direita, ações embaixo. */
+      .pay-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; }
+      .pay-desc { grid-column: 1; grid-row: 1 / span 2; }
+      .pay-row > .mono { grid-column: 2; grid-row: 1; }
+      .pay-row > ar-pill { grid-column: 2; grid-row: 2; justify-self: end; }
       .pay-actions { grid-column: 1 / -1; justify-content: flex-start; }
+      .small { height: 34px; }
+      .profile > div { min-width: 0; }
+      .p-name { overflow-wrap: anywhere; }
+      .facts strong { min-width: 0; overflow-wrap: anywhere; }
     }
   `,
 })

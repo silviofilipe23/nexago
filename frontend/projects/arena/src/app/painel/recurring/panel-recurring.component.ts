@@ -228,7 +228,8 @@ import type { AthleteCandidate } from './athlete-search-filter';
             <button type="button" class="ar-chip" [class.active]="paymentType() === 'per_occurrence'" (click)="paymentType.set('per_occurrence')">Por ocorrência</button>
           </div>
 
-          <div class="actions">
+          <!-- modal-actions: no celular o ar-modal fixa este rodapé no fim da folha. -->
+          <div class="actions modal-actions">
             <button type="button" class="ar-ghost-btn" [disabled]="saving()" (click)="closeForm()">Cancelar</button>
             <button type="button" class="ar-mini-btn ar-mini-btn-primary confirm-btn" [disabled]="!canSubmit()" (click)="submitForm()">
               {{ saving() ? 'Salvando…' : (editTarget() ? 'Salvar alterações' : 'Criar horário fixo') }}
@@ -263,6 +264,8 @@ import type { AthleteCandidate } from './athlete-search-filter';
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: var(--ar-pad-page-y) var(--ar-pad-page-x) 28px;
@@ -527,6 +530,86 @@ import type { AthleteCandidate } from './athlete-search-filter';
 
     .danger-btn:hover:not(:disabled) {
       background: #ff564c;
+    }
+
+    /* Celular: a tabela de 6 colunas vira um card por série (rolar ~900px na
+       horizontal pra achar o botão de editar não é usável). Os dados são os
+       mesmos; só o cabeçalho de coluna sai porque cada célula se explica. */
+    @include ar.below(sm) {
+      .ar-table-inner {
+        min-width: 0;
+      }
+      .table-head {
+        display: none;
+      }
+      .table-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          'client amount'
+          'slot slot'
+          'court payment'
+          'actions actions';
+        gap: 6px 12px;
+        align-items: start;
+      }
+      .cell-client {
+        grid-area: client;
+        min-width: 0;
+      }
+      .cell-slot {
+        grid-area: slot;
+      }
+      .cell-court {
+        grid-area: court;
+        min-width: 0;
+        align-self: center;
+      }
+      .cell-payment {
+        grid-area: payment;
+        justify-content: flex-end;
+      }
+      .cell-amount {
+        grid-area: amount;
+      }
+      .cell-actions {
+        grid-area: actions;
+        display: flex;
+        align-items: center;
+        gap: var(--ar-tap-gap);
+        text-align: left;
+      }
+      .icon-action {
+        width: 40px;
+        height: 40px;
+        margin-right: 0;
+        background: var(--nx-surface-1);
+      }
+      .danger-link {
+        height: 40px;
+        margin-left: auto;
+      }
+      .amount-secondary,
+      .paused-hint,
+      .active-hint {
+        font-size: 11px;
+      }
+      .time-row {
+        gap: 10px;
+      }
+      .actions,
+      .confirm-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .actions .ar-ghost-btn,
+      .confirm-actions .ar-ghost-btn {
+        height: var(--ar-tap);
+      }
+      .confirm-btn,
+      .danger-btn {
+        flex: 1 1 auto;
+        justify-content: center;
+      }
     }
   `,
 })

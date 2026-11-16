@@ -220,6 +220,11 @@ function tomorrowKey(): string {
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+        gap: 12px;
+      }
     }
 
     .state-text {
@@ -240,6 +245,12 @@ function tomorrowKey(): string {
 
     .summary-card {
       flex: 1;
+
+      /* Celular: dois por linha, o terceiro ocupa a linha de baixo inteira. */
+      @include ar.below(sm) {
+        flex: 1 1 140px;
+        min-width: 0;
+      }
     }
 
     .summary-label {
@@ -265,6 +276,10 @@ function tomorrowKey(): string {
       letter-spacing: -0.02em;
       color: var(--nx-text);
       margin-top: 8px;
+
+      @include ar.below(sm) {
+        font-size: 22px;
+      }
     }
 
     .summary-value.tone-green {
@@ -386,10 +401,19 @@ function tomorrowKey(): string {
       text-align: right;
     }
 
+    /* Linha empilhada no celular: valor alinhado com o rótulo, à esquerda. */
+    .table-row .right {
+      @include ar.below(sm) {
+        text-align: left;
+      }
+    }
+
     .section-head {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 4px 12px;
       margin: 18px 0 6px;
     }
 
@@ -416,9 +440,13 @@ function tomorrowKey(): string {
       margin-bottom: 4px;
     }
 
-    @media (max-width: 1180px) {
-      .summary-row {
+    .summary-row {
+      @include ar.below(lg) {
         flex-wrap: wrap;
+      }
+
+      @include ar.below(sm) {
+        gap: 10px;
       }
     }
   `,

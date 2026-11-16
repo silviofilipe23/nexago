@@ -214,7 +214,7 @@ interface Picked {
     .sum { background: radial-gradient(140% 90% at 100% 0%, rgba(255,106,26,.18), rgba(255,106,26,0) 60%), var(--nx-surface-1); border-left: 1px solid var(--nx-line); padding: 26px 22px; display: flex; flex-direction: column; gap: 14px; }
     .big { font-family: var(--nx-font-display); font-weight: 700; font-size: 32px; letter-spacing: -.02em; color: var(--nx-text); }
     .big small { font-size: 13px; color: var(--nx-text-dim); }
-    .kv { display: flex; justify-content: space-between; font-size: 12.5px; padding: 7px 0; color: var(--nx-text-mute); border-bottom: 1px solid var(--nx-line); }
+    .kv { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; padding: 7px 0; color: var(--nx-text-mute); border-bottom: 1px solid var(--nx-line); }
     .kv b { color: var(--nx-text); font: 600 12px var(--nx-font-mono); }
     .cal { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
     .cal span { height: 30px; border-radius: 7px; background: var(--nx-surface-0); border: 1px solid var(--nx-line); display: flex; align-items: center; justify-content: center; font: 10px var(--nx-font-mono); text-transform: uppercase; color: var(--nx-text-mute); }
@@ -224,6 +224,16 @@ interface Picked {
     @include ar.below(md) {
       .grid, .row2 { grid-template-columns: minmax(0, 1fr); }
       .sum { border-left: none; border-top: 1px solid var(--nx-line); }
+    }
+    @include ar.below(sm) {
+      .form { padding: 20px 16px; }
+      .sum { padding: 20px 16px; }
+      .big { font-size: 26px; overflow-wrap: anywhere; }
+      .chip { padding: 0 12px; }
+      .day { min-height: 52px; font-size: 18px; }
+    }
+    @include ar.touch {
+      .hours button { min-height: 40px; }
     }
   `,
 })

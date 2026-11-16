@@ -320,6 +320,8 @@ import { AthletePricingService } from './athlete-pricing.service';
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -653,6 +655,47 @@ import { AthletePricingService } from './athlete-pricing.service';
       }
       .row {
         flex-wrap: wrap;
+      }
+    }
+    /* Celular: card com o respiro do painel; o switch de 40x22 ganha área de
+       toque invisível; Salvar, perfil e Remover com alvo de dedo. */
+    @include ar.below(sm) {
+      .body {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
+      .card {
+        padding: var(--ar-card-pad);
+      }
+      .types {
+        padding: 12px;
+      }
+      .switch::before {
+        content: '';
+        position: absolute;
+        inset: -11px -4px;
+      }
+      .tier-head .card-title {
+        overflow-wrap: anywhere;
+      }
+      .row .ar-mini-btn,
+      .tier-select {
+        height: 40px;
+      }
+      .row .tier-select {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .actions {
+        flex-wrap: wrap;
+      }
+      .actions .ar-mini-btn-primary {
+        height: var(--ar-tap);
+        padding: 0 20px;
+      }
+      .check input {
+        width: 20px;
+        height: 20px;
+        margin-top: 0;
       }
     }
   `,

@@ -243,6 +243,8 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -250,6 +252,10 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -280,6 +286,7 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
       align-items: center;
       gap: 12px;
       margin-bottom: 12px;
+      flex-wrap: wrap;
     }
 
     .hint {
@@ -421,6 +428,11 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
       height: 26px;
       padding: 0 10px;
       font-size: 11px;
+
+      @include ar.touch {
+        height: 36px;
+        padding: 0 12px;
+      }
     }
 
     .error-line {
@@ -432,7 +444,7 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
       color: var(--nx-live);
     }
 
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .table-head,
       .table-row {
         grid-template-columns: 90px 80px 1fr 80px 100px 120px 100px;

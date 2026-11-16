@@ -172,6 +172,8 @@ function todayKey(): string {
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .card {
       background: var(--nx-surface-0, #0b0b0c);
       border: 1px solid var(--nx-line);
@@ -455,6 +457,35 @@ function todayKey(): string {
     @media (max-width: 700px) {
       .modes {
         grid-template-columns: 1fr;
+      }
+    }
+    /* Celular: card com o respiro do painel, preço por esporte em 1 coluna e
+       o switch de 40x22 com área de toque invisível. */
+    @include ar.below(sm) {
+      .card {
+        padding: var(--ar-card-pad);
+      }
+      .prices {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .switch::before {
+        content: '';
+        position: absolute;
+        inset: -11px -4px;
+      }
+      .save-btn {
+        height: var(--ar-tap);
+      }
+      .confirm-actions {
+        gap: 8px;
+      }
+      .confirm-actions .ar-ghost-btn,
+      .confirm-actions .ar-mini-btn {
+        height: var(--ar-tap);
+      }
+      .confirm-actions .ar-mini-btn {
+        flex: 1 1 auto;
+        justify-content: center;
       }
     }
   `,

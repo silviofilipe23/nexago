@@ -81,6 +81,32 @@ import { FieldComponent } from './ui/field.component';
       </form>
     </ar-auth-shell>
   `,
+  // Celular: "Manter conectado" + "Esqueceu a senha?" quebram em vez de
+  // espremer, e o link (13px de altura, padding 0 no global) ganha alvo de
+  // toque de 40px.
+  styles: `
+    @use 'breakpoints' as ar;
+
+    @include ar.below(xs) {
+      .ar-row-between {
+        flex-wrap: wrap;
+        gap: 8px 16px;
+      }
+    }
+
+    @include ar.touch {
+      .ar-row-between .ar-text-link,
+      .ar-fine .ar-text-link {
+        display: inline-flex;
+        align-items: center;
+        min-height: 40px;
+      }
+
+      .ar-remember {
+        min-height: 40px;
+      }
+    }
+  `,
 })
 export class LoginComponent {
   private readonly auth = inject(AuthService);

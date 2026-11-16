@@ -81,7 +81,11 @@ import { saveScheduleRules } from './schedule-plan-repository';
     </ar-modal>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .cap-input { width: 76px; height: 26px; font-family: var(--nx-font-mono); font-size: 12px; }
+    @include ar.below(sm) {
+      .cap-input { height: 36px; }
+    }
     .toggle-row { display: flex; align-items: center; gap: 14px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--nx-line); }
     .toggle-row > div { flex: 1; min-width: 0; }
     .toggle-title { font-family: var(--nx-font-display); font-weight: 700; font-size: 13px; color: var(--nx-text); }

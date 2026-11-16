@@ -124,10 +124,16 @@ function normalizeCode(raw: string): string {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .error-banner {
@@ -193,15 +199,23 @@ function normalizeCode(raw: string): string {
 
     .row-2 {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 16px;
+
+      @include ar.below(sm) {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
 
     .type-toggle {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 16px;
       margin-bottom: 18px;
+
+      @include ar.below(sm) {
+        gap: 10px;
+      }
     }
 
     .type-btn {
@@ -234,6 +248,7 @@ function normalizeCode(raw: string): string {
       letter-spacing: 0.06em;
       color: var(--nx-text);
       margin-bottom: 16px;
+      overflow-wrap: anywhere;
     }
 
     .resumo-highlight {
@@ -250,6 +265,7 @@ function normalizeCode(raw: string): string {
       letter-spacing: -0.02em;
       color: var(--nx-orange-500);
       margin-top: 4px;
+      overflow-wrap: anywhere;
     }
 
     .resumo-usage {
@@ -267,12 +283,6 @@ function normalizeCode(raw: string): string {
       font-size: 12.5px;
       line-height: 1.55;
       color: var(--nx-text-dim);
-    }
-
-    @media (max-width: 720px) {
-      .row-2 {
-        grid-template-columns: 1fr;
-      }
     }
   `,
 })

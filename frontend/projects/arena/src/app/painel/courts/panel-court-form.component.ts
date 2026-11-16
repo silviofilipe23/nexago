@@ -93,6 +93,8 @@ const STATUS_OPTIONS: ArenaCourtStatus[] = ['active', 'maintenance'];
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: var(--ar-pad-page-y) var(--ar-pad-page-x) 28px;
@@ -239,6 +241,25 @@ const STATUS_OPTIONS: ArenaCourtStatus[] = ['active', 'maintenance'];
 
     .danger-btn:hover:not(:disabled) {
       background: #ff564c;
+    }
+
+    @include ar.below(sm) {
+      .price-box {
+        max-width: none;
+      }
+      .remove-link {
+        min-height: var(--ar-tap);
+      }
+      .confirm-actions {
+        gap: 8px;
+      }
+      .confirm-actions .ar-ghost-btn {
+        height: var(--ar-tap);
+      }
+      .danger-btn {
+        flex: 1 1 auto;
+        justify-content: center;
+      }
     }
   `,
 })

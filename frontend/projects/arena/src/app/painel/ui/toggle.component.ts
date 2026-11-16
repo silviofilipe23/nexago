@@ -19,6 +19,8 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
     </button>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .toggle {
       width: 44px;
       height: 25px;
@@ -54,6 +56,20 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 
     .toggle.on .knob {
       transform: translateX(19px);
+    }
+
+    /* Dedo: o switch tem 25px de altura. Uma área de toque invisível de 45px
+       em volta resolve sem mudar o desenho nem o layout de quem o usa. */
+    @include ar.touch {
+      .toggle {
+        position: relative;
+      }
+
+      .toggle::before {
+        content: '';
+        position: absolute;
+        inset: -10px -4px;
+      }
     }
   `,
 })

@@ -279,6 +279,7 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
     :host { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
     .head { display: flex; align-items: center; gap: 12px; }
     .who { flex: 1; min-width: 0; }
@@ -311,6 +312,17 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
     .actions .ar-mini-btn, .actions .ar-ghost-btn { justify-content: center; }
     .danger { color: var(--nx-live); border: 1px solid rgba(255, 59, 48, 0.3); }
     .notice { padding: 10px 14px; border-radius: var(--nx-r-2); background: rgba(43, 209, 126, 0.08); border: 1px solid rgba(43, 209, 126, 0.28); color: var(--nx-win); font-size: 12.5px; }
+    /* Celular: nome longo quebra em vez de empurrar o selo; ações de cobrança
+       (registrar pagamento, cancelar, copiar link) e do plano com alvo de dedo. */
+    @include ar.below(sm) {
+      .head { flex-wrap: wrap; }
+      .name { overflow-wrap: anywhere; }
+      .charge-actions { gap: 4px 8px; margin: 0 0 8px; }
+      .online-state { padding-left: 0; }
+      .charge-actions .ar-ghost-btn { height: 36px; padding: 0 10px; font-size: 12.5px; background: var(--nx-surface-1); }
+      .actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .actions .ar-mini-btn, .actions .ar-ghost-btn { height: 40px; }
+    }
   `,
 })
 export class PhSubscriberDetailComponent {

@@ -236,6 +236,7 @@ const DURATIONS = [30, 45, 60, 75, 90, 120, 150, 180];
     </ar-aulas-page>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
     .note {
       border-radius: var(--nx-r-2); border: 1px solid var(--nx-line-strong); background: var(--nx-surface-1);
@@ -276,6 +277,12 @@ const DURATIONS = [30, 45, 60, 75, 90, 120, 150, 180];
     .info {
       padding: 13px 15px; border-radius: var(--nx-r-3); border: 1px dashed var(--nx-line-strong);
       font-size: 12px; line-height: 1.5; color: var(--nx-text-dim);
+    }
+    /* Celular: os 7 dias cabem numa linha só (46px fixos davam 358px e quebravam 6+1). */
+    @include ar.below(sm) {
+      .weekdays { flex-wrap: nowrap; }
+      .weekday { flex: 1 1 0; width: auto; min-width: 0; height: 42px; }
+      .pick-name { overflow-wrap: anywhere; }
     }
   `,
 })

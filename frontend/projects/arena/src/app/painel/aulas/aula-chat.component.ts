@@ -103,6 +103,7 @@ import { AulasChatService } from './aulas-chat.service';
     </ar-panel-card>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     :host { display: block; min-width: 0; }
     .chat-card { display: block; }
     .chat {
@@ -162,6 +163,19 @@ import { AulasChatService } from './aulas-chat.service';
       color: var(--nx-live); padding: 8px 12px; font-size: 12.5px;
     }
     .closed-note { flex: none; margin: 0; padding: 12px 20px 16px; border-top: 1px solid var(--nx-line); font-size: 12.5px; color: var(--nx-pending); }
+    /* Celular: 100vh no Safari é a tela sem a barra de endereço e o piso de 420px empurrava o
+       campo de mensagem para baixo da bottom-nav. A altura sai da tela visível (dvh) menos o que
+       fica em volta (topbar, cabeçalho, abas, botão "Conversas" e bottom-nav). */
+    @include ar.below(sm) {
+      .chat { height: clamp(320px, calc(100dvh - 270px - var(--ar-bottom-nav-h)), 760px); }
+      .chat-head { padding: 10px 14px; }
+      .head-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .scroller { padding: 14px; }
+      .msg { max-width: 88%; }
+      .composer { padding: 10px 14px 12px; }
+      .composer-input { height: 64px; max-height: 120px; }
+      .closed-note { padding: 10px 14px 12px; }
+    }
   `,
 })
 export class AulaChatComponent {

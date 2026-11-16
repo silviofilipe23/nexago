@@ -327,6 +327,22 @@ interface TimelineEntry {
       .d-body { grid-template-columns: minmax(0, 1fr); }
       .grid4 { grid-template-columns: 1fr 1fr; }
     }
+    @include ar.below(sm) {
+      .d-name { font-size: 20px; overflow-wrap: anywhere; }
+      .inner { padding: 14px; }
+      /* 6 parcelas em ~290px deixavam 40px por célula com rótulo de 8,5px: 3 por linha. */
+      .inst { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .ins small { font-size: 10px; }
+      .banner { flex-wrap: wrap; }
+      .use-h { flex-wrap: wrap; }
+      .legend { flex-wrap: wrap; gap: 6px 14px; }
+      .c-h { flex-wrap: wrap; }
+      .d-acts .btn { flex: 1 1 auto; }
+    }
+    @include ar.touch {
+      .out { min-height: 40px; }
+      .seg button { min-height: 38px; }
+    }
   `,
 })
 export class CrmCustomerDrawerComponent {

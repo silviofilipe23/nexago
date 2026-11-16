@@ -286,6 +286,8 @@ const ACCOUNT_CREATED_MISMATCH_MESSAGE =
     </ar-auth-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .center-state {
       display: flex;
       flex-direction: column;
@@ -313,6 +315,19 @@ const ACCOUNT_CREATED_MISMATCH_MESSAGE =
 
     .mode-tabs button {
       flex: 1;
+    }
+
+    /* Dedo: as abas Entrar/Criar conta herdam 26px da .ar-chart-tabs global e
+       o link de texto tem 13px de altura (padding 0) -- os dois sobem para
+       alvos de toque de verdade. */
+    @include ar.touch {
+      .mode-tabs button {
+        height: 40px;
+      }
+
+      .center-state .ar-text-link {
+        min-height: 44px;
+      }
     }
   `,
 })

@@ -381,6 +381,8 @@ function readFileAsBase64(file: File): Promise<string> {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -388,6 +390,10 @@ function readFileAsBase64(file: File): Promise<string> {
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -402,6 +408,13 @@ function readFileAsBase64(file: File): Promise<string> {
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-3);
       padding: 6px;
+
+      /* 5 passos em 360px cortavam todos os rótulos em reticências: a faixa rola. */
+      @include ar.below(sm) {
+        overflow-x: auto;
+        scrollbar-width: none;
+        flex: none;
+      }
     }
 
     .step {
@@ -416,6 +429,11 @@ function readFileAsBase64(file: File): Promise<string> {
       cursor: pointer;
       color: var(--nx-text-dim);
       min-width: 0;
+
+      @include ar.below(sm) {
+        flex: none;
+        min-height: 40px;
+      }
     }
 
     .step:disabled {
@@ -555,6 +573,7 @@ function readFileAsBase64(file: File): Promise<string> {
     .default-toggles {
       display: flex;
       gap: 6px;
+      flex-wrap: wrap;
     }
 
     .remove-service-btn {
@@ -649,6 +668,8 @@ function readFileAsBase64(file: File): Promise<string> {
       display: flex;
       align-items: center;
       gap: 16px;
+      flex-wrap: wrap;
+      flex: none;
     }
 
     .spacer {
@@ -661,7 +682,7 @@ function readFileAsBase64(file: File): Promise<string> {
       margin: 0;
     }
 
-    @media (max-width: 900px) {
+    @include ar.below(md) {
       .service-row {
         grid-template-columns: 1fr;
       }

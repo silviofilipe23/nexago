@@ -67,6 +67,8 @@ import { watchFollowers } from './followers-repository';
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -74,6 +76,10 @@ import { watchFollowers } from './followers-repository';
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -94,6 +100,7 @@ import { watchFollowers } from './followers-repository';
 
     .summary-card {
       flex: 1;
+      min-width: 0;
     }
 
     .summary-label {
@@ -141,6 +148,11 @@ import { watchFollowers } from './followers-repository';
       gap: 12px;
       padding: 12px 0;
       border-bottom: 1px solid var(--nx-line);
+
+      /* Nome longo + "Novo seguidor": o selo desce em vez de espremer o nome. */
+      @include ar.below(sm) {
+        flex-wrap: wrap;
+      }
     }
 
     .follower-row:last-child {
@@ -171,6 +183,7 @@ import { watchFollowers } from './followers-repository';
       font-weight: 700;
       font-size: 13.5px;
       color: var(--nx-text);
+      overflow-wrap: anywhere;
     }
 
     .follower-since {
@@ -182,7 +195,7 @@ import { watchFollowers } from './followers-repository';
       flex: 1;
     }
 
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .summary-row {
         flex-wrap: wrap;
       }

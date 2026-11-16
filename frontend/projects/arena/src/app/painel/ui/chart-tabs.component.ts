@@ -11,6 +11,33 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
       }
     </div>
   `,
+  // A aparência vem da classe global .ar-chart-tabs (styles.scss); aqui só o
+  // comportamento no celular: as abas rolam na horizontal em vez de estourar
+  // o card, e cada aba vira um alvo de toque de 36px.
+  styles: `
+    @use 'breakpoints' as ar;
+
+    @include ar.below(sm) {
+      :host {
+        display: block;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      .ar-chart-tabs {
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+      }
+
+      .ar-chart-tabs button {
+        flex: none;
+        height: 36px;
+        white-space: nowrap;
+      }
+    }
+  `,
 })
 export class ChartTabsComponent {
   readonly tabs = input.required<string[]>();

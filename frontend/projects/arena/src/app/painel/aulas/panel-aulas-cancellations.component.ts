@@ -174,6 +174,7 @@ function fullDate(key: string | null): string {
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .state-text.empty { margin: 14px 0 4px; }
     .notice { font-size: 12.5px; color: var(--nx-text-mute); margin: 0; padding: 10px 14px; border-radius: var(--nx-r-2); border: 1px solid var(--nx-line-strong); background: var(--nx-surface-1); }
@@ -200,6 +201,27 @@ function fullDate(key: string | null): string {
     .confirm-text { margin: 0; font-size: 13px; color: var(--nx-text); line-height: 1.5; }
     .wrap { flex-wrap: wrap; }
     @media (max-width: 1080px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    /* Celular: tabela de 6 colunas (~900px) vira card; datas ganham rótulo porque o cabeçalho some.
+       Na gaveta, o padding interno somava com o do ar-drawer e a rolagem ficava aninhada. */
+    @include ar.below(sm) {
+      .ar-table-inner { min-width: 0; }
+      .t-head { display: none; }
+      .t-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; padding: 12px 0; }
+      .t-row > * { min-width: 0; }
+      .t-row > :nth-child(1) { grid-column: 1 / -1; grid-row: 1; }
+      .t-row > :nth-child(2) { grid-column: 1; grid-row: 2; padding-left: 42px; }
+      .t-row > :nth-child(5) { grid-column: 2; grid-row: 2; justify-self: end; }
+      .t-row > :nth-child(3) { grid-column: 1; grid-row: 3; padding-left: 42px; }
+      .t-row > :nth-child(4) { grid-column: 2; grid-row: 3; justify-self: end; }
+      .t-row > :nth-child(6) { grid-column: 1 / -1; grid-row: 4; padding-left: 42px; }
+      .t-row > :nth-child(3)::before { content: 'Pedido '; }
+      .t-row > :nth-child(4)::before { content: 'Última aula '; }
+      .t-row > :nth-child(3)::before, .t-row > :nth-child(4)::before { font-weight: 500; color: var(--nx-text-dim); }
+      .drawer { padding: 0; max-height: none; overflow: visible; }
+      .d-head { flex-wrap: wrap; }
+      .kv b { min-width: 0; overflow-wrap: anywhere; }
+      .modal-actions .ar-mini-btn { min-height: 40px; }
+    }
   `,
 })
 export class PanelAulasCancellationsComponent {

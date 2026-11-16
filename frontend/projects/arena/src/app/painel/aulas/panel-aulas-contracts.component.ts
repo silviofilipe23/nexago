@@ -231,6 +231,7 @@ interface SendState {
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .views { display: flex; gap: 8px; margin-bottom: 16px; }
     .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
@@ -271,7 +272,19 @@ interface SendState {
     .paper h3 { font-family: var(--nx-font-display); font-size: 15px; margin: 0; color: #0A0A0A; }
     .paper .meta { font-family: var(--nx-font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #666; margin: 2px 0 12px; }
     .paper p { margin: 0 0 10px; white-space: pre-line; }
-    @media (max-width: 1180px) { .editor { grid-template-columns: minmax(0, 1fr); } .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @include ar.below(lg) { .editor { grid-template-columns: minmax(0, 1fr); } .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    /* Celular: a tabela de 5 colunas espremida em ~300px quebrava cada célula em várias linhas —
+       ganha largura mínima e rola no .table-wrap. Gaveta sem padding duplicado com o ar-drawer. */
+    @include ar.below(sm) {
+      table { min-width: 560px; }
+      .kpi b { font-size: 20px; overflow-wrap: anywhere; }
+      textarea.body { min-height: 280px; }
+      .drawer { padding: 0; max-height: none; overflow: visible; }
+      .d-head { flex-wrap: wrap; }
+      .kv b { min-width: 0; overflow-wrap: anywhere; }
+      .paper { padding: 16px; }
+      .modal-actions .ar-mini-btn { min-height: 40px; }
+    }
   `,
 })
 export class PanelAulasContractsComponent {

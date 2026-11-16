@@ -303,6 +303,8 @@ function localPartOf(email: string): string {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -558,11 +560,6 @@ function localPartOf(email: string): string {
       margin: 6px 4px;
     }
 
-    @media (max-width: 720px) {
-      .kpi-row {
-        flex-wrap: wrap;
-      }
-    }
 
     .modal-title {
       font-family: var(--nx-font-display);
@@ -830,6 +827,146 @@ function localPartOf(email: string): string {
 
     .danger-btn:hover:not(:disabled) {
       background: #ff564c;
+    }
+
+    /* ---- Celular ----
+       Fica no FIM do bloco de propósito: @media não soma especificidade, e um
+       recorte declarado antes da regra base perde para ela em silêncio. */
+    @include ar.below(sm) {
+      /* A tela inteira rola; antes o .body ficava preso à altura da tela e a
+         tabela dividia com KPIs + banner o que sobrava (às vezes ~100px). */
+      .body {
+        flex: none;
+        overflow: visible;
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
+
+      .table-card,
+      .table-scroll {
+        flex: none;
+        overflow: visible;
+      }
+
+      .upsell-banner {
+        flex-wrap: wrap;
+      }
+
+      .notice-dismiss {
+        min-width: 40px;
+        min-height: 40px;
+        flex: none;
+      }
+
+      /* flex-wrap não quebrava (kpi-card tem flex: 1, base 0). Três colunas
+         compactas: os três números cabem lado a lado. */
+      .kpi-row {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .kpi-label {
+        font-size: 10px;
+        letter-spacing: 0.06em;
+      }
+
+      .kpi-value {
+        font-size: 22px;
+      }
+
+      /* Tabela de 6 colunas vira cartão por membro: sem rolagem lateral e
+         com o "Gerenciar" sempre à vista (antes ficava escondido à direita).
+         Nenhum dado some -- nome, e-mail, cargo e status continuam lá. */
+      .table-scroll > .ar-table-inner {
+        min-width: 0;
+      }
+
+      .table-head {
+        display: none;
+      }
+
+      .table-row {
+        grid-template-columns: 36px auto minmax(0, 1fr) auto;
+        grid-template-areas:
+          'avatar name name action'
+          'avatar email email action'
+          'avatar role status status';
+        gap: 4px 10px;
+        align-items: center;
+      }
+
+      .table-row > .avatar {
+        grid-area: avatar;
+        align-self: start;
+      }
+
+      .table-row > .cell-name {
+        grid-area: name;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .table-row > .cell-email {
+        grid-area: email;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .table-row > :nth-child(4) {
+        grid-area: role;
+        margin-top: 4px;
+      }
+
+      .table-row > :nth-child(5) {
+        grid-area: status;
+        margin-top: 4px;
+      }
+
+      .table-row > .cell-action {
+        grid-area: action;
+        align-self: start;
+      }
+
+      .cell-action .ar-ghost-btn {
+        min-height: 40px;
+      }
+
+      /* O menu absoluto ficava cortado pela .ar-table-scroll (overflow). No
+         celular vira uma folha fixa acima da bottom-nav. */
+      .manage-menu {
+        position: fixed;
+        top: auto;
+        left: var(--ar-pad-page-x);
+        right: var(--ar-pad-page-x);
+        bottom: calc(var(--ar-bottom-nav-h, 0px) + 12px);
+        z-index: 1001;
+        min-width: 0;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+      }
+
+      .menu-item {
+        min-height: var(--ar-tap);
+      }
+
+      .menu-section-label,
+      .field-label,
+      .access-title {
+        font-size: 10.5px;
+      }
+
+      .email-chip {
+        height: 36px;
+      }
+
+      .email-chip button {
+        width: 28px;
+        height: 28px;
+      }
+
+      .actions {
+        flex-wrap: wrap;
+        gap: 8px 16px;
+      }
     }
   `,
 })

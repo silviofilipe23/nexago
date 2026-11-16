@@ -158,6 +158,7 @@ const FILTERS: ReadonlyArray<{ id: StudentFilter; label: string }> = [
     </ar-aulas-page>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .state-text.empty { margin: 14px 0 4px; }
     .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; flex: none; }
@@ -191,7 +192,29 @@ const FILTERS: ReadonlyArray<{ id: StudentFilter; label: string }> = [
     .mono.red { color: var(--nx-live); }
     .chev { color: var(--nx-text-dim); display: flex; }
     @media (max-width: 1280px) { .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-    @media (max-width: 720px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .search { width: 100%; } }
+    @include ar.below(sm) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .search { width: 100%; height: 40px; }
+      /* Celular: a tabela de 8 colunas (~940px) vira card empilhado — aluno + situação em
+         cima, plano/turma/horários embaixo, créditos e vencimento à direita. Nada some. */
+      .ar-table-inner { min-width: 0; }
+      .table-head { display: none; }
+      .table-row {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        column-gap: 10px; row-gap: 4px; padding: 12px 0;
+      }
+      .table-row > * { min-width: 0; }
+      .table-row > :nth-child(1) { grid-column: 1; grid-row: 1; }
+      .table-row > :nth-child(7) { grid-column: 2; grid-row: 1; justify-self: end; }
+      .table-row > :nth-child(8) { grid-column: 3; grid-row: 1 / span 4; }
+      .table-row > :nth-child(2) { grid-column: 1; grid-row: 2; padding-left: 42px; }
+      .table-row > :nth-child(5) { grid-column: 2; grid-row: 2; justify-self: end; }
+      .table-row > :nth-child(5)::before { content: 'Créd. '; font-weight: 500; color: var(--nx-text-dim); }
+      .table-row > :nth-child(3) { grid-column: 1; grid-row: 3; padding-left: 42px; }
+      .table-row > :nth-child(6) { grid-column: 2; grid-row: 3; justify-self: end; }
+      .table-row > :nth-child(4) { grid-column: 1 / span 2; grid-row: 4; padding-left: 42px; }
+      .name { overflow-wrap: anywhere; }
+    }
   `,
 })
 export class PanelAulasStudentsComponent {

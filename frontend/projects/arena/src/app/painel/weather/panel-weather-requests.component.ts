@@ -281,6 +281,8 @@ import {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .bulk-count {
       font-family: var(--nx-font-mono);
       font-size: 10.5px;
@@ -517,6 +519,34 @@ import {
 
     .bulk-progress {
       margin-bottom: 14px;
+    }
+
+    /* Celular: abas de situação com alvo de dedo; recusar/aprovar dividem a
+       linha sem estourar; nome longo do atleta não empurra os selos. */
+    @include ar.below(sm) {
+      .tab {
+        height: 40px;
+      }
+      .decide {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .detail-head {
+        flex-wrap: wrap;
+      }
+      .detail-title {
+        overflow-wrap: anywhere;
+      }
+      .confirm-reject,
+      .confirm-bulk {
+        flex: 1 1 auto;
+        justify-content: center;
+      }
+      .confirm-bulk {
+        height: 44px;
+      }
+      .modal-actions .ar-ghost-btn {
+        height: var(--ar-tap);
+      }
     }
   `,
 })

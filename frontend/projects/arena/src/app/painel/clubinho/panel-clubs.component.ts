@@ -112,9 +112,13 @@ const STATUS_TONE: Record<ArenaClubStatus, PillTone> = {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      min-height: 0;
+      /* --ar-pad-page-x vale 32px no desktop (igual ao fixo de antes) e 16px no celular. */
+      padding: 22px var(--ar-pad-page-x) 28px;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -251,6 +255,52 @@ const STATUS_TONE: Record<ArenaClubStatus, PillTone> = {
     .row-actions {
       display: flex;
       justify-content: flex-end;
+    }
+
+    /* Celular: a tabela de 7 colunas (~850px) vira card — nome e status em cima, recorrência e
+       valor, quadras e vagas, e o "Abrir" numa linha própria com alvo de dedo. */
+    @include ar.below(sm) {
+      .body {
+        padding-top: 16px;
+      }
+
+      .ar-table-inner {
+        min-width: 0;
+      }
+
+      .table-head {
+        display: none;
+      }
+
+      .table-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        row-gap: 6px;
+      }
+
+      .table-row > * {
+        min-width: 0;
+      }
+
+      .table-row > :nth-child(1) { grid-column: 1; grid-row: 1; }
+      .table-row > :nth-child(6) { grid-column: 2; grid-row: 1; justify-self: end; }
+      .table-row > :nth-child(2) { grid-column: 1; grid-row: 2; }
+      .table-row > :nth-child(5) { grid-column: 2; grid-row: 2; justify-self: end; }
+      .table-row > :nth-child(3) { grid-column: 1; grid-row: 3; }
+      .table-row > :nth-child(4) { grid-column: 2; grid-row: 3; justify-self: end; }
+      .table-row > :nth-child(7) { grid-column: 1 / -1; grid-row: 4; }
+
+      .table-row > :nth-child(4)::before {
+        content: 'Vagas ';
+        color: var(--nx-text-dim);
+      }
+
+      .club-name {
+        overflow-wrap: anywhere;
+      }
+
+      .row-actions .ar-mini-btn {
+        min-height: 40px;
+      }
     }
   `,
 })

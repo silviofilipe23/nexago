@@ -182,9 +182,13 @@ function parseNumber(raw: string): number {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
-      padding: 22px 32px 28px;
+      min-height: 0;
+      /* --ar-pad-page-x vale 32px no desktop (igual ao fixo de antes) e 16px no celular. */
+      padding: 22px var(--ar-pad-page-x) 28px;
       overflow: auto;
     }
 
@@ -385,10 +389,25 @@ function parseNumber(raw: string): number {
       color: var(--nx-text-dim);
     }
 
-    @media (max-width: 720px) {
+    /* Celular: 1 coluna com minmax(0, 1fr) — 1fr puro deixa input de data/hora (min-content)
+       estourar a coluna. */
+    @include ar.below(sm) {
+      .body {
+        padding-top: 16px;
+      }
+
       .row-2,
       .row-3 {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .type-toggle {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 10px;
+      }
+
+      .courts-grid {
+        grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr));
       }
     }
   `,

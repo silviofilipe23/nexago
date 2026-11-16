@@ -329,6 +329,8 @@ const PREVIEW_DEBOUNCE_MS = 300;
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .fetched {
       font-family: var(--nx-font-mono);
       font-size: 10.5px;
@@ -484,6 +486,38 @@ const PREVIEW_DEBOUNCE_MS = 300;
       width: auto;
       height: 44px;
       padding: 0 18px;
+    }
+
+    /* Celular: período com selects de dedo dividindo a linha; botões de
+       evento e de confirmação ocupando a largura. */
+    @include ar.below(sm) {
+      .controls {
+        gap: 16px;
+      }
+      .controls > div {
+        flex: 1 1 100%;
+        min-width: 0;
+      }
+      .time-select {
+        flex: 1 1 0;
+        min-width: 0;
+        height: 40px;
+      }
+      .end-btn {
+        flex: 1 1 100%;
+        justify-content: center;
+        height: 40px;
+      }
+      .fetched {
+        white-space: normal;
+        text-align: right;
+      }
+      .confirm-btn {
+        flex: 1 1 auto;
+      }
+      .modal-actions .ar-ghost-btn {
+        height: var(--ar-tap);
+      }
     }
   `,
 })

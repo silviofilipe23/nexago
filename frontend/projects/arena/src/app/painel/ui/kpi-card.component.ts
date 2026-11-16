@@ -34,6 +34,8 @@ export type KpiDeltaTone = 'green' | 'red' | 'orange' | 'flat';
     </ar-panel-card>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     :host {
       display: block;
       flex: 1;
@@ -100,6 +102,27 @@ export type KpiDeltaTone = 'green' | 'red' | 'orange' | 'flat';
     .delta-label {
       font-size: 11.5px;
       color: var(--nx-text-dim);
+    }
+
+    /* Celular: KPI costuma ficar em grade de 2 colunas (~160px cada). O rótulo
+       de 9.5px fica ilegível e "vs semana anterior" ao lado da variação
+       estoura o card -- a linha da variação passa a quebrar. */
+    @include ar.below(sm) {
+      .label {
+        font-size: 10.5px;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .value {
+        font-size: 24px;
+        overflow-wrap: anywhere;
+      }
+
+      .delta {
+        flex-wrap: wrap;
+        row-gap: 2px;
+      }
     }
   `,
 })

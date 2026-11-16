@@ -64,6 +64,8 @@ type Row =
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     :host {
       position: relative;
       display: block;
@@ -78,6 +80,11 @@ type Row =
       max-height: 280px;
       overflow: auto;
       background: var(--nx-surface-1);
+
+      /* No celular o teclado come metade da tela: a lista não pode passar dela. */
+      @include ar.below(sm) {
+        max-height: min(280px, 40dvh);
+      }
       border: 1px solid var(--nx-line-strong);
       border-radius: var(--nx-r-2);
       box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);

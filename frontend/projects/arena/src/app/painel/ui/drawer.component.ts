@@ -47,6 +47,8 @@ const FOCUSABLE =
     </div>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .scrim {
       position: fixed;
       inset: 0;
@@ -83,6 +85,22 @@ const FOCUSABLE =
       border-right: 1px solid var(--nx-line-strong);
       box-shadow: 24px 0 64px rgba(0, 0, 0, 0.5);
       animation-name: ar-drawer-in-left;
+    }
+
+    /* Celular: menos respiro lateral (24px de cada lado comiam 13% da tela),
+       folga para a barra de gestos do iPhone e rolagem que não vaza para a
+       página atrás do scrim. O menu de navegação (esquerda) deixa uma faixa de
+       scrim de 48px à direita para fechar tocando fora, padrão de drawer
+       móvel -- o botão X do shell continua lá. */
+    @include ar.below(sm) {
+      .panel {
+        padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+        overscroll-behavior: contain;
+      }
+
+      .scrim.left .panel {
+        max-width: calc(100% - 48px);
+      }
     }
 
     @keyframes ar-scrim-in {

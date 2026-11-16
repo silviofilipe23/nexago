@@ -154,6 +154,8 @@ import { isValidCep, validateArenaAddress, validateArenaCompany } from './arena-
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -262,12 +264,45 @@ import { isValidCep, validateArenaAddress, validateArenaCompany } from './arena-
       margin-top: 18px;
     }
 
-    @media (max-width: 720px) {
+    /* Filho direto de grade com <input> precisa poder encolher abaixo do
+       tamanho intrínseco do campo, senão a coluna estoura no celular. */
+    .row-2 > *,
+    .row-street > *,
+    .row-city > *,
+    .row-cep > * {
+      min-width: 0;
+    }
+
+    /* Celular: pares "nome + nome" viram uma coluna; Rua/Número e Cidade/UF
+       continuam lado a lado, porque Número e UF são curtos e empilhar só
+       dobrava a altura do formulário. */
+    @include ar.below(sm) {
+      .body {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
+
       .row-2,
-      .row-street,
-      .row-city,
       .row-cep {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 18px;
+      }
+
+      .row-street {
+        grid-template-columns: minmax(0, 1fr) 96px;
+        gap: 12px;
+      }
+
+      .row-city {
+        grid-template-columns: minmax(0, 1fr) 72px;
+        gap: 12px;
+      }
+
+      .cep-hint {
+        margin: -8px 0 0;
+      }
+
+      .field-label {
+        font-size: 10.5px;
       }
     }
   `,

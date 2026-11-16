@@ -65,6 +65,8 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     </ng-template>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     :host {
       display: block;
     }
@@ -229,7 +231,9 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
     @media (max-width: 980px) {
       .shell {
-        grid-template-columns: 1fr;
+        /* minmax(0, ...): 1fr sozinho nasce com o min-content do card e um
+           e-mail longo no campo empurrava a página para o lado. */
+        grid-template-columns: minmax(0, 1fr);
       }
 
       .brand {
@@ -238,6 +242,19 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
       .compact-brand {
         display: flex;
+      }
+    }
+
+    /* Celular: 48px/24px de respiro e 40px abaixo da marca empurravam o botão
+       de entrar para baixo da dobra (e do teclado). */
+    @include ar.below(sm) {
+      .stage {
+        place-items: start center;
+        padding: 32px var(--ar-pad-page-x) calc(24px + env(safe-area-inset-bottom, 0px));
+      }
+
+      .compact-brand {
+        margin-bottom: 28px;
       }
     }
   `,

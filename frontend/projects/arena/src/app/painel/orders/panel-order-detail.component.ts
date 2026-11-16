@@ -324,10 +324,16 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -368,6 +374,10 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
     .table-head {
       padding: 0 0 8px;
       border-bottom: 1px solid var(--nx-line-strong);
+
+      @include ar.below(sm) {
+        display: none;
+      }
     }
 
     .table-head span {
@@ -382,6 +392,22 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
     .table-row {
       padding: 12px 0;
       border-bottom: 1px solid var(--nx-line);
+
+      /* 5 colunas fixas (~350px) não cabem no card do celular: produto + Remover
+         em cima, quantidade · preço · subtotal embaixo. */
+      @include ar.below(sm) {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas:
+          'item item remove'
+          'qty price subtotal';
+        gap: 8px 12px;
+
+        .item-cell { grid-area: item; }
+        .item-qty { grid-area: qty; text-align: left; }
+        .item-price { grid-area: price; text-align: left; }
+        .item-subtotal { grid-area: subtotal; }
+        .remove-btn { grid-area: remove; }
+      }
     }
 
     .item-cell {
@@ -474,6 +500,13 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       background: rgba(255, 59, 48, 0.12);
     }
 
+    .remove-btn {
+      @include ar.touch {
+        height: 40px;
+        padding: 0 12px;
+      }
+    }
+
     .remove-btn:disabled {
       color: var(--nx-text-dim);
       border-color: var(--nx-line);
@@ -524,6 +557,13 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       display: grid;
       place-items: center;
       cursor: pointer;
+    }
+
+    .search-clear {
+      @include ar.touch {
+        width: 40px;
+        height: 40px;
+      }
     }
 
     .search-clear:hover {
@@ -696,6 +736,12 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       display: flex;
       align-items: center;
       gap: 14px;
+      min-width: 0;
+    }
+
+    .client-row > div:last-child {
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .client-thumb {
@@ -720,6 +766,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 12px;
       padding: 8px 0;
     }
 
@@ -765,6 +812,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       gap: 10px;
       font-size: 12.5px;
       color: var(--nx-text-mute);
+      flex-wrap: wrap;
     }
 
     .payment-row .dim {
@@ -783,6 +831,14 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       display: flex;
       flex-direction: column;
       gap: 10px;
+
+      /* 6 formas de pagamento empilhadas ocupavam ~370px de altura no celular:
+         em duas colunas o botão de registrar fica a um polegar de distância. */
+      @include ar.below(sm) {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
     }
 
     .payment-btn {
@@ -800,6 +856,12 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       justify-content: space-between;
       padding: 0 16px;
       transition: all 140ms var(--nx-ease-out);
+
+      @include ar.below(sm) {
+        height: 48px;
+        padding: 0 12px;
+        min-width: 0;
+      }
     }
 
     .payment-btn:hover:not(:disabled) {

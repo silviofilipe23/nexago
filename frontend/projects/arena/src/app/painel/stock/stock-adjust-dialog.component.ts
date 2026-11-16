@@ -169,6 +169,7 @@ export interface StockAdjustResult {
       align-items: center;
       justify-content: flex-end;
       gap: 16px;
+      flex-wrap: wrap;
     }
 
     .confirm-btn {

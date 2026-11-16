@@ -293,6 +293,7 @@ type Dialog = 'close' | 'pay' | 'nexago' | 'undo';
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .state-text.empty { margin: 14px 0 4px; }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -336,7 +337,12 @@ type Dialog = 'close' | 'pay' | 'nexago' | 'undo';
     .sum { display: flex; justify-content: space-between; align-items: baseline; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--nx-line-strong); }
     .sum span { font-family: var(--nx-font-display); font-weight: 700; font-size: 13.5px; color: var(--nx-text); }
     .sum strong { font-family: var(--nx-font-display); font-weight: 800; font-size: 22px; color: var(--nx-orange-500); }
-    @media (max-width: 1180px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+    @include ar.below(lg) { .layout { grid-template-columns: minmax(0, 1fr); } }
+    @include ar.below(sm) {
+      .icon { width: 40px; height: 40px; }
+      .total { flex-wrap: wrap; }
+      .facts strong { min-width: 0; overflow-wrap: anywhere; }
+    }
     @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   `,
 })

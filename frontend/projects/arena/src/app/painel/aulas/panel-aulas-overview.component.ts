@@ -148,6 +148,7 @@ interface Pending {
     }
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; flex: none; }
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; }
@@ -183,13 +184,21 @@ interface Pending {
     .occ-row:last-child { border-bottom: none; }
     .occ-name { width: 90px; font-family: var(--nx-font-display); font-weight: 600; font-size: 12.5px; color: var(--nx-text); }
     .occ-pct { width: 40px; text-align: right; font-family: var(--nx-font-mono); font-size: 11.5px; font-weight: 700; color: var(--nx-text); }
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .layout { grid-template-columns: minmax(0, 1fr); }
       .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
-    @media (max-width: 720px) {
-      .row { grid-template-columns: 56px 4px minmax(0, 1fr) auto; }
-      .teacher, .count { display: none; }
+    /* Celular: a linha vira dois andares (aula + estado em cima, professor + alunos embaixo)
+       em vez de esconder professor e contagem. */
+    @include ar.below(sm) {
+      .row { grid-template-columns: 52px 4px minmax(0, 1fr) auto; column-gap: 12px; row-gap: 6px; }
+      .time { grid-column: 1; grid-row: 1 / span 2; }
+      .bar { grid-column: 2; grid-row: 1 / span 2; }
+      .what { grid-column: 3; grid-row: 1; }
+      .pill-cell { grid-column: 4; grid-row: 1; }
+      .teacher { grid-column: 3; grid-row: 2; min-width: 0; }
+      .count { grid-column: 4; grid-row: 2; justify-self: end; }
+      .pend .ar-mini-btn { flex: none; min-height: 36px; }
     }
   `,
 })

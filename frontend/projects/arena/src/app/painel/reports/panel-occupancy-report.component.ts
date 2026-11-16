@@ -128,6 +128,8 @@ function numberBR(n: number): string {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -135,6 +137,10 @@ function numberBR(n: number): string {
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -172,6 +178,11 @@ function numberBR(n: number): string {
       display: flex;
       flex-direction: column;
       gap: 6px;
+
+      @include ar.below(sm) {
+        flex: 1 1 130px;
+        min-width: 0;
+      }
     }
 
     .field-label {
@@ -191,6 +202,21 @@ function numberBR(n: number): string {
       padding: 0 10px;
       font-family: var(--nx-font-ui);
       font-size: 12.5px;
+
+      @include ar.below(sm) {
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      @include ar.touch {
+        height: 40px;
+      }
+    }
+
+    .custom-range .ar-mini-btn {
+      @include ar.touch {
+        height: 40px;
+      }
     }
 
     .error-banner {
@@ -206,6 +232,13 @@ function numberBR(n: number): string {
       display: flex;
       gap: 16px;
       flex: none;
+
+      /* 5 KPIs: 2 por linha no celular (flex: 1 do kpi-card não quebra sozinho). */
+      @include ar.below(sm) {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
     }
 
     .table-card {
@@ -219,6 +252,11 @@ function numberBR(n: number): string {
       grid-template-columns: 1.6fr 1fr 1.3fr 1fr;
       gap: 14px;
       align-items: center;
+
+      @include ar.below(sm) {
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+      }
     }
 
     .table-head {
@@ -234,6 +272,11 @@ function numberBR(n: number): string {
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
+
+      @include ar.below(sm) {
+        letter-spacing: 0.04em;
+        overflow-wrap: anywhere;
+      }
     }
 
     .table-list {
@@ -255,6 +298,8 @@ function numberBR(n: number): string {
       font-weight: 600;
       font-size: 13.5px;
       color: var(--nx-text);
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .cell-hours {
@@ -265,12 +310,6 @@ function numberBR(n: number): string {
 
     .right {
       text-align: right;
-    }
-
-    @media (max-width: 720px) {
-      .kpi-row {
-        flex-wrap: wrap;
-      }
     }
   `,
 })

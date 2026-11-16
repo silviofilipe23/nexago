@@ -287,6 +287,8 @@ interface PlanCardAction {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
@@ -635,10 +637,39 @@ interface PlanCardAction {
       background: #ff564c;
     }
 
-    @media (max-width: 1180px) {
+    @include ar.below(lg) {
       .plans-row {
-        grid-template-columns: 1fr;
         flex-direction: column;
+      }
+    }
+
+    @include ar.below(sm) {
+      .body {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
+
+      .price {
+        font-size: 28px;
+      }
+
+      /* "Quadras cadastradas" + "3 quadras · ilimitado" não cabiam numa
+         linha de 300px. */
+      .usage-row {
+        flex-wrap: wrap;
+        gap: 2px 12px;
+      }
+
+      .plan-col {
+        padding: 16px;
+      }
+
+      .field-label {
+        font-size: 10.5px;
+      }
+
+      .actions {
+        flex-wrap: wrap;
+        gap: 8px 16px;
       }
     }
   `,

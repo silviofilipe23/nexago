@@ -49,6 +49,7 @@ import { CrmStore } from './crm.store';
     </ar-modal>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .m-t { font-family: var(--nx-font-display); font-weight: 700; font-size: 20px; margin: 0; color: var(--nx-text); }
     .late { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(255,59,48,.08); border: 1px solid rgba(255,59,48,.35); color: var(--nx-live); font-size: 12.5px; font-weight: 600; }
     .field-l { display: block; font-size: 12.5px; font-weight: 600; color: var(--nx-text); margin: 16px 0 8px; }
@@ -61,7 +62,18 @@ import { CrmStore } from './crm.store';
     .pre span { font-family: var(--nx-font-mono); color: var(--nx-text-dim); }
     .pre input { flex: 1; min-width: 0; background: transparent; border: none; color: var(--nx-text); font: inherit; outline: none; }
     .err { color: var(--nx-live); font-size: 12.5px; margin: 12px 0 0; }
-    .acts { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+    .acts { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+    /* Celular: "Pix · Dinheiro · Maquininha · Transferência" não cabem numa linha
+       (quebra pra 2), e o campo de data não cabe em meia coluna. */
+    @include ar.below(sm) {
+      .seg { flex-wrap: wrap; }
+      .seg button { flex: 1 0 auto; }
+      .row2 { grid-template-columns: minmax(0, 1fr); gap: 0; }
+      .acts .btn { flex: 1 1 auto; }
+    }
+    @include ar.touch {
+      .seg button { min-height: 40px; }
+    }
   `,
 })
 export class CrmPaymentModalComponent implements OnInit {

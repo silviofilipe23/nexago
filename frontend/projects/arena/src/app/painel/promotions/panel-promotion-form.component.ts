@@ -158,10 +158,16 @@ function parseNumber(raw: string): number {
     </ar-panel-shell>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .body {
       flex: 1;
       padding: 22px 32px 28px;
       overflow: auto;
+
+      @include ar.below(sm) {
+        padding: 16px var(--ar-pad-page-x) 24px;
+      }
     }
 
     .state-text {
@@ -233,8 +239,12 @@ function parseNumber(raw: string): number {
 
     .row-2 {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 16px;
+
+      @include ar.below(sm) {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
 
     .row-gap {
@@ -243,9 +253,13 @@ function parseNumber(raw: string): number {
 
     .type-toggle {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 16px;
       margin-bottom: 18px;
+
+      @include ar.below(sm) {
+        gap: 10px;
+      }
     }
 
     .type-btn {
@@ -276,6 +290,7 @@ function parseNumber(raw: string): number {
       font-weight: 700;
       font-size: 16px;
       color: var(--nx-text);
+      overflow-wrap: anywhere;
     }
 
     .resumo-meta {
@@ -299,6 +314,7 @@ function parseNumber(raw: string): number {
       letter-spacing: -0.02em;
       color: var(--nx-orange-500);
       margin-top: 4px;
+      overflow-wrap: anywhere;
     }
 
     .resumo-time {
@@ -357,6 +373,7 @@ function parseNumber(raw: string): number {
       align-items: center;
       justify-content: flex-end;
       gap: 16px;
+      flex-wrap: wrap;
     }
 
     .danger-btn {
@@ -369,12 +386,6 @@ function parseNumber(raw: string): number {
 
     .danger-btn:hover:not(:disabled) {
       background: #ff564c;
-    }
-
-    @media (max-width: 720px) {
-      .row-2 {
-        grid-template-columns: 1fr;
-      }
     }
   `,
 })

@@ -102,6 +102,7 @@ import { planActivity, planCardView, plansStats, type PlanCardView } from './pla
     </ar-aulas-page>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
     .stat { padding: 16px 18px; border-radius: var(--nx-r-4); background: var(--nx-surface-0); border: 1px solid var(--nx-line); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -134,8 +135,11 @@ import { planActivity, planCardView, plansStats, type PlanCardView } from './pla
     .plan-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--nx-line); display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--nx-text-mute); }
     .plan-foot b, .mono { font-family: var(--nx-font-mono); color: var(--nx-text); font-weight: 700; }
     .hint { font-size: 12px; color: var(--nx-text-dim); margin: 0; }
-    @media (max-width: 1180px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 640px) { .stats { grid-template-columns: minmax(0, 1fr); } }
+    @include ar.below(lg) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @include ar.below(sm) {
+      .stats { grid-template-columns: minmax(0, 1fr); }
+      .cards { grid-template-columns: minmax(0, 1fr); }
+    }
   `,
 })
 export class PanelAulasPlansComponent {

@@ -127,6 +127,7 @@ import {
     </ar-aulas-page>
   `,
   styles: `
+    @use 'breakpoints' as ar;
     .state-text { font-size: 13.5px; color: var(--nx-text-mute); margin: 0; }
     .grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
     .col { display: flex; flex-direction: column; gap: 16px; }
@@ -158,6 +159,10 @@ import {
     .trial.on { color: #7fe3b0; }
     .trial small { color: rgba(255,255,255,.55); font-size: 11px; }
     @media (max-width: 1100px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+    @include ar.below(sm) {
+      .cover-actions { flex-wrap: wrap; }
+      .col { min-width: 0; }
+    }
   `,
 })
 export class PanelAulasShowcaseComponent {

@@ -3,7 +3,9 @@ import { PersonPhotoService } from './person-photo.service';
 
 /** Overlay de modal genérico (protótipo ArModal): scrim + painel centralizado, conteúdo projetado. Fecha no scrim, no X ou em Escape.
  *  `size="lg"` abre o painel até 600px, para formulários com duas colunas (ex.: convite de professor);
- *  `size="xl"` até 980px e sem padding, para formulário com resumo ao lado (contrato do CRM). */
+ *  `size="xl"` até 980px e sem padding, para formulário com resumo ao lado (contrato do CRM).
+ *  No celular (≤ sm) qualquer tamanho vira bottom-sheet de largura total, com o corpo rolando
+ *  e o rodapé `.modal-actions`/`.confirm-actions`/`.actions` final (filho direto do conteúdo) preso embaixo. */
 @Component({
   selector: 'ar-modal',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -18,6 +20,8 @@ import { PersonPhotoService } from './person-photo.service';
     </div>
   `,
   styles: `
+    @use 'breakpoints' as ar;
+
     .scrim {
       position: fixed;
       inset: 0;
@@ -51,8 +55,64 @@ import { PersonPhotoService } from './person-photo.service';
       padding: 0;
     }
 
+    /* Celular: bottom-sheet. Largura total (o 24px de respiro do scrim comia
+       ~13% de uma tela de 360px), altura até quase o topo, cantos arredondados
+       só em cima e folga para a barra de gestos do iPhone. O corpo continua
+       rolando no próprio .panel. */
+    @include ar.below(sm) {
+      .scrim {
+        place-items: end stretch;
+        padding: 12px 0 0;
+      }
+
+      .panel,
+      .panel.lg,
+      .panel.xl {
+        max-width: none;
+        max-height: calc(100dvh - 12px);
+        border-bottom: none;
+        border-radius: var(--nx-r-4) var(--nx-r-4) 0 0;
+        overscroll-behavior: contain;
+        animation-name: ar-sheet-in;
+      }
+
+      .panel,
+      .panel.lg {
+        padding: 20px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+      }
+
+      .panel.xl {
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+
+      /* Rodapé de ações sempre à vista: o conteúdo é projetado, então só
+         ::ng-deep alcança -- e fica preso ao filho DIRETO do painel deste
+         modal, nunca vaza para o resto da tela. Os consumidores já usam
+         estas classes (dezenas de modais); '.actions' é nome genérico, então só
+         conta quando é o último elemento do modal. Quem não usa nenhuma
+         continua rolando o rodapé junto, como antes. */
+      .panel ::ng-deep > .modal-actions,
+      .panel ::ng-deep > .confirm-actions,
+      .panel ::ng-deep > .actions:last-child {
+        position: sticky;
+        bottom: 0;
+        z-index: 1;
+        flex-wrap: wrap;
+        padding-block: 12px;
+        background: var(--nx-surface-0);
+        border-top: 1px solid var(--nx-line);
+      }
+    }
+
     @keyframes ar-scrim-in {
       from {
+        opacity: 0;
+      }
+    }
+
+    @keyframes ar-sheet-in {
+      from {
+        transform: translateY(24px);
         opacity: 0;
       }
     }

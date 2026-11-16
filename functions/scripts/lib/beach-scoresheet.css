@@ -1,0 +1,131 @@
+/* Súmula de vôlei de praia em A4 (ver beach-scoresheet-html.js). Medidas em mm para as grades alinharem. */
+@page { size: A4; margin: 0; }
+:root {
+  --line: 0.6pt solid #000;
+  --ink: #0b2e6f;
+  --hdr: 6.2mm;
+  --team: 7.5mm;
+  --time: 5.5mm;
+  --head: 4mm;
+  --serve: 7mm;
+  --std: 4.5mm;
+  --low: 4.8mm;
+  --sign: 9mm;
+}
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
+body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 7pt; }
+
+.page {
+  width: 210mm; height: 297mm; padding: 7mm 8mm 0; position: relative;
+  overflow: hidden; page-break-after: always; break-after: page;
+}
+.page:last-of-type { page-break-after: auto; break-after: auto; }
+
+/* ---------- grade base ---------- */
+table.grid { border-collapse: collapse; table-layout: fixed; width: 100%; }
+table.grid td {
+  border: var(--line); padding: 0 0.8mm; vertical-align: middle;
+  white-space: nowrap; overflow: hidden; line-height: 1.1;
+}
+table.grid + table.grid { margin-top: -0.6pt; }
+.ink { color: var(--ink); font-weight: 700; }
+.c { text-align: center; }
+.small { font-size: 6pt; }
+.cap { font-weight: 700; font-size: 8pt; }
+.th, .th-row td { text-align: center; font-weight: 700; }
+.blank { color: #000; letter-spacing: 0.2pt; }
+
+/* ---------- cabeçalho ---------- */
+.hdr tr { height: var(--hdr); }
+.hdr .title {
+  text-align: center; font-weight: 800; font-size: 11pt; line-height: 1.3; letter-spacing: 0.2pt;
+}
+.hdr .title span { font-size: 10pt; letter-spacing: 1.5pt; }
+.hdr .lbl { font-size: 7pt; }
+.hdr .val { font-size: 8.5pt; }
+
+/* ---------- blocos de set ---------- */
+.sets12 { display: flex; justify-content: space-between; margin-top: 2.5mm; }
+.setwrap { position: relative; }
+.setwrap.half { width: 95mm; }
+.setwrap.full { width: 194mm; margin-top: 2.5mm; }
+
+.r-team { height: var(--team); }
+.r-time { height: var(--time); }
+.r-head { height: var(--head); }
+.r-serve { height: var(--serve); }
+.r-std { height: var(--std); }
+
+table.grid td.flexcell { padding: 0; }
+.teamline { display: flex; align-items: stretch; height: var(--team); }
+.teamline .names {
+  flex: 1; display: flex; align-items: center; justify-content: center; text-align: center;
+  white-space: normal; overflow: hidden; font-size: 7.5pt; line-height: 1.05; padding: 0 1mm;
+}
+.teamline .score, .teamline .vs {
+  display: flex; align-items: center; justify-content: center; border-left: var(--line);
+  font-size: 9pt; font-weight: 700;
+}
+.teamline .score { width: 8.5mm; }
+.teamline .vs { width: 5mm; font-size: 10pt; }
+.teamline .score + .names { border-left: var(--line); }
+
+.setlabel { text-align: center; font-weight: 800; font-size: 10pt; }
+.full .setlabel { font-size: 11pt; }
+table.grid td.time { font-size: 8.5pt; padding-left: 2mm; }
+table.grid td.hint { font-size: 5.2pt; text-align: center; white-space: normal; }
+table.grid td.note { font-size: 6.3pt; text-align: center; }
+table.grid td.roman { text-align: center; font-family: "Times New Roman", Times, serif; font-weight: 700; font-size: 12pt; }
+table.grid td.shade { background: #cfcfcf; }
+table.grid td.box { position: relative; padding: 0; }
+table.grid td.box .n { position: absolute; top: 0.25mm; left: 0.45mm; font-size: 5pt; line-height: 1; }
+.full table.grid td.box .n { font-size: 5.5pt; }
+
+table.grid td.pts { padding: 0 0.4mm; }
+.pts-row { display: flex; justify-content: space-between; }
+.pts-row span { flex: 1; text-align: center; font-size: 6.2pt; font-weight: 700; }
+table.grid td.pt { text-align: center; font-weight: 700; font-size: 8pt; padding: 0; }
+
+table.grid td.split { padding: 0; }
+table.grid td.split div { display: flex; height: var(--std); }
+table.grid td.split span { flex: 1; }
+table.grid td.split span + span { border-left: var(--line); }
+
+table.grid td.arrows { text-align: center; font-size: 8pt; font-weight: 700; }
+table.grid td.arrows i {
+  display: inline-block; width: 2.2mm; height: 2.2mm; border: 0.6pt solid #000;
+  margin: 0 0.6mm 0 1.6mm; vertical-align: -0.35mm;
+}
+
+.pontos {
+  display: flex; align-items: center; height: 4mm; font-style: italic; font-weight: 800;
+  font-size: 8.5pt; padding-left: 9mm;
+}
+.pontos::after { content: ""; flex: 1; border-bottom: 0.8pt dashed #000; margin: 0 2mm 0 2.5mm; }
+
+.teamline .unplayed {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  font-size: 8pt; font-weight: 700; letter-spacing: 1.2pt; color: #6b6b6b; text-transform: uppercase;
+}
+.half table.grid td.th { font-size: 6.5pt; }
+
+/* ---------- parte de baixo ---------- */
+.bottom { display: flex; justify-content: space-between; margin-top: 2.5mm; }
+.bottom .col { width: 96mm; }
+.r-low { height: var(--low); }
+.r-sign { height: var(--sign); }
+.r-obs { height: calc(4 * var(--low) + 2 * var(--sign)); }
+table.grid td.sign { vertical-align: top; font-size: 6pt; padding-top: 0.6mm; }
+table.grid td.obs { vertical-align: top; white-space: normal; padding: 1mm 1.2mm; line-height: 1.35; }
+table.grid td.dur span { font-size: 6.2pt; }
+table.grid td.dur b { float: right; }
+.linesmen { display: flex; height: var(--low); }
+.linesmen span { flex: 1; position: relative; }
+.linesmen span + span { border-left: var(--line); }
+.linesmen i { position: absolute; top: 0.4mm; left: 0.8mm; font-style: normal; font-weight: 700; font-size: 6.5pt; }
+
+footer {
+  position: absolute; left: 8mm; right: 8mm; bottom: 5mm;
+  display: flex; justify-content: space-between; font-size: 6.5pt; color: #555;
+}

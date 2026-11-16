@@ -51,13 +51,13 @@ void main() {
       ),
     );
 
-    expect(find.byTooltip('Buscar torneios'), findsOneWidget);
+    expect(find.byTooltip('Buscar no Hub'), findsOneWidget);
     expect(find.byTooltip('Painel da arena'), findsOneWidget);
     // O Tooltip publica a dica no nó de semântica — é o que o VoiceOver e o
     // TalkBack leem junto do botão.
     expect(
       tester.getSemantics(find.byIcon(Icons.search_rounded)),
-      containsSemantics(tooltip: 'Buscar torneios'),
+      containsSemantics(tooltip: 'Buscar no Hub'),
     );
     semantics.dispose();
   });

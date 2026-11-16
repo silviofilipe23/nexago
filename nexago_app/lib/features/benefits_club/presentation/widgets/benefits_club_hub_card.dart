@@ -73,11 +73,7 @@ class _HubCardState extends ConsumerState<_HubCard> {
   Widget build(BuildContext context) {
     final sponsor = widget.sponsor;
     if (sponsor != null) {
-      return _SponsorHubCard(
-        sponsor: sponsor,
-        partners: widget.partners,
-        onTap: _open,
-      );
+      return _SponsorHubCard(sponsor: sponsor, onTap: _open);
     }
     final colors = context.themeColors;
     final titleStyle = AppTypography.titleS.copyWith(
@@ -227,19 +223,16 @@ class _StackedLogos extends StatelessWidget {
   }
 }
 
-/// Card do Hub em modo patrocinador: borda e fundo na cor da marca e a faixa
-/// "Oferecido por <parceiro>" no topo.
+/// Card do Hub em modo patrocinador: o mesmo card do clube (borda laranja,
+/// selo NOVO), com a faixa "Oferecido por <parceiro>" no topo. A cor da marca
+/// fica só na faixa e no ícone; sem as logos dos parceiros, que repetiam a
+/// marca do patrocinador num card pequeno.
 class _SponsorHubCard extends StatelessWidget {
-  const _SponsorHubCard({
-    required this.sponsor,
-    required this.partners,
-    required this.onTap,
-  });
+  const _SponsorHubCard({required this.sponsor, required this.onTap});
 
   static const Key sponsorKey = Key('compete-hub-benefits-sponsor');
 
   final Partner sponsor;
-  final List<Partner> partners;
   final VoidCallback onTap;
 
   @override
@@ -249,118 +242,106 @@ class _SponsorHubCard extends StatelessWidget {
     final accent = partnerInkOnSurface(brand, colors.surfaceCard);
     return Semantics(
       button: true,
-      label: 'Clube de Vantagens Nexa, oferecido por ${sponsor.name}',
+      label:
+          'Clube de Vantagens Nexa, novo, oferecido por ${sponsor.name}. '
+          'Descontos dos parceiros NexaGO',
       excludeSemantics: true,
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: AppRadii.lgAll,
-          boxShadow: [
-            BoxShadow(color: brand.withValues(alpha: 0.10), spreadRadius: 4),
-          ],
+      child: Material(
+        clipBehavior: Clip.antiAlias,
+        color: Color.alphaBlend(
+          AppColors.brand.withValues(alpha: 0.08),
+          colors.surfaceCard,
         ),
-        child: Material(
-          clipBehavior: Clip.antiAlias,
-          color: colors.surfaceCard,
-          shape: RoundedRectangleBorder(
-            borderRadius: AppRadii.lgAll,
-            side: BorderSide(color: brand, width: 1.5),
-          ),
-          child: Ink(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  brand.withValues(alpha: 0.20),
-                  brand.withValues(alpha: 0.06),
-                ],
-                stops: const [0, 0.6],
-              ),
-            ),
-            child: InkWell(
-              key: sponsorKey,
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        shape: const RoundedRectangleBorder(
+          borderRadius: AppRadii.lgAll,
+          side: BorderSide(color: AppColors.brand, width: 1.5),
+        ),
+        child: InkWell(
+          key: sponsorKey,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        PartnerLogo(
-                          partner: sponsor,
-                          size: 20,
-                          borderRadius: AppRadii.smAll,
-                          onBrandSurface: true,
-                        ),
-                        const SizedBox(width: 7),
-                        Flexible(
-                          child: BenefitsEyebrow(
-                            'Oferecido por ${sponsor.name}',
-                            color: accent,
-                          ),
-                        ),
-                      ],
+                    PartnerLogo(
+                      partner: sponsor,
+                      size: 20,
+                      borderRadius: AppRadii.smAll,
+                      onBrandSurface: true,
                     ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: brand,
-                            borderRadius: AppRadii.mdAll,
-                          ),
-                          child: Icon(
-                            Icons.card_giftcard_rounded,
-                            size: 21,
-                            color: onPartnerBrand(brand),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.md),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Clube de Vantagens Nexa',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.titleS.copyWith(
-                                  fontSize: 14.5,
-                                  color: colors.onSurface,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                'Descontos dos parceiros NexaGO',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.bodyS.copyWith(
-                                  fontSize: 11.5,
-                                  color: colors.onSurfaceMuted,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (partners.isNotEmpty) ...[
-                          const SizedBox(width: AppSpacing.sm),
-                          _StackedLogos(partners: partners),
-                        ],
-                        const SizedBox(width: AppSpacing.sm),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 17,
-                          color: colors.onSurface,
-                        ),
-                      ],
+                    const SizedBox(width: 7),
+                    Flexible(
+                      child: BenefitsEyebrow(
+                        'Oferecido por ${sponsor.name}',
+                        color: accent,
+                      ),
                     ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: brand,
+                        borderRadius: AppRadii.mdAll,
+                      ),
+                      child: Icon(
+                        Icons.card_giftcard_rounded,
+                        size: 21,
+                        color: onPartnerBrand(brand),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  'Clube de Vantagens Nexa',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTypography.titleS.copyWith(
+                                    fontSize: 14.5,
+                                    color: colors.onSurface,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const _NewBadge(),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Descontos dos parceiros NexaGO',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.bodyS.copyWith(
+                              fontSize: 11.5,
+                              color: colors.onSurfaceMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 17,
+                      color: colors.onSurface,
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),

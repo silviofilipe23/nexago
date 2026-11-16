@@ -244,6 +244,13 @@ export const routes: Routes = [
     loadComponent: () => import('./painel/clube/panel-clube.component').then((m) => m.PanelClubeComponent),
   },
   {
+    path: 'painel/clube/parceiros/:id/relatorio',
+    title: 'Relatório do patrocinador — NexaGO Backoffice',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/clube/partner-report.component').then((m) => m.PartnerReportComponent),
+  },
+  {
     // `novo` cria; depois de salvar a URL troca para o id (slug do nome).
     path: 'painel/clube/parceiros/:id',
     title: 'Parceiro do clube — NexaGO Backoffice',

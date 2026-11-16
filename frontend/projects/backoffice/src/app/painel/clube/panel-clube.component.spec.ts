@@ -7,6 +7,7 @@ import { clubConfigFromDoc } from './data/club-config';
 import { ClubRepository } from './data/club.repository';
 import { partnerFromDoc, type PartnerPayload } from './data/partner';
 import { leadFromDoc } from './data/partner-lead';
+import { redemptionFromDoc } from './data/benefit-redemption';
 import { PanelClubeComponent, clubTabFrom } from './panel-clube.component';
 
 const LINQ = partnerFromDoc('linq', {
@@ -42,9 +43,13 @@ const FAST = partnerFromDoc('fast-acai', {
 
 describe('PanelClubeComponent', () => {
   let update: jasmine.Spy<(id: string, payload: PartnerPayload) => Promise<void>>;
+  let saveConfig: jasmine.Spy;
+  let importSpy: jasmine.Spy;
 
   async function mount(aba: string | null = null): Promise<HTMLElement> {
     update = jasmine.createSpy('updatePartner').and.resolveTo();
+    saveConfig = jasmine.createSpy('saveConfig').and.resolveTo();
+    importSpy = jasmine.createSpy('importRedemptions').and.resolveTo({ matched: 1, ambiguous: 0, unmatched: 1, duplicates: 0 });
     const query = convertToParamMap(aba ? { aba } : {});
     await TestBed.configureTestingModule({
       imports: [PanelClubeComponent],
@@ -65,6 +70,12 @@ describe('PanelClubeComponent', () => {
             userNames: () => Promise.resolve(new Map([['u1', 'Silvio Dionizio']])),
             events: () => Promise.resolve([]),
             updatePartner: update,
+            saveConfig: saveConfig,
+            redemptions: () =>
+              Promise.resolve([
+                redemptionFromDoc('linq_P-1', { partnerId: 'linq', externalId: 'P-1', code: 'NEXA-AB12', uid: 'u1', status: 'matched', discountCents: 829, redeemedAt: new Date(2026, 10, 10) }),
+              ]),
+            importRedemptions: importSpy,
           },
         },
       ],
@@ -119,7 +130,8 @@ describe('PanelClubeComponent', () => {
     expect(id).toBe('linq');
     expect(payload.active).toBeFalse();
     expect(payload.isMasterSponsor).toBeTrue();
-    expect(Object.keys(payload).length).toBe(21);
+    // 21 campos da v1 + 10 da versão premium (allowlist da rule, sem autoria).
+    expect(Object.keys(payload).length).toBe(31);
     expect(host.querySelector('.bo-feedback')!.textContent).toContain('LinQ Telecom saiu do clube.');
   });
 
@@ -138,5 +150,43 @@ describe('PanelClubeComponent', () => {
     expect(values).toEqual(['0', '0', '0', '0', '0']);
     const rows = [...host.querySelectorAll('bo-club-metrics tbody tr')].map((r) => r.querySelector('.name')!.textContent!.trim());
     expect(rows).toEqual(['LinQ Telecom']);
+  });
+
+  it('modo patrocinador: só parceiros ativos; escolher grava a config inteira', async () => {
+    const host = await mount();
+    const select = host.querySelector<HTMLSelectElement>('#cfg-sponsor')!;
+    const options = [...select.options].map((o) => o.textContent!.trim());
+    expect(options).toEqual(['Nenhum (card normal)', 'LinQ Telecom']);
+    select.value = 'linq';
+    select.dispatchEvent(new Event('change'));
+    await settle();
+    expect(saveConfig).toHaveBeenCalledWith(false, ['u1'], 'linq');
+  });
+
+  it('Resgates: prévia com erro por linha, importa só as válidas e mostra o resultado', async () => {
+    const host = await mount('resgates');
+    expect(host.querySelector('bo-club-redemptions tbody')!.textContent).toContain('NEXA-AB12');
+    expect(host.textContent).toContain('atribuídos ao código do atleta');
+
+    const partner = host.querySelector<HTMLSelectElement>('bo-club-redemptions select')!;
+    partner.value = 'linq';
+    partner.dispatchEvent(new Event('change'));
+    const area = host.querySelector<HTMLTextAreaElement>('bo-club-redemptions textarea')!;
+    area.value = 'codigo;pedido;data;desconto\nNEXA-AB12;P-9;10/11/2026;8,29\nNEXA-CD34;P-10;ontem;5';
+    area.dispatchEvent(new Event('input'));
+    await settle();
+    expect(host.querySelector('bo-club-redemptions .errors')!.textContent).toContain('Linha 3');
+
+    const importButton = [...host.querySelectorAll<HTMLButtonElement>('bo-club-redemptions button')].find((b) =>
+      b.textContent!.includes('Importar'),
+    )!;
+    expect(importButton.textContent).toContain('Importar 1 resgate');
+    importButton.click();
+    await settle();
+    expect(importSpy).toHaveBeenCalledTimes(1);
+    const [partnerId, rows] = importSpy.calls.mostRecent().args;
+    expect(partnerId).toBe('linq');
+    expect(rows.map((r: { externalId: string }) => r.externalId)).toEqual(['P-9']);
+    expect(host.querySelector('bo-club-redemptions .results')!.textContent).toContain('confirmados');
   });
 });

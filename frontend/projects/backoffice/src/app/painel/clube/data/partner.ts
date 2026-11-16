@@ -6,6 +6,32 @@
  * validação daqui espelha a rule: o que passa aqui passa lá, com a mensagem em português antes.
  */
 
+import {
+  COUPON_URL_PARAM_PATTERN,
+  LOCATIONS_MAX,
+  PLACEMENTS,
+  REQUIREMENT_LABEL_MAX,
+  TERMS_TAGS,
+  dateInputValue,
+  endOfLocalDay,
+  locationErrors,
+  locationForm,
+  locationsFromDoc,
+  locationsPayload,
+  requirementError,
+  requirementFromDoc,
+  requirementPayload,
+  startOfLocalDay,
+  subsetOf,
+  validityError,
+  type LocationForm,
+  type PartnerLocation,
+  type PartnerPlacement,
+  type PartnerRequirement,
+  type PartnerTermsTag,
+  type RequirementType,
+} from './partner-premium';
+
 export const PARTNER_CATEGORIES = ['food', 'sports', 'health', 'services', 'leisure', 'other'] as const;
 export type PartnerCategory = (typeof PARTNER_CATEGORIES)[number];
 
@@ -93,6 +119,16 @@ export interface Partner {
   audience: PartnerAudience;
   leadConsentText: string | null;
   leadSuccessMessage: string | null;
+  coverUrl: string | null;
+  startsAt: Date | null;
+  validUntil: Date | null;
+  featured: boolean;
+  placements: PartnerPlacement[];
+  couponUrlParam: string | null;
+  termsTags: PartnerTermsTag[];
+  locations: PartnerLocation[];
+  requirement: PartnerRequirement;
+  requirementLabel: string | null;
   createdAt: Date | null;
   createdByName: string;
   updatedAt: Date | null;
@@ -126,6 +162,24 @@ export interface PartnerPayload {
   audience: PartnerAudience;
   leadConsentText: string | null;
   leadSuccessMessage: string | null;
+  // v2 (premium)
+  coverUrl: string | null;
+  startsAt: Date | null;
+  validUntil: Date | null;
+  featured: boolean;
+  placements: PartnerPlacement[];
+  couponUrlParam: string | null;
+  termsTags: PartnerTermsTag[];
+  locations: PartnerLocation[];
+  requirement: PartnerRequirement;
+  requirementLabel: string | null;
+}
+
+/** `partnerPrivate/{partnerId}`: o cupom de parceiro com requisito (só admin lê) e os avisos já enviados. */
+export interface PartnerPrivate {
+  couponCode: string | null;
+  notifiedNewAt: Date | null;
+  notifiedEndingAt: Date | null;
 }
 
 /** O editor trabalha com texto cru: cidades separadas por vírgula, "como usar" uma por linha. */
@@ -151,6 +205,19 @@ export interface PartnerForm {
   priority: string;
   active: boolean;
   isMasterSponsor: boolean;
+  // v2 (premium). Datas como "AAAA-MM-DD" (input date, dia local).
+  coverUrl: string | null;
+  startsAt: string;
+  validUntil: string;
+  featured: boolean;
+  placements: PartnerPlacement[];
+  couponUrlParam: string;
+  termsTags: PartnerTermsTag[];
+  locations: LocationForm[];
+  requirementType: RequirementType;
+  tournamentIds: string[];
+  minLevel: string;
+  requirementLabel: string;
 }
 
 export type PartnerFormField = keyof PartnerForm;
@@ -182,6 +249,21 @@ function dateOf(value: unknown): Date | null {
   return value instanceof Date ? value : null;
 }
 
+function httpsOrNull(value: unknown): string | null {
+  const t = textOrNull(value);
+  return t && HTTPS_PATTERN.test(t) ? t : null;
+}
+
+/** Doc de `partnerPrivate/{id}`; ausente = sem cupom privado e nenhum aviso enviado. */
+export function partnerPrivateFromDoc(data: Record<string, unknown> | undefined): PartnerPrivate {
+  const d = data ?? {};
+  return {
+    couponCode: textOrNull(d['couponCode']),
+    notifiedNewAt: dateOf(d['notifiedNewAt']),
+    notifiedEndingAt: dateOf(d['notifiedEndingAt']),
+  };
+}
+
 /** Lê o doc sem quebrar com campo faltando ou de tipo errado. */
 export function partnerFromDoc(id: string, data: Record<string, unknown>): Partner {
   const color = text(data['brandColor']);
@@ -208,6 +290,16 @@ export function partnerFromDoc(id: string, data: Record<string, unknown>): Partn
     audience: pick(data['audience'], AUDIENCES, 'all'),
     leadConsentText: textOrNull(data['leadConsentText']),
     leadSuccessMessage: textOrNull(data['leadSuccessMessage']),
+    coverUrl: httpsOrNull(data['coverUrl']),
+    startsAt: dateOf(data['startsAt']),
+    validUntil: dateOf(data['validUntil']),
+    featured: data['featured'] === true,
+    placements: subsetOf(data['placements'], PLACEMENTS),
+    couponUrlParam: COUPON_URL_PARAM_PATTERN.test(text(data['couponUrlParam'])) ? text(data['couponUrlParam']) : null,
+    termsTags: subsetOf(data['termsTags'], TERMS_TAGS),
+    locations: locationsFromDoc(data['locations']),
+    requirement: requirementFromDoc(data['requirement']),
+    requirementLabel: textOrNull(data['requirementLabel']),
     createdAt: dateOf(data['createdAt']),
     createdByName: text(data['createdByName']),
     updatedAt: dateOf(data['updatedAt']),
@@ -245,10 +337,27 @@ export function emptyPartnerForm(): PartnerForm {
     priority: '0',
     active: false,
     isMasterSponsor: false,
+    coverUrl: null,
+    startsAt: '',
+    validUntil: '',
+    featured: false,
+    placements: [],
+    couponUrlParam: '',
+    termsTags: [],
+    locations: [],
+    requirementType: 'none',
+    tournamentIds: [],
+    minLevel: '',
+    requirementLabel: '',
   };
 }
 
-export function formFromPartner(p: Partner): PartnerForm {
+/**
+ * Form de um parceiro gravado. Com requisito, o cupom fixo mora em `partnerPrivate` (o público é
+ * `null`): passe o código privado em `privateCoupon`.
+ */
+export function formFromPartner(p: Partner, privateCoupon: string | null = null): PartnerForm {
+  const req = p.requirement;
   return {
     name: p.name,
     category: p.category,
@@ -264,13 +373,25 @@ export function formFromPartner(p: Partner): PartnerForm {
     ctaLabel: p.ctaLabel,
     link: p.link ?? '',
     couponMode: p.couponMode,
-    couponCode: p.couponCode ?? '',
+    couponCode: (req.type === 'none' ? p.couponCode : (privateCoupon ?? p.couponCode)) ?? '',
     leadConsentText: p.leadConsentText ?? '',
     leadSuccessMessage: p.leadSuccessMessage ?? '',
     audience: p.audience,
     priority: String(p.priority),
     active: p.active,
     isMasterSponsor: p.isMasterSponsor,
+    coverUrl: p.coverUrl,
+    startsAt: dateInputValue(p.startsAt),
+    validUntil: dateInputValue(p.validUntil),
+    featured: p.featured,
+    placements: [...p.placements],
+    couponUrlParam: p.couponUrlParam ?? '',
+    termsTags: [...p.termsTags],
+    locations: p.locations.map(locationForm),
+    requirementType: req.type,
+    tournamentIds: req.type === 'tournament' ? [...req.tournamentIds] : [],
+    minLevel: req.type === 'min_level' ? req.minLevel : '',
+    requirementLabel: p.requirementLabel ?? '',
   };
 }
 
@@ -370,16 +491,49 @@ export function validatePartnerForm(form: PartnerForm): PartnerFormErrors {
   }
 
   if (parsePriority(form.priority) === null) errors.priority = 'Use um número, como 50.';
+  return { ...errors, ...validatePremium(form) };
+}
+
+/** Os campos da v2: capa, validade, cupom na URL, lugares e requisito. */
+function validatePremium(form: PartnerForm): PartnerFormErrors {
+  const errors: PartnerFormErrors = {};
+  if (form.coverUrl !== null && (!HTTPS_PATTERN.test(form.coverUrl) || form.coverUrl.length > URL_MAX)) {
+    errors.coverUrl = 'Capa inválida. Envie o arquivo de novo.';
+  }
+  const validity = validityError(form.startsAt, form.validUntil);
+  if (validity) errors[validity.field] = validity.message;
+  const param = form.couponUrlParam.trim();
+  if (param !== '' && !COUPON_URL_PARAM_PATTERN.test(param)) {
+    errors.couponUrlParam = 'Só letras, números e _ (até 30), como coupon ou cupom.';
+  }
+  if (form.locations.length > LOCATIONS_MAX) errors.locations = `No máximo ${LOCATIONS_MAX} lugares.`;
+  else {
+    const at = locationErrors(form.locations).findIndex((e) => e !== null);
+    if (at >= 0) errors.locations = `Lugar ${at + 1}: ${locationErrors(form.locations)[at]}`;
+  }
+  const req = requirementError(form.requirementType, form.tournamentIds, form.minLevel);
+  if (req) {
+    if (form.requirementType === 'tournament') errors.tournamentIds = req;
+    else errors.minLevel = req;
+  }
+  const label = form.requirementLabel.trim();
+  if (form.requirementType !== 'none' && label.length > REQUIREMENT_LABEL_MAX) {
+    errors.requirementLabel = tooLong(label, REQUIREMENT_LABEL_MAX);
+  }
   return errors;
 }
 
 /**
  * O doc gravado, com os campos da allowlist (menos autoria). Campos de outro tipo de botão vão
  * `null`: o link só existe no tipo link; consentimento e mensagem, só no formulário; o código, só
- * no cupom fixo. Assuma o form validado.
+ * no cupom fixo. Com requisito (≠ Todos), o código público é `null`: ele vai para
+ * `partnerPrivate` (`privateCouponCode`). Assuma o form validado.
  */
 export function partnerPayload(form: PartnerForm): PartnerPayload {
   const isLink = form.ctaType === 'link';
+  const requirement = requirementPayload(form.requirementType, form.tournamentIds, form.minLevel);
+  const fixedCode = form.couponMode === 'fixed' ? form.couponCode.trim() : null;
+  const param = form.couponUrlParam.trim();
   return {
     name: form.name.trim(),
     logoUrl: form.logoUrl,
@@ -393,7 +547,7 @@ export function partnerPayload(form: PartnerForm): PartnerPayload {
     ctaLabel: form.ctaLabel.trim(),
     link: isLink ? form.link.trim() || null : null,
     couponMode: form.couponMode,
-    couponCode: form.couponMode === 'fixed' ? form.couponCode.trim() : null,
+    couponCode: requirement.type === 'none' ? fixedCode : null,
     brandColor: normalizeColor(form.brandColor),
     cities: parseCities(form.cities),
     isMasterSponsor: form.isMasterSponsor,
@@ -402,7 +556,27 @@ export function partnerPayload(form: PartnerForm): PartnerPayload {
     audience: form.audience,
     leadConsentText: isLink ? null : form.leadConsentText.trim() || null,
     leadSuccessMessage: isLink ? null : form.leadSuccessMessage.trim() || null,
+    coverUrl: form.coverUrl,
+    startsAt: form.startsAt.trim() === '' ? null : startOfLocalDay(form.startsAt),
+    validUntil: form.validUntil.trim() === '' ? null : endOfLocalDay(form.validUntil),
+    featured: form.featured,
+    placements: subsetOf(form.placements, PLACEMENTS),
+    // O cupom só vai na URL de um link com cupom.
+    couponUrlParam: isLink && form.couponMode !== 'none' && param !== '' ? param : null,
+    termsTags: subsetOf(form.termsTags, TERMS_TAGS),
+    locations: locationsPayload(form.locations),
+    requirement,
+    requirementLabel: requirement.type === 'none' ? null : form.requirementLabel.trim() || null,
   };
+}
+
+/**
+ * O que vai para `partnerPrivate/{id}.couponCode`: o código fixo de parceiro com requisito; `null`
+ * nos outros casos (sem requisito o código é público, e o privado é limpo).
+ */
+export function privateCouponCode(form: PartnerForm): string | null {
+  if (form.requirementType === 'none' || form.couponMode !== 'fixed') return null;
+  return form.couponCode.trim() || null;
 }
 
 /**
@@ -411,7 +585,10 @@ export function partnerPayload(form: PartnerForm): PartnerPayload {
  */
 export function payloadWith(partner: Partner, change: Partial<PartnerForm>): PartnerPayload | { error: string } {
   const form = { ...formFromPartner(partner), ...change };
-  const first = Object.values(validatePartnerForm(form))[0];
+  const { couponCode, ...others } = validatePartnerForm(form);
+  // Com requisito, o código fixo está em `partnerPrivate`, que este doc não toca.
+  const errors = partner.requirement.type === 'none' ? { couponCode, ...others } : others;
+  const first = Object.values(errors).find((e) => !!e);
   return first ? { error: first } : partnerPayload(form);
 }
 

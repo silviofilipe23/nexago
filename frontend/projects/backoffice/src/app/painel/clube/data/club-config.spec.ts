@@ -16,7 +16,13 @@ describe('clube: mensagens de erro', () => {
 
 describe('clube: config (appConfig/benefitsClub)', () => {
   it('sem doc = desligado e ninguém testando; lista ruim é limpa', () => {
-    expect(clubConfigFromDoc(undefined)).toEqual({ enabled: false, testerUids: [], updatedAt: null, updatedByName: '' });
+    expect(clubConfigFromDoc(undefined)).toEqual({
+      enabled: false,
+      testerUids: [],
+      hubSponsorPartnerId: null,
+      updatedAt: null,
+      updatedByName: '',
+    });
     const c = clubConfigFromDoc({ enabled: true, testerUids: ['a', 'a', 3, 'b c', 'b'] });
     expect(c.enabled).toBeTrue();
     expect(c.testerUids).toEqual(['a', 'b']);
@@ -25,6 +31,13 @@ describe('clube: config (appConfig/benefitsClub)', () => {
   it('payload tem só enabled e testerUids (a autoria o repositório põe)', () => {
     expect(configPayload(true, ['u1', 'u2'])).toEqual({ enabled: true, testerUids: ['u1', 'u2'] });
     expect(configPayload(false, Array.from({ length: 60 }, (_, i) => `u${i}`)).testerUids.length).toBe(50);
+  });
+
+  it('patrocinador do card do Hub: grava o id; "Nenhum" tira o campo (lido como null)', () => {
+    expect(configPayload(true, [], 'linq')).toEqual({ enabled: true, testerUids: [], hubSponsorPartnerId: 'linq' });
+    expect(Object.keys(configPayload(true, [], null))).toEqual(['enabled', 'testerUids']);
+    expect(clubConfigFromDoc({ hubSponsorPartnerId: 'linq' }).hubSponsorPartnerId).toBe('linq');
+    expect(clubConfigFromDoc({ hubSponsorPartnerId: 'Com Espaço' }).hubSponsorPartnerId).toBeNull();
   });
 
   it('adicionar: apara, recusa vazio, inválido, repetido e o 51º', () => {
@@ -45,5 +58,18 @@ describe('clube: config (appConfig/benefitsClub)', () => {
     expect(shortName('Silvio Dionizio Filho')).toBe('Silvio D.');
     expect(shortName('Rhuan')).toBe('Rhuan');
     expect(shortName('ana souza@x.com')).toBe('ana souza@x.com');
+  });
+});
+
+describe('clube: erros das callables', () => {
+  it('frase do servidor passa; código cru vira português', async () => {
+    const { clubCallableErrorMessage } = await import('./club-errors');
+    expect(clubCallableErrorMessage({ code: 'functions/not-found', message: 'NOT FOUND' })).toContain('não foi publicada');
+    expect(clubCallableErrorMessage({ code: 'functions/failed-precondition', message: 'Este aviso já foi enviado.' })).toBe(
+      'Este aviso já foi enviado.',
+    );
+    expect(clubCallableErrorMessage({ code: 'functions/permission-denied', message: 'denied' })).toContain('administrador');
+    expect(clubCallableErrorMessage({ code: 'functions/internal', message: 'internal' })).toBe('Não foi possível concluir. Tente de novo.');
+    expect(clubCallableErrorMessage({ code: 'functions/unauthenticated' })).toContain('sessão');
   });
 });

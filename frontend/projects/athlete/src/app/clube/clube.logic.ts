@@ -13,6 +13,16 @@ export type PartnerCtaType = 'link' | 'lead_form';
 export type PartnerCouponMode = 'none' | 'fixed' | 'athlete';
 export type PartnerAudience = 'all' | 'testers';
 
+/**
+ * Quem pode usar o benefício (spec v2, item 8). O portal não confere elegibilidade: qualquer
+ * requisito diferente de `none` deixa o parceiro bloqueado aqui e o benefício só sai no app.
+ */
+export type PartnerRequirement =
+  | { type: 'none' }
+  | { type: 'squad' }
+  | { type: 'tournament'; tournamentIds: readonly string[] }
+  | { type: 'min_level'; minLevel: string | null };
+
 export const CATEGORY_LABELS: Readonly<Record<PartnerCategory, string>> = {
   food: 'Alimentação',
   sports: 'Artigos esportivos',
@@ -45,6 +55,15 @@ export interface Partner {
   audience: PartnerAudience;
   leadConsentText: string | null;
   leadSuccessMessage: string | null;
+  /** Foto de capa 16:9 (só https). */
+  coverUrl: string | null;
+  /** Início da janela em ms; `null` = já vale. */
+  startsAt: number | null;
+  /** Fim da janela em ms; `null` = sem prazo. */
+  validUntil: number | null;
+  requirement: PartnerRequirement;
+  /** Texto do bloqueio, ≤ 80 caracteres. */
+  requirementLabel: string | null;
 }
 
 export interface BenefitsClubConfig {
@@ -60,6 +79,13 @@ export const FALLBACK_BRAND_COLOR = '#FF6A1A';
 const MAX_HOW_TO_USE_STEPS = 3;
 const BRAND_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,100}$/;
+const REQUIREMENT_LABEL_MAX = 80;
+const MAX_REQUIREMENT_TOURNAMENTS = 10;
+
+/** Rótulo do cadeado quando o admin não escreveu `requirementLabel`. */
+export const DEFAULT_REQUIREMENT_LABEL = 'Benefício exclusivo';
+/** O que a tela do parceiro bloqueado diz no lugar do cupom e do botão. */
+export const LOCKED_BENEFIT_NOTICE = 'Disponível no app da NexaGO';
 
 // ── leitura tolerante ─────────────────────────────────────────────────────────
 
@@ -82,6 +108,59 @@ function strList(value: unknown): string[] {
 function httpsOrNull(value: unknown): string | null {
   const raw = str(value);
   return /^https:\/\/.+/i.test(raw) ? raw : null;
+}
+
+/**
+ * Timestamp do Firestore (`toMillis`/`toDate`), `{seconds}` cru, `Date` ou ms → ms. Qualquer outra
+ * coisa (ou data inválida) = `null`, que é "sem limite" na janela.
+ */
+export function toMillisOrNull(value: unknown): number | null {
+  if (value == null) return null;
+  let ms: unknown = null;
+  if (typeof value === 'number') ms = value;
+  else if (value instanceof Date) ms = value.getTime();
+  else if (typeof value === 'object') {
+    const v = value as { toMillis?: unknown; toDate?: unknown; seconds?: unknown; nanoseconds?: unknown };
+    try {
+      if (typeof v.toMillis === 'function') ms = (v.toMillis as () => unknown)();
+      else if (typeof v.toDate === 'function') {
+        const date = (v.toDate as () => unknown)();
+        ms = date instanceof Date ? date.getTime() : null;
+      } else if (typeof v.seconds === 'number') {
+        const nanos = typeof v.nanoseconds === 'number' ? v.nanoseconds : 0;
+        ms = v.seconds * 1000 + Math.floor(nanos / 1e6);
+      }
+    } catch {
+      ms = null;
+    }
+  }
+  return typeof ms === 'number' && Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * `requirement` do doc. Ausente, sem objeto ou com tipo desconhecido = `none`. Tipo conhecido com
+ * detalhe estranho continua bloqueado (falha fechada: o cupom de quem tem requisito nunca é público).
+ */
+export function requirementFromDoc(value: unknown): PartnerRequirement {
+  if (value == null || typeof value !== 'object') return { type: 'none' };
+  const r = value as Record<string, unknown>;
+  switch (r['type']) {
+    case 'squad':
+      return { type: 'squad' };
+    case 'tournament':
+      return {
+        type: 'tournament',
+        tournamentIds: strList(r['tournamentIds']).filter((id) => ID_PATTERN.test(id)).slice(0, MAX_REQUIREMENT_TOURNAMENTS),
+      };
+    case 'min_level':
+      return { type: 'min_level', minLevel: strOrNull(r['minLevel']) };
+    default:
+      return { type: 'none' };
+  }
+}
+
+function requirementLabelOrNull(value: unknown): string | null {
+  return strOrNull(value)?.slice(0, REQUIREMENT_LABEL_MAX).trim() || null;
 }
 
 function defaultCtaLabel(ctaType: PartnerCtaType): string {
@@ -123,7 +202,29 @@ export function partnerFromDoc(id: string, data: unknown): Partner | null {
     audience: d['audience'] === 'testers' ? 'testers' : 'all',
     leadConsentText: strOrNull(d['leadConsentText']),
     leadSuccessMessage: strOrNull(d['leadSuccessMessage']),
+    coverUrl: httpsOrNull(d['coverUrl']),
+    startsAt: toMillisOrNull(d['startsAt']),
+    validUntil: toMillisOrNull(d['validUntil']),
+    requirement: requirementFromDoc(d['requirement']),
+    requirementLabel: requirementLabelOrNull(d['requirementLabel']),
   };
+}
+
+/** Parceiro com requisito: aparece com cadeado e sem cupom/botão no portal. */
+export function isLocked(partner: Pick<Partner, 'requirement'>): boolean {
+  return partner.requirement.type !== 'none';
+}
+
+/** Texto do cadeado: o do admin ou o padrão. */
+export function lockLabel(partner: Pick<Partner, 'requirementLabel'>): string {
+  return partner.requirementLabel || DEFAULT_REQUIREMENT_LABEL;
+}
+
+/** Dentro da janela `[startsAt, validUntil]`? Sem data = sem limite daquele lado. */
+export function withinWindow(partner: Pick<Partner, 'startsAt' | 'validUntil'>, now: number): boolean {
+  if (partner.startsAt !== null && now < partner.startsAt) return false;
+  if (partner.validUntil !== null && now > partner.validUntil) return false;
+  return true;
 }
 
 /** Doc de `appConfig/benefitsClub` → config. Ausente ou estranho = clube desligado, ninguém testa. */
@@ -175,16 +276,20 @@ function byPriorityThenName(a: Partner, b: Partner): number {
 }
 
 /**
- * A vitrine desta pessoa: ativo, público (ou de teste para quem testa) e da cidade dela (sem
- * cidades = todas). Maior prioridade primeiro; empate pelo nome.
+ * A vitrine desta pessoa: ativo, dentro da janela de validade em `now` (ms), público (ou de teste
+ * para quem testa) e da cidade dela (sem cidades = todas). Maior prioridade primeiro; empate pelo
+ * nome. Parceiro com requisito continua na vitrine (bloqueado).
  */
 export function visiblePartners(
   partners: readonly Partner[],
   tester: boolean,
   athleteCity: string | null | undefined,
+  now: number = Date.now(),
 ): Partner[] {
   return partners
-    .filter((p) => p.active && (p.audience === 'all' || tester) && servesCity(p, athleteCity))
+    .filter(
+      (p) => p.active && withinWindow(p, now) && (p.audience === 'all' || tester) && servesCity(p, athleteCity),
+    )
     .sort(byPriorityThenName);
 }
 
@@ -210,8 +315,12 @@ export function athleteCode(uid: string): string {
   return `NEXA-${uid.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase()}`;
 }
 
-/** O cupom que a tela mostra: fixo do parceiro, o código do atleta, ou nenhum. */
-export function couponFor(partner: Pick<Partner, 'couponMode' | 'couponCode'>, uid: string): string | null {
+/** O cupom que a tela mostra: fixo do parceiro, o código do atleta, ou nenhum (sempre nenhum se bloqueado). */
+export function couponFor(
+  partner: Pick<Partner, 'couponMode' | 'couponCode'> & Partial<Pick<Partner, 'requirement'>>,
+  uid: string,
+): string | null {
+  if (partner.requirement && partner.requirement.type !== 'none') return null;
   switch (partner.couponMode) {
     case 'fixed':
       return partner.couponCode;

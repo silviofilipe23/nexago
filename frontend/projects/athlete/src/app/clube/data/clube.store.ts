@@ -33,7 +33,7 @@ export class ClubStore {
   private readonly auth = inject(AuthService);
   private readonly access = inject(ClubAccessService);
 
-  /** A vitrine desta pessoa (público, cidade e ordem já aplicados). */
+  /** A vitrine desta pessoa (janela de validade, público, cidade e ordem já aplicados). */
   readonly partners = signal<Partner[]>([]);
   readonly profile = signal<ClubAthleteProfile | null>(null);
   /** Flag desligada e a pessoa não testa: a tela mostra "em breve" em vez da vitrine. */
@@ -92,7 +92,7 @@ export class ClubStore {
       if (!access || access.uid !== uid) throw new Error('Sem acesso ao clube.');
       this.closed.set(!clubVisible(access.config, access.tester));
       this.profile.set(profile);
-      this.partners.set(visiblePartners(partners, access.tester, profile?.city));
+      this.partners.set(visiblePartners(partners, access.tester, profile?.city, Date.now()));
       this.loadedAt = Date.now();
     } catch {
       if (ticket === this.ticket) this.error.set(LOAD_ERROR);

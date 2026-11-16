@@ -44,8 +44,13 @@
             <span class="cl-sponsor-benefit">{{ sponsor.benefitTitle }}</span>
           </span>
           <span class="cl-sponsor-cta">
-            {{ sponsor.ctaLabel }}
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            @if (isLocked(sponsor)) {
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+              {{ lockLabel(sponsor) }}
+            } @else {
+              {{ sponsor.ctaLabel }}
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            }
           </span>
         </a>
       }
@@ -64,7 +69,12 @@
       <ul class="cl-grid" role="list">
         @for (partner of shown(); track partner.id) {
           <li>
-            <a class="cl-card" [routerLink]="['/clube', partner.id]" [queryParams]="linkQuery">
+            <a class="cl-card" [class.cl-card--cover]="!!partner.coverUrl" [routerLink]="['/clube', partner.id]" [queryParams]="linkQuery">
+              @if (partner.coverUrl; as cover) {
+                <span class="cl-card-cover">
+                  <img [src]="cover" alt="" width="640" height="360" loading="lazy" decoding="async" />
+                </span>
+              }
               <span class="cl-card-head">
                 <app-clube-partner-logo [partner]="partner" />
                 <span class="cl-card-id">
@@ -73,7 +83,12 @@
                 </span>
               </span>
               <span class="cl-card-benefit">{{ partner.benefitTitle }}</span>
-              @if (partner.benefitHighlight) {
+              @if (isLocked(partner)) {
+                <span class="cl-card-lock">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+                  {{ lockLabel(partner) }}
+                </span>
+              } @else if (partner.benefitHighlight) {
                 <span class="cl-card-off">{{ partner.benefitHighlight }}</span>
               }
             </a>

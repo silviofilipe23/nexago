@@ -19,6 +19,26 @@
   --clube-on-brand: var(--nx-text-on-orange);
 }
 
+// Capa 16:9 no topo do hero, sangrando até as bordas; sem capa o hero fica só na cor da marca.
+.cp-cover {
+  margin: -20px -32px 0;
+  aspect-ratio: 16 / 9;
+  max-height: 320px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--clube-brand) 70%, #000);
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  @media (max-width: 640px) {
+    margin: -16px -16px 0;
+  }
+}
+
 .cp-back {
   align-self: flex-start;
   display: inline-flex;
@@ -305,6 +325,42 @@
   font-size: 12px;
   text-align: center;
   color: var(--nx-text-dim);
+}
+
+// ── Benefício com requisito: sem cupom nem botão, só no app ──
+.cp-lock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cp-lock-icon {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  color: var(--nx-text-mute);
+}
+
+.cp-lock-title {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.3;
+  color: var(--nx-text);
+  overflow-wrap: anywhere;
+}
+
+.cp-lock-notice {
+  margin: 12px 0 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--nx-text-mute);
 }
 
 // Só para leitor de tela.

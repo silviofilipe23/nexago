@@ -1,7 +1,7 @@
 /**
- * `appConfig/benefitsClub`: liga o card do clube no Hub para todos (`enabled`) e diz quem testa
- * (`testerUids`). A rule aceita só `{enabled, testerUids, updatedAt, updatedBy, updatedByName}`, com
- * no máximo 50 uids. Funções puras; o repositório grava.
+ * `appConfig/benefitsClub`: liga o card do clube no Hub para todos (`enabled`), diz quem testa
+ * (`testerUids`, até 50) e, na v2, qual parceiro "oferece" o card do Hub (`hubSponsorPartnerId`).
+ * A rule aceita só esses campos mais a autoria. Funções puras; o repositório grava.
  */
 
 export const TESTERS_MAX = 50;
@@ -11,6 +11,8 @@ const UID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 export interface ClubConfig {
   enabled: boolean;
   testerUids: string[];
+  /** Card do Hub em modo patrocinador: "Oferecido por <parceiro>". `null` = card normal. */
+  hubSponsorPartnerId: string | null;
   updatedAt: Date | null;
   updatedByName: string;
 }
@@ -18,7 +20,10 @@ export interface ClubConfig {
 export interface ClubConfigPayload {
   enabled: boolean;
   testerUids: string[];
+  hubSponsorPartnerId?: string;
 }
+
+const PARTNER_ID_PATTERN = /^[a-z0-9-]{1,60}$/;
 
 function dateOf(value: unknown): Date | null {
   if (value && typeof (value as { toDate?: unknown }).toDate === 'function') {
@@ -33,9 +38,11 @@ export function clubConfigFromDoc(data: Record<string, unknown> | undefined): Cl
   const list: unknown[] = Array.isArray(raw['testerUids']) ? raw['testerUids'] : [];
   const uids = list.filter((u): u is string => typeof u === 'string' && UID_PATTERN.test(u));
   const by = raw['updatedByName'];
+  const sponsor = raw['hubSponsorPartnerId'];
   return {
     enabled: raw['enabled'] === true,
     testerUids: [...new Set(uids)].slice(0, TESTERS_MAX),
+    hubSponsorPartnerId: typeof sponsor === 'string' && PARTNER_ID_PATTERN.test(sponsor) ? sponsor : null,
     updatedAt: dateOf(raw['updatedAt']),
     updatedByName: typeof by === 'string' ? by : '',
   };
@@ -55,8 +62,17 @@ export function removeTester(list: readonly string[], uid: string): string[] {
   return list.filter((u) => u !== uid);
 }
 
-export function configPayload(enabled: boolean, testerUids: readonly string[]): ClubConfigPayload {
-  return { enabled, testerUids: [...testerUids].slice(0, TESTERS_MAX) };
+/**
+ * O doc inteiro (sem merge). Sem patrocinador o campo fica de fora, que vale `null` para quem lê:
+ * assim a liberação e a lista de quem testa continuam gravando mesmo antes da rule da v2.
+ */
+export function configPayload(
+  enabled: boolean,
+  testerUids: readonly string[],
+  hubSponsorPartnerId: string | null = null,
+): ClubConfigPayload {
+  const base = { enabled, testerUids: [...testerUids].slice(0, TESTERS_MAX) };
+  return hubSponsorPartnerId ? { ...base, hubSponsorPartnerId } : base;
 }
 
 /** Nome de exibição do doc `users/{uid}`: nome completo, apelido de exibição ou e-mail. */

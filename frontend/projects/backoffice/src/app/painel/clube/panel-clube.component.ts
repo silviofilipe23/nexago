@@ -12,12 +12,14 @@ import type { PartnerLead } from './data/partner-lead';
 import { ClubConfigCardComponent } from './ui/club-config-card.component';
 import { ClubLeadsComponent } from './ui/club-leads.component';
 import { ClubMetricsComponent } from './ui/club-metrics.component';
+import { ClubRedemptionsComponent } from './ui/club-redemptions.component';
 import { PartnersTableComponent, type PartnerActiveChange } from './ui/partners-table.component';
 
 export const CLUB_TABS = [
   { id: 'parceiros', label: 'Parceiros' },
   { id: 'metricas', label: 'Métricas' },
   { id: 'leads', label: 'Leads' },
+  { id: 'resgates', label: 'Resgates' },
 ] as const;
 export type ClubTab = (typeof CLUB_TABS)[number]['id'];
 
@@ -29,8 +31,8 @@ export function clubTabFrom(value: string | null): ClubTab {
 type LoadState = 'loading' | 'ok' | 'error';
 
 /**
- * App do atleta › Clube de Vantagens Nexa: parceiros (com a liberação do card no Hub), métricas
- * do funil e leads. Parceiro novo aparece no app na hora, sem atualizar o app.
+ * App do atleta › Clube de Vantagens Nexa: parceiros (com a liberação do card no Hub e o modo
+ * patrocinador), métricas do funil, leads e resgates confirmados pelos parceiros. Parceiro novo aparece no app na hora, sem atualizar o app.
  */
 @Component({
   selector: 'bo-panel-clube',
@@ -44,6 +46,7 @@ type LoadState = 'loading' | 'ok' | 'error';
     PartnersTableComponent,
     ClubMetricsComponent,
     ClubLeadsComponent,
+    ClubRedemptionsComponent,
   ],
   template: `
     <bo-panel-shell>
@@ -75,7 +78,7 @@ type LoadState = 'loading' | 'ok' | 'error';
 
         @switch (tab()) {
           @case ('parceiros') {
-            <bo-club-config-card />
+            <bo-club-config-card [partners]="partners()" />
 
             @if (actionError(); as text) {
               <div class="bo-alert" role="alert">
@@ -120,6 +123,9 @@ type LoadState = 'loading' | 'ok' | 'error';
               [error]="leadsState() === 'error' ? leadsError() : null"
               (retry)="loadLeads()"
             />
+          }
+          @case ('resgates') {
+            <bo-club-redemptions [partners]="partners()" />
           }
         }
       </div>

@@ -199,6 +199,25 @@
   }
 }
 
+// Capa 16:9 colada no topo do card, sangrando até as bordas.
+.cl-card--cover {
+  overflow: hidden;
+}
+
+.cl-card-cover {
+  display: block;
+  margin: -18px -18px 0;
+  aspect-ratio: 16 / 9;
+  background: var(--nx-surface-1);
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
 .cl-card-head {
   display: flex;
   align-items: center;
@@ -246,6 +265,27 @@
   font-family: var(--nx-font-mono);
   font-size: 11px;
   font-weight: 700;
+}
+
+// Benefício com requisito: o cupom e o botão só existem no app.
+.cl-card-lock {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  padding: 5px 8px;
+  border-radius: var(--nx-r-2);
+  border: 1px solid var(--nx-line-strong);
+  background: var(--nx-surface-1);
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+
+  svg {
+    flex: none;
+  }
 }
 
 .cl-note {

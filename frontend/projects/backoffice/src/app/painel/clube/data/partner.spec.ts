@@ -45,6 +45,17 @@ const RULE_CONTENT_FIELDS = [
   'audience',
   'leadConsentText',
   'leadSuccessMessage',
+  // v2 (premium)
+  'coverUrl',
+  'startsAt',
+  'validUntil',
+  'featured',
+  'placements',
+  'couponUrlParam',
+  'termsTags',
+  'locations',
+  'requirement',
+  'requirementLabel',
 ].sort();
 
 function fastForm(over: Partial<PartnerForm> = {}): PartnerForm {
@@ -100,6 +111,16 @@ describe('clube: parceiro', () => {
       audience: 'all',
       leadConsentText: null,
       leadSuccessMessage: null,
+      coverUrl: null,
+      startsAt: null,
+      validUntil: null,
+      featured: false,
+      placements: [],
+      couponUrlParam: null,
+      termsTags: [],
+      locations: [],
+      requirement: { type: 'none' },
+      requirementLabel: null,
     });
   });
 

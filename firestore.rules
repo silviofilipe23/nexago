@@ -1180,6 +1180,66 @@ service cloud.firestore {
         request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if isAdmin() || isSuperAdmin();
     }
+    // Clube de Vantagens Nexa (docs/product/vantagens-nexago-spec.md). A vitrine `partners` é
+    // lida por quem está logado e editada só pela equipe no backoffice, com allowlist de campos:
+    // parceiro novo entra sem atualizar o app. O filtro de público (`audience: testers`) é do
+    // cliente: o doc de um parceiro em teste não é segredo, só não aparece na tela.
+    function partnerValid(d) {
+      return d.keys().hasOnly(['name', 'logoUrl', 'category', 'benefitHighlight', 'benefitTitle',
+          'description', 'howToUse', 'terms', 'ctaType', 'ctaLabel', 'link', 'couponMode',
+          'couponCode', 'brandColor', 'cities', 'isMasterSponsor', 'priority', 'active', 'audience',
+          'leadConsentText', 'leadSuccessMessage', 'createdAt', 'createdByName', 'updatedAt',
+          'updatedBy', 'updatedByName']) &&
+        d.name is string && d.name.size() > 0 && d.name.size() <= 80 &&
+        (d.get('logoUrl', null) == null ||
+          (d.logoUrl is string && d.logoUrl.matches('^https://.+') && d.logoUrl.size() <= 2000)) &&
+        d.category in ['food', 'sports', 'health', 'services', 'leisure', 'other'] &&
+        d.benefitHighlight is string && d.benefitHighlight.size() <= 24 &&
+        d.benefitTitle is string && d.benefitTitle.size() > 0 && d.benefitTitle.size() <= 80 &&
+        d.get('description', '') is string && d.get('description', '').size() <= 600 &&
+        d.get('howToUse', []) is list && d.get('howToUse', []).size() <= 3 &&
+        d.get('terms', '') is string && d.get('terms', '').size() <= 2000 &&
+        d.ctaType in ['link', 'lead_form'] &&
+        d.ctaLabel is string && d.ctaLabel.size() > 0 && d.ctaLabel.size() <= 32 &&
+        (d.get('link', null) == null ||
+          (d.link is string && d.link.matches('^https://.+') && d.link.size() <= 2000)) &&
+        d.couponMode in ['none', 'fixed', 'athlete'] &&
+        (d.get('couponCode', null) == null || (d.couponCode is string && d.couponCode.size() <= 24)) &&
+        d.brandColor is string && d.brandColor.matches('^#[0-9A-Fa-f]{6}$') &&
+        d.cities is list && d.cities.size() <= 50 &&
+        d.isMasterSponsor is bool &&
+        d.priority is number &&
+        d.active is bool &&
+        d.audience in ['all', 'testers'] &&
+        (d.get('leadConsentText', null) == null ||
+          (d.leadConsentText is string && d.leadConsentText.size() <= 600)) &&
+        (d.get('leadSuccessMessage', null) == null ||
+          (d.leadSuccessMessage is string && d.leadSuccessMessage.size() <= 160)) &&
+        d.updatedAt == request.time &&
+        d.updatedBy == request.auth.uid &&
+        d.updatedByName is string && d.updatedByName.size() <= 120;
+    }
+    match /partners/{partnerId} {
+      allow read: if request.auth != null;
+      allow create: if (isAdmin() || isSuperAdmin()) &&
+        partnerValid(request.resource.data) &&
+        request.resource.data.createdAt == request.time;
+      allow update: if (isAdmin() || isSuperAdmin()) &&
+        partnerValid(request.resource.data) &&
+        request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null);
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+    // Funil e leads do clube: só o servidor grava (callables `trackBenefitEvent` e
+    // `submitPartnerLead`), porque são os números da reunião com o parceiro e os dados pessoais
+    // que o atleta autorizou compartilhar. O app e o portal não leem; a equipe lê no backoffice.
+    match /benefitEvents/{eventId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+    match /partnerLeads/{leadId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
     // Equipe da arena. Escrita SEMPRE via Cloud Function: criar vínculo exige
     // contar assentos e conferir plano, coisas que rules não fazem.
     match /arenas/{arenaId}/staff/{staffUserId} {
@@ -3561,6 +3621,19 @@ service cloud.firestore {
     match /appConfig/{docId} {
       allow read: if request.auth != null;
       allow write: if false;
+    }
+
+    // Clube de Vantagens Nexa: liga o card do Hub para todos e diz quem testa. A leitura vem do
+    // bloco acima (logado); a escrita é da equipe, pelo backoffice.
+    match /appConfig/benefitsClub {
+      allow write: if (isAdmin() || isSuperAdmin()) &&
+        request.resource.data.keys().hasOnly(['enabled', 'testerUids', 'updatedAt', 'updatedBy',
+          'updatedByName']) &&
+        request.resource.data.enabled is bool &&
+        request.resource.data.testerUids is list &&
+        request.resource.data.testerUids.size() <= 50 &&
+        request.resource.data.updatedAt == request.time &&
+        request.resource.data.updatedBy == request.auth.uid;
     }
 
     // Lista de espera do nexaGO+ (plano do atleta, spec 2026-11-03 Fase 0): o card da

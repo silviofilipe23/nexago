@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, computed, inject, signal, viewChild } from '@angular/core';
 import { AvatarComponent } from '../ui/avatar.component';
+import { revealDetailAfterRender } from '../ui/reveal-detail';
 import {
   hoursLabel,
   CONVERT_MIN_WEEKS,
@@ -86,7 +87,7 @@ import { CrmStore } from './crm.store';
           </div>
         </section>
 
-        <section class="preview" aria-labelledby="wa-t">
+        <section #detail class="preview" aria-labelledby="wa-t">
           @if (selected(); as c) {
             <div class="wa">
               <div class="wa-h">
@@ -246,9 +247,14 @@ export class CrmConversionComponent {
     return Math.round(last3.reduce((s, m) => s + m.avulsoReais, 0) / 3);
   }
 
+  private readonly injector = inject(Injector);
+  private readonly detail = viewChild<ElementRef<HTMLElement>>('detail');
+
   protected pick(c: CrmCustomer): void {
     this.selectedKey.set(c.key);
     this.copied.set(false);
+    // Celular: a prévia do WhatsApp fica embaixo da tabela — rola até ela.
+    revealDetailAfterRender(this.injector, () => this.detail());
   }
 
   protected send(c: CrmCustomer): void {

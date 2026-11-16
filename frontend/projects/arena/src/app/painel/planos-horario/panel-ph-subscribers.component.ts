@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, computed, inject, signal, viewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { shortDate } from '../aulas/class.model';
 import { ArenaAccessService } from '../data/arena-access.service';
@@ -7,6 +7,7 @@ import { AvatarComponent } from '../ui/avatar.component';
 import { IconComponent } from '../ui/icon.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PillComponent } from '../ui/pill.component';
+import { revealDetailAfterRender } from '../ui/reveal-detail';
 import { PhAddSubscriberModalComponent } from './ph-add-subscriber-modal.component';
 import { PhSubscriberDetailComponent } from './ph-subscriber-detail.component';
 import { PhPageComponent } from './planos-horario-ui';
@@ -67,7 +68,7 @@ const FILTERS: ReadonlyArray<{ id: SubscriberFilter; label: string; param: strin
                   <span>Titular</span><span>Plano</span><span>Horário fixo</span><span>Ciclo</span><span>Cobrança</span><span>Repos.</span><span>Status</span>
                 </div>
                 @for (r of filtered(); track r.sub.id) {
-                  <button type="button" class="tr" [class.sel]="selectedId() === r.sub.id" (click)="selectedId.set(r.sub.id)">
+                  <button type="button" class="tr" [class.sel]="selectedId() === r.sub.id" (click)="selectSub(r.sub.id)">
                     <span class="who">
                       <ar-avatar [name]="r.sub.holderName" [photoUrl]="r.sub.holderPhotoUrl" [size]="28" />
                       <span class="who-text"><b>{{ r.sub.holderName }}</b><small>{{ players(r.sub.members.length) }}</small></span>
@@ -86,7 +87,7 @@ const FILTERS: ReadonlyArray<{ id: SubscriberFilter; label: string; param: strin
             </div>
           </ar-panel-card>
 
-          <div class="side">
+          <div #detail class="side">
             @if (selected(); as r) {
               <ar-ph-subscriber-detail [sub]="r.sub" [state]="r.state" [plan]="store.planById().get(r.sub.planId) ?? null" [readOnly]="readOnly()" />
             } @else {
@@ -154,6 +155,14 @@ export class PanelPhSubscribersComponent {
     FILTERS.find((f) => f.param && f.param === this.route.snapshot.queryParamMap.get('filtro'))?.id ?? 'all',
   );
   protected readonly selectedId = signal<string | null>(null);
+  private readonly injector = inject(Injector);
+  private readonly detail = viewChild<ElementRef<HTMLElement>>('detail');
+
+  /** Celular: o detalhe fica embaixo da lista — rola até ele ao tocar num assinante. */
+  protected selectSub(id: string): void {
+    this.selectedId.set(id);
+    revealDetailAfterRender(this.injector, () => this.detail());
+  }
   protected readonly adding = signal(false);
 
   protected readonly rows = computed<Row[]>(() => {

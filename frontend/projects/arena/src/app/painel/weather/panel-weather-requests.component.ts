@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { formatBRL, displayBookingCode } from '../bookings/arena-booking.model';
 import { ArenaAccessService } from '../data/arena-access.service';
@@ -12,6 +12,7 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent } from '../ui/pill.component';
+import { revealDetailAfterRender } from '../ui/reveal-detail';
 import { decideArenaWeatherRequest, watchWeatherRequests } from './weather-repository';
 import { WxIconComponent } from './weather-ui';
 import {
@@ -149,7 +150,7 @@ import {
               }
             </ar-panel-card>
 
-            <div class="col">
+            <div #detail class="col">
               @if (selected(); as s) {
                 <ar-panel-card pad="sm">
                   <div class="detail-head">
@@ -650,9 +651,14 @@ export class PanelWeatherRequestsComponent {
     this.decideError.set(null);
   }
 
+  private readonly injector = inject(Injector);
+  private readonly detail = viewChild<ElementRef<HTMLElement>>('detail');
+
   protected select(id: string): void {
     this.selectedId.set(id);
     this.decideError.set(null);
+    // Celular: o detalhe fica embaixo da lista — rola até ele.
+    revealDetailAfterRender(this.injector, () => this.detail());
   }
 
   protected async approve(r: WeatherRequest): Promise<void> {

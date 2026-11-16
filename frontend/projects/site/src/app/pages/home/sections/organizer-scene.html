@@ -1,0 +1,140 @@
+<section class="nx-night relative bg-black" aria-labelledby="og-title">
+  <div #stage class="relative isolate flex h-[100svh] min-h-[620px] items-start overflow-hidden pt-24 lg:items-center lg:pt-0">
+    <div class="absolute inset-0 -z-10" aria-hidden="true">
+      <div #backdrop class="absolute inset-0 will-change-transform">
+        <img
+          ngSrc="mesa"
+          ngSrcset="960w, 1920w"
+          [loaderParams]="{ fallback: 1920 }"
+          sizes="100vw"
+          fill
+          alt=""
+          class="object-cover object-[22%_50%]"
+        />
+      </div>
+      <!-- A mesa do organizador fica à esquerda, atrás do celular; o véu pesa do lado do texto. -->
+      <div class="absolute inset-0 bg-black/45 lg:bg-black/15"></div>
+      <div class="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.5)_0%,rgba(0,0,0,0.86)_55%,#000_100%)] lg:bg-[linear-gradient(to_right,rgba(0,0,0,0.1)_0%,rgba(0,0,0,0.35)_34%,rgba(0,0,0,0.9)_60%,rgba(0,0,0,0.93)_100%)]"></div>
+      <div class="absolute inset-0 bg-[linear-gradient(to_bottom,#000_0%,transparent_22%,transparent_74%,#000_100%)]"></div>
+      <div
+        class="flash absolute inset-0"
+        [nxReplay]="beat()"
+        [class.hidden]="step() === 'signup'"
+        [class.flash-win]="finished()"
+      ></div>
+    </div>
+
+    <div class="mx-auto grid w-full max-w-6xl grid-cols-1 gap-8 px-5 sm:px-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-center lg:gap-14">
+      <div class="lg:order-2">
+        <h2 id="og-title" class="nx-title text-xl text-sand sm:text-2xl">Para quem organiza: o torneio inteiro num painel só.</h2>
+
+        <div class="board mt-5">
+          <div class="flex items-center gap-3 border-b border-line-strong px-4 py-2.5 text-[13px] font-500 text-text-mute sm:gap-4 sm:px-6 sm:text-sm">
+            <span class="font-700 text-fg">{{ event.name }}</span>
+            <span>{{ event.category }}</span>
+            <span
+              class="status ml-auto flex items-center gap-2 font-600"
+              [nxReplay]="beat()"
+              [class]="finished() ? 'text-win' : live() ? 'text-fg' : 'text-brand'"
+            >
+              @if (live()) {
+                <span class="live-dot size-2 rounded-full bg-live" aria-hidden="true"></span>
+              }
+              {{ current().status }}
+            </span>
+          </div>
+
+          <div class="body">
+            @if (!drawn()) {
+              <!-- Antes do sorteio não há chave: só as duplas inscritas, todas pagas. -->
+              <ol class="entries">
+                @for (team of teams; track team) {
+                  <li>
+                    <span class="truncate font-600 text-fg">{{ team }}</span>
+                    <span class="paid">Pago</span>
+                  </li>
+                }
+              </ol>
+            } @else {
+              <div class="bracket">
+                @for (round of rounds(); track round.title; let last = $last) {
+                  <div class="round">
+                    <p class="round-title">{{ round.title }}</p>
+                    <div class="round-body">
+                      @if (last && finished()) {
+                        <p class="champions">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.7V17c0 .6-.5 1-1 1.2-1.2.5-2 2-2 3.8M14 14.7V17c0 .6.5 1 1 1.2 1.2.5 2 2 2 3.8M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                          </svg>
+                          Campeões
+                        </p>
+                      }
+                      @for (pair of round.pairs; track $index) {
+                        <div class="pair" [class.pair-joined]="pair.length === 2">
+                          @for (match of pair; track match.id) {
+                            <div class="match" [class.match-live]="match.state === 'live'" [class.match-final]="last && finished()">
+                              @if (match.state === 'live') {
+                                <p class="when when-live"><span class="live-dot" aria-hidden="true"></span>ao vivo</p>
+                              } @else if (match.scheduled) {
+                                <p class="when">{{ match.time }} <span>Q{{ match.court }}</span></p>
+                              }
+                              @for (side of [match.home, match.away]; track $index) {
+                                <p class="side" [class.side-won]="side.won" [class.side-lost]="match.state === 'done' && !side.won" [class.side-open]="!side.name">
+                                  <span class="truncate">{{ side.name ?? 'A definir' }}</span>
+                                  @if (side.sets !== null) {
+                                    <span class="sets nx-score">{{ side.sets }}</span>
+                                  }
+                                </p>
+                              }
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+        </div>
+
+        <div class="mt-6 min-h-[9.5rem] sm:mt-8 sm:min-h-[12rem]" aria-live="polite">
+          <p
+            class="call nx-shout text-[clamp(2.5rem,7.2vw,5.75rem)]"
+            [nxReplay]="beat()"
+            [class.text-brand]="live()"
+            [class.text-win]="finished()"
+          >
+            {{ current().call }}
+          </p>
+          <p class="note mt-3 max-w-[30rem] text-pretty text-base leading-relaxed text-fg/80 sm:text-lg" [nxReplay]="beat()">
+            {{ current().note }}
+          </p>
+        </div>
+
+        <div class="mt-5 flex items-center gap-5">
+          <ol class="flex gap-1.5" aria-hidden="true">
+            @for (b of beats; track b.step) {
+              <li class="h-1 w-7 rounded-full transition-colors duration-300" [class]="$index <= beat() ? 'bg-brand' : 'bg-fg/20'"></li>
+            }
+          </ol>
+          @if (finished()) {
+            <a
+              [routerLink]="guide"
+              class="cta inline-flex items-center gap-2 rounded-1 text-base font-700 text-fg underline decoration-brand decoration-2 underline-offset-[6px] transition-colors hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-4 focus-visible:ring-offset-black"
+            >
+              Organize o seu: conheça o painel
+            </a>
+          }
+        </div>
+      </div>
+
+      <div class="flex justify-center lg:order-1 lg:justify-start">
+        <app-phone-frame class="[--phone-w:232px] sm:[--phone-w:264px] lg:[--phone-w:min(21.5rem,36svh)]" aria-hidden="true">
+          <app-organizer-phone [step]="step()" />
+        </app-phone-frame>
+      </div>
+    </div>
+  </div>
+</section>

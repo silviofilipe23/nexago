@@ -7,6 +7,7 @@ import { MatchPoint } from './sections/match-point';
 import { BookingScene } from './sections/booking-scene';
 import { GameDay } from './sections/game-day';
 import { AthleteScene } from './sections/athlete-scene';
+import { OrganizerScene } from './sections/organizer-scene';
 import { AcompanhandoSection } from './sections/acompanhando';
 import { TorneiosDestaqueSection } from './sections/torneios-destaque';
 import { ArenasCarouselSection } from './sections/arenas-carousel';
@@ -46,8 +47,8 @@ const HOME_FAQ: QA[] = [
 /**
  * Home "Dia de jogo": abertura em vídeo, duas cenas jogadas pela rolagem (o match point e a
  * reserva de uma quadra), o dia em três horários, uma terceira cena que fecha o dia com o que
- * fica para o atleta, o que está acontecendo de verdade (torneios e arenas do Firestore) e o
- * download. Tudo que anima com ScrollTrigger vem antes das seções que carregam dados — assim a
+ * fica para o atleta, uma quarta com o mesmo torneio visto por quem organiza, o que está
+ * acontecendo de verdade (torneios e arenas do Firestore) e o download. Tudo que anima com ScrollTrigger vem antes das seções que carregam dados — assim a
  * altura que elas ganham ao chegar não desloca nenhum gatilho.
  */
 @Component({
@@ -60,6 +61,7 @@ const HOME_FAQ: QA[] = [
     BookingScene,
     GameDay,
     AthleteScene,
+    OrganizerScene,
     AcompanhandoSection,
     TorneiosDestaqueSection,
     ArenasCarouselSection,
@@ -77,6 +79,7 @@ const HOME_FAQ: QA[] = [
     <app-booking-scene />
     <app-game-day />
     <app-athlete-scene />
+    <app-organizer-scene />
     <app-acompanhando-section />
     <app-torneios-destaque-section />
     <app-arenas-carousel-section

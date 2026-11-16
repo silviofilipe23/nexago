@@ -1,5 +1,18 @@
 {
   "enabledPlugins": {
-    "codex@openai-codex": true
+    "codex@openai-codex": true,
+    "ecc@ecc": true
+  },
+  "extraKnownMarketplaces": {
+    "ecc": {
+      "source": {
+        "source": "github",
+        "repo": "affaan-m/ECC"
+      }
+    }
+  },
+  "env": {
+    "ECC_HOOK_PROFILE": "minimal",
+    "ECC_SESSION_START_MAX_CHARS": "4000"
   }
 }

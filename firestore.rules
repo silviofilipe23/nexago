@@ -1184,12 +1184,53 @@ service cloud.firestore {
     // lida por quem está logado e editada só pela equipe no backoffice, com allowlist de campos:
     // parceiro novo entra sem atualizar o app. O filtro de público (`audience: testers`) é do
     // cliente: o doc de um parceiro em teste não é segredo, só não aparece na tela.
+    // Versão premium (v2): os campos novos são todos opcionais, então os docs v1 continuam válidos.
+    // Teto de 1000 expressões por pedido: com o doc do parceiro inteiro, conferir item a item as 20
+    // lojas de `locations` (ou os 10 `tournamentIds`) estoura o teto mesmo só com `keys()` — medido
+    // no emulador. As rules garantem tipo e tamanho das listas; o item é conferido pelo formulário
+    // do backoffice e lido de forma defensiva (o servidor ignora id malformado e nega o requisito).
+    // `requirement`: none | squad | tournament (tournamentIds 1–10) | min_level (id da escada).
+    function partnerRequirementValid(r) {
+      return r is map && (
+        (r.get('type', '') in ['none', 'squad'] && r.keys().hasOnly(['type'])) ||
+        (r.get('type', '') == 'tournament' && r.keys().hasOnly(['type', 'tournamentIds']) &&
+          r.get('tournamentIds', null) is list && r.tournamentIds.size() >= 1 &&
+          r.tournamentIds.size() <= 10) ||
+        (r.get('type', '') == 'min_level' && r.keys().hasOnly(['type', 'minLevel']) &&
+          r.get('minLevel', '') in ['iniciante_1', 'iniciante_2', 'intermediario_1',
+            'intermediario_2', 'avancado_1', 'avancado_2', 'open'])
+      );
+    }
+    function partnerV2Valid(d) {
+      return (d.get('coverUrl', null) == null ||
+          (d.coverUrl is string && d.coverUrl.matches('^https://.+') && d.coverUrl.size() <= 2000)) &&
+        (d.get('startsAt', null) == null || d.startsAt is timestamp) &&
+        (d.get('validUntil', null) == null || d.validUntil is timestamp) &&
+        d.get('featured', false) is bool &&
+        (d.get('placements', null) == null || (d.placements is list && d.placements.size() <= 2 &&
+          d.placements.toSet().hasOnly(['post_game', 'tournament_day']))) &&
+        (d.get('couponUrlParam', null) == null ||
+          (d.couponUrlParam is string && d.couponUrlParam.matches('^[A-Za-z0-9_]{1,30}$'))) &&
+        (d.get('termsTags', null) == null || (d.termsTags is list && d.termsTags.size() <= 6 &&
+          d.termsTags.toSet().hasOnly(['online', 'in_store', 'not_cumulative', 'unlimited',
+            'first_order', 'one_per_person']))) &&
+        (d.get('locations', null) == null || (d.locations is list && d.locations.size() <= 20)) &&
+        (d.get('requirement', null) == null || partnerRequirementValid(d.requirement)) &&
+        (d.get('requirementLabel', null) == null ||
+          (d.requirementLabel is string && d.requirementLabel.size() <= 80)) &&
+        // Com requisito, o cupom não fica no doc público: vai para `partnerPrivate/{partnerId}`.
+        (d.get('requirement', null) == null || d.requirement.type == 'none' ||
+          d.get('couponCode', null) == null);
+    }
     function partnerValid(d) {
       return d.keys().hasOnly(['name', 'logoUrl', 'category', 'benefitHighlight', 'benefitTitle',
           'description', 'howToUse', 'terms', 'ctaType', 'ctaLabel', 'link', 'couponMode',
           'couponCode', 'brandColor', 'cities', 'isMasterSponsor', 'priority', 'active', 'audience',
           'leadConsentText', 'leadSuccessMessage', 'createdAt', 'createdByName', 'updatedAt',
-          'updatedBy', 'updatedByName']) &&
+          'updatedBy', 'updatedByName', 'coverUrl', 'startsAt', 'validUntil', 'featured',
+          'placements', 'couponUrlParam', 'termsTags', 'locations', 'requirement',
+          'requirementLabel']) &&
+        partnerV2Valid(d) &&
         d.name is string && d.name.size() > 0 && d.name.size() <= 80 &&
         (d.get('logoUrl', null) == null ||
           (d.logoUrl is string && d.logoUrl.matches('^https://.+') && d.logoUrl.size() <= 2000)) &&
@@ -1237,6 +1278,41 @@ service cloud.firestore {
       allow write: if false;
     }
     match /partnerLeads/{leadId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if false;
+    }
+    // v2: cupom de parceiro com requisito e as marcas do push "uma vez por parceiro e tipo". Só a
+    // equipe lê e grava; as marcas (`notified*At`) são do servidor (`notifyBenefitPartner`): o
+    // backoffice não cria nem altera, só preserva no merge.
+    function partnerPrivateValid(d) {
+      return d.keys().hasOnly(['couponCode', 'notifiedNewAt', 'notifiedEndingAt', 'updatedAt',
+          'updatedBy', 'updatedByName']) &&
+        (d.get('couponCode', null) == null ||
+          (d.couponCode is string && d.couponCode.size() > 0 && d.couponCode.size() <= 24)) &&
+        (d.get('updatedByName', null) == null ||
+          (d.updatedByName is string && d.updatedByName.size() <= 120)) &&
+        d.updatedAt == request.time &&
+        d.updatedBy == request.auth.uid;
+    }
+    match /partnerPrivate/{partnerId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow create: if (isAdmin() || isSuperAdmin()) &&
+        partnerPrivateValid(request.resource.data) &&
+        !('notifiedNewAt' in request.resource.data) &&
+        !('notifiedEndingAt' in request.resource.data);
+      allow update: if (isAdmin() || isSuperAdmin()) &&
+        partnerPrivateValid(request.resource.data) &&
+        request.resource.data.get('notifiedNewAt', null) == resource.data.get('notifiedNewAt', null) &&
+        request.resource.data.get('notifiedEndingAt', null) == resource.data.get('notifiedEndingAt', null);
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+    // Código NEXA-XXXX → atleta(s) e resgates confirmados pelo parceiro: só o servidor grava
+    // (`trackBenefitEvent`, `claimBenefit`, `importBenefitRedemptions`). A equipe lê os resgates; a
+    // economia do atleta sai pela `getMyBenefits`.
+    match /benefitCodes/{code} {
+      allow read, write: if false;
+    }
+    match /benefitRedemptions/{redemptionId} {
       allow read: if isAdmin() || isSuperAdmin();
       allow write: if false;
     }
@@ -2531,6 +2607,22 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Clube de Vantagens (v2): salvos e usos do atleta. O dono lê e só mexe em `saved`/`savedAt`;
+    // contagem de uso, resposta do "Conseguiu usar?" e marca do lembrete são do servidor.
+    match /users/{userId}/benefits/{partnerId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(['saved', 'savedAt']) &&
+        request.resource.data.keys().hasAll(['saved', 'savedAt']) &&
+        request.resource.data.saved is bool &&
+        request.resource.data.savedAt == request.time;
+      allow update: if request.auth != null && request.auth.uid == userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['saved', 'savedAt']) &&
+        request.resource.data.saved is bool &&
+        request.resource.data.savedAt == request.time;
+      allow delete: if false;
+    }
+
     // Salvos e progresso de leitura do blog. Lista privada do dono; o gatilho
     // onBlogLibraryWritten conta um leitor no post quando `readStartedAt` aparece.
     function blogLibraryOk(d) {
@@ -3627,9 +3719,13 @@ service cloud.firestore {
     // bloco acima (logado); a escrita é da equipe, pelo backoffice.
     match /appConfig/benefitsClub {
       allow write: if (isAdmin() || isSuperAdmin()) &&
-        request.resource.data.keys().hasOnly(['enabled', 'testerUids', 'updatedAt', 'updatedBy',
-          'updatedByName']) &&
+        request.resource.data.keys().hasOnly(['enabled', 'testerUids', 'hubSponsorPartnerId',
+          'updatedAt', 'updatedBy', 'updatedByName']) &&
         request.resource.data.enabled is bool &&
+        (request.resource.data.get('hubSponsorPartnerId', null) == null ||
+          (request.resource.data.hubSponsorPartnerId is string &&
+            request.resource.data.hubSponsorPartnerId.size() > 0 &&
+            request.resource.data.hubSponsorPartnerId.size() <= 100)) &&
         request.resource.data.testerUids is list &&
         request.resource.data.testerUids.size() <= 50 &&
         request.resource.data.updatedAt == request.time &&

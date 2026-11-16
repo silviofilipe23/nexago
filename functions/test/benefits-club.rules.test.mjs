@@ -16,6 +16,7 @@ import {
   getDocs,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
 } from 'firebase/firestore';
 
@@ -32,6 +33,7 @@ const testEnv = await initializeTestEnvironment({
 
 const ADMIN_UID = 'admin-uid';
 const ATHLETE_UID = 'athlete-uid';
+const OTHER_UID = 'other-uid';
 
 const adminCtx = () => testEnv.authenticatedContext(ADMIN_UID, { roles: ['admin'] });
 const athleteCtx = () => testEnv.authenticatedContext(ATHLETE_UID, { roles: ['athlete'] });
@@ -77,6 +79,13 @@ before(async () => {
     await setDoc(doc(db, 'benefitEvents', 'e1'), { type: 'club_view', uid: ATHLETE_UID });
     await setDoc(doc(db, 'partnerLeads', `linq_${ATHLETE_UID}`), { partnerId: 'linq', uid: ATHLETE_UID });
     await setDoc(doc(db, 'appConfig', 'benefitsClub'), { enabled: false, testerUids: [] });
+    await setDoc(doc(db, 'partnerPrivate', 'squad'), { couponCode: 'SQUAD20', notifiedNewAt: new Date(), updatedAt: new Date(), updatedBy: ADMIN_UID });
+    await setDoc(doc(db, 'benefitCodes', 'NEXA-ATHL'), { uids: [ATHLETE_UID], firstAt: new Date() });
+    await setDoc(doc(db, 'benefitRedemptions', 'fast-acai_P1'), { partnerId: 'fast-acai', uid: ATHLETE_UID, status: 'matched' });
+    await setDoc(doc(db, 'users', ATHLETE_UID, 'benefits', 'used'), {
+      saved: false, savedAt: null, useCount: 2, lastAnswer: null, lastUsedAt: new Date(),
+    });
+    await setDoc(doc(db, 'users', OTHER_UID, 'benefits', 'fast-acai'), { saved: true, savedAt: new Date() });
   });
 });
 
@@ -157,4 +166,177 @@ test('config do clube: logado lê, equipe grava com allowlist', async () => {
   }));
   // O bloco do clube não abre outros docs de appConfig.
   await assertFails(setDoc(doc(admin, 'appConfig', 'friendlyMatch'), { enabled: true }));
+});
+
+// ── versão premium (v2) ─────────────────────────────────────────────────────
+
+const location = (over = {}) => ({ name: 'Loja Bueno', address: 'Av. T-10, 100', lat: -16.7, lng: -49.27, ...over });
+
+function premium(over = {}) {
+  return partner({
+    coverUrl: 'https://cdn.example/capa.jpg',
+    startsAt: Timestamp.fromDate(new Date('2026-11-01T03:00:00Z')),
+    validUntil: null,
+    featured: true,
+    placements: ['post_game', 'tournament_day'],
+    couponUrlParam: 'cupom',
+    termsTags: ['online', 'one_per_person'],
+    locations: Array.from({ length: 20 }, (_, i) => location({ name: `Loja ${i}`, hours: i % 2 ? 'Seg a sex, 10h às 22h' : null })),
+    requirement: { type: 'none' },
+    requirementLabel: null,
+    ...over,
+  });
+}
+
+test('v2: admin grava parceiro com os campos novos (e o v1 continua válido)', async () => {
+  const db = adminCtx().firestore();
+  await assertSucceeds(setDoc(doc(db, 'partners', 'p-v1'), partner()));
+  await assertSucceeds(setDoc(doc(db, 'partners', 'p-v2'), premium()));
+  await assertSucceeds(setDoc(doc(db, 'partners', 'p-null'), premium({
+    coverUrl: null, startsAt: null, placements: [], termsTags: [], locations: [], couponUrlParam: null,
+  })));
+  await assertSucceeds(setDoc(doc(db, 'partners', 'p-squad'), premium({
+    couponCode: null, requirement: { type: 'squad' }, requirementLabel: 'Exclusivo para embaixadores do Squad',
+  })));
+  await assertSucceeds(setDoc(doc(db, 'partners', 'p-tour'), premium({
+    couponCode: null, requirement: { type: 'tournament', tournamentIds: ['t1', 't-2'] },
+  })));
+  await assertSucceeds(setDoc(doc(db, 'partners', 'p-level'), premium({
+    couponCode: null, requirement: { type: 'min_level', minLevel: 'intermediario_1' },
+  })));
+  // Pior caso para o teto de 1000 expressões das rules: todos os campos preenchidos, 20 lojas e
+  // 10 torneios. Se este quebrar, a validação ficou cara demais.
+  await assertSucceeds(setDoc(doc(db, 'partners', 'p-max'), premium({
+    description: 'd'.repeat(600),
+    howToUse: ['1', '2', '3'],
+    terms: 't'.repeat(2000),
+    cities: Array.from({ length: 50 }, (_, i) => `Cidade ${i}`),
+    leadConsentText: 'Autorizo',
+    leadSuccessMessage: 'Pronto',
+    logoUrl: 'https://cdn.example/logo.png',
+    validUntil: Timestamp.fromDate(new Date('2026-12-31T03:00:00Z')),
+    couponCode: null,
+    requirement: { type: 'tournament', tournamentIds: Array.from({ length: 10 }, (_, i) => `t${i}`) },
+    requirementLabel: 'Exclusivo para inscritos',
+  })));
+  // Edição do pior caso (merge) também cabe.
+  await assertSucceeds(setDoc(doc(db, 'partners', 'p-max'), { priority: 99, updatedAt: serverTimestamp(), updatedBy: ADMIN_UID }, { merge: true }));
+});
+
+test('v2: admin não grava campos novos inválidos', async () => {
+  const db = adminCtx().firestore();
+  const cases = {
+    cover: { coverUrl: 'http://inseguro.example/capa.jpg' },
+    starts: { startsAt: '2026-11-01' },
+    until: { validUntil: 123 },
+    featured: { featured: 'sim' },
+    placement: { placements: ['home'] },
+    param: { couponUrlParam: 'cupom=x' },
+    paramLong: { couponUrlParam: 'a'.repeat(31) },
+    tag: { termsTags: ['vip'] },
+    locMany: { locations: Array.from({ length: 21 }, () => location()) },
+    locNotList: { locations: location() },
+    reqType: { couponCode: null, requirement: { type: 'vip' } },
+    reqNoIds: { couponCode: null, requirement: { type: 'tournament', tournamentIds: [] } },
+    reqManyIds: { couponCode: null, requirement: { type: 'tournament', tournamentIds: Array.from({ length: 11 }, (_, i) => `t${i}`) } },
+    reqIdsNotList: { couponCode: null, requirement: { type: 'tournament', tournamentIds: 't1' } },
+    reqLevel: { couponCode: null, requirement: { type: 'min_level', minLevel: 'Intermediário 1' } },
+    reqExtra: { couponCode: null, requirement: { type: 'squad', minLevel: 'open' } },
+    reqPublicCoupon: { couponCode: 'NEXAGO10', requirement: { type: 'squad' } },
+    label: { requirementLabel: 'x'.repeat(81) },
+  };
+  for (const [id, over] of Object.entries(cases)) {
+    await assertFails(setDoc(doc(db, 'partners', `bad-${id}`), premium(over)));
+  }
+});
+
+test('v2: partnerPrivate é só da equipe; marcas do push são do servidor', async () => {
+  const athlete = athleteCtx().firestore();
+  await assertFails(getDoc(doc(athlete, 'partnerPrivate', 'squad')));
+  await assertFails(setDoc(doc(athlete, 'partnerPrivate', 'x'), {
+    couponCode: 'X', updatedAt: serverTimestamp(), updatedBy: ATHLETE_UID,
+  }));
+
+  const admin = adminCtx().firestore();
+  await assertSucceeds(getDoc(doc(admin, 'partnerPrivate', 'squad')));
+  await assertSucceeds(setDoc(doc(admin, 'partnerPrivate', 'novo'), {
+    couponCode: 'SQUAD20', updatedAt: serverTimestamp(), updatedBy: ADMIN_UID, updatedByName: 'Admin',
+  }));
+  // Editar o cupom preserva a marca (merge).
+  await assertSucceeds(setDoc(doc(admin, 'partnerPrivate', 'squad'), {
+    couponCode: 'SQUAD30', updatedAt: serverTimestamp(), updatedBy: ADMIN_UID,
+  }, { merge: true }));
+  await assertFails(setDoc(doc(admin, 'partnerPrivate', 'squad'), {
+    couponCode: 'SQUAD30', notifiedNewAt: null, updatedAt: serverTimestamp(), updatedBy: ADMIN_UID,
+  }, { merge: true }));
+  await assertFails(setDoc(doc(admin, 'partnerPrivate', 'marca'), {
+    couponCode: null, notifiedEndingAt: serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: ADMIN_UID,
+  }));
+  await assertFails(setDoc(doc(admin, 'partnerPrivate', 'x2'), {
+    couponCode: 'X', updatedAt: serverTimestamp(), updatedBy: ADMIN_UID, segredo: true,
+  }));
+  await assertFails(setDoc(doc(admin, 'partnerPrivate', 'x3'), {
+    couponCode: 'X'.repeat(25), updatedAt: serverTimestamp(), updatedBy: ADMIN_UID,
+  }));
+});
+
+test('v2: users/{uid}/benefits — dono lê e só mexe em saved/savedAt', async () => {
+  const athlete = athleteCtx().firestore();
+  await assertSucceeds(getDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'used')));
+  await assertSucceeds(getDocs(collection(athlete, 'users', ATHLETE_UID, 'benefits')));
+  await assertFails(getDoc(doc(athlete, 'users', OTHER_UID, 'benefits', 'fast-acai')));
+
+  // Controle: salvar e tirar dos salvos.
+  await assertSucceeds(setDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'fast-acai'), {
+    saved: true, savedAt: serverTimestamp(),
+  }));
+  await assertSucceeds(setDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'used'), {
+    saved: true, savedAt: serverTimestamp(),
+  }, { merge: true }));
+  await assertSucceeds(updateDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'fast-acai'), {
+    saved: false, savedAt: serverTimestamp(),
+  }));
+
+  await assertFails(setDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'n1'), {
+    saved: true, savedAt: serverTimestamp(), useCount: 1,
+  }));
+  await assertFails(setDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'n2'), {
+    saved: true, savedAt: new Date('2026-01-01'),
+  }));
+  await assertFails(setDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'n3'), { saved: 'sim', savedAt: serverTimestamp() }));
+  await assertFails(setDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'n4'), { saved: true }));
+  await assertFails(updateDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'used'), {
+    saved: true, savedAt: serverTimestamp(), useCount: 99,
+  }));
+  await assertFails(updateDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'used'), { lastAnswer: 'used' }));
+  await assertFails(deleteDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'used')));
+  await assertFails(setDoc(doc(athlete, 'users', OTHER_UID, 'benefits', 'x'), { saved: true, savedAt: serverTimestamp() }));
+  await assertFails(getDoc(doc(anonCtx().firestore(), 'users', ATHLETE_UID, 'benefits', 'used')));
+});
+
+test('v2: benefitCodes e benefitRedemptions só pelo servidor; equipe lê os resgates', async () => {
+  const athlete = athleteCtx().firestore();
+  await assertFails(getDoc(doc(athlete, 'benefitCodes', 'NEXA-ATHL')));
+  await assertFails(setDoc(doc(athlete, 'benefitCodes', 'NEXA-ATHL'), { uids: [ATHLETE_UID] }));
+  await assertFails(getDoc(doc(athlete, 'benefitRedemptions', 'fast-acai_P1')));
+  await assertFails(getDocs(collection(athlete, 'benefitRedemptions')));
+  await assertFails(setDoc(doc(athlete, 'benefitRedemptions', 'fast-acai_P2'), { uid: ATHLETE_UID, status: 'matched' }));
+
+  const admin = adminCtx().firestore();
+  await assertSucceeds(getDocs(collection(admin, 'benefitRedemptions')));
+  await assertFails(setDoc(doc(admin, 'benefitRedemptions', 'fast-acai_P3'), { status: 'matched' }));
+  await assertFails(getDoc(doc(admin, 'benefitCodes', 'NEXA-ATHL')));
+  await assertFails(setDoc(doc(admin, 'benefitCodes', 'NEXA-ATHL'), { uids: [] }));
+});
+
+test('v2: config aceita hubSponsorPartnerId', async () => {
+  const admin = adminCtx().firestore();
+  const base = { enabled: true, testerUids: [], updatedAt: serverTimestamp(), updatedBy: ADMIN_UID };
+  await assertSucceeds(setDoc(doc(admin, 'appConfig', 'benefitsClub'), { ...base, hubSponsorPartnerId: 'linq' }));
+  await assertSucceeds(setDoc(doc(admin, 'appConfig', 'benefitsClub'), { ...base, hubSponsorPartnerId: null }));
+  await assertFails(setDoc(doc(admin, 'appConfig', 'benefitsClub'), { ...base, hubSponsorPartnerId: 'x'.repeat(101) }));
+  await assertFails(setDoc(doc(admin, 'appConfig', 'benefitsClub'), { ...base, hubSponsorPartnerId: 5 }));
+  await assertFails(setDoc(doc(athleteCtx().firestore(), 'appConfig', 'benefitsClub'), {
+    ...base, updatedBy: ATHLETE_UID, hubSponsorPartnerId: 'linq',
+  }));
 });

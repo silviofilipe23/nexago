@@ -15,11 +15,24 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, Timestamp, type Firestore} from "firebase-admin/firestore";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
+import {
+  callerMeetsPartnerRequirement,
+  parseRequirement,
+  requirementDeniedMessage,
+} from "./benefits-club-eligibility";
 
 export const PARTNERS_COLLECTION = "partners";
 export const BENEFIT_EVENTS_COLLECTION = "benefitEvents";
 export const PARTNER_LEADS_COLLECTION = "partnerLeads";
 export const BENEFITS_CONFIG_PATH = "appConfig/benefitsClub";
+/** Cupom de parceiro com requisito (`couponCode` público fica `null`) e marcas do push. Só admin. */
+export const PARTNER_PRIVATE_COLLECTION = "partnerPrivate";
+/** `NEXA-XXXX` → uids que receberam/usaram o código. Dois uids no mesmo código = ambíguo. */
+export const BENEFIT_CODES_COLLECTION = "benefitCodes";
+/** Resgates confirmados pelo parceiro (import do backoffice). */
+export const BENEFIT_REDEMPTIONS_COLLECTION = "benefitRedemptions";
+/** `users/{uid}/benefits/{partnerId}`: salvos e usos do atleta. */
+export const USER_BENEFITS_SUBCOLLECTION = "benefits";
 
 /** Eventos que o cliente pode mandar. `lead_submit` só o `submitPartnerLead` grava. */
 export const CLIENT_EVENT_TYPES = [
@@ -30,10 +43,14 @@ export const CLIENT_EVENT_TYPES = [
   "code_copy",
 ] as const;
 export type ClientEventType = (typeof CLIENT_EVENT_TYPES)[number];
-export type BenefitEventType = ClientEventType | "lead_submit";
+/** `use_confirmed`/`use_denied` só o `answerBenefitUse` grava. */
+export type BenefitEventType = ClientEventType | "lead_submit" | "use_confirmed" | "use_denied";
 
 /** Eventos que pertencem a um parceiro (os outros são do clube inteiro). */
 const PARTNER_EVENT_TYPES: ReadonlySet<string> = new Set(["partner_view", "cta_click", "code_copy"]);
+
+/** Eventos que contam como uso do benefício (sobem `useCount` e ligam o código ao atleta). */
+const USE_EVENT_TYPES: ReadonlySet<string> = new Set(["cta_click", "code_copy"]);
 
 /** De onde a pessoa chegou. O resto vira `unknown`, sem recusar o evento. */
 export const EVENT_SOURCES = [
@@ -44,12 +61,19 @@ export const EVENT_SOURCES = [
   "home",
   "deeplink",
   "push",
+  // v2: benefício no momento do jogo, destaque, busca, mapa e "Meus benefícios".
+  "post_game",
+  "tournament_day",
+  "featured",
+  "search",
+  "map",
+  "my_benefits",
   "unknown",
 ] as const;
 export type EventSource = (typeof EVENT_SOURCES)[number];
 
-const SURFACES = ["app", "web"] as const;
-const PLATFORMS = ["ios", "android", "web", "unknown"] as const;
+export const SURFACES = ["app", "web"] as const;
+export const PLATFORMS = ["ios", "android", "web", "unknown"] as const;
 
 /** Toque repetido no mesmo evento dentro desta janela não grava de novo. */
 export const EVENT_DEBOUNCE_SECONDS = 30;
@@ -61,11 +85,11 @@ export const LEAD_NEIGHBORHOOD_MAX = 80;
 
 // ── helpers puros ──────────────────────────────────────────────────────────
 
-function pick<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+export function pick<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
   return typeof value === "string" && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
 }
 
-function text(value: unknown): string {
+export function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
@@ -127,15 +151,76 @@ export function isTester(caller: Caller, config: Record<string, unknown> | undef
   return Array.isArray(list) && list.includes(caller.uid);
 }
 
-/** O parceiro aparece para esta pessoa? (ativo e, se for de teste, só para quem testa). */
+/** Timestamp do Firestore, `Date` ou millis → millis (`null` se não for data). */
+export function millisOf(value: unknown): number | null {
+  if (value instanceof Timestamp) return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const maybe = value as {toMillis?: unknown} | null;
+  if (maybe && typeof maybe.toMillis === "function") return (maybe.toMillis as () => number)();
+  return null;
+}
+
+/** Dentro da validade: depois de `startsAt` (se houver) e antes de `validUntil` (se houver). */
+export function partnerInWindow(partner: Record<string, unknown>, now: Date): boolean {
+  const startsAt = millisOf(partner["startsAt"]);
+  const validUntil = millisOf(partner["validUntil"]);
+  if (startsAt != null && now.getTime() < startsAt) return false;
+  if (validUntil != null && now.getTime() >= validUntil) return false;
+  return true;
+}
+
+/**
+ * O parceiro aparece para esta pessoa? Ativo, dentro da validade e, se for de teste, só para quem
+ * testa. O requisito (`requirement`) não esconde: o parceiro aparece bloqueado.
+ */
 export function partnerVisibleTo(
   partner: Record<string, unknown>,
   caller: Caller,
   config: Record<string, unknown> | undefined,
+  now: Date = new Date(),
 ): boolean {
   if (partner["active"] !== true) return false;
+  if (!partnerInWindow(partner, now)) return false;
   if (partner["audience"] === "testers") return isTester(caller, config);
   return true;
+}
+
+/** `NEXA-` + os 4 primeiros alfanuméricos do uid, em maiúsculas (espelha o app e o portal). */
+export function athleteBenefitCode(uid: string): string {
+  return `NEXA-${uid.replace(/[^A-Za-z0-9]/g, "").slice(0, 4).toUpperCase()}`;
+}
+
+/** Lê o parceiro e a config e confere se ele aparece para a pessoa; senão `not-found`. */
+export async function loadVisiblePartner(
+  db: Firestore,
+  caller: Caller,
+  partnerId: string,
+  now: Date,
+): Promise<{partner: Record<string, unknown>; config: Record<string, unknown> | undefined}> {
+  const [partnerSnap, configSnap] = await Promise.all([
+    db.doc(`${PARTNERS_COLLECTION}/${partnerId}`).get(),
+    db.doc(BENEFITS_CONFIG_PATH).get(),
+  ]);
+  const partner = partnerSnap.data();
+  const config = configSnap.data();
+  if (!partner || !partnerVisibleTo(partner, caller, config, now)) {
+    throw new HttpsError("not-found", "Parceiro não encontrado.");
+  }
+  return {partner, config};
+}
+
+/** Confere o requisito do parceiro; quem não cumpre recebe `permission-denied` com a frase da tela. */
+export async function assertMeetsRequirement(
+  db: Firestore,
+  caller: Caller,
+  partner: Record<string, unknown>,
+): Promise<void> {
+  if (await callerMeetsPartnerRequirement(db, caller.uid, partner)) return;
+  throw new HttpsError(
+    "permission-denied",
+    requirementDeniedMessage(parseRequirement(partner["requirement"]), partner["requirementLabel"]),
+  );
 }
 
 // ── eventos ────────────────────────────────────────────────────────────────
@@ -187,6 +272,44 @@ function isAlreadyExists(error: unknown): boolean {
   return code === 6 || code === "already-exists" || code === "ALREADY_EXISTS";
 }
 
+/**
+ * Campos do `users/{uid}/benefits/{partnerId}` num uso (clique no botão ou cupom copiado). O botão
+ * do resgate em um toque copia e abre o link, então chegam `code_copy` e `cta_click` juntos: uso
+ * dentro de {@link EVENT_DEBOUNCE_SECONDS} do anterior atualiza a data sem somar outro.
+ */
+export function benefitUseUpdate(prev: Record<string, unknown> | undefined, now: Date): Record<string, unknown> {
+  const at = Timestamp.fromDate(now);
+  const count = typeof prev?.["useCount"] === "number" ? (prev["useCount"] as number) : 0;
+  const lastMs = millisOf(prev?.["lastUsedAt"]);
+  const repeat = lastMs != null && now.getTime() - lastMs < EVENT_DEBOUNCE_SECONDS * 1000;
+  return {
+    ...(prev ? {} : {saved: false, savedAt: null}),
+    useCount: repeat ? count : count + 1,
+    firstUsedAt: prev?.["firstUsedAt"] ?? at,
+    lastUsedAt: at,
+    lastAnswer: null,
+  };
+}
+
+/** Liga o código ao atleta em `benefitCodes/{code}`; `null` se ele já está na lista. */
+export function benefitCodeLinkUpdate(
+  prev: Record<string, unknown> | undefined,
+  uid: string,
+  now: Date,
+): Record<string, unknown> | null {
+  const uids = Array.isArray(prev?.["uids"]) ? (prev["uids"] as unknown[]).filter((u) => typeof u === "string") : [];
+  if (uids.includes(uid)) return null;
+  return {uids: [...uids, uid], firstAt: prev?.["firstAt"] ?? Timestamp.fromDate(now)};
+}
+
+export function benefitCodeRef(db: Firestore, uid: string) {
+  return db.doc(`${BENEFIT_CODES_COLLECTION}/${athleteBenefitCode(uid)}`);
+}
+
+export function userBenefitRef(db: Firestore, uid: string, partnerId: string) {
+  return db.doc(`users/${uid}/${USER_BENEFITS_SUBCOLLECTION}/${partnerId}`);
+}
+
 export async function trackBenefitEventCore(
   db: Firestore,
   caller: Caller,
@@ -196,33 +319,47 @@ export async function trackBenefitEventCore(
   const parsed = parseTrackEvent(input);
   if ("error" in parsed) throw new HttpsError("invalid-argument", parsed.error);
 
-  if (parsed.partnerId) {
-    const [partnerSnap, configSnap] = await Promise.all([
-      db.doc(`${PARTNERS_COLLECTION}/${parsed.partnerId}`).get(),
-      db.doc(BENEFITS_CONFIG_PATH).get(),
-    ]);
-    const partner = partnerSnap.data();
-    if (!partner || !partnerVisibleTo(partner, caller, configSnap.data())) {
-      throw new HttpsError("not-found", "Parceiro não encontrado.");
+  const partner = parsed.partnerId ? (await loadVisiblePartner(db, caller, parsed.partnerId, now)).partner : null;
+
+  const ref = db.doc(`${BENEFIT_EVENTS_COLLECTION}/${eventDocId(parsed.type, parsed.partnerId, caller.uid, now)}`);
+  const event = {
+    type: parsed.type,
+    partnerId: parsed.partnerId,
+    uid: caller.uid,
+    source: parsed.source,
+    surface: parsed.surface,
+    platform: parsed.platform,
+    createdAt: Timestamp.fromDate(now),
+  };
+
+  if (!partner || !parsed.partnerId || !USE_EVENT_TYPES.has(parsed.type)) {
+    try {
+      await ref.create(event);
+      return {ok: true, counted: true};
+    } catch (error) {
+      if (isAlreadyExists(error)) return {ok: true, counted: false};
+      throw error;
     }
   }
 
-  const ref = db.doc(`${BENEFIT_EVENTS_COLLECTION}/${eventDocId(parsed.type, parsed.partnerId, caller.uid, now)}`);
-  try {
-    await ref.create({
-      type: parsed.type,
-      partnerId: parsed.partnerId,
-      uid: caller.uid,
-      source: parsed.source,
-      surface: parsed.surface,
-      platform: parsed.platform,
-      createdAt: Timestamp.fromDate(now),
-    });
-    return {ok: true, counted: true};
-  } catch (error) {
-    if (isAlreadyExists(error)) return {ok: true, counted: false};
-    throw error;
-  }
+  // Uso: só quem cumpre o requisito; evento, "Meus benefícios" e o código na mesma transação.
+  await assertMeetsRequirement(db, caller, partner);
+  const benefitRef = userBenefitRef(db, caller.uid, parsed.partnerId);
+  const codeRef = partner["couponMode"] === "athlete" ? benefitCodeRef(db, caller.uid) : null;
+  const counted = await db.runTransaction(async (tx) => {
+    const [eventSnap, benefitSnap, codeSnap] = await Promise.all([
+      tx.get(ref),
+      tx.get(benefitRef),
+      codeRef ? tx.get(codeRef) : Promise.resolve(null),
+    ]);
+    if (eventSnap.exists) return false;
+    tx.create(ref, event);
+    tx.set(benefitRef, benefitUseUpdate(benefitSnap.data(), now), {merge: true});
+    const codeUpdate = codeRef ? benefitCodeLinkUpdate(codeSnap?.data(), caller.uid, now) : null;
+    if (codeRef && codeUpdate) tx.set(codeRef, codeUpdate, {merge: true});
+    return true;
+  });
+  return {ok: true, counted};
 }
 
 // ── leads ──────────────────────────────────────────────────────────────────
@@ -291,19 +428,14 @@ export async function submitPartnerLeadCore(
   const parsed = parseLead(input);
   if ("error" in parsed) throw new HttpsError("invalid-argument", parsed.error);
 
-  const partnerRef = db.doc(`${PARTNERS_COLLECTION}/${parsed.partnerId}`);
-  const [partnerSnap, configSnap, userSnap] = await Promise.all([
-    partnerRef.get(),
-    db.doc(BENEFITS_CONFIG_PATH).get(),
+  const [{partner}, userSnap] = await Promise.all([
+    loadVisiblePartner(db, caller, parsed.partnerId, now),
     db.doc(`users/${caller.uid}`).get(),
   ]);
-  const partner = partnerSnap.data();
-  if (!partner || !partnerVisibleTo(partner, caller, configSnap.data())) {
-    throw new HttpsError("not-found", "Parceiro não encontrado.");
-  }
   if (partner["ctaType"] !== "lead_form") {
     throw new HttpsError("failed-precondition", "Este parceiro não recebe cadastro pelo app.");
   }
+  await assertMeetsRequirement(db, caller, partner);
 
   const partnerName = text(partner["name"]) || "parceiro";
   const consentText = text(partner["leadConsentText"]) || defaultConsentText(partnerName);
@@ -360,9 +492,9 @@ export async function submitPartnerLeadCore(
 
 // ── callables ──────────────────────────────────────────────────────────────
 
-const ATHLETE_CALLABLE = {region: CLIENT_FACING_REGIONS, invoker: "public" as const};
+export const ATHLETE_CALLABLE = {region: CLIENT_FACING_REGIONS, invoker: "public" as const};
 
-function requireCaller(auth: Parameters<typeof callerFromAuth>[0]): Caller {
+export function requireCaller(auth: Parameters<typeof callerFromAuth>[0]): Caller {
   const caller = callerFromAuth(auth);
   if (!caller) throw new HttpsError("unauthenticated", "Faça login para continuar.");
   return caller;

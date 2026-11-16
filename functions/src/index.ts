@@ -801,6 +801,9 @@ export {saveLinkPageProfile, trackLinkPageEvent} from "./link-pages";
 export {trackArenaContactClick} from "./arena-contact-leads";
 // Clube de Vantagens Nexa: funil e leads dos parceiros (docs/product/vantagens-nexago-spec.md).
 export {trackBenefitEvent, submitPartnerLead} from "./benefits-club";
+// Versão premium (v2): resgate, "Meus benefícios", import de resgates, push e lembrete de validade.
+export {claimBenefit, getMyBenefits, answerBenefitUse} from "./benefits-club-member";
+export {importBenefitRedemptions, notifyBenefitPartner, benefitExpiryReminders} from "./benefits-club-admin";
 
 export {completeCoachSignup} from "./coach-signup";
 export {completeArenaSignup} from "./arena-signup";

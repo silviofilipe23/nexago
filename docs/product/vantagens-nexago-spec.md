@@ -121,3 +121,100 @@ o parceiro usa `couponMode: 'fixed'` com `NEXAGO10`.
 3. Build de loja com o card; testar com a flag desligada e o uid em `testerUids`.
 4. Depois da loja: `enabled: true` no `appConfig/benefitsClub`.
 5. Métricas: aba Métricas do backoffice ou `node scripts/benefits-report.js --project <id> --csv`.
+
+---
+
+# Versão premium (v2)
+
+Pedido de 16/11/2026: deixar o clube com cara de programa premium (identidade de membro, valor
+acumulado de verdade, benefício no momento do jogo). Prioridade por impacto: P0 (itens 1–4), P1 (5–7),
+P2 (8–11). Ressalvas que valem para tudo abaixo:
+
+- **Nada de economia estimada.** "Você economizou R$ X" só com resgate confirmado pelo parceiro e
+  atribuído ao atleta (código por atleta). Sem confirmação, a tela não mostra valor nenhum.
+- **Nada de moeda própria de pontos.** Usar o clube não dá pontos, XP, nível nem Elo.
+- **Nada de encher o catálogo.** Nenhum parceiro fictício ou de exemplo é cadastrado; os recursos de
+  descoberta (busca, mapa) só aparecem com 8 ou mais parceiros visíveis.
+
+## Itens
+
+| # | Prioridade | Item |
+|---|---|---|
+| 1 | P0 | Vitrine com foto de capa (`coverUrl`) e logo real |
+| 2 | P0 | Carteirinha do membro no topo do clube (nome, foto, "Membro desde", nível, código + QR) |
+| 3 | P0 | Resgate em um toque: o botão copia o cupom e, se o parceiro aceitar, já manda o cupom na URL |
+| 4 | P0 | Acabamento: esqueleto com shimmer, transição do logo, vibração ao copiar, termos em chips, "Como funciona o clube" na 1ª visita |
+| 5 | P1 | Benefício no momento do jogo: pós-jogo e dia de torneio (`placements`) |
+| 6 | P1 | Validade (`startsAt`/`validUntil`), selos "Termina em", "Novo", "Destaque da semana" e push de parceiro novo e de oferta acabando |
+| 7 | P1 | "Meus benefícios" (usados e salvos) e a pergunta "Conseguiu usar?" |
+| 8 | P2 | Benefícios por status (Squad, inscritos de torneio, nível mínimo), mostrados bloqueados para quem não tem |
+| 9 | P2 | Economia acumulada, só com resgate confirmado pelo parceiro (import no backoffice) |
+| 10 | P2 | "Oferecido por" no clube, card do Hub em modo patrocinador e relatório para o patrocinador |
+| 11 | P2 | Busca, "perto de você" e mapa (com 8+ parceiros) |
+
+## Dados novos
+
+### `partners/{partnerId}` (campos novos; todos opcionais na leitura)
+
+| Campo | Tipo | Regra |
+|---|---|---|
+| `coverUrl` | string https \| null | foto de capa (16:9), Storage `app/partners/` |
+| `startsAt` | timestamp \| null | antes disso o parceiro não aparece |
+| `validUntil` | timestamp \| null | depois disso some; nos 7 dias antes mostra "Termina em N dias" ("Termina hoje") |
+| `featured` | bool | "Destaque da semana": o de maior prioridade com `featured` vai para o topo |
+| `placements` | lista ⊂ `post_game`, `tournament_day` | onde mais o benefício aparece |
+| `couponUrlParam` | string `^[A-Za-z0-9_]{1,30}$` \| null | se definido, o link leva `&<param>=<cupom>` |
+| `termsTags` | lista ⊂ `online`, `in_store`, `not_cumulative`, `unlimited`, `first_order`, `one_per_person` | chips dos termos |
+| `locations` | lista (≤ 20) de `{name, address, lat, lng, hours?}` | "perto de você" e mapa |
+| `requirement` | `{type}`: `none` \| `squad` \| `tournament` (`tournamentIds`, 1–10) \| `min_level` (`minLevel`, id da escada de nível) | quem pode usar |
+| `requirementLabel` | string ≤ 80 \| null | texto do bloqueio ("Exclusivo para embaixadores do Squad") |
+
+"Novo" = `createdAt` nos últimos 14 dias. Com `requirement.type != none` o `couponCode` público é
+`null` (rules garantem) e o código fica em `partnerPrivate/{partnerId}.couponCode`.
+
+### `partnerPrivate/{partnerId}` (só admin lê e grava)
+`{couponCode: string|null, notifiedNewAt?: timestamp, notifiedEndingAt?: timestamp, updatedAt, updatedBy}`
+
+### `users/{uid}/benefits/{partnerId}`
+`{saved: bool, savedAt, useCount, firstUsedAt, lastUsedAt, lastAnswer: 'used'|'not_used'|null, answeredAt,
+expiryNotifiedAt}`. O dono lê; o dono só cria/altera `saved` e `savedAt`; o resto é do servidor.
+
+### `benefitCodes/{code}` (só servidor)
+`{uids: string[], firstAt}`: liga o código `NEXA-XXXX` ao(s) atleta(s). Gravado quando o atleta copia o
+código, clica no botão ou recebe o código pela `claimBenefit`. Dois uids no mesmo código = ambíguo.
+
+### `benefitRedemptions/{partnerId}_{externalId}` (admin lê; só servidor grava)
+`{partnerId, externalId, code, uid|null, status: 'matched'|'ambiguous'|'unmatched', discountCents,
+orderCents|null, redeemedAt, importedAt, importedByName}`. Só `matched` entra na economia do atleta.
+
+### `appConfig/benefitsClub` (campo novo)
+`hubSponsorPartnerId: string|null`: o card do Hub vira "Oferecido por <parceiro>", com a cor da marca.
+
+### Eventos (`benefitEvents`)
+Tipos novos gravados pelo servidor: `use_confirmed`, `use_denied` (resposta do "Conseguiu usar?").
+Origens novas aceitas: `post_game`, `tournament_day`, `featured`, `search`, `map`, `my_benefits`
+(além das anteriores; `push` já existia).
+
+## Callables novas e alteradas (região southamerica-east1)
+
+- `trackBenefitEvent` (alterada): em `cta_click` e `code_copy` também atualiza
+  `users/{uid}/benefits/{partnerId}` (`useCount + 1`, `firstUsedAt` se vazio, `lastUsedAt`,
+  `lastAnswer: null`) e registra o código em `benefitCodes` quando o parceiro usa código por atleta.
+- `claimBenefit({partnerId, source, surface, platform})` → `{coupon: string|null}`. Confere
+  visibilidade e elegibilidade; devolve o cupom público, o privado (parceiro com requisito) ou o código do
+  atleta. Erro `permission-denied` com frase PT quando a pessoa não cumpre o requisito.
+- `getMyBenefits()` → `{uses: [{partnerId, useCount, firstUsedAt, lastUsedAt, lastAnswer, saved}],
+  pendingQuestion: {partnerId} | null, savings: {confirmedCount, totalDiscountCents,
+  byPartner: [{partnerId, count, discountCents}]}, eligiblePartnerIds: string[]}`. Datas em ms.
+  `pendingQuestion` = uso mais recente entre 2 h e 7 dias atrás sem resposta. `eligiblePartnerIds` = os
+  parceiros com requisito que esta pessoa cumpre.
+- `answerBenefitUse({partnerId, used: bool})` → `{ok}`. Grava `lastAnswer`/`answeredAt` e o evento.
+- `submitPartnerLead` (alterada): também confere o requisito.
+- `importBenefitRedemptions({partnerId, rows: [{code, externalId, redeemedAt, discountCents,
+  orderCents?}]})` (admin) → `{matched, ambiguous, unmatched, duplicates}`. Idempotente por `externalId`.
+- `notifyBenefitPartner({partnerId, kind: 'new'|'ending', dryRun})` (admin) → `{recipients, sent}`.
+  Público: só quem testa se o parceiro for de teste ou o clube estiver desligado; senão atletas das
+  cidades do parceiro (todas se vazio) e que cumprem o requisito. Uma vez por parceiro e tipo.
+- Agendada `benefitExpiryReminders` (diária, 10h de Brasília): parceiro que termina nas próximas 48 h →
+  push para quem salvou e ainda não usou depois de salvar, uma vez por pessoa e parceiro.
+- Push: `url` = `/athlete/clube/<partnerId>?origem=push` (app) e `webUrl` = `/clube/<partnerId>?origem=push`.

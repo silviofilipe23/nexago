@@ -1,10 +1,13 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import type {Firestore} from "firebase-admin/firestore";
+import {Timestamp, type Firestore} from "firebase-admin/firestore";
 import {FakeFirestore} from "./fake-firestore.test-helper";
 import {
   EVENT_DEBOUNCE_SECONDS,
+  athleteBenefitCode,
+  benefitUseUpdate,
   callerFromAuth,
+  partnerInWindow,
   defaultConsentText,
   eventDocId,
   isTester,
@@ -275,5 +278,111 @@ describe("submitPartnerLeadCore", () => {
     const saved = fake.store.get(`partnerLeads/linq_${ADMIN.uid}`) as Record<string, unknown>;
     assert.equal(saved["consentText"], "Texto da LinQ.");
     assert.equal(saved["city"], null);
+  });
+});
+
+// ── v2: validade, uso e requisito ─────────────────────────────────────────
+
+describe("partnerInWindow / athleteBenefitCode", () => {
+  it("antes de startsAt e a partir de validUntil o parceiro some", () => {
+    const at = (ms: number) => Timestamp.fromMillis(NOW.getTime() + ms);
+    assert.equal(partnerInWindow({}, NOW), true);
+    assert.equal(partnerInWindow({startsAt: at(1), validUntil: null}, NOW), false);
+    assert.equal(partnerInWindow({startsAt: at(0)}, NOW), true);
+    assert.equal(partnerInWindow({validUntil: at(0)}, NOW), false);
+    assert.equal(partnerInWindow({validUntil: at(1)}, NOW), true);
+    assert.equal(partnerVisibleTo({...FAST, validUntil: at(-1)}, ADMIN, {}, NOW), false);
+  });
+
+  it("código do atleta: NEXA- + 4 alfanuméricos do uid em maiúsculas", () => {
+    assert.equal(athleteBenefitCode("a-b_c9xyz"), "NEXA-ABC9");
+    assert.equal(athleteBenefitCode("ab"), "NEXA-AB");
+  });
+});
+
+describe("parseTrackEvent (origens v2)", () => {
+  it("aceita as origens novas", () => {
+    for (const source of ["post_game", "tournament_day", "featured", "search", "map", "my_benefits"]) {
+      const parsed = parseTrackEvent({type: "club_view", source});
+      assert.ok(!("error" in parsed));
+      assert.equal(parsed.source, source);
+    }
+  });
+});
+
+describe("benefitUseUpdate", () => {
+  it("primeiro uso cria o doc; toque repetido na janela não soma de novo", () => {
+    const first = benefitUseUpdate(undefined, NOW);
+    assert.equal(first["useCount"], 1);
+    assert.equal(first["saved"], false);
+    assert.deepEqual(first["firstUsedAt"], Timestamp.fromDate(NOW));
+    const quick = benefitUseUpdate({...first, lastAnswer: "used"}, new Date(NOW.getTime() + 1000));
+    assert.equal(quick["useCount"], 1);
+    assert.equal(quick["lastAnswer"], null);
+    assert.equal("saved" in quick, false);
+    const later = benefitUseUpdate(first, new Date(NOW.getTime() + EVENT_DEBOUNCE_SECONDS * 1000));
+    assert.equal(later["useCount"], 2);
+    assert.deepEqual(later["firstUsedAt"], Timestamp.fromDate(NOW));
+  });
+});
+
+describe("trackBenefitEventCore (uso)", () => {
+  function makeV2Db() {
+    const ctx = makeDb();
+    ctx.fake.seedDoc("partners/codes", {...FAST, couponMode: "athlete"});
+    ctx.fake.seedDoc("partners/squad", {...FAST, requirement: {type: "squad"}, requirementLabel: "Só Squad"});
+    ctx.fake.seedDoc("partners/linqSquad", {...LINQ, audience: "all", requirement: {type: "squad"}});
+    return ctx;
+  }
+
+  it("cta_click e code_copy contam uso e ligam o código do atleta, na mesma transação", async () => {
+    const {fake, db} = makeV2Db();
+    await trackBenefitEventCore(db, ATHLETE, {type: "code_copy", partnerId: "codes", source: "post_game"}, NOW);
+    await trackBenefitEventCore(db, ATHLETE, {type: "cta_click", partnerId: "codes", source: "post_game"}, NOW);
+    const use = fake.store.get(`users/${ATHLETE.uid}/benefits/codes`) as Record<string, unknown>;
+    assert.equal(use["useCount"], 1);
+    assert.equal(use["saved"], false);
+    assert.equal(use["lastAnswer"], null);
+    assert.deepEqual(use["lastUsedAt"], Timestamp.fromDate(NOW));
+    const code = fake.store.get(`benefitCodes/${athleteBenefitCode(ATHLETE.uid)}`) as Record<string, unknown>;
+    assert.deepEqual(code["uids"], [ATHLETE.uid]);
+    assert.equal(docsIn(fake, "benefitEvents").length, 2);
+
+    // Mesmo evento na mesma janela: não conta evento nem uso.
+    const again = await trackBenefitEventCore(db, ATHLETE, {type: "cta_click", partnerId: "codes"}, new Date(NOW.getTime() + 2000));
+    assert.deepEqual(again, {ok: true, counted: false});
+    assert.equal(docsIn(fake, "benefitEvents").length, 2);
+
+    const later = new Date(NOW.getTime() + 60_000);
+    await trackBenefitEventCore(db, ATHLETE, {type: "cta_click", partnerId: "codes"}, later);
+    assert.equal((fake.store.get(`users/${ATHLETE.uid}/benefits/codes`) as Record<string, unknown>)["useCount"], 2);
+  });
+
+  it("cupom fixo conta uso mas não grava benefitCodes; vista não conta uso", async () => {
+    const {fake, db} = makeV2Db();
+    await trackBenefitEventCore(db, ATHLETE, {type: "partner_view", partnerId: "fast-acai"}, NOW);
+    assert.equal(fake.store.has(`users/${ATHLETE.uid}/benefits/fast-acai`), false);
+    await trackBenefitEventCore(db, ATHLETE, {type: "cta_click", partnerId: "fast-acai"}, NOW);
+    assert.equal((fake.store.get(`users/${ATHLETE.uid}/benefits/fast-acai`) as Record<string, unknown>)["useCount"], 1);
+    assert.equal(docsIn(fake, "benefitCodes").length, 0);
+  });
+
+  it("parceiro com requisito: vê bloqueado, mas não usa nem manda lead sem cumprir", async () => {
+    const {fake, db} = makeV2Db();
+    assert.deepEqual(await trackBenefitEventCore(db, ATHLETE, {type: "partner_view", partnerId: "squad"}, NOW), {
+      ok: true,
+      counted: true,
+    });
+    await assert.rejects(trackBenefitEventCore(db, ATHLETE, {type: "cta_click", partnerId: "squad"}, NOW), /Só Squad/);
+    await assert.rejects(submitPartnerLeadCore(db, ATHLETE, lead({partnerId: "linqSquad"}), NOW), (error: {code?: string}) => {
+      assert.equal(error.code, "permission-denied");
+      return true;
+    });
+    assert.equal(docsIn(fake, "partnerLeads").length, 0);
+
+    fake.seedDoc(`squadAmbassadors/${ATHLETE.uid}`, {status: "active"});
+    await trackBenefitEventCore(db, ATHLETE, {type: "cta_click", partnerId: "squad"}, NOW);
+    await submitPartnerLeadCore(db, ATHLETE, lead({partnerId: "linqSquad"}), NOW);
+    assert.equal(docsIn(fake, "partnerLeads").length, 1);
   });
 });

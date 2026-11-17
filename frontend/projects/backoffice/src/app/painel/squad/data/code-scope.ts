@@ -1,8 +1,8 @@
 /**
- * NexaSquad: onde o código do embaixador vale (`codeScope` do contrato e do convite).
+ * NexaSquad: onde o código do embaixador vale (`codeScope` do contrato, do convite e do nível).
  *
  * Fora do escopo o código não existe naquela compra: nem prévia no checkout, nem desconto, nem
- * comissão. Contrato sem o campo vale em tudo. Espelho de `inviteCodeScope`/`followerDiscountScopeOf`
+ * comissão. Vale onde o contrato E o nível (versão do contrato) deixam; sem o campo, em tudo. Espelho de `inviteCodeScope`/`followerDiscountScopeOf`
  * em `functions/src/squad-applications.ts` e `squad-rules.ts`: mudou lá, muda aqui.
  */
 import type { FollowerDiscountKind, FollowerDiscountScope } from '../niveis-regras/data/squad-rules';
@@ -16,6 +16,15 @@ export const CODE_SCOPE_OPTIONS: ReadonlyArray<{ kind: FollowerDiscountKind; lab
 export const FULL_CODE_SCOPE: FollowerDiscountScope = { registration: true, booking: true, club: true };
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Vale só onde todos deixam (contrato ∧ nível); sem nenhum, vale em tudo. */
+export function intersectScopes(...scopes: FollowerDiscountScope[]): FollowerDiscountScope {
+  return {
+    registration: scopes.every((s) => s.registration),
+    booking: scopes.every((s) => s.booking),
+    club: scopes.every((s) => s.club),
+  };
+}
 
 /** Campo do contrato: ausente → `null` (vale em tudo); tipo ausente ou inválido conta como ligado. */
 export function codeScopeOf(raw: unknown): FollowerDiscountScope | null {

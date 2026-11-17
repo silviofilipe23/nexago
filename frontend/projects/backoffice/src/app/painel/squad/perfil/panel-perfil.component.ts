@@ -354,7 +354,8 @@ export class PanelPerfilComponent {
   });
   protected readonly lines = computed(() => {
     const c = this.contract();
-    return c ? contractLines(c, this.now) : [];
+    const d = this.data();
+    return c ? contractLines(c, this.now, d ? (d.frozenPackage ?? d.rules.tiers[d.contract.tier]) : null) : [];
   });
   protected readonly amendments = computed(() => {
     const c = this.contract();

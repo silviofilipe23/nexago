@@ -1,4 +1,4 @@
-import { CODE_SCOPE_OPTIONS, codeScopeLabel, codeScopeOf, codeScopePayload } from './code-scope';
+import { CODE_SCOPE_OPTIONS, codeScopeLabel, codeScopeOf, codeScopePayload, intersectScopes } from './code-scope';
 
 describe('escopo do código do embaixador (codeScope)', () => {
   it('lista os três tipos na ordem da tela', () => {
@@ -27,5 +27,15 @@ describe('escopo do código do embaixador (codeScope)', () => {
     expect(codeScopeLabel({ registration: true, booking: false, club: false })).toBe('Inscrições em torneios');
     expect(codeScopeLabel({ registration: true, booking: false, club: true })).toBe('Inscrições em torneios e clubinho');
     expect(codeScopeLabel({ registration: false, booking: false, club: false })).toBe('Nenhuma compra');
+  });
+
+  it('contrato e nível se somam: vale só onde todos deixam', () => {
+    expect(
+      intersectScopes(
+        { registration: true, booking: true, club: false },
+        { registration: true, booking: false, club: true },
+      ),
+    ).toEqual({ registration: true, booking: false, club: false });
+    expect(intersectScopes()).toEqual({ registration: true, booking: true, club: true });
   });
 });

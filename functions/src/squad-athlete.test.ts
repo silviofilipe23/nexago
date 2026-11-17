@@ -289,3 +289,26 @@ describe("convite (app 06)", () => {
     await assert.rejects(inviteViewCore(db, "outro", "i1", NOW), /não encontrado/);
   });
 });
+
+describe("onde o código vale (contrato ∧ nível ∧ regras)", () => {
+  it("membro: combina o contrato, o pacote da versão dele e a regra global", async () => {
+    const {fake, db} = setup();
+    seedContract(fake, "jv", {codeScope: {registration: true, booking: true, club: false}});
+    fake.seedDoc("squadConfig/rules/versions/1", {rules: {tiers: {ath: {...DEFAULT_SQUAD_RULES.tiers.ath,
+      codeScope: {registration: true, booking: false, club: true}}}}});
+    const view = await mySquadCore(db, "jv", NOW);
+    assert.deepEqual(view.member?.followerDiscountScope, {registration: true, booking: false, club: false});
+  });
+
+  it("convite: o pacote vigente do nível e o escopo do convite", async () => {
+    const {fake, db} = setup();
+    fake.seedDoc("squadConfig/rules", {version: 2, rules: {...DEFAULT_SQUAD_RULES, tiers: {...DEFAULT_SQUAD_RULES.tiers,
+      ath: {...DEFAULT_SQUAD_RULES.tiers.ath, codeScope: {registration: true, booking: true, club: false}}}}});
+    fake.seedDoc("squadInvites/i1", {
+      athleteId: "caio", tier: "ath", status: "sent", expiresAt: day(-5),
+      codeScope: {registration: true, booking: false, club: true},
+    });
+    const v = await inviteViewCore(db, "caio", "i1", NOW);
+    assert.deepEqual(v.followerDiscountScope, {registration: true, booking: false, club: false});
+  });
+});

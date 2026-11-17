@@ -329,3 +329,58 @@ describe("escopo do código no contrato (codeScope)", () => {
     );
   });
 });
+
+describe("escopo do código por nível (pacote da versão do contrato)", () => {
+  const ONLY_REGISTRATION = {registration: true, booking: false, club: false};
+  const resolve = (db: Firestore, purpose: "registration" | "booking" | "club", typedCode: unknown = "") =>
+    resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: ["atl"], typedCode, purpose}, NOW);
+
+  function withTierScope(): {fake: FakeFirestore; db: Firestore} {
+    const env = makeDb();
+    // João (amb) assinou a versão 2, em que o Ambassador só vale em inscrição.
+    env.fake.seedDoc("squadConfig/rules/versions/2", {rules: {tiers: {amb: {codeScope: ONLY_REGISTRATION}}}});
+    env.fake.seedDoc("squadAttributions/atl", {ambassadorId: "jv", code: "JOAO10", origin: "link", at: NOW});
+    return env;
+  }
+
+  it("nível só de inscrição: o link some na reserva e no clubinho", async () => {
+    const {db} = withTierScope();
+    assert.equal((await resolve(db, "registration"))?.ambassador.uid, "jv");
+    assert.equal(await resolve(db, "booking"), null);
+    assert.equal(await resolve(db, "club"), null);
+  });
+
+  it("código digitado fora do escopo do nível: erro dizendo onde vale", async () => {
+    const {db} = withTierScope();
+    await assert.rejects(
+      resolve(db, "club", "joao10"),
+      (err: {message?: string; details?: {field?: string}}) =>
+        err.details?.field === "squadCode" && err.message === "O código JOAO10 vale só para inscrições em torneios.",
+    );
+  });
+
+  it("contrato e nível se somam: vale só onde os dois deixam", async () => {
+    const {fake, db} = withTierScope();
+    fake.seedDoc("squadConfig/rules/versions/2", {rules: {tiers: {amb: {codeScope: {registration: true, booking: true, club: false}}}}});
+    fake.seedDoc("squadAmbassadors/jv", {
+      ...fake.store.get("squadAmbassadors/jv")!, codeScope: {registration: false, booking: true, club: true},
+    });
+    assert.equal(await resolve(db, "registration"), null);
+    assert.equal((await resolve(db, "booking"))?.ambassador.uid, "jv");
+    assert.equal(await resolve(db, "club"), null);
+  });
+
+  it("outro nível e versão sem o campo seguem valendo em tudo", async () => {
+    const {fake, db} = withTierScope();
+    fake.seedDoc("squadAttributions/atl", {ambassadorId: "rb", code: "RAYSSA", origin: "link", at: NOW});
+    assert.equal((await resolve(db, "booking"))?.ambassador.uid, "rb", "Pro não tem restrição");
+  });
+
+  it("página do link: contrato ∧ nível ∧ regras", async () => {
+    const {fake, db} = withTierScope();
+    fake.seedDoc("squadConfig/rules", {version: 3, rules: {attribution: {
+      followerDiscountScope: {registration: true, booking: true, club: true},
+    }}});
+    assert.deepEqual((await squadReferralCore(db, "JOAO10"))?.scope, ONLY_REGISTRATION);
+  });
+});

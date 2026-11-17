@@ -243,6 +243,17 @@ describe('contrato', () => {
     expect(contractLines(contract(), NOW).some((l) => l.label === 'Código vale em')).toBeFalse();
   });
 
+  it('escopo do código: soma o contrato e o pacote do nível congelado nele', () => {
+    const pkg = { ...DEFAULT_SQUAD_RULES.tiers.amb, codeScope: { registration: true, booking: true, club: false } };
+    const c = { ...contract(), codeScope: { registration: true, booking: false, club: true } };
+    expect(contractLines(c, NOW, pkg)).toContain({ label: 'Código vale em', value: 'Inscrições em torneios' });
+    expect(contractLines(contract(), NOW, pkg)).toContain({
+      label: 'Código vale em',
+      value: 'Inscrições em torneios e reservas de quadra',
+    });
+    expect(contractLines(contract(), NOW, DEFAULT_SQUAD_RULES.tiers.amb).some((l) => l.label === 'Código vale em')).toBeFalse();
+  });
+
   it('pausa sem data de volta e encerrado', () => {
     const paused = contractLines(contract({ state: 'paused', pauseReason: 'Lesão' }), NOW);
     expect(paused.find((l) => l.label === 'Pausa')!.value).toBe('sem data de volta · Lesão');

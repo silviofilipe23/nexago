@@ -41,6 +41,8 @@ import {
   SQUAD_TIERS,
   TIER_LABELS,
   commissionFloor,
+  followerDiscountScopeOf,
+  intersectScopes,
   loadAttributionRules,
   type FollowerDiscountScope,
   type RegistrationType,
@@ -431,7 +433,12 @@ export async function mySquadCore(db: Firestore, uid: string, now: Date): Promis
       commissionPct,
       followerDiscountPct,
       followerDiscountFirstOnly: attribution.followerDiscountFirstOnly,
-      followerDiscountScope: attribution.followerDiscountScope,
+      // Onde o código dele dá desconto: regra global, pacote da versão do contrato e o contrato.
+      followerDiscountScope: intersectScopes(
+        attribution.followerDiscountScope,
+        followerDiscountScopeOf(pkg.codeScope),
+        followerDiscountScopeOf(contract["codeScope"]),
+      ),
       pendingAmendment: pendingView,
       earnings: {
         totalCents: Math.max(0, pendingCents + sum(confirmed, (r) => r.amountCents) + partialRefunds),
@@ -633,7 +640,12 @@ export async function inviteViewCore(db: Firestore, uid: string, inviteId: strin
     firstName: name.trim().split(/\s+/)[0] ?? "",
     tournaments: typeof tournaments === "number" && Number.isFinite(tournaments) ? tournaments : null,
     followerDiscountFirstOnly: attribution.followerDiscountFirstOnly,
-    followerDiscountScope: attribution.followerDiscountScope,
+    // O que o aceite vai valer: regra global, pacote vigente do nível e o escopo do convite.
+    followerDiscountScope: intersectScopes(
+      attribution.followerDiscountScope,
+      followerDiscountScopeOf(packageOf(rules, tier).codeScope),
+      followerDiscountScopeOf(d["codeScope"]),
+    ),
   };
 }
 

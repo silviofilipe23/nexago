@@ -81,6 +81,11 @@ export interface TierPackage {
   partnerHalfOff: boolean;
   campaignFeeCapCents?: number;
   tournamentOriginBonusCents?: number;
+  /**
+   * Onde o código dos embaixadores do nível existe. Soma-se ao escopo do contrato: fora dele não há
+   * prévia, desconto nem comissão. Vale pela versão congelada no contrato, como o resto do pacote.
+   */
+  codeScope: FollowerDiscountScope;
 }
 
 export interface PromotionRule {
@@ -140,6 +145,7 @@ export const DEFAULT_SQUAD_RULES: SquadRules = {
       kitCostCents: 60_00,
       events: '',
       partnerHalfOff: false,
+      codeScope: { registration: true, booking: true, club: true },
     },
     amb: {
       commissionPct: 10,
@@ -150,6 +156,7 @@ export const DEFAULT_SQUAD_RULES: SquadRules = {
       kitCostCents: 120_00,
       events: 'Prioridade',
       partnerHalfOff: false,
+      codeScope: { registration: true, booking: true, club: true },
     },
     pro: {
       commissionPct: [10, 15],
@@ -160,6 +167,7 @@ export const DEFAULT_SQUAD_RULES: SquadRules = {
       kitCostCents: 280_00,
       events: 'Prioridade + exclusivos',
       partnerHalfOff: true,
+      codeScope: { registration: true, booking: true, club: true },
       campaignFeeCapCents: 1000_00,
     },
     cap: {
@@ -171,6 +179,7 @@ export const DEFAULT_SQUAD_RULES: SquadRules = {
       kitCostCents: 120_00,
       events: 'Prioridade',
       partnerHalfOff: false,
+      codeScope: { registration: true, booking: true, club: true },
       tournamentOriginBonusCents: 50_00,
     },
   },
@@ -330,6 +339,9 @@ function tierIssues(tier: SquadTier, t: TierPackage, out: RulesIssues): void {
   if (tier === 'cap' && !isInt(t.tournamentOriginBonusCents ?? NaN, 0, LIMITS.tournamentBonusCents)) {
     out[at('tournamentOriginBonusCents')] = money(LIMITS.tournamentBonusCents);
   }
+  if (!t.codeScope.registration && !t.codeScope.booking && !t.codeScope.club) {
+    out[at('codeScope')] = 'Marque ao menos uma área';
+  }
 }
 
 export function validateRules(r: SquadRules): RulesIssues {
@@ -427,7 +439,15 @@ export function rulesFromDoc(data: Record<string, unknown> | undefined): SquadRu
   }
   const d = DEFAULT_SQUAD_RULES;
   const tiers = Object.fromEntries(
-    SQUAD_TIERS.map((t) => [t, { ...d.tiers[t], ...(raw.tiers?.[t] ?? {}) }]),
+    SQUAD_TIERS.map((t) => [
+      t,
+      {
+        ...d.tiers[t],
+        ...(raw.tiers?.[t] ?? {}),
+        // Pacote salvo antes do escopo por nível: o código valia em tudo.
+        codeScope: { ...d.tiers[t].codeScope, ...(raw.tiers?.[t]?.codeScope ?? {}) },
+      },
+    ]),
   ) as Record<SquadTier, TierPackage>;
   return cloneRules({
     marginMaxPct: raw.marginMaxPct ?? d.marginMaxPct,

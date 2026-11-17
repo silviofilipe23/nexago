@@ -147,7 +147,7 @@ void main() {
     expect(find.text('AGENDA'), findsOneWidget);
   });
 
-  group('horários seguidos', () {
+  group('até que horas', () {
     ArenaSlot daySlot(String start, String end, {String status = 'available'}) {
       return ArenaSlot(
         id: 'c1-$start',
@@ -161,36 +161,57 @@ void main() {
       );
     }
 
+    // 19h (tocado) até 01h livre... 19–20, 20–21, 21–22, 22–23, 23–00.
     final day = [
       slot,
       daySlot('20:00', '21:00'),
       daySlot('21:00', '22:00'),
-      daySlot('22:00', '23:00', status: 'booked'),
+      daySlot('22:00', '23:00'),
       daySlot('23:00', '00:00'),
     ];
 
-    testWidgets('junta os horários livres seguintes numa reserva só',
+    final endSelect = find.byType(DropdownButtonFormField<int>);
+
+    Future<void> pickEnd(WidgetTester tester, String label) async {
+      await tester.ensureVisible(endSelect);
+      await tester.tap(endSelect);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('select lista todos os horários livres seguidos, sem teto',
         (tester) async {
       final service = _FakeManualBookingService();
       await pumpPage(tester, service, day: day);
 
       await openSheet(tester);
-      expect(find.text('DURAÇÃO'), findsOneWidget);
-      expect(find.text('1h · até 20:00'), findsOneWidget);
-      expect(find.text('2h · até 21:00'), findsOneWidget);
-      expect(find.text('3h · até 22:00'), findsOneWidget);
-      // 22h está ocupado: a sequência para ali.
-      expect(find.text('4h · até 23:00'), findsNothing);
-      expect(find.text('19:00 — 20:00'), findsOneWidget);
+      expect(find.text('ATÉ QUE HORAS'), findsOneWidget);
+      expect(find.text('20:00 · 1h'), findsOneWidget);
 
-      await tester.tap(find.text('3h · até 22:00'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(endSelect);
+      await tester.pumpAndSettle();
+      for (final label in [
+        '21:00 · 2h',
+        '22:00 · 3h',
+        '23:00 · 4h',
+        '00:00 · 5h',
+      ]) {
+        expect(find.text(label), findsWidgets, reason: label);
+      }
+    });
 
-      expect(find.text('19:00 — 22:00'), findsOneWidget);
-      // Valor sugerido = soma dos horários; cotação refeita para 19h–22h.
-      expect(find.text('360.00'), findsOneWidget);
-      expect(service.quotedEndTimes.last, '22:00');
+    testWidgets('reserva de 5h sai num intervalo só', (tester) async {
+      final service = _FakeManualBookingService();
+      await pumpPage(tester, service, day: day);
+
+      await openSheet(tester);
+      await pickEnd(tester, '00:00 · 5h');
+
+      expect(find.text('19:00 — 00:00'), findsOneWidget);
+      // Valor sugerido = soma dos horários; cotação refeita para 19h–00h.
+      expect(find.text('600.00'), findsOneWidget);
+      expect(service.quotedEndTimes.last, '00:00');
 
       await tester.enterText(
         find.widgetWithText(TextField, 'Nome de quem vai jogar'),
@@ -203,8 +224,28 @@ void main() {
 
       final call = service.created.single;
       expect(call['startTime'], '19:00');
-      expect(call['endTime'], '22:00');
-      expect(call['amountReais'], 360.0);
+      expect(call['endTime'], '00:00');
+      expect(call['amountReais'], 600.0);
+    });
+
+    testWidgets('para no primeiro horário ocupado', (tester) async {
+      final service = _FakeManualBookingService();
+      await pumpPage(
+        tester,
+        service,
+        day: [
+          slot,
+          daySlot('20:00', '21:00'),
+          daySlot('21:00', '22:00', status: 'booked'),
+          daySlot('22:00', '23:00'),
+        ],
+      );
+
+      await openSheet(tester);
+      await tester.tap(endSelect);
+      await tester.pumpAndSettle();
+      expect(find.text('21:00 · 2h'), findsWidgets);
+      expect(find.text('22:00 · 3h'), findsNothing);
     });
 
     testWidgets('cotação do servidor vale para o intervalo inteiro',
@@ -213,15 +254,13 @@ void main() {
       await pumpPage(tester, service, day: day);
 
       await openSheet(tester);
-      await tester.tap(find.text('2h · até 21:00'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 50));
+      await pickEnd(tester, '21:00 · 2h');
 
       expect(service.quotedEndTimes.last, '21:00');
       expect(find.text('200.00'), findsOneWidget);
     });
 
-    testWidgets('sem horário livre em seguida não mostra a duração',
+    testWidgets('sem horário livre em seguida: select travado no fim do tocado',
         (tester) async {
       final service = _FakeManualBookingService();
       await pumpPage(
@@ -231,7 +270,15 @@ void main() {
       );
 
       await openSheet(tester);
-      expect(find.text('DURAÇÃO'), findsNothing);
+      expect(find.text('20:00 · 1h'), findsOneWidget);
+      expect(
+        find.text('Sem horário livre logo em seguida nesta quadra.'),
+        findsOneWidget,
+      );
+      final field = tester.widget<DropdownButton<int>>(
+        find.byType(DropdownButton<int>),
+      );
+      expect(field.onChanged, isNull);
     });
 
     testWidgets('horário escolhido ocupado com a folha aberta: não envia',
@@ -240,8 +287,7 @@ void main() {
       await pumpPage(tester, service, day: day);
 
       await openSheet(tester);
-      await tester.tap(find.text('3h · até 22:00'));
-      await tester.pump();
+      await pickEnd(tester, '22:00 · 3h');
 
       // Outra reserva pega as 20h enquanto a folha está aberta.
       final container = ProviderScope.containerOf(
@@ -262,12 +308,41 @@ void main() {
       await tester.pump();
 
       expect(service.created, isEmpty);
-      expect(
-        find.textContaining('acabou de ser ocupado'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('acabou de ser ocupado'), findsOneWidget);
       expect(find.text('19:00 — 20:00'), findsOneWidget);
     });
+  });
+
+  testWidgets('Cancelar fecha a folha sem criar reserva', (tester) async {
+    final service = _FakeManualBookingService();
+    await pumpPage(tester, service);
+
+    await openSheet(tester);
+    final cancel = find.widgetWithText(OutlinedButton, 'Cancelar');
+    await tester.ensureVisible(cancel);
+    await tester.tap(cancel);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ArenaManualBookingSheet), findsNothing);
+    expect(service.created, isEmpty);
+    expect(find.text('Reserva criada.'), findsNothing);
+  });
+
+  testWidgets('tocar fora dos campos fecha o teclado', (tester) async {
+    final service = _FakeManualBookingService();
+    await pumpPage(tester, service);
+
+    await openSheet(tester);
+    final nameField = find.widgetWithText(TextField, 'Nome de quem vai jogar');
+    await tester.tap(nameField);
+    await tester.pump();
+    expect(tester.testTextInput.isVisible, isTrue);
+
+    // Toque num texto da folha (fora de qualquer campo).
+    await tester.tap(find.text('ATÉ QUE HORAS'));
+    await tester.pump();
+    expect(tester.testTextInput.isVisible, isFalse);
+    expect(find.byType(ArenaManualBookingSheet), findsOneWidget);
   });
 
   testWidgets('sem nome não chama o servidor', (tester) async {
@@ -389,6 +464,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
+    await tester.ensureVisible(find.byType(Checkbox));
     await tester.tap(find.byType(Checkbox));
     await tester.pump();
     expect(find.textContaining('A cobrar'), findsNothing);

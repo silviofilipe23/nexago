@@ -7,9 +7,6 @@ library;
 
 import '../../arenas/domain/arena_slot.dart';
 
-/// Teto de horários numa reserva de balcão (mantém a fileira de opções curta).
-const kMaxManualBookingSlots = 8;
-
 const _minutesPerDay = 24 * 60;
 
 int? _minutesOf(String time) {
@@ -20,12 +17,12 @@ int? _minutesOf(String time) {
 
 /// [start] e os horários livres seguintes, colados um no outro (o próximo
 /// começa onde o anterior termina), na mesma quadra e dia. Para no primeiro
-/// buraco, ocupado, bloqueado ou na meia-noite. Sempre começa por [start].
+/// buraco, ocupado, bloqueado ou na meia-noite (o que limita a sequência ao
+/// próprio dia). Sempre começa por [start].
 List<ArenaSlot> consecutiveAvailableSlots(
   ArenaSlot start,
-  Iterable<ArenaSlot> daySlots, {
-  int max = kMaxManualBookingSlots,
-}) {
+  Iterable<ArenaSlot> daySlots,
+) {
   final court = start.courtId.trim().toLowerCase();
   final dateKey = start.dateKey;
   final freeByStart = <int, ArenaSlot>{};
@@ -40,7 +37,7 @@ List<ArenaSlot> consecutiveAvailableSlots(
 
   final chain = <ArenaSlot>[start];
   var current = start;
-  while (chain.length < max) {
+  while (true) {
     final currentStart = _minutesOf(current.startTime);
     final currentEnd = _minutesOf(current.endTime);
     // Fim 00:00 (ou antes do início) vira o dia: o próximo é de outra data.

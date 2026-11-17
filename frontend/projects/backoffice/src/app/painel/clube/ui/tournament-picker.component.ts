@@ -107,8 +107,12 @@ export class TournamentPickerComponent {
   protected readonly searching = signal(false);
   protected readonly error = signal('');
   protected readonly results = signal<TournamentRow[] | null>(null);
-  /** id → nome dos já escolhidos (os que vieram gravados são buscados pelo id). */
-  protected readonly names = signal<Record<string, string>>({});
+  /**
+   * id → nome dos já escolhidos (os que vieram gravados são buscados pelo id). `undefined` de
+   * propósito: um id que chega pelo `input` pode aparecer antes de o `effect` gravar o nome dele,
+   * e aí o chip mostra o próprio id (`?? id` no template).
+   */
+  protected readonly names = signal<Record<string, string | undefined>>({});
 
   constructor() {
     effect(() => {

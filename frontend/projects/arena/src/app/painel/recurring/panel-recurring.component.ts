@@ -9,7 +9,6 @@ import { arenaFunctions } from '../data/functions';
 import { fetchCourtsList } from '../courts/courts-repository';
 import type { ArenaCourt } from '../courts/court.model';
 import { formatBRL } from '../bookings/arena-booking.model';
-import { resolveAthleteProfile } from '../bookings/bookings-repository';
 import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -28,7 +27,7 @@ import {
 } from './arena-recurring-booking.model';
 import { cancelRecurringSeries, createRecurringSeries, pauseRecurringSeries, resumeRecurringSeries, updateRecurringSeries, watchVisibleSeries } from './recurring-bookings-repository';
 import { AthleteSearchFieldComponent } from './athlete-search-field.component';
-import { RecurringAthleteProfiles } from './recurring-athlete-profiles';
+import { injectAthleteProfiles } from './recurring-athlete-profiles';
 import { AvatarComponent } from '../ui/avatar.component';
 import type { AthleteCandidate } from './athlete-search-filter';
 
@@ -667,7 +666,7 @@ export class PanelRecurringComponent {
   protected readonly weekdayLabel = RECURRING_WEEKDAY_LABEL;
   protected readonly formatBRL = formatBRL;
   /** Nome e foto dos atletas vinculados — a série só grava o `athleteId`. */
-  protected readonly athleteProfiles = new RecurringAthleteProfiles((id) => resolveAthleteProfile(arenaFirestore(), id));
+  protected readonly athleteProfiles = injectAthleteProfiles();
 
   protected customerLabel(series: ArenaRecurringBooking): string {
     return recurringCustomerLabel(series, this.athleteProfiles.names());

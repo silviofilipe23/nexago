@@ -9,8 +9,7 @@ import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { recurringCustomerLabel, type ArenaRecurringBooking } from '../recurring/arena-recurring-booking.model';
 import { watchVisibleSeries } from '../recurring/recurring-bookings-repository';
-import { RecurringAthleteProfiles } from '../recurring/recurring-athlete-profiles';
-import { resolveAthleteProfile } from '../bookings/bookings-repository';
+import { injectAthleteProfiles } from '../recurring/recurring-athlete-profiles';
 import { AvatarComponent } from '../ui/avatar.component';
 import { ChartTabsComponent } from '../ui/chart-tabs.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -219,7 +218,7 @@ export class PanelPhGridComponent {
 
   private readonly series = signal<ArenaRecurringBooking[]>([]);
   /** Nome e foto do atleta do horário fixo fora de plano — a série só grava o `athleteId`. */
-  private readonly athleteProfiles = new RecurringAthleteProfiles((id) => resolveAthleteProfile(arenaFirestore(), id));
+  private readonly athleteProfiles = injectAthleteProfiles();
   private readonly classes = signal<ArenaClass[]>([]);
   private readonly clubs = signal<ArenaClub[]>([]);
   protected readonly courtFilter = signal(ALL);

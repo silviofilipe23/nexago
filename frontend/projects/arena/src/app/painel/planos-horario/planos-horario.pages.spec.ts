@@ -1,11 +1,14 @@
-import { provideZonelessChangeDetection, signal, type Type } from '@angular/core';
+import { provideZonelessChangeDetection, signal, type Provider, type Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import { addDaysKey, todayKeyLocal } from '../aulas/class.model';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
+import { PersonPhotoService } from '../ui/person-photo.service';
 import { ViewportService } from '../ui/viewport.service';
+import type { AthleteProfileSummary } from '../bookings/bookings-repository';
+import { ATHLETE_PROFILE_RESOLVER } from '../recurring/recurring-athlete-profiles';
 import { PanelPhGridComponent } from './panel-ph-grid.component';
 import { PanelPhPlanEditorComponent } from './panel-ph-plan-editor.component';
 import { PanelPhPlansComponent } from './panel-ph-plans.component';
@@ -24,9 +27,10 @@ describe('Planos de horário · telas', () => {
   /** Doc da arena visto pelo contexto (`bookingAllocation` liga o "arena define a quadra"). */
   let arenaDoc: Record<string, unknown> | null = null;
 
-  function setup(): SchedulePlansStore {
+  function setup(extraProviders: Provider[] = []): SchedulePlansStore {
     TestBed.configureTestingModule({
       providers: [
+        ...extraProviders,
         provideZonelessChangeDetection(),
         provideRouter([]),
         { provide: AuthService, useValue: { user: () => ({ email: 'dono@arena.com' }), signOutUser: () => Promise.resolve() } },
@@ -231,5 +235,84 @@ describe('Planos de horário · telas', () => {
     [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Registrar pagamento'))!.click();
     fixture.detectChanges();
     expect(el.textContent).toContain('O débito automático desta mensalidade será cancelado.');
+  });
+
+  describe('Assinantes · avatar do titular', () => {
+    const PROFILES: Record<string, AthleteProfileSummary> = {
+      'u-ana': { name: 'Ana', photoUrl: 'https://foto/ana-perfil.jpg' },
+    };
+    /** Perfil em `public_profiles` sem Firestore: Ana resolve, Bruno falha (cai na foto gravada). */
+    const resolver = async (id: string): Promise<AthleteProfileSummary> => {
+      const profile = PROFILES[id];
+      if (!profile) throw new Error('offline');
+      return profile;
+    };
+
+    function setupHolders(): SchedulePlansStore {
+      const store = setup([{ provide: ATHLETE_PROFILE_RESOLVER, useValue: resolver }]);
+      const base = { planId: 'p1', planName: 'Fixo Noite', status: 'active', monthlyPriceReais: 240, startDate: '2026-03-01' };
+      store.subscriptions.set([
+        subscriptionFromRaw('a', { ...base, holderName: 'Ana Souza', holderAthleteId: 'u-ana', holderPhotoUrl: 'https://foto/ana-antiga.jpg' }),
+        subscriptionFromRaw('b', { ...base, holderName: 'Bruno Lima', holderAthleteId: 'u-bruno', holderPhotoUrl: 'https://foto/bruno-gravada.jpg' }),
+        subscriptionFromRaw('c', { ...base, holderName: 'Carla Dias' }),
+      ]);
+      store.openCharges.set([]);
+      return store;
+    }
+
+    async function renderSubscribers() {
+      const fixture = TestBed.createComponent(PanelPhSubscribersComponent);
+      fixture.detectChanges();
+      // A leitura do perfil é uma promessa fora do Angular: espera ela assentar antes de olhar.
+      await new Promise((resolve) => setTimeout(resolve));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      const rows = [...el.querySelectorAll<HTMLElement>('.tr:not(.th)')];
+      const detailName = () => el.querySelector('ar-ph-subscriber-detail .name')?.textContent?.trim();
+      return { fixture, el, rows, detailName };
+    }
+
+    function avatarPhoto(scope: Element): string | null {
+      return scope.querySelector('ar-avatar img')?.getAttribute('src') ?? null;
+    }
+
+    it('12 foto do perfil do atleta vinculado, foto gravada se o perfil falha, iniciais no avulso', async () => {
+      setupHolders();
+      const { el, rows } = await renderSubscribers();
+
+      expect(avatarPhoto(rows[0]!)).toBe('https://foto/ana-perfil.jpg');
+      expect(avatarPhoto(rows[1]!)).toBe('https://foto/bruno-gravada.jpg');
+      expect(avatarPhoto(rows[2]!)).toBeNull();
+      expect(rows[2]!.querySelector('ar-avatar')!.textContent!.trim()).toBe('CD');
+      // O detalhe (Ana, a primeira) usa a mesma foto do perfil.
+      expect(avatarPhoto(el.querySelector('ar-ph-subscriber-detail .head')!)).toBe('https://foto/ana-perfil.jpg');
+    });
+
+    it('13 clique no avatar abre a foto ampliada sem trocar o assinante; a linha e o nome selecionam', async () => {
+      setupHolders();
+      const photos = TestBed.inject(PersonPhotoService);
+      const open = spyOn(photos, 'open');
+      const { fixture, rows, detailName } = await renderSubscribers();
+      expect(detailName()).toBe('Ana Souza');
+
+      // Avatar fora de qualquer <button>: zoomable de verdade.
+      const bruno = rows[1]!.querySelector<HTMLElement>('ar-avatar')!;
+      expect(bruno.closest('button')).toBeNull();
+      bruno.click();
+      fixture.detectChanges();
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(open.calls.mostRecent().args[0].photoUrl).toBe('https://foto/bruno-gravada.jpg');
+      expect(detailName()).toBe('Ana Souza');
+
+      rows[1]!.querySelector<HTMLElement>('.mute')!.click();
+      fixture.detectChanges();
+      expect(detailName()).toBe('Bruno Lima');
+
+      rows[2]!.querySelector<HTMLButtonElement>('button.who-name')!.click();
+      fixture.detectChanges();
+      expect(detailName()).toBe('Carla Dias');
+      expect(open).toHaveBeenCalledTimes(1);
+    });
   });
 });

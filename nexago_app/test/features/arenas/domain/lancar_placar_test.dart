@@ -253,4 +253,48 @@ void main() {
       expect(lancarCanSave(uid: 'zé', ownerUid: ''), isTrue);
     });
   });
+
+  group('lancarNeedsLink (liberar quem veio da busca)', () {
+    const ze = ResultPlayer(id: 'ze', name: 'Zé Silva');
+    bool needs({
+      ResultPlayer player = ze,
+      String? uid = 'dono',
+      String? ownerUid = 'dono',
+      List<String> roster = const ['dono', 'enzo'],
+      bool canSave = true,
+    }) =>
+        lancarNeedsLink(
+          player: player,
+          uid: uid,
+          ownerUid: ownerUid,
+          rosterUids: roster,
+          canSave: canSave,
+        );
+
+    test('atleta com conta fora da lista é liberado', () {
+      expect(needs(), isTrue);
+    });
+
+    test('quem já está na lista, o próprio celular e avulso não', () {
+      expect(needs(roster: const ['dono', 'ze']), isFalse);
+      expect(needs(uid: 'ze'), isFalse);
+      expect(
+        needs(player: const ResultPlayer(id: 'guest:1', name: 'Avulso')),
+        isFalse,
+      );
+    });
+
+    test('quem não pode enviar ou reserva ainda carregando não chama', () {
+      expect(needs(canSave: false), isFalse);
+      expect(needs(ownerUid: null), isFalse);
+    });
+
+    test('aviso de falha cita o primeiro nome', () {
+      expect(
+        lancarLinkFailedMessage('Zé Silva'),
+        'Não deu para liberar Zé agora. Quando o placar for enviado, Zé '
+        'também poderá lançar.',
+      );
+    });
+  });
 }

@@ -43,4 +43,15 @@ void main() {
     final suggested = notificationPresentation(_n('pelada_score_suggested'));
     expect(suggested.actions.single.label, 'Conferir e enviar');
   });
+
+  test('liberado na pelada: push abre o Lançar placar da reserva', () {
+    expect(
+      resolveNotificationRoute(
+          {'type': 'pelada_score_keeper', 'bookingId': 'b1'}),
+      '/reservar/placar/b1',
+    );
+    final keeper = notificationPresentation(_n('pelada_score_keeper'));
+    expect(keeper.routePath, '/reservar/placar/b1');
+    expect(keeper.actions.single.label, 'Marcar placar');
+  });
 }

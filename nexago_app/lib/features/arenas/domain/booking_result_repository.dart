@@ -26,6 +26,11 @@ abstract class BookingResultRepository {
   /// Convidado: manda o placar para quem reservou conferir e enviar.
   Future<void> suggest(String bookingId, BookingResult result);
 
+  /// Libera quem foi adicionado na tela de lançamento a lançar o placar do
+  /// próprio celular (`linkBookingResultPlayers`), antes de o placar ser
+  /// enviado. Devolve os uids que entraram agora na lista.
+  Future<List<String>> linkPlayers(String bookingId, List<String> playerIds);
+
   /// As peladas CONFIRMADAS de outro atleta (perfil público), ao vivo.
   Stream<List<SavedBookingResult>> watchConfirmedOf(String userId);
 

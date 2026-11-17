@@ -113,6 +113,7 @@ Future<FakeBookingResultRepository> abrir(
                   sport: source.sport,
                   ownerUid: source.ownerUid,
                   rosterUids: source.rosterUids,
+                  scoreKeepers: source.scoreKeepers,
                   confirmed: source.confirmed,
                   arenaId: 'a1',
                 ),
@@ -449,6 +450,99 @@ void main() {
       find.byKey(const Key('lancar-placar-next')),
     );
     expect(next.onPressed, isNull);
+  });
+
+  group('liberar quem veio da busca (celular de quem marca pode travar)', () {
+    Future<void> buscarEPor(WidgetTester tester, String q, String key) async {
+      await tester.enterText(find.byKey(const Key('lancar-placar-search')), q);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      await tester.tap(find.byKey(Key(key)));
+      await tester.pump();
+    }
+
+    testWidgets('posto num time, o atleta da busca é liberado no servidor', (
+      tester,
+    ) async {
+      final repo = await abrir(
+        tester,
+        busca: const [ResultPlayer(id: 'u7', name: 'Gabi Rocha')],
+      );
+
+      await lancar(tester);
+      await buscarEPor(tester, 'Gab', 'lancar-assign-u7-1');
+      expect(repo.links.single.$1, 'b1');
+      expect(repo.links.single.$2, ['u7']);
+      // Tirar e pôr de novo não chama outra vez.
+      await tester.tap(find.byKey(const Key('lancar-assign-u7-1')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('lancar-assign-u7-0')));
+      await tester.pump();
+      expect(repo.links, hasLength(1));
+    });
+
+    testWidgets('quem já está na reserva não é liberado de novo', (
+      tester,
+    ) async {
+      final repo = await abrir(tester);
+
+      await lancar(tester);
+      await tester.tap(find.byKey(const Key('lancar-assign-u3-0')));
+      await tester.pump();
+      expect(repo.links, isEmpty);
+    });
+
+    testWidgets('sem conexão: avisa e o atleta continua no time', (
+      tester,
+    ) async {
+      final repo = await abrir(
+        tester,
+        busca: const [ResultPlayer(id: 'u7', name: 'Gabi Rocha')],
+      );
+      repo.linkError = 'Sem internet';
+
+      await lancar(tester);
+      await buscarEPor(tester, 'Gab', 'lancar-assign-u7-1');
+      await tester.pump();
+      expect(
+        find.text('Não deu para liberar Gabi agora. Quando o placar for '
+            'enviado, Gabi também poderá lançar.'),
+        findsOneWidget,
+      );
+      expect(_teamCount(tester, 1), '3');
+    });
+
+    testWidgets(
+        'outro celular: quem foi liberado abre com a galera e envia direto', (
+      tester,
+    ) async {
+      final repo = await abrir(
+        tester,
+        uid: 'u7',
+        source: const BookingStorySource(
+          sport: 'beachVolleyball',
+          ownerUid: 'u1',
+          rosterUids: ['u1', 'u2', 'u7'],
+          confirmed: [
+            MyBookingConfirmedAthlete(userId: 'u2', displayName: 'Enzo Lima'),
+          ],
+          scoreKeepers: [
+            MyBookingConfirmedAthlete(userId: 'u7', displayName: 'Gabi Rocha'),
+          ],
+        ),
+      );
+
+      await lancar(tester);
+      // Quem foi liberado entra nos jogadores da reserva.
+      expect(find.byKey(const Key('lancar-player-u7')), findsOneWidget);
+      await proximo(tester);
+      await placar(tester, 0, 21, 15);
+      expect(find.textContaining('Mandar para'), findsNothing);
+      await enviar(tester);
+
+      expect(repo.suggestions, isEmpty);
+      expect(repo.saves.single.$1, 'b1');
+    });
   });
 
   testWidgets('busca de atletas do app entra na lista com os times', (

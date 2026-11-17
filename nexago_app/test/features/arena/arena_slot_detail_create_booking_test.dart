@@ -34,10 +34,14 @@ void main() {
     priceReais: 120,
   );
 
+  // Horários do dia aberto na agenda (base dos horários seguidos).
+  final daySlots = StateProvider<List<ArenaSlot>>((ref) => const []);
+
   List<Override> overrides(
     _FakeManualBookingService service,
-    _FakeUsersRepository users,
-  ) {
+    _FakeUsersRepository users, {
+    List<ArenaSlot> day = const [],
+  }) {
     const membership = ArenaMembership(
       arenaId: 'a1',
       name: 'Vegeton',
@@ -56,6 +60,10 @@ void main() {
       ),
       arenaManualBookingServiceProvider.overrideWithValue(service),
       usersRepositoryProvider.overrideWithValue(users),
+      daySlots.overrideWith((ref) => day),
+      arenaManualBookingDaySlotsProvider.overrideWith(
+        (ref, dateKey) => ref.watch(daySlots),
+      ),
     ];
   }
 
@@ -64,6 +72,7 @@ void main() {
     _FakeManualBookingService service, {
     ArenaSlot? slotOverride,
     _FakeUsersRepository? users,
+    List<ArenaSlot> day = const [],
   }) async {
     final router = GoRouter(
       initialLocation: '/slot',
@@ -87,7 +96,11 @@ void main() {
     );
     await tester.pumpWidget(
       ProviderScope(
-        overrides: overrides(service, users ?? _FakeUsersRepository()),
+        overrides: overrides(
+          service,
+          users ?? _FakeUsersRepository(),
+          day: day,
+        ),
         child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
       ),
     );
@@ -132,6 +145,129 @@ void main() {
     expect(call['amountReais'], 90.0);
     expect(find.text('Reserva criada.'), findsOneWidget);
     expect(find.text('AGENDA'), findsOneWidget);
+  });
+
+  group('horários seguidos', () {
+    ArenaSlot daySlot(String start, String end, {String status = 'available'}) {
+      return ArenaSlot(
+        id: 'c1-$start',
+        arenaId: 'a1',
+        courtId: 'c1',
+        date: DateTime(2026, 11, 14),
+        startTime: start,
+        endTime: end,
+        rawStatus: status,
+        priceReais: 120,
+      );
+    }
+
+    final day = [
+      slot,
+      daySlot('20:00', '21:00'),
+      daySlot('21:00', '22:00'),
+      daySlot('22:00', '23:00', status: 'booked'),
+      daySlot('23:00', '00:00'),
+    ];
+
+    testWidgets('junta os horários livres seguintes numa reserva só',
+        (tester) async {
+      final service = _FakeManualBookingService();
+      await pumpPage(tester, service, day: day);
+
+      await openSheet(tester);
+      expect(find.text('DURAÇÃO'), findsOneWidget);
+      expect(find.text('1h · até 20:00'), findsOneWidget);
+      expect(find.text('2h · até 21:00'), findsOneWidget);
+      expect(find.text('3h · até 22:00'), findsOneWidget);
+      // 22h está ocupado: a sequência para ali.
+      expect(find.text('4h · até 23:00'), findsNothing);
+      expect(find.text('19:00 — 20:00'), findsOneWidget);
+
+      await tester.tap(find.text('3h · até 22:00'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(find.text('19:00 — 22:00'), findsOneWidget);
+      // Valor sugerido = soma dos horários; cotação refeita para 19h–22h.
+      expect(find.text('360.00'), findsOneWidget);
+      expect(service.quotedEndTimes.last, '22:00');
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Nome de quem vai jogar'),
+        'João',
+      );
+      await tester.ensureVisible(submitButton);
+      await tester.tap(submitButton);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final call = service.created.single;
+      expect(call['startTime'], '19:00');
+      expect(call['endTime'], '22:00');
+      expect(call['amountReais'], 360.0);
+    });
+
+    testWidgets('cotação do servidor vale para o intervalo inteiro',
+        (tester) async {
+      final service = _FakeManualBookingService(quoteAmount: 200);
+      await pumpPage(tester, service, day: day);
+
+      await openSheet(tester);
+      await tester.tap(find.text('2h · até 21:00'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(service.quotedEndTimes.last, '21:00');
+      expect(find.text('200.00'), findsOneWidget);
+    });
+
+    testWidgets('sem horário livre em seguida não mostra a duração',
+        (tester) async {
+      final service = _FakeManualBookingService();
+      await pumpPage(
+        tester,
+        service,
+        day: [slot, daySlot('20:00', '21:00', status: 'blocked')],
+      );
+
+      await openSheet(tester);
+      expect(find.text('DURAÇÃO'), findsNothing);
+    });
+
+    testWidgets('horário escolhido ocupado com a folha aberta: não envia',
+        (tester) async {
+      final service = _FakeManualBookingService();
+      await pumpPage(tester, service, day: day);
+
+      await openSheet(tester);
+      await tester.tap(find.text('3h · até 22:00'));
+      await tester.pump();
+
+      // Outra reserva pega as 20h enquanto a folha está aberta.
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ArenaManualBookingSheet)),
+      );
+      container.read(daySlots.notifier).state = [
+        slot,
+        daySlot('20:00', '21:00', status: 'booked'),
+      ];
+      await tester.pump();
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Nome de quem vai jogar'),
+        'João',
+      );
+      await tester.ensureVisible(submitButton);
+      await tester.tap(submitButton);
+      await tester.pump();
+
+      expect(service.created, isEmpty);
+      expect(
+        find.textContaining('acabou de ser ocupado'),
+        findsOneWidget,
+      );
+      expect(find.text('19:00 — 20:00'), findsOneWidget);
+    });
   });
 
   testWidgets('sem nome não chama o servidor', (tester) async {
@@ -364,6 +500,7 @@ class _FakeManualBookingService implements ArenaManualBookingService {
   final ArenaMemberHours? memberHours;
   final Object? createError;
   final List<String?> quotedAthleteIds = [];
+  final List<String> quotedEndTimes = [];
   final List<Map<String, Object?>> created = [];
 
   @override
@@ -376,6 +513,7 @@ class _FakeManualBookingService implements ArenaManualBookingService {
     String? athleteId,
   }) async {
     quotedAthleteIds.add(athleteId);
+    quotedEndTimes.add(endTime);
     return ArenaManualBookingQuote(
       amountReais: quoteAmount,
       memberHours: athleteId != null ? memberHours : null,

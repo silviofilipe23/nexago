@@ -15,11 +15,16 @@ import '../../../arenas/domain/arena_slot.dart';
 import '../../domain/arena_manual_booking.dart';
 import '../../domain/arena_schedule_providers.dart';
 import '../../domain/arena_shell_providers.dart';
+import '../../domain/manual_booking_slot_chain.dart';
 
 /// Bottom sheet "Criar reserva" do detalhe do horário: reserva de balcão para
 /// um atleta cadastrado (com banco de horas, se for mensalista) ou para um
 /// cliente sem conta, só pelo nome. Grava pela callable
 /// `createArenaManualBooking` — a mesma do portal da arena.
+///
+/// Quando os horários seguintes da mesma quadra estão livres, o gestor junta
+/// vários numa reserva só (ex.: 18h–21h): vira um único intervalo
+/// `startTime → endTime`, que o servidor trava hora a hora.
 class ArenaManualBookingSheet extends ConsumerStatefulWidget {
   const ArenaManualBookingSheet({
     super.key,
@@ -80,6 +85,9 @@ class _ArenaManualBookingSheetState
   bool _amountEdited = false;
   bool _busy = false;
 
+  /// Quantos horários seguidos (a partir do tocado) entram na reserva.
+  int _slotCount = 1;
+
   @override
   void initState() {
     super.initState();
@@ -100,6 +108,28 @@ class _ArenaManualBookingSheetState
     super.dispose();
   }
 
+  /// Horários livres seguidos a partir do tocado (ele incluso), ao vivo.
+  List<ArenaSlot> _readChain() => consecutiveAvailableSlots(
+        widget.slot,
+        ref.read(arenaManualBookingDaySlotsProvider(widget.slot.dateKey)),
+      );
+
+  /// Fim da reserva: o do último horário escolhido que segue livre.
+  String _endTimeOf(List<ArenaSlot> chain) =>
+      chain[_slotCount.clamp(1, chain.length) - 1].endTime;
+
+  /// Trocar a duração refaz a sugestão de valor: o de 1h não vale para 3h.
+  void _selectSlotCount(int count, List<ArenaSlot> chain) {
+    if (count == _slotCount) return;
+    final suggested = sumSlotPrices(chain.take(count));
+    setState(() {
+      _slotCount = count;
+      _amountEdited = false;
+      _amountController.text = suggested?.toStringAsFixed(2) ?? '';
+    });
+    _loadQuote(athleteId: _athlete?.uid);
+  }
+
   /// Preço do servidor (quadra + promoções) substitui o do slot enquanto o
   /// gestor não mexeu no campo; com atleta, traz o banco de horas dele.
   /// Falha aqui não bloqueia: o gestor digita e a reserva sai avulsa.
@@ -112,7 +142,7 @@ class _ArenaManualBookingSheetState
             courtId: slot.courtId,
             dateKey: slot.dateKey,
             startTime: slot.startTime,
-            endTime: slot.endTime,
+            endTime: _endTimeOf(_readChain()),
             athleteId: athleteId,
           );
       if (!mounted || seq != _quoteSeq) return;
@@ -189,7 +219,12 @@ class _ArenaManualBookingSheetState
       'EEE, d \'de\' MMMM',
       'pt_BR',
     ).format(widget.slot.date).toUpperCase().replaceAll('.', '');
-    final timeRange = '${widget.slot.startTime} — ${widget.slot.endTime}';
+    final chain = consecutiveAvailableSlots(
+      widget.slot,
+      ref.watch(arenaManualBookingDaySlotsProvider(widget.slot.dateKey)),
+    );
+    final endTime = _endTimeOf(chain);
+    final timeRange = '${widget.slot.startTime} — $endTime';
 
     return Padding(
       padding: EdgeInsets.only(
@@ -249,6 +284,10 @@ class _ArenaManualBookingSheetState
                 height: 1.4,
               ),
             ),
+            if (chain.length > 1) ...[
+              const SizedBox(height: 20),
+              _buildDuration(context, chain),
+            ],
             const SizedBox(height: 20),
             ..._buildCustomer(context),
             const SizedBox(height: 20),
@@ -264,7 +303,7 @@ class _ArenaManualBookingSheetState
             ),
             if (_memberHours != null) ...[
               const SizedBox(height: 12),
-              _buildMemberHours(context, _memberHours!),
+              _buildMemberHours(context, _memberHours!, endTime),
             ],
             const SizedBox(height: 20),
             _label(context, 'NOTA (OPCIONAL)'),
@@ -393,7 +432,49 @@ class _ArenaManualBookingSheetState
     ];
   }
 
-  Widget _buildMemberHours(BuildContext context, ArenaMemberHours mh) {
+  Widget _buildDuration(BuildContext context, List<ArenaSlot> chain) {
+    final selected = _slotCount.clamp(1, chain.length);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _label(context, 'DURAÇÃO'),
+        const SizedBox(height: 4),
+        Text(
+          'Junte os próximos horários livres desta quadra numa reserva só.',
+          style: TextStyle(
+            fontSize: 13,
+            color: context.themeColors.onSurfaceMuted,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (var i = 1; i <= chain.length; i++)
+              ChoiceChip(
+                key: Key('manual-booking-slots-$i'),
+                label: Text(_durationLabel(chain[i - 1].endTime)),
+                selected: i == selected,
+                onSelected: _busy ? null : (_) => _selectSlotCount(i, chain),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// "3h · até 22:00".
+  String _durationLabel(String endTime) {
+    final minutes = slotSpanMinutes(widget.slot.startTime, endTime);
+    return '${formatMemberMinutes(minutes)} · até $endTime';
+  }
+
+  Widget _buildMemberHours(
+    BuildContext context,
+    ArenaMemberHours mh,
+    String endTime,
+  ) {
     final colors = context.themeColors;
     final textStyle = TextStyle(
       fontSize: 13,
@@ -429,7 +510,10 @@ class _ArenaManualBookingSheetState
             ),
           ),
           if (_useMemberHours)
-            Text('A cobrar: ${_memberChargeLabel(mh)}', style: textStyle),
+            Text(
+              'A cobrar: ${_memberChargeLabel(mh, endTime)}',
+              style: textStyle,
+            ),
         ],
       );
     } else {
@@ -452,13 +536,13 @@ class _ArenaManualBookingSheetState
     );
   }
 
-  String _memberChargeLabel(ArenaMemberHours mh) {
+  String _memberChargeLabel(ArenaMemberHours mh, String endTime) {
     final amount = parseManualBookingAmount(_amountController.text);
     if (amount == null) return '—';
     final left = amountAfterMemberHours(
       amount,
       widget.slot.startTime,
-      widget.slot.endTime,
+      endTime,
       mh.coverMinutes,
     );
     if (left <= 0) return 'nada (coberta pelo plano)';
@@ -512,6 +596,20 @@ class _ArenaManualBookingSheetState
       return;
     }
 
+    // Um dos horários escolhidos foi reservado com a folha aberta: não manda
+    // um intervalo menor com o valor do maior.
+    final chain = _readChain();
+    if (_slotCount > chain.length) {
+      setState(() => _slotCount = chain.length);
+      showAppSnackBar(
+        context,
+        'Um dos horários escolhidos acabou de ser ocupado. Confira a duração '
+        'e o valor.',
+        isError: true,
+      );
+      return;
+    }
+
     setState(() => _busy = true);
     try {
       final slot = widget.slot;
@@ -520,7 +618,7 @@ class _ArenaManualBookingSheetState
             courtId: slot.courtId,
             dateKey: slot.dateKey,
             startTime: slot.startTime,
-            endTime: slot.endTime,
+            endTime: _endTimeOf(chain),
             amountReais: amount,
             athleteId: athlete?.uid,
             customerName: athlete != null

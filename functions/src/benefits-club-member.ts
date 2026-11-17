@@ -2,7 +2,8 @@
  * Clube de Vantagens Nexa · o lado do atleta na versão premium (spec v2, itens 3, 7, 8 e 9).
  *
  *   claimBenefit     — devolve o cupom que a pessoa pode usar: o público, o privado
- *                      (`partnerPrivate`, parceiro com requisito) ou o código do atleta (NEXA-XXXX).
+ *                      (`partnerPrivate`, parceiro com requisito), o da faixa do elo do atleta
+ *                      (`levelTiers`) ou o código do atleta (NEXA-XXXX).
  *   getMyBenefits    — "Meus benefícios": usos e salvos, a pergunta "Conseguiu usar?", a economia
  *                      confirmada pelo parceiro e os parceiros com requisito que a pessoa cumpre.
  *   answerBenefitUse — resposta do "Conseguiu usar?".
@@ -38,6 +39,7 @@ import {
   type Caller,
 } from "./benefits-club";
 import {loadEligibilityFacts, meetsRequirement, parseRequirement} from "./benefits-club-eligibility";
+import {levelTierFor, parseLevelTiers, sandRankCodeOf} from "./benefits-club-level-tiers";
 
 type Raw = Record<string, unknown>;
 
@@ -87,9 +89,21 @@ export async function claimBenefitCore(
     }
     case "fixed": {
       const requirement = parseRequirement(partner["requirement"]);
-      if (requirement?.type === "none") return {coupon: couponOrNull(partner["couponCode"])};
-      const priv = (await db.doc(`${PARTNER_PRIVATE_COLLECTION}/${partnerId}`).get()).data();
-      return {coupon: couponOrNull(priv?.["couponCode"])};
+      const tiers = parseLevelTiers(partner["levelTiers"]);
+      if (requirement?.type === "none" && tiers.length === 0) return {coupon: couponOrNull(partner["couponCode"])};
+      const [privSnap, userSnap] = await Promise.all([
+        db.doc(`${PARTNER_PRIVATE_COLLECTION}/${partnerId}`).get(),
+        tiers.length > 0 ? db.doc(`users/${caller.uid}`).get() : null,
+      ]);
+      const priv = privSnap.data();
+      const tier = userSnap ? levelTierFor(tiers, sandRankCodeOf(userSnap.data())) : null;
+      const tierCoupons = priv?.["tierCoupons"];
+      const tierCoupon = tier && tierCoupons && typeof tierCoupons === "object" ?
+        couponOrNull((tierCoupons as Raw)[tier.minRank]) :
+        null;
+      if (tierCoupon) return {coupon: tierCoupon};
+      // Benefício-base: o cupom público sem requisito; com requisito, o privado.
+      return {coupon: couponOrNull(requirement?.type === "none" ? partner["couponCode"] : priv?.["couponCode"])};
     }
     default:
       return {coupon: null};

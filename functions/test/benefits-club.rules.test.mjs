@@ -280,6 +280,32 @@ test('v2: partnerPrivate é só da equipe; marcas do push são do servidor', asy
   }));
 });
 
+test('desconto por elo: faixas no parceiro (só com cupom fixo) e cupons das faixas no privado', async () => {
+  const admin = adminCtx().firestore();
+  const tiers = [
+    { minRank: 'COMPETIDOR', benefitHighlight: '15% OFF', benefitTitle: '15% para Competidor' },
+    { minRank: 'ELITE', benefitHighlight: '20% OFF', benefitTitle: '20% para Elite' },
+  ];
+  await assertSucceeds(setDoc(doc(admin, 'partners', 'tiers-ok'), partner({ levelTiers: tiers })));
+  await assertSucceeds(setDoc(doc(admin, 'partners', 'tiers-vazio'), partner({ levelTiers: [], couponMode: 'none', couponCode: null })));
+  await assertFails(setDoc(doc(admin, 'partners', 'tiers-sem-fixo'), partner({ levelTiers: tiers, couponMode: 'athlete', couponCode: null })));
+  await assertFails(setDoc(doc(admin, 'partners', 'tiers-6'), partner({ levelTiers: [...tiers, ...tiers, ...tiers] })));
+  await assertFails(setDoc(doc(admin, 'partners', 'tiers-mapa'), partner({ levelTiers: { COMPETIDOR: tiers[0] } })));
+
+  await assertSucceeds(setDoc(doc(admin, 'partnerPrivate', 'tiers-ok'), {
+    couponCode: null, tierCoupons: { COMPETIDOR: 'NEXA15', ELITE: 'NEXA20' },
+    updatedAt: serverTimestamp(), updatedBy: ADMIN_UID,
+  }));
+  await assertFails(setDoc(doc(admin, 'partnerPrivate', 'tiers-iniciante'), {
+    tierCoupons: { INICIANTE: 'X' }, updatedAt: serverTimestamp(), updatedBy: ADMIN_UID,
+  }));
+  await assertFails(setDoc(doc(admin, 'partnerPrivate', 'tiers-lista'), {
+    tierCoupons: ['X'], updatedAt: serverTimestamp(), updatedBy: ADMIN_UID,
+  }));
+  const athlete = athleteCtx().firestore();
+  await assertFails(getDoc(doc(athlete, 'partnerPrivate', 'tiers-ok')));
+});
+
 test('v2: users/{uid}/benefits — dono lê e só mexe em saved/savedAt', async () => {
   const athlete = athleteCtx().firestore();
   await assertSucceeds(getDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'used')));

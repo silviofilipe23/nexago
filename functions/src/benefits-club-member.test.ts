@@ -74,6 +74,51 @@ describe("claimBenefitCore", () => {
     await assert.rejects(claimBenefitCore(db, ATHLETE, {partnerId: "level"}, NOW), /a partir do nível Open/);
   });
 
+  it("desconto por elo: o cupom da faixa que o elo alcança; abaixo dela, o cupom-base", async () => {
+    const {fake, db} = makeDb();
+    const tiers = [
+      {minRank: "COMPETIDOR", benefitHighlight: "15% OFF", benefitTitle: "15% para Competidor"},
+      {minRank: "ELITE", benefitHighlight: "20% OFF", benefitTitle: "20% para Elite"},
+    ];
+    fake.seedDoc("partners/tiered", {...BASE, levelTiers: tiers});
+    fake.seedDoc("partnerPrivate/tiered", {tierCoupons: {COMPETIDOR: "NEXA15", ELITE: "NEXA20"}});
+    const claim = async (uid: string, sandRank?: Record<string, unknown>) => {
+      if (sandRank) fake.seedDoc(`users/${uid}`, {sandRank});
+      return claimBenefitCore(db, {uid, isAdmin: false}, {partnerId: "tiered"}, NOW);
+    };
+    assert.deepEqual(await claim("semElo"), {coupon: "NEXAGO10"});
+    assert.deepEqual(await claim("ini", {code: "INICIANTE", trackIndex: 2}), {coupon: "NEXAGO10"});
+    assert.deepEqual(await claim("comp", {code: "COMPETIDOR", trackIndex: 3}), {coupon: "NEXA15"});
+    assert.deepEqual(await claim("desa", {code: "DESAFIANTE", trackIndex: 6}), {coupon: "NEXA15"});
+    assert.deepEqual(await claim("lenda", {code: "LENDA", trackIndex: 15}), {coupon: "NEXA20"});
+  });
+
+  it("desconto por elo com requisito: confere o requisito e o base sai do privado", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("partners/squadtier", {
+      ...BASE,
+      couponCode: null,
+      requirement: {type: "squad"},
+      levelTiers: [{minRank: "ELITE", benefitHighlight: "30% OFF", benefitTitle: "30% para Elite"}],
+    });
+    fake.seedDoc("partnerPrivate/squadtier", {couponCode: "SQUAD20", tierCoupons: {ELITE: "SQUAD30"}});
+    assert.deepEqual(await claimBenefitCore(db, AMB, {partnerId: "squadtier"}, NOW), {coupon: "SQUAD20"});
+    fake.seedDoc(`users/${AMB.uid}`, {sandRank: {code: "ELITE", trackIndex: 9}});
+    assert.deepEqual(await claimBenefitCore(db, AMB, {partnerId: "squadtier"}, NOW), {coupon: "SQUAD30"});
+    fake.seedDoc(`users/${ATHLETE.uid}`, {sandRank: {code: "ELITE", trackIndex: 9}});
+    await assert.rejects(claimBenefitCore(db, ATHLETE, {partnerId: "squadtier"}, NOW), /permission-denied|Exclusivo/);
+  });
+
+  it("faixa sem cupom cadastrado cai no cupom-base", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("partners/semcupom", {
+      ...BASE,
+      levelTiers: [{minRank: "COMPETIDOR", benefitHighlight: "15% OFF", benefitTitle: "15%"}],
+    });
+    fake.seedDoc(`users/${ATHLETE.uid}`, {sandRank: {code: "MESTRE", trackIndex: 12}});
+    assert.deepEqual(await claimBenefitCore(db, ATHLETE, {partnerId: "semcupom"}, NOW), {coupon: "NEXAGO10"});
+  });
+
   it("fora da validade, desligado ou de teste: não encontrado", async () => {
     const {db} = makeDb();
     for (const partnerId of ["future", "expired", "off", "testers", "nope"]) {

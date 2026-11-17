@@ -237,17 +237,29 @@ describe('Planos de horário · telas', () => {
     expect(el.textContent).toContain('O débito automático desta mensalidade será cancelado.');
   });
 
-  describe('Assinantes · avatar do titular', () => {
-    const PROFILES: Record<string, AthleteProfileSummary> = {
-      'u-ana': { name: 'Ana', photoUrl: 'https://foto/ana-perfil.jpg' },
-    };
-    /** Perfil em `public_profiles` sem Firestore: Ana resolve, Bruno falha (cai na foto gravada). */
-    const resolver = async (id: string): Promise<AthleteProfileSummary> => {
-      const profile = PROFILES[id];
-      if (!profile) throw new Error('offline');
-      return profile;
-    };
+  /** Perfil em `public_profiles` sem Firestore: Ana resolve, Bruno falha (cai na foto gravada). */
+  const PROFILES: Record<string, AthleteProfileSummary> = {
+    'u-ana': { name: 'Ana', photoUrl: 'https://foto/ana-perfil.jpg' },
+  };
+  const resolver = async (id: string): Promise<AthleteProfileSummary> => {
+    const profile = PROFILES[id];
+    if (!profile) throw new Error('offline');
+    return profile;
+  };
 
+  /** A leitura do perfil é uma promessa fora do Angular: espera ela assentar antes de olhar. */
+  async function settle(fixture: { detectChanges(): void; whenStable(): Promise<unknown> }): Promise<void> {
+    fixture.detectChanges();
+    await new Promise((resolve) => setTimeout(resolve));
+    await fixture.whenStable();
+    fixture.detectChanges();
+  }
+
+  function avatarPhoto(scope: Element): string | null {
+    return scope.querySelector('ar-avatar img')?.getAttribute('src') ?? null;
+  }
+
+  describe('Assinantes · avatar do titular', () => {
     function setupHolders(): SchedulePlansStore {
       const store = setup([{ provide: ATHLETE_PROFILE_RESOLVER, useValue: resolver }]);
       const base = { planId: 'p1', planName: 'Fixo Noite', status: 'active', monthlyPriceReais: 240, startDate: '2026-03-01' };
@@ -262,19 +274,11 @@ describe('Planos de horário · telas', () => {
 
     async function renderSubscribers() {
       const fixture = TestBed.createComponent(PanelPhSubscribersComponent);
-      fixture.detectChanges();
-      // A leitura do perfil é uma promessa fora do Angular: espera ela assentar antes de olhar.
-      await new Promise((resolve) => setTimeout(resolve));
-      await fixture.whenStable();
-      fixture.detectChanges();
+      await settle(fixture);
       const el = fixture.nativeElement as HTMLElement;
       const rows = [...el.querySelectorAll<HTMLElement>('.tr:not(.th)')];
       const detailName = () => el.querySelector('ar-ph-subscriber-detail .name')?.textContent?.trim();
       return { fixture, el, rows, detailName };
-    }
-
-    function avatarPhoto(scope: Element): string | null {
-      return scope.querySelector('ar-avatar img')?.getAttribute('src') ?? null;
     }
 
     it('12 foto do perfil do atleta vinculado, foto gravada se o perfil falha, iniciais no avulso', async () => {
@@ -313,6 +317,61 @@ describe('Planos de horário · telas', () => {
       fixture.detectChanges();
       expect(detailName()).toBe('Carla Dias');
       expect(open).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Grade · avatar do assinante do plano', () => {
+    function setupGrid(): void {
+      const store = setup([{ provide: ATHLETE_PROFILE_RESOLVER, useValue: resolver }]);
+      const base = { planId: 'p1', planName: 'Fixo Noite', status: 'active', monthlyPriceReais: 240, startDate: '2026-03-01' };
+      const slot = (weekday: number, courtId: string) => [{ weekday, startTime: '19:00', endTime: '20:00', courtId, courtName: courtId, seriesId: `r-${weekday}-${courtId}` }];
+      store.subscriptions.set([
+        subscriptionFromRaw('a', {
+          ...base, holderName: 'Ana Souza', holderAthleteId: 'u-ana', holderPhotoUrl: 'https://foto/ana-antiga.jpg', slots: slot(2, 'c1'),
+        }),
+        subscriptionFromRaw('b', {
+          ...base, holderName: 'Bruno Lima', holderAthleteId: 'u-bruno', holderPhotoUrl: 'https://foto/bruno-gravada.jpg', slots: slot(2, 'c2'),
+        }),
+        subscriptionFromRaw('c', { ...base, holderName: 'Carla Dias', slots: slot(4, 'c1') }),
+      ]);
+    }
+
+    async function renderGrid() {
+      const fixture = TestBed.createComponent(PanelPhGridComponent);
+      await settle(fixture);
+      const el = fixture.nativeElement as HTMLElement;
+      const pick = (label: string) => {
+        el.querySelector<HTMLButtonElement>(`button.cell[aria-label="${label}"]`)!.click();
+        fixture.detectChanges();
+        return [...el.querySelectorAll<HTMLElement>('.occ')];
+      };
+      return { pick };
+    }
+
+    it('14 foto do perfil do titular vinculado, foto gravada se o perfil falha, iniciais no avulso; nome continua o da assinatura', async () => {
+      setupGrid();
+      const { pick } = await renderGrid();
+
+      const [ana, bruno] = pick('Terça 19:00');
+      expect(avatarPhoto(ana!)).toBe('https://foto/ana-perfil.jpg');
+      expect(ana!.querySelector('.occ-title')!.textContent!.trim()).toBe('Ana Souza');
+      expect(avatarPhoto(bruno!)).toBe('https://foto/bruno-gravada.jpg');
+      expect(bruno!.querySelector('.occ-title')!.textContent!.trim()).toBe('Bruno Lima');
+
+      const [carla] = pick('Quinta 19:00');
+      expect(avatarPhoto(carla!)).toBeNull();
+      expect(carla!.querySelector('ar-avatar')!.textContent!.trim()).toBe('CD');
+    });
+
+    it('15 clique no avatar do titular abre a foto do perfil ampliada', async () => {
+      setupGrid();
+      const open = spyOn(TestBed.inject(PersonPhotoService), 'open');
+      const { pick } = await renderGrid();
+
+      const [ana] = pick('Terça 19:00');
+      ana!.querySelector<HTMLElement>('ar-avatar')!.click();
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(open.calls.mostRecent().args[0].photoUrl).toBe('https://foto/ana-perfil.jpg');
     });
   });
 });

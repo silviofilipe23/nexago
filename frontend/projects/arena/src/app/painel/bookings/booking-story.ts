@@ -6,15 +6,33 @@ import type { ArenaBooking } from './arena-booking.model';
  * marcado na casa. Aqui só dados já formatados; o desenho fica em `booking-story-card.ts`.
  */
 
-/** Fundos da arte. `cover` = a capa da arena (`coverUrl`), só quando ela carrega no canvas. */
-export type BookingStoryTheme = 'ember' | 'night' | 'sand' | 'cover';
+/** Fundos da arte. `cover` = a capa da arena (`coverUrl`), só quando ela carrega no canvas;
+ *  `photo` = uma imagem que a equipe escolhe no computador/celular (não sobe para lugar nenhum). */
+export type BookingStoryTheme = 'ember' | 'night' | 'sand' | 'cover' | 'photo';
+
+/** Fundos com imagem: a imagem preenche a arte e um escurecimento garante a leitura do texto. */
+export function bookingStoryThemeHasImage(theme: BookingStoryTheme): boolean {
+  return theme === 'cover' || theme === 'photo';
+}
 
 export const BOOKING_STORY_THEMES: readonly { id: BookingStoryTheme; label: string }[] = [
   { id: 'cover', label: 'Capa da arena' },
+  { id: 'photo', label: 'Sua foto' },
   { id: 'ember', label: 'Brasa' },
   { id: 'night', label: 'Noite' },
   { id: 'sand', label: 'Areia' },
 ];
+
+/** Arquivo escolhido para o fundo: acima disso nem tenta abrir (mesmo teto do upload de imagens
+ *  do portal, `PICKED_IMAGE_MAX_BYTES`). */
+export const STORY_PHOTO_MAX_BYTES = 25 * 1024 * 1024;
+
+/** `null` quando o arquivo serve de fundo; senão, a mensagem para a equipe. */
+export function bookingStoryPhotoError(file: Pick<File, 'type' | 'size'>): string | null {
+  if (!file.type.startsWith('image/')) return 'Escolha um arquivo de imagem (JPG, PNG ou WebP).';
+  if (file.size >= STORY_PHOTO_MAX_BYTES) return 'Imagem muito grande. Escolha uma de até 25 MB.';
+  return null;
+}
 
 /** Momento do jogo: muda o selo e o título ("Bora jogar." antes, "Teve jogo." depois). */
 export type BookingStoryMoment = 'upcoming' | 'live' | 'done';

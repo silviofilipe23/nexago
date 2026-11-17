@@ -1,8 +1,26 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
 import { ToggleComponent } from '../ui/toggle.component';
-import { BOOKING_STORY_THEMES, type BookingStory, type BookingStoryOptions, type BookingStoryTheme } from './booking-story';
+import {
+  BOOKING_STORY_THEMES,
+  bookingStoryPhotoError,
+  type BookingStory,
+  type BookingStoryOptions,
+  type BookingStoryTheme,
+} from './booking-story';
 import {
   STORY_HEIGHT,
   STORY_WIDTH,
@@ -65,12 +83,33 @@ type CoverState = 'none' | 'loading' | 'ready' | 'failed';
                 role="radio"
                 [attr.aria-checked]="theme() === t.id"
                 [class.active]="theme() === t.id"
-                (click)="theme.set(t.id)"
+                [attr.data-testid]="'theme-' + t.id"
+                (click)="pickTheme(t.id)"
               >
                 {{ t.label }}
               </button>
             }
           </div>
+          <input
+            #photoInput
+            type="file"
+            accept="image/*"
+            hidden
+            data-testid="photo-input"
+            (change)="onPhotoPicked($event)"
+          />
+          @if (theme() === 'photo' && photo()) {
+            <div class="photo-row">
+              <span class="hint flush">A imagem fica só neste navegador: não sobe para o nexaGO.</span>
+              <button type="button" class="ar-ghost-btn" (click)="openPhotoPicker()">
+                <ar-icon name="image" [size]="14" />
+                Trocar foto
+              </button>
+            </div>
+          }
+          @if (photoError(); as err) {
+            <p class="hint warn" role="alert">{{ err }}</p>
+          }
           @if (coverState() === 'failed') {
             <p class="hint">A capa da arena não carregou para a arte. Use um dos fundos.</p>
           }
@@ -206,6 +245,23 @@ type CoverState = 'none' | 'loading' | 'ready' | 'failed';
       margin: 2px 0 0;
     }
 
+    .hint.warn {
+      color: var(--nx-live);
+    }
+
+    .photo-row .ar-ghost-btn {
+      flex: none;
+      white-space: nowrap;
+    }
+
+    .photo-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
     .error-banner,
     .success-banner {
       margin-top: 14px;
@@ -263,6 +319,11 @@ export class BookingStoryDialogComponent {
   protected readonly showSport = signal(true);
 
   private readonly cover = signal<HTMLImageElement | null>(null);
+  /** Imagem que a equipe escolheu para o fundo "Sua foto" (object URL local, revogado ao trocar). */
+  protected readonly photo = signal<HTMLImageElement | null>(null);
+  private photoObjectUrl: string | null = null;
+  protected readonly photoError = signal<string | null>(null);
+  private readonly photoInput = viewChild<ElementRef<HTMLInputElement>>('photoInput');
   protected readonly coverState = signal<CoverState>('none');
   /** Só oferece a capa quando ela carregou com CORS (senão o PNG não sai). */
   protected readonly themes = computed(() =>
@@ -298,22 +359,23 @@ export class BookingStoryDialogComponent {
     effect(() => {
       const options: BookingStoryOptions = { theme: this.theme(), showCrew: this.showCrew(), showSport: this.showSport() };
       const story = this.story();
-      const cover = this.cover();
-      if (options.theme === 'cover' && !cover) return;
-      void this.render(story, options, cover, ++this.generation);
+      const backdrop = options.theme === 'cover' ? this.cover() : options.theme === 'photo' ? this.photo() : null;
+      if ((options.theme === 'cover' || options.theme === 'photo') && !backdrop) return;
+      void this.render(story, options, backdrop, ++this.generation);
     });
 
     this.destroyRef.onDestroy(() => {
       this.generation++;
       const url = this.previewUrl();
       if (url) URL.revokeObjectURL(url);
+      if (this.photoObjectUrl) URL.revokeObjectURL(this.photoObjectUrl);
     });
   }
 
   private async render(
     story: BookingStory,
     options: BookingStoryOptions,
-    cover: HTMLImageElement | null,
+    backdrop: HTMLImageElement | null,
     generation: number,
   ): Promise<void> {
     this.rendering.set(true);
@@ -329,7 +391,7 @@ export class BookingStoryDialogComponent {
       canvas.height = STORY_HEIGHT;
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('canvas sem contexto 2d');
-      drawBookingStory(ctx, story, options, assets, { cover: options.theme === 'cover' ? cover : null, photos });
+      drawBookingStory(ctx, story, options, assets, { backdrop, photos });
       const blob = await bookingStoryPng(canvas);
       if (!blob) throw new Error('canvas sem PNG');
       if (generation !== this.generation) return;
@@ -343,6 +405,47 @@ export class BookingStoryDialogComponent {
     } finally {
       if (generation === this.generation) this.rendering.set(false);
     }
+  }
+
+  /** "Sua foto" sem imagem ainda abre o seletor; o fundo só muda quando a imagem carrega. */
+  protected pickTheme(theme: BookingStoryTheme): void {
+    if (theme === 'photo' && !this.photo()) {
+      this.openPhotoPicker();
+      return;
+    }
+    this.theme.set(theme);
+  }
+
+  protected openPhotoPicker(): void {
+    this.photoInput()?.nativeElement.click();
+  }
+
+  protected async onPhotoPicked(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    // Limpa o input: escolher o mesmo arquivo de novo dispara o `change` outra vez.
+    input.value = '';
+    if (!file) return;
+    const invalid = bookingStoryPhotoError(file);
+    if (invalid) {
+      this.photoError.set(invalid);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.src = url;
+    try {
+      await img.decode();
+    } catch {
+      URL.revokeObjectURL(url);
+      this.photoError.set('Não foi possível abrir essa imagem. Tente uma foto em JPG ou PNG.');
+      return;
+    }
+    if (this.photoObjectUrl) URL.revokeObjectURL(this.photoObjectUrl);
+    this.photoObjectUrl = url;
+    this.photoError.set(null);
+    this.photo.set(img);
+    this.theme.set('photo');
   }
 
   /** `navigator.share` sai antes de qualquer `await` — o Safari recusa fora do gesto. */

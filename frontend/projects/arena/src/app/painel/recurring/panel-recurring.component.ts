@@ -28,6 +28,8 @@ import {
 } from './arena-recurring-booking.model';
 import { cancelRecurringSeries, createRecurringSeries, pauseRecurringSeries, resumeRecurringSeries, updateRecurringSeries, watchVisibleSeries } from './recurring-bookings-repository';
 import { AthleteSearchFieldComponent } from './athlete-search-field.component';
+import { RecurringAthleteProfiles } from './recurring-athlete-profiles';
+import { AvatarComponent } from '../ui/avatar.component';
 import type { AthleteCandidate } from './athlete-search-filter';
 
 /** Tela Horários fixos (mensalista): leitura direta de `arenaRecurringBookings`, escrita
@@ -48,6 +50,7 @@ import type { AthleteCandidate } from './athlete-search-filter';
     DatePipe,
     DateRangePickerComponent,
     AthleteSearchFieldComponent,
+    AvatarComponent,
   ],
   template: `
     <ar-panel-shell>
@@ -89,23 +92,26 @@ import type { AthleteCandidate } from './athlete-search-filter';
                     @for (s of series(); track s.id) {
                       <div class="table-row">
                         <div class="cell-client">
-                          <div class="client-name">
-                            {{ customerLabel(s) }}
-                            @if (s.bookedAsProfessor) {
-                              <ar-pill tone="blue">Professor</ar-pill>
+                          <ar-avatar [name]="customerLabel(s)" [photoUrl]="athleteProfiles.photoOf(s.athleteId)" [size]="32" zoomable />
+                          <div class="client-info">
+                            <div class="client-name">
+                              {{ customerLabel(s) }}
+                              @if (s.bookedAsProfessor) {
+                                <ar-pill tone="blue">Professor</ar-pill>
+                              }
+                            </div>
+                            @if (s.status === 'paused') {
+                              <div class="paused-hint">
+                                <ar-status-dot tone="yellow" [size]="6" />
+                                Pausado{{ s.pausedAt ? ' desde ' + (s.pausedAt | date: 'dd/MM') : '' }}
+                              </div>
+                            } @else {
+                              <div class="active-hint">
+                                <ar-status-dot tone="green" [size]="6" />
+                                Ativo
+                              </div>
                             }
                           </div>
-                          @if (s.status === 'paused') {
-                            <div class="paused-hint">
-                              <ar-status-dot tone="yellow" [size]="6" />
-                              Pausado{{ s.pausedAt ? ' desde ' + (s.pausedAt | date: 'dd/MM') : '' }}
-                            </div>
-                          } @else {
-                            <div class="active-hint">
-                              <ar-status-dot tone="green" [size]="6" />
-                              Ativo
-                            </div>
-                          }
                         </div>
                         <div class="cell-slot">{{ weekdayLabel[s.weekday] }} · {{ s.startTime }}–{{ s.endTime }}</div>
                         <div class="cell-court">{{ s.courtName }}</div>
@@ -206,7 +212,10 @@ import type { AthleteCandidate } from './athlete-search-filter';
               (selected)="onAthleteSelected($event)"
             />
             @if (athleteId()) {
-              <p class="athlete-selected-hint">Selecionado: {{ selectedAthleteName() }}</p>
+              <div class="athlete-selected">
+                <ar-avatar [name]="selectedAthleteName()" [photoUrl]="selectedAthletePhoto()" [size]="28" zoomable />
+                <span>Selecionado: <b>{{ selectedAthleteName() }}</b></span>
+              </div>
             }
           } @else {
             <input
@@ -349,10 +358,17 @@ import type { AthleteCandidate } from './athlete-search-filter';
     }
 
     .cell-client {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       font-family: var(--nx-font-display);
       font-weight: 700;
       font-size: 13.5px;
       color: var(--nx-text);
+    }
+
+    .client-info {
+      min-width: 0;
     }
 
     .client-name {
@@ -507,7 +523,20 @@ import type { AthleteCandidate } from './athlete-search-filter';
       height: 18px;
     }
 
-    .athlete-selected-hint,
+    .athlete-selected {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--nx-text-dim);
+      margin: -8px 0 18px;
+    }
+
+    .athlete-selected b {
+      color: var(--nx-text);
+      font-weight: 600;
+    }
+
     .monthly-hint {
       font-size: 11.5px;
       color: var(--nx-text-dim);
@@ -637,12 +666,11 @@ export class PanelRecurringComponent {
   protected readonly weekdayOptions = RECURRING_WEEKDAYS;
   protected readonly weekdayLabel = RECURRING_WEEKDAY_LABEL;
   protected readonly formatBRL = formatBRL;
-  /** Nome dos atletas vinculados, por `athleteId` — a série só grava o id. */
-  protected readonly athleteNames = signal<ReadonlyMap<string, string>>(new Map());
-  private readonly resolvingNames = new Set<string>();
+  /** Nome e foto dos atletas vinculados — a série só grava o `athleteId`. */
+  protected readonly athleteProfiles = new RecurringAthleteProfiles((id) => resolveAthleteProfile(arenaFirestore(), id));
 
   protected customerLabel(series: ArenaRecurringBooking): string {
-    return recurringCustomerLabel(series, this.athleteNames());
+    return recurringCustomerLabel(series, this.athleteProfiles.names());
   }
 
   protected readonly arenaLoading = computed(() => this.arenaContext.loading());
@@ -673,8 +701,11 @@ export class PanelRecurringComponent {
   protected readonly selectedAthleteName = computed(() => {
     const athleteId = this.athleteId();
     if (!athleteId) return '';
-    return this.athleteName() || recurringCustomerLabel({ customerName: null, athleteId }, this.athleteNames());
+    return this.athleteName() || recurringCustomerLabel({ customerName: null, athleteId }, this.athleteProfiles.names());
   });
+  /** Foto do atleta escolhido na busca; sem ela, a resolvida do `athleteId`. */
+  private readonly athletePhoto = signal<string | null>(null);
+  protected readonly selectedAthletePhoto = computed(() => this.athletePhoto() ?? this.athleteProfiles.photoOf(this.athleteId()));
   protected readonly customerName = signal('');
   protected readonly amountValue = signal('');
   protected readonly paymentType = signal<ArenaRecurringPaymentType>('per_occurrence');
@@ -716,26 +747,8 @@ export class PanelRecurringComponent {
       this.unsubscribeSeries = watchVisibleSeries(db, arenaId, (list) => {
         this.series.set(list);
         this.loading.set(false);
-        this.resolveAthleteNames(list);
+        void this.athleteProfiles.load(list);
       });
-    });
-  }
-
-  /** Busca em `public_profiles` o nome de quem ainda não tem: cobre cliente da arena e atleta
-   *  achado na busca em todo o nexaGO. `resolveAthleteProfile` tem cache e não lança. */
-  private resolveAthleteNames(list: readonly ArenaRecurringBooking[]): void {
-    const known = this.athleteNames();
-    const missing = [...new Set(list.filter((s) => !s.customerName).map((s) => s.athleteId))].filter(
-      (id): id is string => !!id && !known.has(id) && !this.resolvingNames.has(id),
-    );
-    if (missing.length === 0) return;
-    missing.forEach((id) => this.resolvingNames.add(id));
-    const db = arenaFirestore();
-    void Promise.all(
-      missing.map(async (id) => [id, (await resolveAthleteProfile(db, id)).name] as const),
-    ).then((entries) => {
-      entries.forEach(([id]) => this.resolvingNames.delete(id));
-      this.athleteNames.update((current) => new Map([...current, ...entries]));
     });
   }
 
@@ -757,6 +770,7 @@ export class PanelRecurringComponent {
     this.mensalistaMode.set('avulso');
     this.athleteId.set(null);
     this.athleteName.set('');
+    this.athletePhoto.set(null);
     this.customerName.set('');
     this.amountValue.set('');
     this.paymentType.set('per_occurrence');
@@ -777,6 +791,7 @@ export class PanelRecurringComponent {
     this.athleteId.set(series.athleteId);
     // Atleta vinculado sem `customerName`: o campo usa o nome resolvido (selectedAthleteName).
     this.athleteName.set(series.athleteId ? (series.customerName ?? '') : '');
+    this.athletePhoto.set(null);
     this.customerName.set(series.customerName ?? '');
     this.amountValue.set(series.amountReais.toString().replace('.', ','));
     this.paymentType.set(series.paymentType);
@@ -793,12 +808,14 @@ export class PanelRecurringComponent {
     this.mensalistaMode.set(mode);
     this.athleteId.set(null);
     this.athleteName.set('');
+    this.athletePhoto.set(null);
     this.customerName.set('');
   }
 
   protected onAthleteSelected(candidate: AthleteCandidate): void {
     this.athleteId.set(candidate.athleteId);
     this.athleteName.set(candidate.name);
+    this.athletePhoto.set(candidate.photoUrl ?? null);
   }
 
   protected onRangeChange(range: { startDate: string; endDate: string | null }): void {

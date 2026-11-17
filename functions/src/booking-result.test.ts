@@ -238,11 +238,56 @@ describe("saveBookingResultCore", () => {
     assert.equal(notices[0].body, "Maria lançou o placar de Arena CFC · 19/10. Confere?");
   });
 
-  it("só o dono da reserva lança, e só depois de começar", async () => {
+  it("só quem está na lista de jogadores da reserva lança, e só depois de começar", async () => {
     const fake = new FakeFirestore();
     seed(fake);
-    await rejects(saveBookingResultCore(db(fake), "rafael", payload(), NOW), "not-found");
+    await rejects(saveBookingResultCore(db(fake), "rafael", payload(), NOW), "permission-denied",
+      /lista de jogadores/);
     await rejects(saveBookingResultCore(db(fake), "maria", payload(),
+      new Date("2026-10-19T19:00:00-03:00")), "failed-precondition", /começar/);
+  });
+
+  it("convidado da reserva lança; a dona fica fora do espelho e é avisada como os outros", async () => {
+    const fake = new FakeFirestore();
+    seed(fake, {participants: [{uid: "enzo", name: "Enzo Lima"}], participantUids: ["enzo"]});
+    const {result, notices} = await saveBookingResultCore(db(fake), "enzo", payload(), NOW);
+    assert.deepEqual(result.pendingUids, ["maria", "rafael", "bia"]);
+    assert.equal(stored(fake)["createdBy"], "enzo");
+    assert.equal(stored(fake)["editedBy"], "enzo");
+    assert.deepEqual(confirmationStates(fake), {maria: "pending", enzo: "confirmed", rafael: "pending", bia: "pending"});
+    assert.deepEqual(notices.map((n) => n.userId), ["maria", "rafael", "bia"]);
+    // O espelho tira a DONA da reserva, não quem lançou.
+    assert.deepEqual(fake.store.get("arenaBookings/bk1")!["resultPlayerUids"], ["enzo", "rafael", "bia"]);
+  });
+
+  it("a lista vale por participantUids, participants[].uid e quem já está no placar", async () => {
+    for (const booking of [
+      {participantUids: ["rafael"]},
+      {participants: [{uid: "rafael", name: "Rafael T."}]},
+      {resultPlayerUids: ["rafael"]},
+      {resultPlayers: [{uid: "rafael", name: "Rafael T."}]},
+    ]) {
+      const fake = new FakeFirestore();
+      seed(fake, booking);
+      const {result} = await saveBookingResultCore(db(fake), "rafael", payload(), NOW);
+      assert.equal(result.status, "pending", JSON.stringify(booking));
+      assert.equal(stored(fake)["editedBy"], "rafael", JSON.stringify(booking));
+    }
+  });
+
+  it("convidado também esbarra no status, no horário e na liberação", async () => {
+    const guest = {participantUids: ["enzo"]};
+    for (const [booking, code] of [
+      [{...guest, status: "cancelled"}, "failed-precondition"],
+      [{...guest, amountPaidOnlineReais: 0}, "failed-precondition"],
+    ] as const) {
+      const fake = new FakeFirestore();
+      seed(fake, booking);
+      await rejects(saveBookingResultCore(db(fake), "enzo", payload(), NOW), code);
+    }
+    const fake = new FakeFirestore();
+    seed(fake, guest);
+    await rejects(saveBookingResultCore(db(fake), "enzo", payload(),
       new Date("2026-10-19T19:00:00-03:00")), "failed-precondition", /começar/);
   });
 

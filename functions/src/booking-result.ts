@@ -264,6 +264,28 @@ export function bookingOwnerUid(booking: Data): string {
   return str(booking["athleteId"]) || str(booking["bookingAthleteId"]);
 }
 
+/**
+ * Lista de jogadores da reserva, sem repetir: dono, convidados (`participantUids`/`participants`)
+ * e quem já está no placar (`resultPlayerUids`/`resultPlayers`). Qualquer um deles lança o placar.
+ * O app faz a mesma conta (Dart `bookingRosterUids` em `booking_players.dart`) para mostrar o botão.
+ */
+export function bookingRosterUids(booking: Data): string[] {
+  const out = new Set<string>();
+  const add = (v: unknown): void => {
+    const id = str(v);
+    if (id) out.add(id);
+  };
+  add(bookingOwnerUid(booking));
+  // Convidados antes de quem está no placar: a mesma ordem da lista no app.
+  for (const [uidsKey, listKey] of [["participantUids", "participants"], ["resultPlayerUids", "resultPlayers"]]) {
+    const uids = booking[uidsKey];
+    if (Array.isArray(uids)) uids.forEach(add);
+    const list = booking[listKey];
+    if (Array.isArray(list)) for (const entry of list) add((entry as Data | null)?.["uid"]);
+  }
+  return [...out];
+}
+
 /** Nome de quem tem conta — retrato do perfil, nunca o que o app mandou. */
 export function resultPlayerName(user: Data | null): string {
   return (

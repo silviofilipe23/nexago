@@ -222,4 +222,35 @@ void main() {
       expect(moved.teams.map((t) => t.id), [0, 2, 1]);
     });
   });
+
+  group('lancarCanSave (quem envia o placar direto)', () {
+    test('qualquer atleta da lista de jogadores da reserva', () {
+      const roster = ['dono', 'enzo', 'rafa'];
+      expect(
+        lancarCanSave(uid: 'dono', ownerUid: 'dono', rosterUids: roster),
+        isTrue,
+      );
+      expect(
+        lancarCanSave(uid: 'enzo', ownerUid: 'dono', rosterUids: roster),
+        isTrue,
+      );
+      expect(
+        lancarCanSave(uid: 'zé', ownerUid: 'dono', rosterUids: roster),
+        isFalse,
+      );
+      expect(
+        lancarCanSave(uid: null, ownerUid: 'dono', rosterUids: roster),
+        isFalse,
+      );
+    });
+
+    test('quem reservou sempre envia, mesmo sem a lista carregada', () {
+      expect(lancarCanSave(uid: 'dono', ownerUid: 'dono'), isTrue);
+    });
+
+    test('reserva sem dono (ou ainda carregando): o servidor decide', () {
+      expect(lancarCanSave(uid: 'zé', ownerUid: null), isTrue);
+      expect(lancarCanSave(uid: 'zé', ownerUid: ''), isTrue);
+    });
+  });
 }

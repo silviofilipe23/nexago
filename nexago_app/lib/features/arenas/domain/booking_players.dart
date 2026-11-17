@@ -62,6 +62,35 @@ List<BookingGuest> bookingGuestsOf(
   return out;
 }
 
+/// Lista de jogadores da reserva que pode lançar o placar, sem repetir: dono,
+/// convidados (`participantUids`/`participants`) e quem já está no placar
+/// (`resultPlayerUids`/`resultPlayers`). Os MESMOS campos que o servidor
+/// aceita (`bookingRosterUids` em `functions/src/booking-result.ts`): campo
+/// legado do convite não entra, senão o botão apareceria e o servidor recusaria.
+List<String> bookingRosterUids(Map<String, dynamic> data) {
+  final out = <String>[];
+  void add(dynamic value) {
+    final uid = _pick(value);
+    if (uid != null && !out.contains(uid)) out.add(uid);
+  }
+
+  add(_pick(data['athleteId']) ?? data['bookingAthleteId']);
+  // Convidados antes de quem está no placar: a ordem da lista na tela.
+  for (final (uidsKey, listKey) in [
+    ('participantUids', 'participants'),
+    ('resultPlayerUids', 'resultPlayers'),
+  ]) {
+    final uids = data[uidsKey];
+    if (uids is List) uids.forEach(add);
+    final list = data[listKey];
+    if (list is! List) continue;
+    for (final entry in list) {
+      if (entry is Map) add(entry['uid']);
+    }
+  }
+  return List.unmodifiable(out);
+}
+
 String? _pick(dynamic value) {
   if (value is! String) return null;
   final t = value.trim();

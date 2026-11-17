@@ -1,6 +1,6 @@
 /**
- * Callables e varredura do placar do pós-jogo — a "pelada" (`bookingResults/{bookingId}`): o dono
- * da reserva salva (e edita), quem está no placar confirma ou contesta, e a varredura lembra 24h
+ * Callables e varredura do placar do pós-jogo — a "pelada" (`bookingResults/{bookingId}`): qualquer
+ * atleta da lista de jogadores da reserva salva (e edita), quem está no placar confirma ou contesta, e a varredura lembra 24h
  * antes do prazo e confirma sozinha quando as 48h vencem. Cliente não grava o doc (rule
  * `write: false`); nome, foto, arena e horário vêm da reserva e dos perfis, nunca do payload.
  * Regras puras em `booking-result.ts`.
@@ -27,6 +27,7 @@ import {
   autoConfirmedConfirmations,
   bookingEndAt,
   bookingOwnerUid,
+  bookingRosterUids,
   bookingResultOpenError,
   bookingResultPlayersPatch,
   bookingStartAt,
@@ -69,6 +70,9 @@ export interface ResultNotice {
 /** Quantos placares a varredura trata por rodada (roda a cada 30 min). */
 export const SWEEP_LIMIT = 200;
 
+/** Quem não está na lista de jogadores da reserva. */
+export const ROSTER_ONLY_MESSAGE = "Só quem está na lista de jogadores da reserva lança o placar.";
+
 export async function saveBookingResultCore(
   db: Firestore,
   uid: string,
@@ -82,8 +86,11 @@ export async function saveBookingResultCore(
 
   const bookingSnap = await db.collection("arenaBookings").doc(input.bookingId).get();
   const booking = bookingSnap.exists ? bookingSnap.data()! : null;
-  if (!booking || bookingOwnerUid(booking) !== uid) {
-    throw new HttpsError("not-found", "Reserva não encontrada.");
+  if (!booking) throw new HttpsError("not-found", "Reserva não encontrada.");
+  // Qualquer atleta da lista de jogadores lança (não depende de um celular só); quem lança
+  // tem de estar num dos times, conferido abaixo.
+  if (!bookingRosterUids(booking).includes(uid)) {
+    throw new HttpsError("permission-denied", ROSTER_ONLY_MESSAGE);
   }
   const closed = bookingResultOpenError(booking, now);
   if (closed) throw new HttpsError("failed-precondition", closed);
@@ -180,7 +187,11 @@ export async function saveBookingResultCore(
     });
     // A reserva lista quem jogou: convidados (`participants`) + quem está no placar. Só o servidor
     // grava este campo (fora das allow-lists de update do dono e da equipe nas rules).
-    tx.update(db.collection("arenaBookings").doc(input.bookingId), bookingResultPlayersPatch(teams, uid));
+    // O espelho tira a DONA da reserva (não quem lançou, que pode ser um convidado).
+    tx.update(
+      db.collection("arenaBookings").doc(input.bookingId),
+      bookingResultPlayersPatch(teams, bookingOwnerUid(booking)),
+    );
     const prevPlayers = Array.isArray(prev?.["playerUids"]) ? (prev!["playerUids"] as unknown[]) : [];
     return {
       version: next,

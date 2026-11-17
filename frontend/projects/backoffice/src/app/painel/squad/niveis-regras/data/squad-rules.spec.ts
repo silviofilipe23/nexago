@@ -130,27 +130,27 @@ describe('squad-rules', () => {
   it('regras salvas antes do escopo do desconto valem em tudo; escopo parcial completa', () => {
     const old = rulesFromDoc({ rules: { attribution: { followerDiscountFirstOnly: false } } });
     expect(old.attribution.followerDiscountFirstOnly).toBeFalse();
-    expect(old.attribution.followerDiscountScope).toEqual({ registration: true, booking: true, club: true });
+    expect(old.attribution.followerDiscountScope).toEqual({ registration: true, booking: true, club: true, store: false });
     const partial = rulesFromDoc({ rules: { attribution: { followerDiscountScope: { booking: false } } } });
-    expect(partial.attribution.followerDiscountScope).toEqual({ registration: true, booking: false, club: true });
+    expect(partial.attribution.followerDiscountScope).toEqual({ registration: true, booking: false, club: true, store: false });
   });
 
   describe('escopo do código por nível (tiers.*.codeScope)', () => {
-    const ALL = { registration: true, booking: true, club: true };
+    const ALL = { registration: true, booking: true, club: true, store: true };
 
     it('pacote sem o campo vale em tudo; escopo salvo é lido e completa o que faltar', () => {
       expect(rulesFromDoc(undefined).tiers.ath.codeScope).toEqual(ALL);
       const old = rulesFromDoc({ rules: { tiers: { ath: { kitCostCents: 99_00 } } } });
       expect(old.tiers.ath.codeScope).toEqual(ALL);
       const scoped = rulesFromDoc({ rules: { tiers: { amb: { codeScope: { booking: false, club: false } } } } });
-      expect(scoped.tiers.amb.codeScope).toEqual({ registration: true, booking: false, club: false });
+      expect(scoped.tiers.amb.codeScope).toEqual({ registration: true, booking: false, club: false, store: true });
       expect(scoped.tiers.ath.codeScope).toEqual(ALL);
     });
 
     it('nenhuma área marcada é erro do nível; mudar o escopo afeta contratos (é do pacote)', () => {
-      const none = rules((r) => (r.tiers.pro.codeScope = { registration: false, booking: false, club: false }));
+      const none = rules((r) => (r.tiers.pro.codeScope = { registration: false, booking: false, club: false, store: false }));
       expect(validateRules(none)['tiers.pro.codeScope']).toBe('Marque ao menos uma área');
-      const scoped = rules((r) => (r.tiers.ath.codeScope = { registration: true, booking: false, club: false }));
+      const scoped = rules((r) => (r.tiers.ath.codeScope = { registration: true, booking: false, club: false, store: false }));
       expect(validateRules(scoped)['tiers.ath.codeScope']).toBeUndefined();
       expect(affectsContracts(DEFAULT_SQUAD_RULES, scoped)).toBeTrue();
     });

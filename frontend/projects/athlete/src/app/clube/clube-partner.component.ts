@@ -3,12 +3,14 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map } from 'rxjs';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { SAND_RANK_COLOR, SAND_RANK_NAME } from '../profile/sand-rank';
 import { ClubeLeadModalComponent } from './clube-lead-modal.component';
 import { ClubePartnerLogoComponent } from './clube-partner-logo.component';
 import {
   athleteCode,
   brandTextTone,
   couponFor,
+  couponViaClaim,
   ctaHint,
   emphasize,
   heroLine,
@@ -25,6 +27,14 @@ import { ClubStore } from './data/clube.store';
 const COPIED_MS = 2500;
 
 type CopyState = 'idle' | 'copied' | 'failed';
+
+/** Cupom pedido à `claimBenefit`, da conta e do parceiro que pediram. */
+interface ClaimState {
+  key: string;
+  coupon: string | null;
+  loading: boolean;
+  error: string | null;
+}
 
 /** Copia pelo Clipboard API e, se o navegador negar, pelo `execCommand` (Safari antigo, http). */
 async function copyText(text: string): Promise<boolean> {
@@ -53,7 +63,8 @@ async function copyText(text: string): Promise<boolean> {
  * `/clube/:partnerId`: hero na cor da marca (com a capa, se houver), benefício, "Como usar", termos
  * e o card lateral com o cupom e o botão. Link abre o site do parceiro (nova aba, marcado);
  * formulário abre o modal. Parceiro com requisito fica bloqueado: sem cupom, sem botão, sem "Como
- * usar" e sem eventos de uso; o benefício sai só no app.
+ * usar" e sem eventos de uso; o benefício sai só no app. Parceiro com faixas por elo mostra a
+ * escada ("Desconto por elo") e o cupom sai da `claimBenefit`, nunca do doc público.
  */
 @Component({
   selector: 'app-clube-partner',
@@ -88,9 +99,20 @@ export class ClubePartnerComponent {
     const p = this.partner();
     return !!p && brandTextTone(p.brandColor) === 'dark';
   });
+  protected readonly rankName = SAND_RANK_NAME;
+  protected readonly rankColor = SAND_RANK_COLOR;
+
+  private readonly claim = signal<ClaimState | null>(null);
+  /** O pedido à `claimBenefit` deste parceiro, para esta conta (`null` = não pediu ou não precisa). */
+  protected readonly claimed = computed(() => {
+    const p = this.partner();
+    const claim = this.claim();
+    return p && claim?.key === this.claimKey(p.id) ? claim : null;
+  });
   protected readonly coupon = computed(() => {
     const p = this.partner();
-    return p ? couponFor(p, this.store.uid()) : null;
+    if (!p) return null;
+    return couponViaClaim(p) ? (this.claimed()?.coupon ?? null) : couponFor(p, this.store.uid());
   });
   protected readonly ctaUrl = computed(() => {
     const p = this.partner();
@@ -128,6 +150,14 @@ export class ClubePartnerComponent {
       if (!p || p.id === this.viewedId) return;
       this.viewedId = p.id;
       untracked(() => this.store.track('partner_view', this.source, p.id));
+    });
+    // Cupom que só o servidor conhece: pede uma vez por parceiro (e conta) aberto e liberado.
+    effect(() => {
+      const p = this.partner();
+      if (!p || isLocked(p) || !couponViaClaim(p)) return;
+      const key = this.claimKey(p.id);
+      if (untracked(() => this.claim())?.key === key) return;
+      untracked(() => void this.loadClaim(p.id, key));
     });
     inject(DestroyRef).onDestroy(() => this.clearCopyTimer());
   }
@@ -170,6 +200,27 @@ export class ClubePartnerComponent {
 
   protected retry(): void {
     void this.store.reload();
+  }
+
+  protected retryClaim(): void {
+    const p = this.partner();
+    if (p && !isLocked(p) && couponViaClaim(p)) void this.loadClaim(p.id, this.claimKey(p.id));
+  }
+
+  private claimKey(partnerId: string): string {
+    return `${this.store.uid()}/${partnerId}`;
+  }
+
+  private async loadClaim(partnerId: string, key: string): Promise<void> {
+    this.claim.set({ key, coupon: null, loading: true, error: null });
+    let next: ClaimState;
+    try {
+      next = { key, coupon: await this.store.claimCoupon(partnerId, this.source), loading: false, error: null };
+    } catch (error) {
+      next = { key, coupon: null, loading: false, error: (error as Error).message };
+    }
+    // Resposta atrasada de outro parceiro (ou de outra conta) não sobrescreve a atual.
+    if (this.claim()?.key === key) this.claim.set(next);
   }
 
   private clearCopyTimer(): void {

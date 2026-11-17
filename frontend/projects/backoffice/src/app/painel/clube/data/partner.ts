@@ -31,6 +31,17 @@ import {
   type PartnerTermsTag,
   type RequirementType,
 } from './partner-premium';
+import {
+  levelTierForm,
+  levelTiersError,
+  levelTiersFromDoc,
+  levelTiersPayload,
+  tierCouponsFromDoc,
+  tierCouponsPayload,
+  type LevelTierForm,
+  type PartnerLevelTier,
+  type TierCoupons,
+} from './partner-level-tiers';
 
 export const PARTNER_CATEGORIES = ['food', 'sports', 'health', 'services', 'leisure', 'other'] as const;
 export type PartnerCategory = (typeof PARTNER_CATEGORIES)[number];
@@ -129,6 +140,7 @@ export interface Partner {
   locations: PartnerLocation[];
   requirement: PartnerRequirement;
   requirementLabel: string | null;
+  levelTiers: PartnerLevelTier[];
   createdAt: Date | null;
   createdByName: string;
   updatedAt: Date | null;
@@ -173,11 +185,17 @@ export interface PartnerPayload {
   locations: PartnerLocation[];
   requirement: PartnerRequirement;
   requirementLabel: string | null;
+  /** Desconto por elo: só com cupom fixo; `[]` nos outros modos. */
+  levelTiers: PartnerLevelTier[];
 }
 
-/** `partnerPrivate/{partnerId}`: o cupom de parceiro com requisito (só admin lê) e os avisos já enviados. */
+/**
+ * `partnerPrivate/{partnerId}`: o cupom de parceiro com requisito e os das faixas do desconto por
+ * elo (só admin lê), e os avisos já enviados.
+ */
 export interface PartnerPrivate {
   couponCode: string | null;
+  tierCoupons: TierCoupons;
   notifiedNewAt: Date | null;
   notifiedEndingAt: Date | null;
 }
@@ -218,6 +236,8 @@ export interface PartnerForm {
   tournamentIds: string[];
   minLevel: string;
   requirementLabel: string;
+  /** Desconto por elo, com o cupom de cada faixa (que vai para `partnerPrivate`). */
+  levelTiers: LevelTierForm[];
 }
 
 export type PartnerFormField = keyof PartnerForm;
@@ -259,6 +279,7 @@ export function partnerPrivateFromDoc(data: Record<string, unknown> | undefined)
   const d = data ?? {};
   return {
     couponCode: textOrNull(d['couponCode']),
+    tierCoupons: tierCouponsFromDoc(d['tierCoupons']),
     notifiedNewAt: dateOf(d['notifiedNewAt']),
     notifiedEndingAt: dateOf(d['notifiedEndingAt']),
   };
@@ -300,6 +321,7 @@ export function partnerFromDoc(id: string, data: Record<string, unknown>): Partn
     locations: locationsFromDoc(data['locations']),
     requirement: requirementFromDoc(data['requirement']),
     requirementLabel: textOrNull(data['requirementLabel']),
+    levelTiers: levelTiersFromDoc(data['levelTiers']),
     createdAt: dateOf(data['createdAt']),
     createdByName: text(data['createdByName']),
     updatedAt: dateOf(data['updatedAt']),
@@ -349,14 +371,16 @@ export function emptyPartnerForm(): PartnerForm {
     tournamentIds: [],
     minLevel: '',
     requirementLabel: '',
+    levelTiers: [],
   };
 }
 
 /**
  * Form de um parceiro gravado. Com requisito, o cupom fixo mora em `partnerPrivate` (o público é
- * `null`): passe o código privado em `privateCoupon`.
+ * `null`): passe o código privado em `privateCoupon`. Os cupons das faixas do desconto por elo
+ * também moram lá (`tierCoupons`).
  */
-export function formFromPartner(p: Partner, privateCoupon: string | null = null): PartnerForm {
+export function formFromPartner(p: Partner, privateCoupon: string | null = null, tierCoupons: TierCoupons = {}): PartnerForm {
   const req = p.requirement;
   return {
     name: p.name,
@@ -392,6 +416,7 @@ export function formFromPartner(p: Partner, privateCoupon: string | null = null)
     tournamentIds: req.type === 'tournament' ? [...req.tournamentIds] : [],
     minLevel: req.type === 'min_level' ? req.minLevel : '',
     requirementLabel: p.requirementLabel ?? '',
+    levelTiers: p.levelTiers.map((t) => levelTierForm(t, tierCoupons)),
   };
 }
 
@@ -520,6 +545,8 @@ function validatePremium(form: PartnerForm): PartnerFormErrors {
   if (form.requirementType !== 'none' && label.length > REQUIREMENT_LABEL_MAX) {
     errors.requirementLabel = tooLong(label, REQUIREMENT_LABEL_MAX);
   }
+  const tiers = levelTiersError(form.levelTiers, form.couponMode === 'fixed');
+  if (tiers) errors.levelTiers = tiers;
   return errors;
 }
 
@@ -567,6 +594,7 @@ export function partnerPayload(form: PartnerForm): PartnerPayload {
     locations: locationsPayload(form.locations),
     requirement,
     requirementLabel: requirement.type === 'none' ? null : form.requirementLabel.trim() || null,
+    levelTiers: levelTiersPayload(form.levelTiers, form.couponMode === 'fixed'),
   };
 }
 
@@ -580,13 +608,22 @@ export function privateCouponCode(form: PartnerForm): string | null {
 }
 
 /**
+ * O mapa inteiro de `partnerPrivate/{id}.tierCoupons` (cupom de cada faixa do desconto por elo).
+ * `{}` fora do cupom fixo: trocar o modo apaga os cupons das faixas junto com elas.
+ */
+export function privateTierCoupons(form: PartnerForm): TierCoupons {
+  return tierCouponsPayload(form.levelTiers, form.couponMode === 'fixed');
+}
+
+/**
  * Doc inteiro de um parceiro já lido, com uma mudança (o toggle Ativo da tabela). Passa pela mesma
  * validação do editor: devolve o primeiro erro quando o cadastro está incompleto para isso.
  */
 export function payloadWith(partner: Partner, change: Partial<PartnerForm>): PartnerPayload | { error: string } {
   const form = { ...formFromPartner(partner), ...change };
-  const { couponCode, ...others } = validatePartnerForm(form);
-  // Com requisito, o código fixo está em `partnerPrivate`, que este doc não toca.
+  const { couponCode, levelTiers, ...others } = validatePartnerForm(form);
+  // Com requisito, o código fixo está em `partnerPrivate`, que este doc não toca. Os cupons das
+  // faixas também (o texto delas já passou pela leitura defensiva).
   const errors = partner.requirement.type === 'none' ? { couponCode, ...others } : others;
   const first = Object.values(errors).find((e) => !!e);
   return first ? { error: first } : partnerPayload(form);

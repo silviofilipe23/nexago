@@ -32,6 +32,24 @@
           }
         </section>
 
+        @if (p.levelLadder.length > 0) {
+          <section class="cp-card" aria-labelledby="cp-tiers-title">
+            <h2 class="cp-kicker" id="cp-tiers-title">Desconto por elo</h2>
+            <ul class="cp-tiers">
+              @for (row of p.levelLadder; track row.rank) {
+                <li class="cp-tier" [class.cp-tier--current]="row.current" [attr.aria-current]="row.current ? 'true' : null">
+                  <span class="cp-tier-dot" [style.background]="rankColor[row.rank]" aria-hidden="true"></span>
+                  <span class="cp-tier-name">{{ rankName[row.rank] }}</span>
+                  @if (row.current) {
+                    <span class="cp-tier-mine">Seu desconto</span>
+                  }
+                  <span class="cp-tier-off">{{ row.benefitHighlight || row.benefitTitle }}</span>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+
         @if (!locked()) {
           <section class="cp-card" aria-labelledby="cp-steps-title">
             <h2 class="cp-kicker" id="cp-steps-title">Como usar</h2>
@@ -88,6 +106,11 @@
               @if (copyState() === 'failed') {
                 <p class="cp-copy-failed" role="alert">Não deu para copiar. Selecione o código e copie manualmente.</p>
               }
+            } @else if (claimed()?.loading) {
+              <p class="cp-claim" role="status">Buscando seu cupom…</p>
+            } @else if (claimed()?.error; as message) {
+              <p class="cp-copy-failed" role="alert">{{ message }}</p>
+              <button type="button" class="cp-claim-retry" (click)="retryClaim()">Tentar de novo</button>
             }
 
             @if (p.ctaType === 'lead_form') {

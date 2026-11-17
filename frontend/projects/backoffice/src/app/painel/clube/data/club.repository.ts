@@ -41,6 +41,7 @@ import {
   type PartnerPrivate,
 } from './partner';
 import { coverStoragePath, notifyResultOf, type NotifyKind } from './partner-premium';
+import type { TierCoupons } from './partner-level-tiers';
 import { leadFromDoc, type PartnerLead } from './partner-lead';
 
 const PARTNERS = 'partners';
@@ -50,10 +51,31 @@ const REDEMPTIONS = 'benefitRedemptions';
 export const REDEMPTIONS_LIMIT = 500;
 
 /**
- * O que gravar em `partnerPrivate/{id}` junto do parceiro: o cupom de parceiro com requisito, ou
- * `null` para limpar o que havia. `undefined` = não mexe no doc privado.
+ * O que gravar em `partnerPrivate/{id}` junto do parceiro: o cupom de parceiro com requisito (ou
+ * `null` para limpar o que havia) e, quando vier, o mapa inteiro dos cupons das faixas do desconto
+ * por elo. `undefined` = não mexe no doc privado.
  */
-export type PrivateCouponWrite = { couponCode: string | null } | undefined;
+export type PrivateCouponWrite = { couponCode: string | null; tierCoupons?: TierCoupons } | undefined;
+
+/**
+ * O `set` de `partnerPrivate/{id}`. Com `mergeFields`, só os campos listados são substituídos: o
+ * resto, como as marcas `notified*At` do servidor (a rule exige que não mudem), fica como está.
+ * `merge: true` faria merge profundo do mapa `tierCoupons` e o cupom de uma faixa removida
+ * continuaria lá; com `mergeFields` o mapa é trocado inteiro.
+ */
+export function partnerPrivateSet(
+  write: NonNullable<PrivateCouponWrite>,
+  uid: string,
+): { data: Record<string, unknown>; options: { mergeFields: string[] } } {
+  const data: Record<string, unknown> = {
+    couponCode: write.couponCode,
+    ...(write.tierCoupons ? { tierCoupons: { ...write.tierCoupons } } : {}),
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  };
+  return { data, options: { mergeFields: Object.keys(data) } };
+}
+
 const EVENTS = 'benefitEvents';
 const LEADS = 'partnerLeads';
 const CONFIG_PATH = ['appConfig', 'benefitsClub'] as const;
@@ -101,20 +123,26 @@ export class ClubRepository {
         createdByName: this.actorName(),
         ...this.touched(),
       });
-      if (privateCoupon) tx.set(doc(db, PARTNER_PRIVATE, id), this.privatePayload(privateCoupon), { merge: true });
+      if (privateCoupon) {
+        const { data, options } = partnerPrivateSet(privateCoupon, this.uid());
+        tx.set(doc(db, PARTNER_PRIVATE, id), data, options);
+      }
     });
   }
 
   /**
    * Regrava o doc inteiro (todos os campos da allowlist). O `update` do lote mantém `createdAt` e
    * `createdByName` como estão, que é o que a rule exige. Com `privateCoupon`, o doc privado vai no
-   * mesmo lote (merge: os avisos já enviados ficam).
+   * mesmo lote (`mergeFields`: os avisos já enviados ficam; `tierCoupons` é trocado inteiro).
    */
   async updatePartner(id: string, payload: PartnerPayload, privateCoupon: PrivateCouponWrite = undefined): Promise<void> {
     const db = backofficeDb();
     const batch = writeBatch(db);
     batch.update(doc(db, PARTNERS, id), { ...payload, ...this.touched() });
-    if (privateCoupon) batch.set(doc(db, PARTNER_PRIVATE, id), this.privatePayload(privateCoupon), { merge: true });
+    if (privateCoupon) {
+      const { data, options } = partnerPrivateSet(privateCoupon, this.uid());
+      batch.set(doc(db, PARTNER_PRIVATE, id), data, options);
+    }
     await batch.commit();
   }
 
@@ -122,10 +150,6 @@ export class ClubRepository {
   async partnerPrivate(id: string): Promise<PartnerPrivate> {
     const snap = await getDoc(doc(backofficeDb(), PARTNER_PRIVATE, id));
     return partnerPrivateFromDoc(snap.exists() ? snap.data() : undefined);
-  }
-
-  private privatePayload(write: { couponCode: string | null }): Record<string, unknown> {
-    return { couponCode: write.couponCode, updatedAt: serverTimestamp(), updatedBy: this.uid() };
   }
 
   deletePartner(id: string): Promise<void> {

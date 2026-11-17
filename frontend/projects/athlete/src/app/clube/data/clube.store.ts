@@ -6,6 +6,7 @@ import {
   clubVisible,
   defaultLeadSuccessMessage,
   masterSponsor,
+  partnerForRank,
   visiblePartners,
   type ClubSource,
   type Partner,
@@ -19,6 +20,7 @@ const STALE_MS = 60_000;
 
 const LOAD_ERROR = 'Não foi possível carregar o clube agora. Tente de novo.';
 const LEAD_ERROR = 'Não foi possível enviar agora. Tente de novo.';
+const CLAIM_ERROR = 'Não foi possível carregar seu cupom agora. Tente de novo.';
 
 /**
  * Estado das telas do clube, provido na rota-mãe componentless (`clube.routes.ts`): a lista e o
@@ -33,7 +35,10 @@ export class ClubStore {
   private readonly auth = inject(AuthService);
   private readonly access = inject(ClubAccessService);
 
-  /** A vitrine desta pessoa (janela de validade, público, cidade e ordem já aplicados). */
+  /**
+   * A vitrine desta pessoa (janela de validade, público, cidade e ordem já aplicados), com o
+   * desconto da faixa do elo dela no selo e no título (`partnerForRank`).
+   */
   readonly partners = signal<Partner[]>([]);
   readonly profile = signal<ClubAthleteProfile | null>(null);
   /** Flag desligada e a pessoa não testa: a tela mostra "em breve" em vez da vitrine. */
@@ -92,7 +97,10 @@ export class ClubStore {
       if (!access || access.uid !== uid) throw new Error('Sem acesso ao clube.');
       this.closed.set(!clubVisible(access.config, access.tester));
       this.profile.set(profile);
-      this.partners.set(visiblePartners(partners, access.tester, profile?.city, Date.now()));
+      const rank = profile?.sandRank ?? 'INICIANTE';
+      this.partners.set(
+        visiblePartners(partners, access.tester, profile?.city, Date.now()).map((p) => partnerForRank(p, rank)),
+      );
       this.loadedAt = Date.now();
     } catch {
       if (ticket === this.ticket) this.error.set(LOAD_ERROR);
@@ -109,6 +117,17 @@ export class ClubStore {
       void api.track({ type, partnerId, source }).catch(() => undefined);
     } catch {
       // A porta não deveria lançar fora da promise, mas o funil nunca derruba a tela.
+    }
+  }
+
+  /** Pede o cupom à `claimBenefit` (`couponViaClaim`). Lança `Error` com a mensagem para a tela. */
+  async claimCoupon(partnerId: string, source: ClubSource): Promise<string | null> {
+    const api = this.api;
+    if (!api) throw new Error(CLAIM_ERROR);
+    try {
+      return await api.claimBenefit(partnerId, source);
+    } catch (error) {
+      throw new Error(clubErrorMessage(error, CLAIM_ERROR));
     }
   }
 

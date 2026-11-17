@@ -185,7 +185,7 @@ describe('clube v2: requisito e cupom privado', () => {
   });
 
   it('partnerPrivate ausente = sem cupom e sem aviso', () => {
-    expect(partnerPrivateFromDoc(undefined)).toEqual({ couponCode: null, notifiedNewAt: null, notifiedEndingAt: null });
+    expect(partnerPrivateFromDoc(undefined)).toEqual({ couponCode: null, tierCoupons: {}, notifiedNewAt: null, notifiedEndingAt: null });
     const at = new Date(2026, 10, 16);
     expect(partnerPrivateFromDoc({ couponCode: 'X', notifiedNewAt: { toDate: () => at } }).notifiedNewAt).toEqual(at);
   });

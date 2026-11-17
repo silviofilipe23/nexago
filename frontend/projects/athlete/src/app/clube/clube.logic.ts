@@ -7,6 +7,8 @@
  * `functions/src/benefits-club.ts`: o atleta lê na tela exatamente o que fica gravado no lead.
  */
 
+import { SAND_RANK_CODES, SAND_RANK_TRACK, type SandRankCode } from '../profile/sand-rank';
+
 export const PARTNER_CATEGORIES = ['food', 'sports', 'health', 'services', 'leisure', 'other'] as const;
 export type PartnerCategory = (typeof PARTNER_CATEGORIES)[number];
 export type PartnerCtaType = 'link' | 'lead_form';
@@ -31,6 +33,21 @@ export const CATEGORY_LABELS: Readonly<Record<PartnerCategory, string>> = {
   leisure: 'Lazer',
   other: 'Outros',
 };
+
+/** Faixa de desconto por elo do SandRanking (`partners/{id}.levelTiers`): vale a partir de `minRank`. */
+export interface PartnerLevelTier {
+  minRank: SandRankCode;
+  benefitHighlight: string;
+  benefitTitle: string;
+}
+
+/** Uma linha da escada de desconto: a base (Iniciante) ou uma faixa; `current` = a do atleta. */
+export interface LevelBenefitRow {
+  rank: SandRankCode;
+  benefitHighlight: string;
+  benefitTitle: string;
+  current: boolean;
+}
 
 export interface Partner {
   id: string;
@@ -64,6 +81,13 @@ export interface Partner {
   requirement: PartnerRequirement;
   /** Texto do bloqueio, ≤ 80 caracteres. */
   requirementLabel: string | null;
+  /** Faixas por elo, na ordem da escada. Só com `couponMode: 'fixed'`; vazio = desconto único. */
+  levelTiers: readonly PartnerLevelTier[];
+  /**
+   * Preenchida por `partnerForRank`: a linha-base e as faixas, com a do atleta marcada. Vazia no
+   * parceiro sem faixas (e no doc ainda não resolvido).
+   */
+  levelLadder: readonly LevelBenefitRow[];
 }
 
 export interface BenefitsClubConfig {
@@ -163,6 +187,84 @@ function requirementLabelOrNull(value: unknown): string | null {
   return strOrNull(value)?.slice(0, REQUIREMENT_LABEL_MAX).trim() || null;
 }
 
+// ── desconto por elo (espelho do `benefits-club-level-tiers.ts` do servidor) ─
+
+/** Elos que abrem faixa: o primeiro (Iniciante) é o do benefício-base. */
+export const LEVEL_TIER_RANKS: readonly SandRankCode[] = SAND_RANK_CODES.slice(1);
+const LEVEL_TIER_HIGHLIGHT_MAX = 24;
+const LEVEL_TIER_TITLE_MAX = 80;
+
+const rankOrder = (code: SandRankCode): number => SAND_RANK_CODES.indexOf(code);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * `partner.levelTiers` como o `parseLevelTiers` do servidor: só faixas bem-formadas, uma por elo,
+ * na ordem da escada. Item malformado é ignorado (o atleta fica no benefício-base).
+ */
+export function levelTiersFromDoc(raw: unknown): PartnerLevelTier[] {
+  if (!Array.isArray(raw)) return [];
+  const byRank = new Map<SandRankCode, PartnerLevelTier>();
+  for (const item of raw) {
+    if (!isRecord(item)) continue;
+    const { minRank, benefitHighlight, benefitTitle } = item;
+    const rank = LEVEL_TIER_RANKS.find((code) => code === minRank);
+    if (!rank || byRank.has(rank)) continue;
+    if (typeof benefitHighlight !== 'string' || benefitHighlight.length > LEVEL_TIER_HIGHLIGHT_MAX) continue;
+    if (typeof benefitTitle !== 'string' || !benefitTitle.trim() || benefitTitle.length > LEVEL_TIER_TITLE_MAX) continue;
+    byRank.set(rank, { minRank: rank, benefitHighlight: benefitHighlight.trim(), benefitTitle: benefitTitle.trim() });
+  }
+  return [...byRank.values()].sort((a, b) => rankOrder(a.minRank) - rankOrder(b.minRank));
+}
+
+/** Elo do atleta pelo espelho `users/{uid}.sandRank`: o código; sem ele, o degrau; sem nada, Iniciante. */
+export function sandRankCodeOf(user: unknown): SandRankCode {
+  const mirror = isRecord(user) ? user['sandRank'] : null;
+  if (isRecord(mirror)) {
+    const byCode = SAND_RANK_CODES.find((code) => code === mirror['code']);
+    if (byCode) return byCode;
+    const step = SAND_RANK_TRACK.find((s) => s.trackIndex === mirror['trackIndex']);
+    if (step) return step.rankCode;
+  }
+  return SAND_RANK_CODES[0]!;
+}
+
+/** A faixa mais alta que o elo alcança; `null` = benefício-base. */
+export function levelTierFor(tiers: readonly PartnerLevelTier[], rank: SandRankCode): PartnerLevelTier | null {
+  const order = rankOrder(rank);
+  let best: PartnerLevelTier | null = null;
+  for (const tier of tiers) if (rankOrder(tier.minRank) <= order) best = tier;
+  return best;
+}
+
+/**
+ * O parceiro como o atleta deste elo vê: selo e título da faixa dele (ou os da base) e a escada
+ * completa em `levelLadder`. Sem faixas, devolve o mesmo parceiro. Pode rodar de novo sobre um
+ * parceiro já resolvido: a base sai da escada, não do selo trocado.
+ */
+export function partnerForRank(partner: Partner, rank: SandRankCode): Partner {
+  if (partner.levelTiers.length === 0) return partner;
+  const base = partner.levelLadder[0] ?? partner;
+  const tier = levelTierFor(partner.levelTiers, rank);
+  const levelLadder: LevelBenefitRow[] = [
+    { rank: SAND_RANK_CODES[0]!, benefitHighlight: base.benefitHighlight, benefitTitle: base.benefitTitle, current: tier === null },
+    ...partner.levelTiers.map((t) => ({
+      rank: t.minRank,
+      benefitHighlight: t.benefitHighlight,
+      benefitTitle: t.benefitTitle,
+      current: t === tier,
+    })),
+  ];
+  return {
+    ...partner,
+    benefitHighlight: tier ? tier.benefitHighlight : base.benefitHighlight,
+    benefitTitle: tier ? tier.benefitTitle : base.benefitTitle,
+    levelLadder,
+  };
+}
+
 function defaultCtaLabel(ctaType: PartnerCtaType): string {
   return ctaType === 'lead_form' ? 'Quero contratar' : 'Ver oferta';
 }
@@ -179,6 +281,7 @@ export function partnerFromDoc(id: string, data: unknown): Partner | null {
   const ctaType = pick<PartnerCtaType>(d['ctaType'], ['link', 'lead_form'], 'link');
   const brandColor = str(d['brandColor']);
   const priority = d['priority'];
+  const couponMode = pick<PartnerCouponMode>(d['couponMode'], ['none', 'fixed', 'athlete'], 'none');
   return {
     id,
     name,
@@ -192,7 +295,7 @@ export function partnerFromDoc(id: string, data: unknown): Partner | null {
     ctaType,
     ctaLabel: str(d['ctaLabel']) || defaultCtaLabel(ctaType),
     link: httpsOrNull(d['link']),
-    couponMode: pick<PartnerCouponMode>(d['couponMode'], ['none', 'fixed', 'athlete'], 'none'),
+    couponMode,
     couponCode: strOrNull(d['couponCode']),
     brandColor: BRAND_COLOR_PATTERN.test(brandColor) ? brandColor : FALLBACK_BRAND_COLOR,
     cities: strList(d['cities']),
@@ -207,12 +310,23 @@ export function partnerFromDoc(id: string, data: unknown): Partner | null {
     validUntil: toMillisOrNull(d['validUntil']),
     requirement: requirementFromDoc(d['requirement']),
     requirementLabel: requirementLabelOrNull(d['requirementLabel']),
+    // O cupom é o que diz ao parceiro qual desconto dar: faixa só existe com cupom fixo.
+    levelTiers: couponMode === 'fixed' ? levelTiersFromDoc(d['levelTiers']) : [],
+    levelLadder: [],
   };
 }
 
 /** Parceiro com requisito: aparece com cadeado e sem cupom/botão no portal. */
 export function isLocked(partner: Pick<Partner, 'requirement'>): boolean {
   return partner.requirement.type !== 'none';
+}
+
+/**
+ * O cupom deste parceiro só sai pela callable `claimBenefit`: com requisito (cupom privado) ou com
+ * faixas por elo (o cupom da faixa não está no doc público). Não bloqueia ninguém: isso é `isLocked`.
+ */
+export function couponViaClaim(partner: Partial<Pick<Partner, 'requirement' | 'levelTiers'>>): boolean {
+  return (!!partner.requirement && partner.requirement.type !== 'none') || (partner.levelTiers?.length ?? 0) > 0;
 }
 
 /** Texto do cadeado: o do admin ou o padrão. */
@@ -315,12 +429,15 @@ export function athleteCode(uid: string): string {
   return `NEXA-${uid.replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase()}`;
 }
 
-/** O cupom que a tela mostra: fixo do parceiro, o código do atleta, ou nenhum (sempre nenhum se bloqueado). */
+/**
+ * O cupom que a tela conhece sem perguntar ao servidor: fixo do parceiro, o código do atleta, ou
+ * nenhum. Sempre nenhum quando o cupom sai da `claimBenefit` (`couponViaClaim`).
+ */
 export function couponFor(
-  partner: Pick<Partner, 'couponMode' | 'couponCode'> & Partial<Pick<Partner, 'requirement'>>,
+  partner: Pick<Partner, 'couponMode' | 'couponCode'> & Partial<Pick<Partner, 'requirement' | 'levelTiers'>>,
   uid: string,
 ): string | null {
-  if (partner.requirement && partner.requirement.type !== 'none') return null;
+  if (couponViaClaim(partner)) return null;
   switch (partner.couponMode) {
     case 'fixed':
       return partner.couponCode;

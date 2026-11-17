@@ -54,7 +54,7 @@ Future<void> _maybeAskUse(
     partner: partner,
     subtitle: pendingQuestionSubtitle(
       partner: partner,
-      coupon: partner.requirement.isNone ? couponFor(partner, uid) : null,
+      coupon: couponViaClaim(partner) ? null : couponFor(partner, uid),
       lastUsedAt: use?.lastUsedAt,
       now: ref.read(benefitsClockProvider)(),
     ),

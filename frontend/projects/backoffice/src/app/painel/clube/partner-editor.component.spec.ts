@@ -33,6 +33,21 @@ const FAST: Partner = partnerFromDoc('fast-acai', {
   }),
 });
 
+/** FAST com duas faixas do desconto por elo (cupons no privado). */
+const TIERED: Partner = partnerFromDoc('fast-tiers', {
+  ...partnerPayload({
+    ...formFromPartner(FAST),
+    levelTiers: [
+      { minRank: 'COMPETIDOR', benefitHighlight: '12% OFF', benefitTitle: '12% em todo pedido', couponCode: '' },
+      { minRank: 'ELITE', benefitHighlight: '20% OFF', benefitTitle: '20% em todo pedido', couponCode: '' },
+    ],
+  }),
+});
+const TIERED_PRIVATE: PartnerPrivate = {
+  ...partnerPrivateFromDoc(undefined),
+  tierCoupons: { COMPETIDOR: 'NEXA12', ELITE: 'NEXA20' },
+};
+
 describe('PartnerEditorComponent', () => {
   let create: jasmine.Spy<(id: string, payload: PartnerPayload) => Promise<void>>;
   let update: jasmine.Spy<(id: string, payload: PartnerPayload, priv?: PrivateCouponWrite) => Promise<void>>;
@@ -57,7 +72,7 @@ describe('PartnerEditorComponent', () => {
           provide: ClubRepository,
           useValue: {
             partners: () => Promise.resolve([FAST]),
-            partner: (pid: string) => Promise.resolve(pid === FAST.id ? FAST : null),
+            partner: (pid: string) => Promise.resolve([FAST, TIERED].find((p) => p.id === pid) ?? null),
             createPartner: create,
             updatePartner: update,
             deletePartner: jasmine.createSpy('deletePartner').and.resolveTo(),
@@ -146,8 +161,8 @@ describe('PartnerEditorComponent', () => {
     const [id, payload] = update.calls.mostRecent().args;
     expect(id).toBe('fast-acai');
     expect(payload).toEqual({ ...partnerPayload(formFromPartner(FAST)), benefitHighlight: '15% OFF' });
-    // 21 campos da v1 + 10 da versão premium (allowlist da rule, sem autoria).
-    expect(Object.keys(payload).length).toBe(31);
+    // 21 campos da v1 + 10 da versão premium + `levelTiers` (allowlist da rule, sem autoria).
+    expect(Object.keys(payload).length).toBe(32);
     expect(payload.link).toBe('https://fast.example');
     expect(payload.couponCode).toBe('NEXAGO10');
     expect(create).not.toHaveBeenCalled();
@@ -172,7 +187,7 @@ describe('PartnerEditorComponent', () => {
   });
 
   it('sem requisito, um cupom que sobrou no privado é limpo no mesmo lote', async () => {
-    const host = await mount('fast-acai', { couponCode: 'SQUAD20', notifiedNewAt: null, notifiedEndingAt: null });
+    const host = await mount('fast-acai', { couponCode: 'SQUAD20', tierCoupons: {}, notifiedNewAt: null, notifiedEndingAt: null });
     // FAST não tem requisito: o form usa o cupom público.
     expect((field(host, 'Código fixo') as HTMLInputElement).value).toBe('NEXAGO10');
     type(host, 'Selo curto', '20% OFF');
@@ -183,7 +198,7 @@ describe('PartnerEditorComponent', () => {
   });
 
   it('aviso já enviado aparece com a data e o botão fica desligado', async () => {
-    const host = await mount('fast-acai', { couponCode: null, notifiedNewAt: new Date(2026, 10, 10, 9, 0), notifiedEndingAt: null });
+    const host = await mount('fast-acai', { couponCode: null, tierCoupons: {}, notifiedNewAt: new Date(2026, 10, 10, 9, 0), notifiedEndingAt: null });
     const notifyBox = host.querySelector('bo-partner-notify')!;
     expect(notifyBox.textContent).toContain('Enviado em 10/11/2026');
     expect(notifyBox.querySelectorAll<HTMLButtonElement>('.row button')[0]!.disabled).toBeTrue();
@@ -212,6 +227,75 @@ describe('PartnerEditorComponent', () => {
     const avisar = host.querySelectorAll<HTMLButtonElement>('bo-partner-notify .row button');
     expect(avisar[0]!.disabled).toBeTrue();
     expect(host.querySelector('bo-partner-notify')!.textContent).toContain('Salve as alterações');
+  });
+
+  const tierInput = (host: HTMLElement, label: string) => host.querySelector<HTMLInputElement>(`bo-partner-level-tiers [aria-label="${label}"]`)!;
+
+  /** Um evento por vez, como a pessoa digitando: o form volta para a seção antes do próximo. */
+  async function fill(host: HTMLElement, values: Array<[string, string]>) {
+    for (const [label, value] of values) {
+      const el = tierInput(host, label);
+      el.value = value;
+      el.dispatchEvent(new Event('input'));
+      await settle();
+    }
+  }
+
+  it('desconto por elo: carrega os cupons das faixas do privado e, ao tirar uma, ela some do mapa gravado', async () => {
+    const host = await mount('fast-tiers', TIERED_PRIVATE);
+    expect(host.querySelectorAll('bo-partner-level-tiers fieldset').length).toBe(2);
+    expect(tierInput(host, 'Cupom da faixa 2').value).toBe('NEXA20');
+    expect(host.querySelector('bo-partner-level-tiers')!.textContent).toContain('vale para Iniciante');
+
+    buttonByText(host.querySelectorAll('bo-partner-level-tiers fieldset')[0]!, 'Tirar').click();
+    await settle();
+    saveButton(host).click();
+    await settle();
+    const [, payload, priv] = update.calls.mostRecent().args;
+    expect(payload.levelTiers).toEqual([{ minRank: 'ELITE', benefitHighlight: '20% OFF', benefitTitle: '20% em todo pedido' }]);
+    expect(priv).toEqual({ couponCode: null, tierCoupons: { ELITE: 'NEXA20' } });
+  });
+
+  it('desconto por elo: some fora do cupom fixo e trocar o modo grava as faixas vazias e limpa os cupons', async () => {
+    const host = await mount('fast-tiers', TIERED_PRIVATE);
+    buttonByText(host, 'Por atleta').click();
+    await settle();
+    expect(host.querySelector('bo-partner-level-tiers')).toBeNull();
+
+    saveButton(host).click();
+    await settle();
+    const [, payload, priv] = update.calls.mostRecent().args;
+    expect(payload.couponMode).toBe('athlete');
+    expect(payload.levelTiers).toEqual([]);
+    expect(priv).toEqual({ couponCode: null, tierCoupons: {} });
+  });
+
+  it('desconto por elo: faixa incompleta bloqueia o salvar; preenchida grava em ordem da escada', async () => {
+    const host = await mount('fast-acai');
+    buttonByText(host.querySelector('bo-partner-level-tiers')!, 'Adicionar faixa').click();
+    await settle();
+    saveButton(host).click();
+    await settle();
+    expect(update).not.toHaveBeenCalled();
+    expect(host.querySelector('bo-partner-level-tiers .err')!.textContent).toContain('Informe o selo.');
+
+    const select = host.querySelector<HTMLSelectElement>('bo-partner-level-tiers select')!;
+    select.value = 'MESTRE';
+    select.dispatchEvent(new Event('change'));
+    await settle();
+    await fill(host, [['Selo da faixa 1', '25% OFF'], ['Benefício da faixa 1', '25% em tudo'], ['Cupom da faixa 1', 'NEXA25']]);
+    buttonByText(host.querySelector('bo-partner-level-tiers')!, 'Adicionar faixa').click();
+    await settle();
+    // A faixa nova pega o primeiro elo livre e o seletor não oferece o que já tem faixa.
+    const options = [...host.querySelectorAll<HTMLSelectElement>('bo-partner-level-tiers select')[1]!.options].map((o) => o.value);
+    expect(options).not.toContain('MESTRE');
+    await fill(host, [['Selo da faixa 2', '12% OFF'], ['Benefício da faixa 2', '12% em tudo'], ['Cupom da faixa 2', 'NEXA12']]);
+    saveButton(host).click();
+    await settle();
+    const [, payload, priv] = update.calls.mostRecent().args;
+    expect(payload.levelTiers.map((t) => t.minRank)).toEqual(['COMPETIDOR', 'MESTRE']);
+    expect(payload.couponCode).toBe('NEXAGO10');
+    expect(priv).toEqual({ couponCode: null, tierCoupons: { COMPETIDOR: 'NEXA12', MESTRE: 'NEXA25' } });
   });
 
   it('id que não existe mostra "Parceiro não encontrado"', async () => {

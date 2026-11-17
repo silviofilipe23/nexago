@@ -48,6 +48,7 @@ class AthleteProfile {
     this.gameObjective,
     this.lastActiveAt,
     this.highlightPhotoUrls = const [],
+    this.sandRankTrackIndex,
   });
 
   final String id;
@@ -108,6 +109,10 @@ class AthleteProfile {
   /// URLs das fotos de destaque (`profiles/{uid}/highlights/*`), na ordem de
   /// exibição. Limitado a [maxHighlightPhotos] na UI de edição.
   final List<String> highlightPhotoUrls;
+
+  /// Degrau do elo (`sandRank.trackIndex`, espelho escrito só pela CF
+  /// `sand-rank-sync`); `null` sem espelho. O client nunca escreve.
+  final int? sandRankTrackIndex;
 
   bool get isDiscoverable =>
       publicProfileEnabled &&
@@ -308,7 +313,14 @@ class AthleteProfile {
       highlightPhotoUrls: _stringList(data['highlightPhotoUrls'])
           .take(maxHighlightPhotos)
           .toList(),
+      sandRankTrackIndex: _readSandRankTrackIndex(data['sandRank']),
     );
+  }
+
+  static int? _readSandRankTrackIndex(dynamic raw) {
+    if (raw is! Map) return null;
+    final index = raw['trackIndex'];
+    return index is num ? index.toInt() : null;
   }
 
   static String? _readOptionalString(dynamic raw) {
@@ -601,6 +613,7 @@ class AthleteProfile {
           ? this.lastActiveAt
           : lastActiveAt as DateTime?,
       highlightPhotoUrls: highlightPhotoUrls ?? this.highlightPhotoUrls,
+      sandRankTrackIndex: sandRankTrackIndex,
     );
   }
 }

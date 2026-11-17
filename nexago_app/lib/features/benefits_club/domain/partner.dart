@@ -5,8 +5,10 @@
 library;
 
 import 'partner_extras.dart';
+import 'partner_level_tiers.dart';
 
 export 'partner_extras.dart';
+export 'partner_level_tiers.dart';
 
 /// Categoria do parceiro. A ordem do enum é a ordem dos chips da tela do clube.
 enum PartnerCategory {
@@ -114,6 +116,8 @@ class Partner {
     this.locations = const [],
     this.requirement = PartnerRequirement.none,
     this.requirementLabel,
+    this.levelTiers = const [],
+    this.levelLadder,
   });
 
   /// Lê o doc sem confiar em nenhum campo: ausente ou com tipo errado vira o
@@ -157,6 +161,11 @@ class Partner {
       locations: readPartnerLocations(d['locations']),
       requirement: PartnerRequirement.fromMap(d['requirement']),
       requirementLabel: _textOrNull(d['requirementLabel']),
+      // Faixa só existe com cupom fixo: é o cupom que diz ao parceiro qual
+      // desconto dar (mesma regra das rules e da `claimBenefit`).
+      levelTiers: d['couponMode'] == PartnerCouponMode.fixed.key
+          ? readPartnerLevelTiers(d['levelTiers'])
+          : const [],
     );
   }
 
@@ -223,6 +232,57 @@ class Partner {
 
   /// Frase do bloqueio ("Exclusivo para embaixadores do Squad").
   final String? requirementLabel;
+
+  /// Desconto por elo, em ordem crescente; vazio = o benefício é um só.
+  final List<PartnerLevelTier> levelTiers;
+
+  /// Escada resolvida para o atleta logado (base + faixas e a dele); `null`
+  /// enquanto não resolvida ou sem faixas. Com ela, [benefitHighlight] e
+  /// [benefitTitle] já são os da faixa do atleta.
+  final PartnerLevelLadder? levelLadder;
+
+  /// Cópia com o selo e o título da faixa do atleta e a escada resolvida.
+  Partner withLevelBenefit({
+    required String benefitHighlight,
+    required String benefitTitle,
+    required PartnerLevelLadder levelLadder,
+  }) => Partner(
+    id: id,
+    name: name,
+    logoUrl: logoUrl,
+    category: category,
+    benefitHighlight: benefitHighlight,
+    benefitTitle: benefitTitle,
+    description: description,
+    howToUse: howToUse,
+    terms: terms,
+    ctaType: ctaType,
+    ctaLabel: ctaLabel,
+    link: link,
+    couponMode: couponMode,
+    couponCode: couponCode,
+    brandColor: brandColor,
+    cities: cities,
+    isMasterSponsor: isMasterSponsor,
+    priority: priority,
+    active: active,
+    audience: audience,
+    leadConsentText: leadConsentText,
+    leadSuccessMessage: leadSuccessMessage,
+    coverUrl: coverUrl,
+    startsAt: startsAt,
+    validUntil: validUntil,
+    createdAt: createdAt,
+    featured: featured,
+    placements: placements,
+    couponUrlParam: couponUrlParam,
+    termsTags: termsTags,
+    locations: locations,
+    requirement: requirement,
+    requirementLabel: requirementLabel,
+    levelTiers: levelTiers,
+    levelLadder: levelLadder,
+  );
 }
 
 String _text(Object? value) => value is String ? value.trim() : '';

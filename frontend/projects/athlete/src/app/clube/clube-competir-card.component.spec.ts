@@ -27,6 +27,7 @@ describe('ClubeCompetirCardComponent', () => {
       fetchProfile: async () => null,
       track: async () => undefined,
       submitLead: async () => ({ successMessage: null }),
+      claimBenefit: async () => null,
     };
   }
 

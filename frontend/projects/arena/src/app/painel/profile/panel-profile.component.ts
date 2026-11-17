@@ -81,9 +81,11 @@ function initialsOfName(name: string): string {
                     <rect width="1000" height="150" fill="url(#arProfileG2)" />
                   </svg>
                 }
+                <span class="cover-ratio-hint" id="arCoverRatioHint">Proporção ideal: 24:9</span>
                 <button
                   type="button"
                   class="image-edit-btn cover-edit-btn"
+                  aria-describedby="arCoverRatioHint"
                   [disabled]="coverUploading()"
                   (click)="coverFileInput.click()"
                 >
@@ -303,6 +305,22 @@ function initialsOfName(name: string): string {
       height: 100%;
       object-fit: cover;
       display: block;
+    }
+
+    /* Fica no canto de cima: embaixo moram o avatar (que sobe por cima da
+       capa) e o botão de trocar. */
+    .cover-ratio-hint {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      padding: 4px 9px;
+      border-radius: var(--nx-r-2);
+      background: rgba(10, 10, 10, 0.55);
+      color: #fff;
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 11px;
+      pointer-events: none;
     }
 
     .visually-hidden-input {

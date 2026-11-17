@@ -197,7 +197,7 @@ describe("convite", () => {
 
   it("escopo do código: o convite leva para o contrato; sem escopo, o contrato vale em tudo", async () => {
     const {fake, db, notify} = setup();
-    const scope = {registration: true, booking: false, club: false};
+    const scope = {registration: true, booking: false, club: false, store: false};
     const {inviteId} = await sendInviteCore(db, {...base, codeScope: scope}, ACTOR, NOW, notify);
     assert.deepEqual(fake.store.get(`squadInvites/${inviteId}`)!["codeScope"], scope);
     await acceptInviteCore(db, {uid: "felipe", inviteId, code: "fel10"}, NOW);
@@ -213,11 +213,23 @@ describe("convite", () => {
   it("escopo do código inválido ou sem nenhum tipo é recusado", async () => {
     const {db, notify} = setup();
     await assert.rejects(
-      sendInviteCore(db, {...base, codeScope: {registration: false, booking: false, club: false}}, ACTOR, NOW, notify),
+      sendInviteCore(db, {...base, codeScope: {registration: false, booking: false, club: false, store: false}}, ACTOR, NOW, notify),
       (err: {details?: {fields?: string[]}}) => err.details?.fields?.includes("codeScope") === true,
     );
     await assert.rejects(
       sendInviteCore(db, {...base, codeScope: {registration: "sim"} as never}, ACTOR, NOW, notify),
+      (err: {details?: {fields?: string[]}}) => err.details?.fields?.includes("codeScope") === true,
+    );
+  });
+
+  it("escopo do convite com a Loja (opcional) é aceito e vai para o contrato", async () => {
+    const {fake, db, notify} = setup();
+    const scope = {registration: true, booking: false, club: false, store: true};
+    const {inviteId} = await sendInviteCore(db, {...base, codeScope: scope}, ACTOR, NOW, notify);
+    await acceptInviteCore(db, {uid: "felipe", inviteId, code: "fel10"}, NOW);
+    assert.deepEqual(fake.store.get("squadAmbassadors/felipe")!["codeScope"], scope);
+    await assert.rejects(
+      sendInviteCore(db, {...base, athleteId: "felipe2", codeScope: {...scope, store: "x"} as never}, ACTOR, NOW, notify),
       (err: {details?: {fields?: string[]}}) => err.details?.fields?.includes("codeScope") === true,
     );
   });

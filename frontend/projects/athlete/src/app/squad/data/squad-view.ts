@@ -60,7 +60,7 @@ export interface SquadMember {
   followerDiscountPct: number;
   followerDiscountFirstOnly: boolean;
   /** Em que compras o desconto vale. Ausente (backend antigo) = em todas. */
-  followerDiscountScope?: { registration: boolean; booking: boolean; club: boolean };
+  followerDiscountScope?: { registration: boolean; booking: boolean; club: boolean; store?: boolean };
   pendingAmendment: { at: string | null; package: AthletePackage } | null;
   earnings: {
     totalCents: number;

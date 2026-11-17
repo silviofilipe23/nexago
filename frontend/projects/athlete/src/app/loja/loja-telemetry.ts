@@ -33,6 +33,7 @@ export type LojaEvent =
   | 'loja_carrinho_remover'
   | 'loja_endereco_salvar'
   | 'loja_cupom_aplicar'
+  | 'loja_embaixador_aplicar'
   | 'loja_checkout_pagar'
   | 'loja_pix_copiar'
   | 'loja_pedido_view'

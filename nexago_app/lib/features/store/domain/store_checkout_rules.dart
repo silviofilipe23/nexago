@@ -93,6 +93,7 @@ StoreCheckoutQuote? storeQuoteFromMap(Object? raw) {
   final d = _map(raw);
   if (d == null || d['lines'] is! List) return null;
   final coupon = _map(d['coupon']);
+  final squad = _map(d['squad']);
   return StoreCheckoutQuote(
     paymentMethod: StorePaymentMethod.from(d['paymentMethod']),
     lines: [
@@ -123,6 +124,8 @@ StoreCheckoutQuote? storeQuoteFromMap(Object? raw) {
             problem: _orNull(coupon['problem']),
             message: _orNull(coupon['message']),
           ),
+    squad: squad == null ? null : _squadFromMap(squad),
+    squadDiscountCents: _int(d['squadDiscountCents']),
     pixDiscountPct: _int(d['pixDiscountPct']),
     pixDiscountCents: _int(d['pixDiscountCents']),
     shippingCents: _int(d['shippingCents']),
@@ -170,6 +173,34 @@ StoreQuoteCoupon? storeAppliedCoupon(StoreCheckoutQuote? q) {
   final c = q?.coupon;
   return c != null && c.problem == null ? c : null;
 }
+
+StoreQuoteSquad _squadFromMap(Map<String, Object?> s) {
+  final origin = s['origin'];
+  final reason = s['reason'];
+  return StoreQuoteSquad(
+    code: _str(s['code']),
+    ambassadorName: _orNull(s['ambassadorName']),
+    origin: origin == 'link' || origin == 'qr' ? origin as String : 'code',
+    pct: _int(s['pct']),
+    discountCents: _int(s['discountCents']),
+    applied: s['applied'] == true,
+    reason: reason == 'cupom_maior' || reason == 'invalido'
+        ? reason as String
+        : null,
+    message: _orNull(s['message']),
+  );
+}
+
+/// Indicação que entrou no pedido (um desconto só por pedido: ela ou o cupom).
+StoreQuoteSquad? storeAppliedSquad(StoreCheckoutQuote? q) {
+  final s = q?.squad;
+  return s != null && s.applied ? s : null;
+}
+
+/// O cupom trava o Pagar? Não quando só ficou de fora porque a indicação dá
+/// mais (`nao_acumula`).
+bool storeCouponBlocks(StoreQuoteCoupon? c) =>
+    c != null && c.problem != null && c.problem != 'nao_acumula';
 
 // ── Erros das callables ─────────────────────────────────────────────────
 

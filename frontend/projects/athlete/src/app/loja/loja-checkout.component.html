@@ -281,6 +281,14 @@
               <span class="ck-row-v ck-row-v--win">− {{ money(c.discountCents) }}</span>
             </div>
           }
+          @if (squadApplied(); as s) {
+            @if ((quote()?.squadDiscountCents ?? 0) > 0) {
+              <div class="ck-row">
+                <span>Indicação {{ s.code }}</span>
+                <span class="ck-row-v ck-row-v--win">− {{ money(quote()!.squadDiscountCents) }}</span>
+              </div>
+            }
+          }
           @if ((quote()?.pixDiscountCents ?? 0) > 0) {
             <div class="ck-row">
               <span>Desconto Pix</span>
@@ -304,9 +312,50 @@
             </div>
           }
 
+          <!-- Código de embaixador: a indicação por link já vem na cotação; digitar troca por outro. -->
+          <div class="ck-squad">
+            @if (squadCode() && squadApplied(); as s) {
+              <div class="ck-squad-applied" role="status">
+                <span><strong>{{ s.code }}</strong> · Indicação de {{ s.ambassadorName || 'um embaixador' }}</span>
+                <button type="button" class="ck-link" aria-label="Remover código" (click)="removeSquad()">Remover</button>
+              </div>
+            } @else if (squadCode()) {
+              <div class="ck-coupon-applied ck-coupon-applied--bad">
+                <span class="ck-coupon-code">{{ squadCode() }}</span>
+                <button type="button" class="ck-link" aria-label="Remover código" (click)="removeSquad()">Remover</button>
+              </div>
+            } @else if (squadOpen()) {
+              <form class="ck-coupon" (submit)="applySquad($event)">
+                <label class="ck-coupon-field">
+                  <input
+                    class="ck-coupon-input ck-squad-input"
+                    placeholder="Código de embaixador"
+                    aria-label="Código de embaixador"
+                    autocomplete="off"
+                    autocapitalize="characters"
+                    maxlength="20"
+                    [value]="squadInput()"
+                    (input)="squadInput.set($any($event.target).value)"
+                  />
+                </label>
+                <button type="submit" class="ck-soft-btn" aria-label="Aplicar código" [disabled]="!squadInput().trim()">Aplicar</button>
+              </form>
+            } @else if (squadApplied(); as s) {
+              <div class="ck-squad-applied" role="status">
+                <span>Indicação de {{ s.ambassadorName || 'um embaixador' }}</span>
+                <button type="button" class="ck-link" (click)="squadOpen.set(true)">Tenho outro código</button>
+              </div>
+            } @else {
+              <button type="button" class="ck-link ck-squad-toggle" (click)="squadOpen.set(true)">Tem código de embaixador?</button>
+            }
+            @if (squadMessage(); as msg) {
+              <small class="ck-coupon-msg ck-squad-msg" [attr.role]="squad()?.reason === 'invalido' ? 'alert' : null">{{ msg }}</small>
+            }
+          </div>
+
           <!-- Qualquer código aplicado tem "Remover" (mesmo o que o servidor nem reconheceu). -->
           @if (couponCode()) {
-            <div class="ck-coupon-applied" [class.ck-coupon-applied--bad]="couponProblem()">
+            <div class="ck-coupon-applied" [class.ck-coupon-applied--bad]="couponProblem() && quote()?.coupon?.problem !== 'nao_acumula'">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z" /><circle cx="7.5" cy="8.5" r="1.3" /></svg>
               <span class="ck-coupon-code">{{ couponCode() }}</span>
               <button type="button" class="ck-link" (click)="removeCoupon()">Remover</button>

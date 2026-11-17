@@ -46,6 +46,7 @@ const SCOPES: ReadonlyArray<{ kind: FollowerDiscountKind; label: string }> = [
   { kind: 'registration', label: 'Inscrições em torneios' },
   { kind: 'booking', label: 'Reservas de quadra' },
   { kind: 'club', label: 'Clubinho' },
+  { kind: 'store', label: 'Loja' },
 ];
 
 const MODELS: ReadonlyArray<{ id: AttributionModel; label: string }> = [
@@ -92,7 +93,8 @@ const MODELS: ReadonlyArray<{ id: AttributionModel; label: string }> = [
           } @else {
             <span>
               Desligado num tipo, o código ainda é aceito e atribuído, só sem desconto. Para o código nem valer numa
-              área, use "Código vale em" no pacote do nível ou no contrato do embaixador.
+              área, use "Código vale em" no pacote do nível ou no contrato do embaixador. A Loja é diferente: desligada
+              aqui, o código não vale na Loja para ninguém.
             </span>
           }
         </div>

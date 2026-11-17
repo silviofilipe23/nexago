@@ -23,7 +23,7 @@ export interface SquadReferral {
   /** Até quanto o seguidor ganha (o teto na taxa corta no checkout). 0 = o nível não dá desconto. */
   discountPct: number;
   firstOnly: boolean;
-  scope: { registration: boolean; booking: boolean; club: boolean };
+  scope: { registration: boolean; booking: boolean; club: boolean; store?: boolean };
 }
 
 /**
@@ -81,6 +81,8 @@ export function parseSquadReferral(data: unknown): SquadReferralLookup {
         registration: scope['registration'] !== false,
         booking: scope['booking'] !== false,
         club: scope['club'] !== false,
+        // A Loja nasce desligada: só vale ligada de propósito.
+        store: scope['store'] === true,
       },
     },
   };

@@ -114,6 +114,7 @@ String? squadDiscountWhere({
     (scope.registration, 'na primeira inscrição', 'inscrições'),
     (scope.booking, 'na primeira reserva', 'reservas'),
     (scope.club, 'no primeiro clubinho', 'clubinhos'),
+    (scope.store, 'na primeira compra na Loja', 'compras na Loja'),
   ].where((k) => k.$1).map((k) => firstOnly ? k.$2 : k.$3).toList();
   if (kinds.isEmpty) return null;
   final list = kinds.length == 1

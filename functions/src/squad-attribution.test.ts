@@ -210,7 +210,7 @@ describe("squadReferralCore", () => {
       },
       discountPct: 10,
       firstOnly: true,
-      scope: {registration: true, booking: true, club: true},
+      scope: {registration: true, booking: true, club: true, store: false},
     });
   });
 
@@ -231,7 +231,7 @@ describe("squadReferralCore", () => {
     }}});
     const view = await squadReferralCore(db, "JOAO10");
     assert.equal(view?.firstOnly, false);
-    assert.deepEqual(view?.scope, {registration: true, booking: false, club: false});
+    assert.deepEqual(view?.scope, {registration: true, booking: false, club: false, store: false});
   });
 
   it("código encerrado, desconhecido ou fora do formato: nada", async () => {
@@ -244,7 +244,7 @@ describe("squadReferralCore", () => {
 });
 
 describe("escopo do código no contrato (codeScope)", () => {
-  const ONLY_REGISTRATION = {registration: true, booking: false, club: false};
+  const ONLY_REGISTRATION = {registration: true, booking: false, club: false, store: false};
 
   function withScopedAmbassador(): {fake: FakeFirestore; db: Firestore} {
     const env = makeDb();
@@ -325,13 +325,13 @@ describe("escopo do código no contrato (codeScope)", () => {
     }}});
     assert.deepEqual(
       (await squadReferralCore(db, "LUANA10"))?.scope,
-      {registration: false, booking: false, club: false},
+      {registration: false, booking: false, club: false, store: false},
     );
   });
 });
 
 describe("escopo do código por nível (pacote da versão do contrato)", () => {
-  const ONLY_REGISTRATION = {registration: true, booking: false, club: false};
+  const ONLY_REGISTRATION = {registration: true, booking: false, club: false, store: false};
   const resolve = (db: Firestore, purpose: "registration" | "booking" | "club", typedCode: unknown = "") =>
     resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: ["atl"], typedCode, purpose}, NOW);
 
@@ -382,5 +382,60 @@ describe("escopo do código por nível (pacote da versão do contrato)", () => {
       followerDiscountScope: {registration: true, booking: true, club: true},
     }}});
     assert.deepEqual((await squadReferralCore(db, "JOAO10"))?.scope, ONLY_REGISTRATION);
+  });
+});
+
+describe("Loja (purpose store)", () => {
+  const STORE_ON = {registration: true, booking: true, club: true, store: true};
+  const resolve = (db: Firestore, typedCode: unknown = "") =>
+    resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: ["atl"], typedCode, purpose: "store"}, NOW);
+
+  function linked(globalStore: boolean): {fake: FakeFirestore; db: Firestore} {
+    const env = makeDb();
+    env.fake.seedDoc("squadConfig/rules", {version: 2, rules: {attribution: {
+      followerDiscountScope: {...STORE_ON, store: globalStore},
+    }}});
+    env.fake.seedDoc("squadAttributions/atl", {ambassadorId: "jv", code: "JOAO10", origin: "link", at: NOW});
+    return env;
+  }
+
+  it("Loja desligada na regra global (o padrão): o link não vale e o código digitado é recusado", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("squadAttributions/atl", {ambassadorId: "jv", code: "JOAO10", origin: "link", at: NOW});
+    assert.equal(await resolve(db), null);
+    await assert.rejects(
+      resolve(db, "joao10"),
+      (err: {message?: string; details?: {field?: string}}) =>
+        err.details?.field === "squadCode" &&
+        err.message === "O código JOAO10 vale só para inscrições em torneios, reservas de quadra e clubinho.",
+    );
+  });
+
+  it("ligada na global: vale; nível ou contrato sem a Loja tiram o código da Loja", async () => {
+    const {fake, db} = linked(true);
+    assert.equal((await resolve(db))?.ambassador.uid, "jv");
+    fake.seedDoc("squadConfig/rules/versions/2", {rules: {tiers: {amb: {codeScope: {...STORE_ON, store: false}}}}});
+    assert.equal(await resolve(db), null);
+    fake.store.delete("squadConfig/rules/versions/2");
+    fake.seedDoc("squadAmbassadors/jv", {...fake.store.get("squadAmbassadors/jv")!, codeScope: {store: false}});
+    assert.equal(await resolve(db), null);
+  });
+
+  it("prévia da Loja: % do contrato, sem teto de taxa; só na primeira compra da Loja", async () => {
+    const {fake, db} = linked(true);
+    const check = () =>
+      checkSquadCodeCore(db, {payerUid: "atl", athleteUids: ["atl"], code: "", registrationId: "", purpose: "store"}, NOW);
+    const first = await check();
+    assert.deepEqual({origin: first.origin, pct: first.discountPct, fee: first.feePercent, own: first.ownPerk},
+      {origin: "link", pct: 10, fee: null, own: null});
+    fake.seedDoc("squadChargeDiscounts/p1", {payerUid: "atl", kind: "store", cents: 500, confirmedAt: NOW});
+    assert.equal((await check()).discountPct, 0);
+  });
+
+  it("página do link só mostra a Loja quando a global e o contrato deixam", async () => {
+    const {db} = linked(false);
+    assert.equal((await squadReferralCore(db, "JOAO10"))?.scope.store, false);
+    const on = linked(true);
+    assert.equal((await squadReferralCore(on.db, "JOAO10"))?.scope.store, true);
   });
 });

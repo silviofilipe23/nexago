@@ -390,4 +390,87 @@ describe('LojaCheckoutComponent', () => {
     await settle();
     expect(api.quotes.at(-1)!.couponCode).toBeNull();
   });
+
+  describe('código de embaixador', () => {
+    const SQUAD = { code: 'JOAO10', ambassadorName: 'João Victor', origin: 'link', pct: 10, discountCents: 1899, applied: true, reason: null, message: null };
+
+    it('indicação por link: aparece aplicada, entra no resumo e não trava o Pagar', async () => {
+      const harness = await render();
+      api.quoteOver = { squad: SQUAD, squadDiscountCents: 1899, totalCents: 16236 };
+      const el = await load(harness);
+      expect(text(el.querySelector('.ck-squad-applied'))).toContain('Indicação de João Victor');
+      const row = [...el.querySelectorAll('.ck-summary .ck-row')].find((r) => text(r).startsWith('Indicação'));
+      expect(text(row?.querySelector('span'))).toBe('Indicação JOAO10');
+      expect(text(row?.querySelector('.ck-row-v'))).toBe('− R$ 18,99');
+      expect(api.quotes.at(-1)!.squadCode).toBeUndefined();
+      expect(button(el, 'Pagar com Pix').disabled).toBeFalse();
+    });
+
+    it('digitar o código manda pra cotação; Remover volta para a indicação do link', async () => {
+      const harness = await render();
+      const el = await load(harness);
+      button(el, 'Tem código de embaixador?').click();
+      harness.detectChanges();
+      const input = el.querySelector('.ck-squad-input') as HTMLInputElement;
+      input.value = 'ray10';
+      input.dispatchEvent(new Event('input'));
+      harness.detectChanges();
+      api.quoteOver = { squad: { ...SQUAD, code: 'RAY10', ambassadorName: 'Rayssa', origin: 'code' }, squadDiscountCents: 1899 };
+      button(el, 'Aplicar código').click();
+      harness.detectChanges();
+      await settle();
+      harness.detectChanges();
+      expect(api.quotes.at(-1)!.squadCode).toBe('RAY10');
+      expect(text(el.querySelector('.ck-squad-applied'))).toContain('Indicação de Rayssa');
+      button(el, 'Remover código').click();
+      harness.detectChanges();
+      await settle();
+      expect(api.quotes.at(-1)!.squadCode).toBeUndefined();
+    });
+
+    it('código que não vale: mostra o motivo e trava até remover', async () => {
+      const harness = await render();
+      const el = await load(harness);
+      button(el, 'Tem código de embaixador?').click();
+      harness.detectChanges();
+      const input = el.querySelector('.ck-squad-input') as HTMLInputElement;
+      input.value = 'nada99';
+      input.dispatchEvent(new Event('input'));
+      harness.detectChanges();
+      api.quoteOver = { squad: { code: 'NADA99', ambassadorName: null, origin: 'code', pct: 0, discountCents: 0, applied: false, reason: 'invalido', message: 'Código de embaixador não encontrado.' } };
+      button(el, 'Aplicar código').click();
+      harness.detectChanges();
+      await settle();
+      harness.detectChanges();
+      expect(text(el.querySelector('.ck-squad-msg'))).toBe('Código de embaixador não encontrado.');
+      expect(button(el, 'Pagar com Pix').disabled).toBeTrue();
+    });
+
+    it('cupom que perdeu para a indicação: avisa sem travar o Pagar', async () => {
+      const harness = await render();
+      api.quoteOver = {
+        squad: SQUAD, squadDiscountCents: 1899,
+        coupon: { code: 'AREIA', discountCents: 950, problem: 'nao_acumula', message: 'O desconto da indicação de João Victor é maior que este cupom' },
+      };
+      const el = await load(harness);
+      const input = el.querySelector('.ck-coupon-input') as HTMLInputElement;
+      input.value = 'areia';
+      input.dispatchEvent(new Event('input'));
+      harness.detectChanges();
+      button(el, 'Aplicar').click();
+      harness.detectChanges();
+      await settle();
+      harness.detectChanges();
+      expect(text(el.querySelector('.ck-coupon-msg'))).toBe('O desconto da indicação de João Victor é maior que este cupom');
+      expect(button(el, 'Pagar com Pix').disabled).toBeFalse();
+    });
+
+    it('cupom da Loja deu mais: a indicação fica de fora e diz por quê', async () => {
+      const harness = await render();
+      api.quoteOver = { squad: { ...SQUAD, applied: false, reason: 'cupom_maior', message: 'O cupom da Loja dá mais desconto que a indicação' } };
+      const el = await load(harness);
+      expect(text(el.querySelector('.ck-squad-msg'))).toBe('O cupom da Loja dá mais desconto que a indicação');
+      expect([...el.querySelectorAll('.ck-summary .ck-row')].some((r) => text(r).startsWith('Indicação'))).toBeFalse();
+    });
+  });
 });

@@ -102,7 +102,7 @@ export interface TerminationRule {
 }
 
 /** Onde o desconto do seguidor vale: inscrição em torneio, reserva de quadra e clubinho. */
-export type FollowerDiscountKind = 'registration' | 'booking' | 'club';
+export type FollowerDiscountKind = 'registration' | 'booking' | 'club' | 'store';
 export type FollowerDiscountScope = Record<FollowerDiscountKind, boolean>;
 
 export interface AttributionRules {
@@ -145,7 +145,7 @@ export const DEFAULT_SQUAD_RULES: SquadRules = {
       kitCostCents: 60_00,
       events: '',
       partnerHalfOff: false,
-      codeScope: { registration: true, booking: true, club: true },
+      codeScope: { registration: true, booking: true, club: true, store: true },
     },
     amb: {
       commissionPct: 10,
@@ -156,7 +156,7 @@ export const DEFAULT_SQUAD_RULES: SquadRules = {
       kitCostCents: 120_00,
       events: 'Prioridade',
       partnerHalfOff: false,
-      codeScope: { registration: true, booking: true, club: true },
+      codeScope: { registration: true, booking: true, club: true, store: true },
     },
     pro: {
       commissionPct: [10, 15],
@@ -167,7 +167,7 @@ export const DEFAULT_SQUAD_RULES: SquadRules = {
       kitCostCents: 280_00,
       events: 'Prioridade + exclusivos',
       partnerHalfOff: true,
-      codeScope: { registration: true, booking: true, club: true },
+      codeScope: { registration: true, booking: true, club: true, store: true },
       campaignFeeCapCents: 1000_00,
     },
     cap: {
@@ -179,7 +179,7 @@ export const DEFAULT_SQUAD_RULES: SquadRules = {
       kitCostCents: 120_00,
       events: 'Prioridade',
       partnerHalfOff: false,
-      codeScope: { registration: true, booking: true, club: true },
+      codeScope: { registration: true, booking: true, club: true, store: true },
       tournamentOriginBonusCents: 50_00,
     },
   },
@@ -187,7 +187,8 @@ export const DEFAULT_SQUAD_RULES: SquadRules = {
     requirePaidConfirmation: true,
     cancelOnRefund: true,
     followerDiscountFirstOnly: true,
-    followerDiscountScope: { registration: true, booking: true, club: true },
+    // A Loja nasce desligada no programa: é o interruptor dela.
+    followerDiscountScope: { registration: true, booking: true, club: true, store: false },
     blockSelfReferral: true,
     windowDays: 30,
     model: 'lastTouch',
@@ -339,7 +340,7 @@ function tierIssues(tier: SquadTier, t: TierPackage, out: RulesIssues): void {
   if (tier === 'cap' && !isInt(t.tournamentOriginBonusCents ?? NaN, 0, LIMITS.tournamentBonusCents)) {
     out[at('tournamentOriginBonusCents')] = money(LIMITS.tournamentBonusCents);
   }
-  if (!t.codeScope.registration && !t.codeScope.booking && !t.codeScope.club) {
+  if (!t.codeScope.registration && !t.codeScope.booking && !t.codeScope.club && !t.codeScope.store) {
     out[at('codeScope')] = 'Marque ao menos uma área';
   }
 }

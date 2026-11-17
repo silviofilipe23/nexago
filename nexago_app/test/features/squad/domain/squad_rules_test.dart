@@ -103,6 +103,38 @@ void main() {
     },
   );
 
+  group('onde o código vale', () {
+    test('a Loja só entra ligada; servidor antigo (sem o campo) não promete',
+        () {
+      expect(SquadDiscountScope.fromMap(const {}).store, isFalse);
+      expect(SquadDiscountScope.fromMap(const {'store': true}).store, isTrue);
+      expect(
+        squadDiscountWhere(
+          firstOnly: true,
+          scope: const SquadDiscountScope(
+            registration: true,
+            booking: false,
+            club: false,
+            store: true,
+          ),
+        ),
+        'na primeira inscrição e na primeira compra na Loja',
+      );
+      expect(
+        squadDiscountWhere(
+          firstOnly: false,
+          scope: const SquadDiscountScope(
+            registration: false,
+            booking: false,
+            club: false,
+            store: true,
+          ),
+        ),
+        'em compras na Loja',
+      );
+    });
+  });
+
   group('squadPlatformFeeCents', () {
     test('% do preço ou o piso de R\$ 1,50, nunca o preço inteiro', () {
       expect(squadPlatformFeeCents(10000, 8), 800);

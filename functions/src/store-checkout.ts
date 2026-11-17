@@ -33,6 +33,7 @@ import {
   type Quote,
 } from "./store-checkout-price";
 import {withDiscountDefaults} from "./store-coupons";
+import {orderSquadOf, recordStoreSquadQuietly, resolveStoreSquad} from "./store-squad";
 import {CUSTOMIZATION, CUSTOM_ITEMS} from "./store-custom";
 import {BLOCKLIST_DOC} from "./store-custom-cart";
 import {historyEntry} from "./store-orders";
@@ -80,6 +81,8 @@ export interface CheckoutInput {
   couponCode: string | null;
   /** Ausente = Pix (app/portal anteriores ao cartão). */
   paymentMethod?: CheckoutPaymentMethod | null;
+  /** Código de embaixador digitado; ausente = vale a indicação por link/QR, se houver. */
+  squadCode?: string | null;
 }
 
 export interface CreateCheckoutInput extends CheckoutInput {
@@ -133,6 +136,9 @@ export function checkoutInputErrors(input: Partial<CheckoutInput> | null | undef
   if (input?.paymentMethod != null && !CHECKOUT_PAYMENT_METHODS.includes(input.paymentMethod)) {
     fields.push("paymentMethod");
   }
+  if (input?.squadCode != null && (typeof input.squadCode !== "string" || input.squadCode.length > 40)) {
+    fields.push("squadCode");
+  }
   return fields;
 }
 
@@ -174,6 +180,7 @@ export async function loadCheckoutSnapshot(
   db: Firestore,
   uid: string,
   input: CheckoutInput,
+  now: Date = new Date(),
 ): Promise<CheckoutSnapshot> {
   const cartSnap = await db.collection(CARTS).doc(uid).get();
   const cart = cartLinesOf(cartSnap.data());
@@ -237,6 +244,8 @@ export async function loadCheckoutSnapshot(
     }
   }
 
+  const squad = await resolveStoreSquad(db, uid, input.squadCode, now);
+
   return {
     uid,
     blockedTerms: Array.isArray(terms) ? terms.filter((t): t is string => typeof t === "string") : [],
@@ -244,6 +253,7 @@ export async function loadCheckoutSnapshot(
     discounts: withDiscountDefaults(discounts.data()),
     shipping: withShippingDefaults(shipping.data()),
     pickupPoint, address, coupon,
+    squad: squad.squad, squadError: squad.squadError, squadAttribution: squad.attribution,
   };
 }
 
@@ -334,7 +344,7 @@ export async function releaseCouponOnCancelCore(db: Firestore, orderId: string, 
 export async function quoteCheckoutCore(db: Firestore, uid: string, input: CheckoutInput, now: Date): Promise<Quote> {
   const fields = checkoutInputErrors(input);
   if (fields.length > 0) throw invalid(fields);
-  const snap = await loadCheckoutSnapshot(db, uid, input);
+  const snap = await loadCheckoutSnapshot(db, uid, input, now);
   return priceCheckout(snap, input, now, storeCardFeeOf(STORE_CARD_FEE_TERMS));
 }
 
@@ -366,13 +376,18 @@ export async function createStoreOrderCore(
   if (fields.length > 0) throw invalid(fields);
 
   const feeOf = storeCardFeeOf(STORE_CARD_FEE_TERMS);
-  const snap = await loadCheckoutSnapshot(db, uid, input);
+  const snap = await loadCheckoutSnapshot(db, uid, input, now);
   const quote = priceCheckout(snap, input, now, feeOf);
   const method = quote.paymentMethod;
   if (quote.problems.length > 0) {
     throw new HttpsError("failed-precondition", "Revise o carrinho antes de pagar.", {problems: quote.problems, quote});
   }
-  if (quote.coupon?.problem) {
+  // Código de embaixador digitado que não vale: o atleta corrige ou tira antes de cobrar.
+  if (snap.squadError) {
+    throw new HttpsError("failed-precondition", snap.squadError.message, {field: "squadCode", quote});
+  }
+  // "nao_acumula" não trava: o cupom só fica de fora porque a indicação dá mais.
+  if (quote.coupon?.problem && quote.coupon.problem !== "nao_acumula") {
     throw new HttpsError("failed-precondition", quote.coupon.message ?? "Cupom inválido.", {quote});
   }
   if (quote.totalCents !== input.expectedTotalCents) {
@@ -388,7 +403,7 @@ export async function createStoreOrderCore(
   // marca a linha/o cupom em vez de deixar o "Pagar" liberado repetindo o mesmo erro.
   const withFreshQuote = async (e: unknown): Promise<unknown> => {
     if (!(e instanceof HttpsError) || e.code !== "failed-precondition") return e;
-    const fresh = priceCheckout(await loadCheckoutSnapshot(db, uid, input), input, now, feeOf);
+    const fresh = priceCheckout(await loadCheckoutSnapshot(db, uid, input, now), input, now, feeOf);
     return new HttpsError(e.code, e.message, {...((e.details ?? {}) as Data), quote: fresh});
   };
 
@@ -443,9 +458,15 @@ export async function createStoreOrderCore(
         productId: l.productId, skuId: l.skuId, qty: l.qty, unitCents: l.unitCents,
         customization: l.personalized ? {name: l.customizationLabel ?? "Personalizada", artUrl: null, status: "aprovar"} : null,
       })),
-      couponId: quote.coupon?.id ?? null,
-      couponCode: quote.coupon?.code ?? null,
-      couponDiscountCents: quote.coupon?.problem === null ? quote.coupon.discountCents : 0,
+      // Um desconto só por pedido: o da indicação ocupa o lugar do cupom (os totais de todas as
+      // telas continuam fechando), com o código do embaixador no rótulo.
+      ...(quote.squadDiscountCents > 0 ?
+        {couponId: null, couponCode: quote.squad?.code ?? null, couponDiscountCents: quote.squadDiscountCents} :
+        {
+          couponId: couponId,
+          couponCode: couponId ? quote.coupon?.code ?? null : null,
+          couponDiscountCents: couponId ? quote.coupon?.discountCents ?? 0 : 0,
+        }),
       pixDiscountCents: quote.pixDiscountCents,
       walletCents: 0,
       shippingCents: quote.shippingCents,
@@ -467,6 +488,7 @@ export async function createStoreOrderCore(
         customLines,
         recipient: d.type === "casa" ? {name: address!.recipient, phone: address!.phone} : null,
         couponReservation: reservation,
+        squad: orderSquadOf(quote, snap.squad),
       },
     }, {uid, name: buyer.name}, now);
   } catch (e) {
@@ -475,6 +497,11 @@ export async function createStoreOrderCore(
     await release();
     throw await withFreshQuote(e);
   }
+
+  await recordStoreSquadQuietly(db, {
+    orderId: created.orderId, orderNumber: created.number, paymentId: charge.paymentId, uid,
+    quote, attribution: snap.squadAttribution ?? null,
+  }, now);
 
   // Tira do carrinho só o que virou pedido (o atleta pode ter mexido em outra aba). O pedido e a
   // cobrança já existem: falhar aqui não pode virar erro, senão o "tentar de novo" duplica o pedido.

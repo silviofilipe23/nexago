@@ -26,6 +26,7 @@ import '../domain/store_rules.dart';
 import 'store_checkout_copy.dart';
 import 'widgets/store_checkout_parts.dart';
 import 'widgets/store_pickup_sheet.dart';
+import 'widgets/store_squad_field.dart';
 import 'widgets/store_style.dart';
 
 /// Retirada na arena ou entrega em casa (o `kind` da escolha).
@@ -84,6 +85,7 @@ class _CartLine {
 
 class _StoreCartPageState extends ConsumerState<StoreCartPage> {
   final TextEditingController _couponInput = TextEditingController();
+  final TextEditingController _squadInput = TextEditingController();
   final TextEditingController _cpfInput = TextEditingController();
 
   // Escolhas do atleta.
@@ -92,6 +94,10 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
   String? _addressChoice;
   String? _modeChoice;
   String? _couponCode;
+
+  /// Código de embaixador digitado (`null` = vale a indicação por link).
+  String? _squadCode;
+  bool _squadOpen = false;
 
   // Cotação e pagamento.
   StoreCheckoutQuote? _quote;
@@ -121,6 +127,7 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
   void dispose() {
     _quoteTimer?.cancel();
     _couponInput.dispose();
+    _squadInput.dispose();
     _cpfInput.dispose();
     super.dispose();
   }
@@ -240,6 +247,26 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
     setState(() {
       _couponCode = null;
       _couponInput.clear();
+    });
+  }
+
+  // ── Código de embaixador ───────────────────────────────────────────────
+
+  void _applySquad() {
+    final code = _squadInput.text.trim().toUpperCase();
+    if (code.isEmpty) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _squadCode = code;
+      _squadOpen = false;
+    });
+  }
+
+  /// Tira o código digitado: volta a valer a indicação por link, se houver.
+  void _removeSquad() {
+    setState(() {
+      _squadCode = null;
+      _squadInput.clear();
     });
   }
 
@@ -503,6 +530,7 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
       delivery: delivery,
       couponCode: _couponCode,
       paymentMethod: _method,
+      squadCode: _squadCode,
     );
     final cartKey =
         cart.map((i) => '${storeCartLineKey(i)}:${i.qty}').join('|');
@@ -535,13 +563,23 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
     final couponProblem = fresh && _couponCode != null && applied == null
         ? (quote.coupon?.message ?? StoreCheckoutCopy.couponInvalid)
         : null;
+    // O cupom que só perdeu para a indicação avisa, mas não trava o Pagar.
+    // (Código que o servidor nem devolveu continua travando.)
+    final couponBlocking =
+        couponProblem != null && quote?.coupon?.problem != 'nao_acumula';
+    final squad = fresh ? quote.squad : null;
+    final squadApplied = fresh ? storeAppliedSquad(quote) : null;
+    final squadBlocking =
+        _squadCode != null && squad?.reason == 'invalido';
 
     String? blocker;
     if (quote != null) {
       if (kind == _homeKind && addresses.isEmpty) {
         blocker = StoreCheckoutCopy.needAddress;
-      } else if (couponProblem != null) {
+      } else if (couponBlocking) {
         blocker = StoreCheckoutCopy.couponBlocker;
+      } else if (squadBlocking) {
+        blocker = StoreCheckoutCopy.squadBlocker;
       } else {
         blocker = storeQuoteBlocker(quote);
       }
@@ -661,7 +699,24 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
           ),
         ],
         const SizedBox(height: 24),
-        _coupon(colors, applied: applied, problem: couponProblem, fresh: fresh),
+        StoreSquadField(
+          controller: _squadInput,
+          squad: squad,
+          typedCode: _squadCode,
+          open: _squadOpen,
+          onOpen: () => setState(() => _squadOpen = true),
+          onApply: _applySquad,
+          onRemove: _removeSquad,
+          onChanged: () => setState(() {}),
+        ),
+        const SizedBox(height: 12),
+        _coupon(
+          colors,
+          applied: applied,
+          problem: couponProblem,
+          blocking: couponBlocking,
+          fresh: fresh,
+        ),
         const SizedBox(height: 22),
         if (_quoteError case final err?) ...[
           _QuoteError(message: err, onRetry: _retryQuote),
@@ -676,6 +731,14 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
           StoreSummaryRow(
             label: StoreCheckoutCopy.couponRow(applied.code),
             value: StoreCheckoutCopy.discount(applied.discountCents),
+            win: true,
+          ),
+        ],
+        if (squadApplied != null && (quote?.squadDiscountCents ?? 0) > 0) ...[
+          const SizedBox(height: 10),
+          StoreSummaryRow(
+            label: StoreCheckoutCopy.squadRow(squadApplied.code),
+            value: StoreCheckoutCopy.discount(quote!.squadDiscountCents),
             win: true,
           ),
         ],
@@ -1022,13 +1085,14 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
     AppThemeColors colors, {
     required StoreQuoteCoupon? applied,
     required String? problem,
+    required bool blocking,
     required bool fresh,
   }) {
     final code = _couponCode;
     // Qualquer código aplicado tem "Remover" (mesmo o que o servidor nem
     // reconheceu) — senão o atleta fica preso.
     if (code != null) {
-      final bad = problem != null;
+      final bad = blocking;
       final ok = applied != null && fresh;
       final tone = bad
           ? _problemRed
@@ -1087,7 +1151,7 @@ class _StoreCartPageState extends ConsumerState<StoreCartPage> {
               problem,
               key: const ValueKey('store-cart-coupon-error'),
               style: AppTypography.bodyS.copyWith(
-                color: _problemRed,
+                color: blocking ? _problemRed : StoreStyle.tertiary(colors),
                 fontWeight: FontWeight.w600,
               ),
             ),

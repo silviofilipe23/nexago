@@ -67,6 +67,8 @@ export interface CheckoutRequest {
   delivery: CheckoutDeliveryInput | null;
   couponCode: string | null;
   paymentMethod: PaymentMethod;
+  /** Código de embaixador digitado; ausente = vale a indicação por link, se houver. */
+  squadCode?: string;
 }
 
 export type QuoteLineProblem = 'indisponivel' | 'esgotado' | 'sem_retirada' | 'sem_entrega' | 'personalizacao_off';
@@ -100,6 +102,21 @@ export interface QuoteCoupon {
   message: string | null;
 }
 
+/**
+ * Indicação de embaixador na compra (servidor decide): `applied` = entra no pedido; `reason`
+ * `cupom_maior` = o cupom da Loja deu mais; `invalido` = o código digitado não vale aqui.
+ */
+export interface QuoteSquad {
+  code: string;
+  ambassadorName: string | null;
+  origin: 'code' | 'link' | 'qr';
+  pct: number;
+  discountCents: number;
+  applied: boolean;
+  reason: 'cupom_maior' | 'invalido' | null;
+  message: string | null;
+}
+
 export interface CheckoutQuote {
   /** A forma que `totalCents` cobra. */
   paymentMethod: PaymentMethod;
@@ -107,6 +124,10 @@ export interface CheckoutQuote {
   units: number;
   subtotalCents: number;
   coupon: QuoteCoupon | null;
+  /** `null` = sem indicação (ou servidor anterior ao código na Loja). */
+  squad: QuoteSquad | null;
+  /** Desconto da indicação aplicado neste total. */
+  squadDiscountCents: number;
   pixDiscountPct: number;
   pixDiscountCents: number;
   shippingCents: number;
@@ -135,6 +156,23 @@ const QUOTE_PROBLEMS: readonly QuoteProblem[] = [
   'modalidade_indisponivel',
   'linha_com_problema',
 ];
+
+function squadFromData(raw: unknown): QuoteSquad | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const s = raw as Raw;
+  const origin = s['origin'] === 'link' || s['origin'] === 'qr' ? s['origin'] : 'code';
+  const reason = s['reason'] === 'cupom_maior' || s['reason'] === 'invalido' ? s['reason'] : null;
+  return {
+    code: str(s['code']),
+    ambassadorName: orNull(s['ambassadorName']),
+    origin,
+    pct: int(s['pct']),
+    discountCents: int(s['discountCents']),
+    applied: s['applied'] === true,
+    reason,
+    message: orNull(s['message']),
+  };
+}
 
 /** Resposta da callable (ou `details.quote` de um erro) → cotação; `null` se não for uma. */
 export function quoteFromData(raw: unknown): CheckoutQuote | null {
@@ -169,6 +207,8 @@ export function quoteFromData(raw: unknown): CheckoutQuote | null {
             message: orNull(couponRaw['message']),
           }
         : null,
+    squad: squadFromData(d['squad']),
+    squadDiscountCents: int(d['squadDiscountCents']),
     pixDiscountPct: int(d['pixDiscountPct']),
     pixDiscountCents: int(d['pixDiscountCents']),
     shippingCents: int(d['shippingCents']),
@@ -206,6 +246,16 @@ export function quoteBlocker(q: CheckoutQuote): string | null {
 /** Cupom aplicado de verdade (sem problema) — o que entra no resumo como desconto. */
 export function appliedCoupon(q: CheckoutQuote | null): QuoteCoupon | null {
   return q?.coupon && q.coupon.problem === null ? q.coupon : null;
+}
+
+/** Indicação que entrou no pedido (um desconto só por pedido: ela ou o cupom). */
+export function appliedSquad(q: CheckoutQuote | null): QuoteSquad | null {
+  return q?.squad?.applied ? q.squad : null;
+}
+
+/** O cupom trava o Pagar? Não quando só ficou de fora porque a indicação dá mais. */
+export function couponBlocks(c: QuoteCoupon | null): boolean {
+  return !!c && c.problem !== null && c.problem !== 'nao_acumula';
 }
 
 // ── Endereços (`storeAddresses/{uid}`) ──────────────────────────

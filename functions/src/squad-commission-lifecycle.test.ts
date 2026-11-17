@@ -19,7 +19,7 @@ const LATER = new Date("2026-10-17T15:20:00Z");
 
 const JOAO: ResolvedAttribution = {
   ambassador: {uid: "jv", displayName: "João Victor", tier: "amb", code: "JOAO10", commissionPct: 10, followerDiscountPct: 10, rulesVersion: 2,
-    codeScope: {registration: true, booking: true, club: true}},
+    codeScope: {registration: true, booking: true, club: true, store: true}},
   origin: "code",
 };
 

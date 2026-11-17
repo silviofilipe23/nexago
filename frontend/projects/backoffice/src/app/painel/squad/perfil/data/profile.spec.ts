@@ -234,18 +234,18 @@ describe('contrato', () => {
       status: 'active',
       codeScope: { registration: true, booking: false, club: false },
     });
-    expect(scoped.codeScope).toEqual({ registration: true, booking: false, club: false });
+    expect(scoped.codeScope).toEqual({ registration: true, booking: false, club: false, store: true });
     expect(contractLines({ ...contract(), codeScope: scoped.codeScope }, NOW)).toContain({
       label: 'Código vale em',
-      value: 'Inscrições em torneios',
+      value: 'Inscrições em torneios e Loja',
     });
     expect(contract().codeScope).toBeNull();
     expect(contractLines(contract(), NOW).some((l) => l.label === 'Código vale em')).toBeFalse();
   });
 
   it('escopo do código: soma o contrato e o pacote do nível congelado nele', () => {
-    const pkg = { ...DEFAULT_SQUAD_RULES.tiers.amb, codeScope: { registration: true, booking: true, club: false } };
-    const c = { ...contract(), codeScope: { registration: true, booking: false, club: true } };
+    const pkg = { ...DEFAULT_SQUAD_RULES.tiers.amb, codeScope: { registration: true, booking: true, club: false, store: false } };
+    const c = { ...contract(), codeScope: { registration: true, booking: false, club: true, store: true } };
     expect(contractLines(c, NOW, pkg)).toContain({ label: 'Código vale em', value: 'Inscrições em torneios' });
     expect(contractLines(contract(), NOW, pkg)).toContain({
       label: 'Código vale em',

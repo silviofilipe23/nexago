@@ -91,6 +91,56 @@ void main() {
       expect(storeQuoteFromMap(null), isNull);
     });
 
+    test('indicação de embaixador: lê da cotação; cupom que perdeu não trava',
+        () {
+      final q = storeQuoteFromMap({
+        'lines': const [],
+        'subtotalCents': 10000,
+        'coupon': {
+          'code': 'AREIA',
+          'discountCents': 1000,
+          'problem': 'nao_acumula',
+          'message': 'O desconto da indicação de João é maior que este cupom',
+        },
+        'squad': {
+          'code': 'JOAO10',
+          'ambassadorName': 'João',
+          'origin': 'link',
+          'pct': 15,
+          'discountCents': 1500,
+          'applied': true,
+          'reason': null,
+          'message': null,
+        },
+        'squadDiscountCents': 1500,
+        'totalCents': 8550,
+      })!;
+      expect(storeAppliedSquad(q)?.code, 'JOAO10');
+      expect(storeAppliedSquad(q)?.ambassadorName, 'João');
+      expect(storeAppliedSquad(q)?.origin, 'link');
+      expect(q.squadDiscountCents, 1500);
+      expect(storeAppliedCoupon(q), isNull);
+      expect(storeCouponBlocks(q.coupon), isFalse);
+      expect(
+        storeCouponBlocks(const StoreQuoteCoupon(code: 'X', problem: 'minimo')),
+        isTrue,
+      );
+
+      final old = storeQuoteFromMap({'lines': const [], 'totalCents': 0})!;
+      expect(old.squad, isNull);
+      expect(old.squadDiscountCents, 0);
+      expect(storeAppliedSquad(old), isNull);
+    });
+
+    test('pedido manda o código de embaixador só quando digitado', () {
+      const base = StoreCheckoutRequest(channel: 'app_ios');
+      expect(base.toMap().containsKey('squadCode'), isFalse);
+      const typed =
+          StoreCheckoutRequest(channel: 'app_ios', squadCode: 'JOAO10');
+      expect(typed.toMap()['squadCode'], 'JOAO10');
+      expect(typed == base, isFalse);
+    });
+
     test('cotação no cartão: forma, os dois totais e a economia do Pix', () {
       final q = storeQuoteFromMap({
         'paymentMethod': 'cartao',

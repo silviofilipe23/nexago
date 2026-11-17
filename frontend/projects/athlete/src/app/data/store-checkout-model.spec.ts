@@ -5,6 +5,8 @@ import {
   addressLine,
   addressToDoc,
   appliedCoupon,
+  appliedSquad,
+  couponBlocks,
   cartFulfillment,
   cartLineKey,
   defaultAddressId,
@@ -112,6 +114,25 @@ describe('store-checkout-model', () => {
     expect(old.paymentMethod).toBe('pix');
     expect(old.cardTotalCents).toBeNull();
     expect(pixSavingsCents(old)).toBe(0);
+  });
+
+  it('indicação de embaixador: lê da cotação; cupom que perdeu para ela não trava', () => {
+    const q = quoteFromData({
+      lines: [], units: 0, subtotalCents: 10000, totalCents: 8550, problems: [],
+      coupon: { code: 'AREIA', discountCents: 1000, problem: 'nao_acumula', message: 'O desconto da indicação de João é maior que este cupom' },
+      squad: { code: 'JOAO10', ambassadorName: 'João', origin: 'link', pct: 15, discountCents: 1500, applied: true, reason: null, message: null },
+      squadDiscountCents: 1500,
+    })!;
+    expect(appliedSquad(q)).toEqual({ code: 'JOAO10', ambassadorName: 'João', origin: 'link', pct: 15, discountCents: 1500, applied: true, reason: null, message: null });
+    expect(q.squadDiscountCents).toBe(1500);
+    expect(appliedCoupon(q)).toBeNull();
+    expect(couponBlocks(q.coupon)).toBeFalse();
+    expect(couponBlocks({ code: 'X', discountCents: 0, problem: 'minimo', message: null })).toBeTrue();
+
+    const old = quoteFromData({ lines: [], units: 0, subtotalCents: 0, totalCents: 0, problems: [] })!;
+    expect(old.squad).toBeNull();
+    expect(old.squadDiscountCents).toBe(0);
+    expect(appliedSquad(old)).toBeNull();
   });
 
   it('o motivo do Pagar travado segue a ordem que o atleta resolve', () => {

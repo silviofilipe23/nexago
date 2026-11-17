@@ -89,7 +89,7 @@ void main() {
       expect(chain.length, 3);
     });
 
-    test('respeita o limite de horários', () {
+    test('sem teto: vai até o fim da sequência livre do dia', () {
       final start = slot('08:00', '09:00');
       final day = [
         start,
@@ -99,11 +99,9 @@ void main() {
             '${(h + 1).toString().padLeft(2, '0')}:00',
           ),
       ];
-      expect(
-        consecutiveAvailableSlots(start, day).length,
-        kMaxManualBookingSlots,
-      );
-      expect(consecutiveAvailableSlots(start, day, max: 3).length, 3);
+      final chain = consecutiveAvailableSlots(start, day);
+      expect(chain.length, 12);
+      expect(chain.last.endTime, '20:00');
     });
   });
 

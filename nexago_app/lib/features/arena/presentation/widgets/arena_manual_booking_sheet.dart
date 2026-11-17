@@ -57,7 +57,8 @@ class ArenaManualBookingSheet extends ConsumerStatefulWidget {
 /// Nome de exibição do atleta: apelido, senão nome completo.
 String manualBookingAthleteName(AppUserProfile user) {
   final nickname = user.nickname?.trim() ?? '';
-  final clean = nickname.startsWith('@') ? nickname.substring(1).trim() : nickname;
+  final clean =
+      nickname.startsWith('@') ? nickname.substring(1).trim() : nickname;
   if (clean.isNotEmpty) return clean;
   final full = user.fullName?.trim() ?? '';
   return full.isNotEmpty ? full : 'Atleta';
@@ -226,114 +227,140 @@ class _ArenaManualBookingSheetState
     final endTime = _endTimeOf(chain);
     final timeRange = '${widget.slot.startTime} — $endTime';
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 12,
-        bottom: 20 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: context.themeColors.onSurfaceMuted.withValues(
-                    alpha: 0.35,
+    // Toque fora dos campos fecha o teclado (os campos ganham o toque deles).
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 12,
+          bottom: 20 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: context.themeColors.onSurfaceMuted.withValues(
+                      alpha: 0.35,
+                    ),
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '$dateLabel · ${widget.courtName.toUpperCase()}',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
+              const SizedBox(height: 16),
+              Text(
+                '$dateLabel · ${widget.courtName.toUpperCase()}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: context.themeColors.onSurfaceMuted,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              timeRange,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: context.themeColors.onSurface,
+              const SizedBox(height: 4),
+              Text(
+                timeRange,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Criar reserva',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: context.themeColors.onSurface,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Reserva de balcão: o horário sai da agenda pública e o '
-              'pagamento é acertado direto com a arena.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                height: 1.4,
-              ),
-            ),
-            if (chain.length > 1) ...[
               const SizedBox(height: 20),
-              _buildDuration(context, chain),
-            ],
-            const SizedBox(height: 20),
-            ..._buildCustomer(context),
-            const SizedBox(height: 20),
-            _label(context, 'VALOR (R\$)'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _amountController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (_) => setState(() => _amountEdited = true),
-              style: TextStyle(color: context.themeColors.onSurface),
-              decoration: _decoration(context, hint: 'Ex: 120,00'),
-            ),
-            if (_memberHours != null) ...[
-              const SizedBox(height: 12),
-              _buildMemberHours(context, _memberHours!, endTime),
-            ],
-            const SizedBox(height: 20),
-            _label(context, 'NOTA (OPCIONAL)'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _noteController,
-              maxLines: 2,
-              style: TextStyle(color: context.themeColors.onSurface),
-              decoration: _decoration(context, hint: 'Ex: paga no balcão'),
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _busy ? null : _confirm,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                foregroundColor: AppColors.black,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+              Text(
+                'Criar reserva',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
               ),
-              child: _busy
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text(
-                      'Criar reserva',
-                      style: TextStyle(fontWeight: FontWeight.w800),
+              const SizedBox(height: 6),
+              Text(
+                'Reserva de balcão: o horário sai da agenda pública e o '
+                'pagamento é acertado direto com a arena.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: context.themeColors.onSurfaceMuted,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildEndTimeSelect(context, chain),
+              const SizedBox(height: 20),
+              ..._buildCustomer(context),
+              const SizedBox(height: 20),
+              _label(context, 'VALOR (R\$)'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _amountController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() => _amountEdited = true),
+                style: TextStyle(color: context.themeColors.onSurface),
+                decoration: _decoration(context, hint: 'Ex: 120,00'),
+              ),
+              if (_memberHours != null) ...[
+                const SizedBox(height: 12),
+                _buildMemberHours(context, _memberHours!, endTime),
+              ],
+              const SizedBox(height: 20),
+              _label(context, 'NOTA (OPCIONAL)'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _noteController,
+                maxLines: 2,
+                style: TextStyle(color: context.themeColors.onSurface),
+                decoration: _decoration(context, hint: 'Ex: paga no balcão'),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed:
+                          _busy ? null : () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: context.themeColors.onSurface,
+                        side: BorderSide(
+                          color: context.themeColors.onSurfaceMuted.withValues(
+                            alpha: 0.35,
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text('Cancelar'),
                     ),
-            ),
-          ],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _busy ? null : _confirm,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        foregroundColor: AppColors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: _busy
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(
+                              'Criar reserva',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -432,42 +459,54 @@ class _ArenaManualBookingSheetState
     ];
   }
 
-  Widget _buildDuration(BuildContext context, List<ArenaSlot> chain) {
+  /// Até que horas vai a reserva: um item por horário livre seguido, sem
+  /// teto (a sequência acaba no primeiro horário ocupado ou na meia-noite).
+  Widget _buildEndTimeSelect(BuildContext context, List<ArenaSlot> chain) {
+    final colors = context.themeColors;
     final selected = _slotCount.clamp(1, chain.length);
+    final canExtend = chain.length > 1;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _label(context, 'DURAÇÃO'),
-        const SizedBox(height: 4),
-        Text(
-          'Junte os próximos horários livres desta quadra numa reserva só.',
-          style: TextStyle(
-            fontSize: 13,
-            color: context.themeColors.onSurfaceMuted,
-          ),
-        ),
+        _label(context, 'ATÉ QUE HORAS'),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
+        DropdownButtonFormField<int>(
+          // A seleção pode encolher sozinha (horário ocupado ao vivo): a chave
+          // recria o campo com o valor certo.
+          key: ValueKey('manual-booking-end-$selected-${chain.length}'),
+          initialValue: selected,
+          isExpanded: true,
+          dropdownColor: colors.surfaceRaised,
+          style: TextStyle(color: colors.onSurface, fontSize: 16),
+          decoration: _decoration(context, hint: 'Fim da reserva'),
+          items: [
             for (var i = 1; i <= chain.length; i++)
-              ChoiceChip(
-                key: Key('manual-booking-slots-$i'),
-                label: Text(_durationLabel(chain[i - 1].endTime)),
-                selected: i == selected,
-                onSelected: _busy ? null : (_) => _selectSlotCount(i, chain),
+              DropdownMenuItem(
+                value: i,
+                child: Text(_endTimeLabel(chain[i - 1].endTime)),
               ),
           ],
+          onChanged: _busy || !canExtend
+              ? null
+              : (count) {
+                  if (count != null) _selectSlotCount(count, chain);
+                },
+        ),
+        const SizedBox(height: 6),
+        Text(
+          canExtend
+              ? 'Junte os próximos horários livres desta quadra numa reserva só.'
+              : 'Sem horário livre logo em seguida nesta quadra.',
+          style: TextStyle(fontSize: 13, color: colors.onSurfaceMuted),
         ),
       ],
     );
   }
 
-  /// "3h · até 22:00".
-  String _durationLabel(String endTime) {
+  /// "22:00 · 3h".
+  String _endTimeLabel(String endTime) {
     final minutes = slotSpanMinutes(widget.slot.startTime, endTime);
-    return '${formatMemberMinutes(minutes)} · até $endTime';
+    return '$endTime · ${formatMemberMinutes(minutes)}';
   }
 
   Widget _buildMemberHours(

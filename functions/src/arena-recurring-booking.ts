@@ -14,6 +14,7 @@ import {dayKeyFromEventDate} from "./event-timezone";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {grantArenaCanceledOccurrenceCredit} from "./arena-schedule-makeup";
 import {claimCourtLocks} from "./arena-floating-booking";
+import {BOOKING_REMINDER_15M_MINUTES_BEFORE} from "./arena-booking-reminder-15m";
 
 export const ARENA_RECURRING_BOOKINGS = "arenaRecurringBookings";
 const ARENA_BOOKINGS = "arenaBookings";
@@ -306,6 +307,10 @@ export async function materializeSeriesOccurrences(
 
     const startAt = new Date(`${dateKey}T${series.startTime}:00${ARENA_TIMEZONE_OFFSET}`);
     const confirmationDeadline = new Date(startAt.getTime() - 2 * 60 * 60 * 1000);
+    // O gatilho de criação (`prepareArenaBookingReminder15m`) não roda quando a edição/retomada
+    // regrava uma ocorrência que já existia (mesmo id, `tx.set` sem merge apaga o campo):
+    // a materialização grava o lembrete ela mesma, como a remarcação de reserva.
+    const reminder15mAt = new Date(startAt.getTime() - BOOKING_REMINDER_15M_MINUTES_BEFORE * 60 * 1000);
 
     try {
       const outcome = await db.runTransaction(async (tx: Transaction) => {
@@ -348,6 +353,7 @@ export async function materializeSeriesOccurrences(
           attendanceConfirmed: false,
           attendanceStatus: "pending",
           confirmationDeadline: Timestamp.fromDate(confirmationDeadline),
+          reminder15mAt: Timestamp.fromDate(reminder15mAt),
           paymentExpiresAt: null,
           source: "platform",
           isRecurring: true,

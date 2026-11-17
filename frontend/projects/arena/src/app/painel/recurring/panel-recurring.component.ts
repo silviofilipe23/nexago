@@ -197,7 +197,12 @@ import type { AthleteCandidate } from './athlete-search-filter';
           </div>
 
           @if (mensalistaMode() === 'atleta') {
-            <ar-athlete-search-field [arenaId]="arenaContext.arenaId() ?? ''" searchPlatform (selected)="onAthleteSelected($event)" />
+            <ar-athlete-search-field
+              class="athlete-field"
+              [arenaId]="arenaContext.arenaId() ?? ''"
+              searchPlatform
+              (selected)="onAthleteSelected($event)"
+            />
             @if (athleteId()) {
               <p class="athlete-selected-hint">Selecionado: {{ athleteName() }}</p>
             }
@@ -487,6 +492,12 @@ import type { AthleteCandidate } from './athlete-search-filter';
     }
 
     .weekday-bar {
+      margin-bottom: 18px;
+    }
+
+    /* O input da busca vive no componente filho: o margin-bottom do .input-box daqui não
+     * chega nele (view encapsulation), então o espaço vai no host, igual aos outros campos. */
+    .athlete-field {
       margin-bottom: 18px;
     }
 

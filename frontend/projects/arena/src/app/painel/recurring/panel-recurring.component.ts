@@ -9,6 +9,7 @@ import { arenaFunctions } from '../data/functions';
 import { fetchCourtsList } from '../courts/courts-repository';
 import type { ArenaCourt } from '../courts/court.model';
 import { formatBRL } from '../bookings/arena-booking.model';
+import { resolveAthleteProfile } from '../bookings/bookings-repository';
 import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
@@ -200,11 +201,12 @@ import type { AthleteCandidate } from './athlete-search-filter';
             <ar-athlete-search-field
               class="athlete-field"
               [arenaId]="arenaContext.arenaId() ?? ''"
+              [selectedName]="selectedAthleteName()"
               searchPlatform
               (selected)="onAthleteSelected($event)"
             />
             @if (athleteId()) {
-              <p class="athlete-selected-hint">Selecionado: {{ athleteName() }}</p>
+              <p class="athlete-selected-hint">Selecionado: {{ selectedAthleteName() }}</p>
             }
           } @else {
             <input
@@ -635,7 +637,13 @@ export class PanelRecurringComponent {
   protected readonly weekdayOptions = RECURRING_WEEKDAYS;
   protected readonly weekdayLabel = RECURRING_WEEKDAY_LABEL;
   protected readonly formatBRL = formatBRL;
-  protected readonly customerLabel = recurringCustomerLabel;
+  /** Nome dos atletas vinculados, por `athleteId` — a série só grava o id. */
+  protected readonly athleteNames = signal<ReadonlyMap<string, string>>(new Map());
+  private readonly resolvingNames = new Set<string>();
+
+  protected customerLabel(series: ArenaRecurringBooking): string {
+    return recurringCustomerLabel(series, this.athleteNames());
+  }
 
   protected readonly arenaLoading = computed(() => this.arenaContext.loading());
   protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
@@ -660,7 +668,13 @@ export class PanelRecurringComponent {
   protected readonly endDate = signal<string | null>(null);
   protected readonly mensalistaMode = signal<'atleta' | 'avulso'>('avulso');
   protected readonly athleteId = signal<string | null>(null);
+  /** Nome escolhido na busca; vazio ao editar, aí vale o nome resolvido do `athleteId`. */
   protected readonly athleteName = signal('');
+  protected readonly selectedAthleteName = computed(() => {
+    const athleteId = this.athleteId();
+    if (!athleteId) return '';
+    return this.athleteName() || recurringCustomerLabel({ customerName: null, athleteId }, this.athleteNames());
+  });
   protected readonly customerName = signal('');
   protected readonly amountValue = signal('');
   protected readonly paymentType = signal<ArenaRecurringPaymentType>('per_occurrence');
@@ -702,7 +716,26 @@ export class PanelRecurringComponent {
       this.unsubscribeSeries = watchVisibleSeries(db, arenaId, (list) => {
         this.series.set(list);
         this.loading.set(false);
+        this.resolveAthleteNames(list);
       });
+    });
+  }
+
+  /** Busca em `public_profiles` o nome de quem ainda não tem: cobre cliente da arena e atleta
+   *  achado na busca em todo o nexaGO. `resolveAthleteProfile` tem cache e não lança. */
+  private resolveAthleteNames(list: readonly ArenaRecurringBooking[]): void {
+    const known = this.athleteNames();
+    const missing = [...new Set(list.filter((s) => !s.customerName).map((s) => s.athleteId))].filter(
+      (id): id is string => !!id && !known.has(id) && !this.resolvingNames.has(id),
+    );
+    if (missing.length === 0) return;
+    missing.forEach((id) => this.resolvingNames.add(id));
+    const db = arenaFirestore();
+    void Promise.all(
+      missing.map(async (id) => [id, (await resolveAthleteProfile(db, id)).name] as const),
+    ).then((entries) => {
+      entries.forEach(([id]) => this.resolvingNames.delete(id));
+      this.athleteNames.update((current) => new Map([...current, ...entries]));
     });
   }
 
@@ -742,7 +775,8 @@ export class PanelRecurringComponent {
     this.endDate.set(series.endDate);
     this.mensalistaMode.set(series.athleteId ? 'atleta' : 'avulso');
     this.athleteId.set(series.athleteId);
-    this.athleteName.set(series.customerName ?? (series.athleteId ? recurringCustomerLabel(series) : ''));
+    // Atleta vinculado sem `customerName`: o campo usa o nome resolvido (selectedAthleteName).
+    this.athleteName.set(series.athleteId ? (series.customerName ?? '') : '');
     this.customerName.set(series.customerName ?? '');
     this.amountValue.set(series.amountReais.toString().replace('.', ','));
     this.paymentType.set(series.paymentType);

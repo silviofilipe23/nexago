@@ -54,8 +54,10 @@ export type ScoreComponent = (typeof SCORE_COMPONENTS)[number];
 export const ATHLETE_LEVEL_NAMES = ["Bronze", "Silver", "Gold", "Elite"] as const;
 
 /** As duas promoções do programa, nesta ordem. Captain é paralelo: não entra na escada. */
-/** Onde o desconto do seguidor vale: inscrição em torneio, reserva de quadra e clubinho. */
-export const FOLLOWER_DISCOUNT_KINDS = ["registration", "booking", "club"] as const;
+/** Onde o desconto do seguidor vale: inscrição em torneio, reserva de quadra, clubinho e Loja. */
+export const FOLLOWER_DISCOUNT_KINDS = ["registration", "booking", "club", "store"] as const;
+/** As três áreas de antes da Loja: escopo salvo sem a Loja continua válido. */
+const LEGACY_SCOPE_KINDS = ["registration", "booking", "club"] as const;
 export type FollowerDiscountKind = (typeof FOLLOWER_DISCOUNT_KINDS)[number];
 export type FollowerDiscountScope = Record<FollowerDiscountKind, boolean>;
 
@@ -195,7 +197,7 @@ export const DEFAULT_SQUAD_RULES: SquadRules = {
     requirePaidConfirmation: true,
     cancelOnRefund: true,
     followerDiscountFirstOnly: true,
-    followerDiscountScope: {registration: true, booking: true, club: true},
+    followerDiscountScope: {registration: true, booking: true, club: true, store: false},
     blockSelfReferral: true,
     windowDays: 30,
     model: "lastTouch",
@@ -263,14 +265,32 @@ function text(v: unknown, min: number, max: number): v is string {
   return typeof v === "string" && v.trim().length >= min && v.trim().length <= max;
 }
 
-/** Piso da comissão: o valor exato, ou o início da faixa do Pro. */
-/** Escopo salvo, com cada tipo ausente ou inválido valendo (o padrão é o desconto em tudo). */
+/**
+ * Escopo GLOBAL das regras (`attribution.followerDiscountScope`). Inscrição, reserva e clubinho
+ * ausentes valem (regras de antes do escopo); a Loja só vale ligada de propósito: ela nasce
+ * desligada e é o interruptor do programa na Loja.
+ */
 export function followerDiscountScopeOf(raw: unknown): FollowerDiscountScope {
   const r = isObj(raw) ? raw : {};
   return {
     registration: r["registration"] !== false,
     booking: r["booking"] !== false,
     club: r["club"] !== false,
+    store: r["store"] === true,
+  };
+}
+
+/**
+ * Escopo do CONTRATO ou do NÍVEL (`codeScope`): só restringe. Tipo ausente ou inválido vale,
+ * a Loja inclusive (quem liga a Loja é a regra global).
+ */
+export function codeScopeOf(raw: unknown): FollowerDiscountScope {
+  const r = isObj(raw) ? raw : {};
+  return {
+    registration: r["registration"] !== false,
+    booking: r["booking"] !== false,
+    club: r["club"] !== false,
+    store: r["store"] !== false,
   };
 }
 
@@ -280,13 +300,28 @@ export function intersectScopes(...scopes: FollowerDiscountScope[]): FollowerDis
     registration: scopes.every((s) => s.registration),
     booking: scopes.every((s) => s.booking),
     club: scopes.every((s) => s.club),
+    store: scopes.every((s) => s.store),
   };
 }
 
-/** Escopo gravável: os três tipos booleanos e ao menos um ligado. */
+/** Tipos de um escopo vindo de fora: os três de antes booleanos; a Loja, se vier, também. */
+function scopeShapeOk(raw: unknown): raw is Raw {
+  return isObj(raw) && LEGACY_SCOPE_KINDS.every((k) => typeof raw[k] === "boolean") &&
+    (raw["store"] === undefined || typeof raw["store"] === "boolean");
+}
+
+/** Escopo gravável de nível/convite: tipos certos e ao menos uma área ligada. */
 function codeScopeOk(raw: unknown): boolean {
-  return isObj(raw) && FOLLOWER_DISCOUNT_KINDS.every((k) => typeof raw[k] === "boolean") &&
-    FOLLOWER_DISCOUNT_KINDS.some((k) => raw[k] === true);
+  return scopeShapeOk(raw) && FOLLOWER_DISCOUNT_KINDS.some((k) => raw[k] === true);
+}
+
+/**
+ * Escopo do convite (callable do backoffice): ausente → `null` (o contrato vale em tudo);
+ * forma errada ou nenhuma área → `"invalid"`. Sem a Loja no pedido, ela fica ligada no contrato.
+ */
+export function codeScopeInputOf(raw: unknown): FollowerDiscountScope | null | "invalid" {
+  if (raw == null) return null;
+  return codeScopeOk(raw) ? codeScopeOf(raw) : "invalid";
 }
 
 export function commissionFloor(c: unknown): number {
@@ -384,8 +419,7 @@ export function squadRulesErrors(rules: unknown): string[] {
     if (typeof a["followerDiscountFirstOnly"] !== "boolean") fields.push("attribution.followerDiscountFirstOnly");
     // Opcional: a tela antiga salva sem ele (vira "em todas").
     const scope = a["followerDiscountScope"];
-    if (scope !== undefined &&
-      (!isObj(scope) || FOLLOWER_DISCOUNT_KINDS.some((k) => typeof scope[k] !== "boolean"))) {
+    if (scope !== undefined && !scopeShapeOk(scope)) {
       fields.push("attribution.followerDiscountScope");
     }
     if (typeof a["blockSelfReferral"] !== "boolean") fields.push("attribution.blockSelfReferral");
@@ -476,7 +510,7 @@ export function normalizeSquadRules(r: SquadRules): SquadRules {
     if (key === "pro") out.campaignFeeCapCents = t.campaignFeeCapCents;
     if (key === "cap") out.tournamentOriginBonusCents = t.tournamentOriginBonusCents;
     // Tudo ligado = campo ausente: pacotes antigos (sem o campo) não aparecem como alterados.
-    const scope = followerDiscountScopeOf(t.codeScope);
+    const scope = codeScopeOf(t.codeScope);
     if (FOLLOWER_DISCOUNT_KINDS.some((k) => !scope[k])) out.codeScope = scope;
     return out;
   };
@@ -590,7 +624,7 @@ export async function tierCodeScope(
   tier: SquadTier | null,
   rulesVersion: number | null,
 ): Promise<FollowerDiscountScope> {
-  if (!tier) return followerDiscountScopeOf(undefined);
+  if (!tier) return codeScopeOf(undefined);
   const tierOf = (data: Raw | undefined): Raw | null => {
     const tiers = isObj(data?.["rules"]) ? (data!["rules"] as Raw)["tiers"] : undefined;
     const t = isObj(tiers) ? tiers[tier] : undefined;
@@ -599,9 +633,9 @@ export async function tierCodeScope(
   const rulesRef = db.collection(SQUAD_CONFIG).doc(SQUAD_RULES_DOC);
   if (rulesVersion !== null) {
     const fromVersion = tierOf((await rulesRef.collection(SQUAD_RULES_VERSIONS).doc(String(rulesVersion)).get()).data());
-    if (fromVersion) return followerDiscountScopeOf(fromVersion["codeScope"]);
+    if (fromVersion) return codeScopeOf(fromVersion["codeScope"]);
   }
-  return followerDiscountScopeOf(tierOf((await rulesRef.get()).data())?.["codeScope"]);
+  return codeScopeOf(tierOf((await rulesRef.get()).data())?.["codeScope"]);
 }
 
 // ── diff entre versões ──────────────────────────────────────────────────────

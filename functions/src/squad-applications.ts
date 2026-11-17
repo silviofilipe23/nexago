@@ -48,13 +48,13 @@ import {
 } from "./squad-program";
 import {
   DEFAULT_SQUAD_RULES,
-  FOLLOWER_DISCOUNT_KINDS,
   SQUAD_CONFIG,
   SQUAD_RULES_DOC,
   SQUAD_TIERS,
   TIER_LABELS,
   commissionFloor,
-  followerDiscountScopeOf,
+  codeScopeInputOf,
+  codeScopeOf,
   type Actor,
   type FollowerDiscountScope,
   type SquadRules,
@@ -448,13 +448,6 @@ export interface SendInviteInput {
   codeScope?: FollowerDiscountScope | null;
 }
 
-/** Escopo do convite: ausente → `null` (vale em tudo); os três tipos booleanos e ao menos um ligado. */
-function inviteCodeScope(raw: unknown): FollowerDiscountScope | null | "invalid" {
-  if (raw == null) return null;
-  if (!isObj(raw) || FOLLOWER_DISCOUNT_KINDS.some((k) => typeof raw[k] !== "boolean")) return "invalid";
-  const scope = {registration: raw["registration"] === true, booking: raw["booking"] === true, club: raw["club"] === true};
-  return FOLLOWER_DISCOUNT_KINDS.some((k) => scope[k]) ? scope : "invalid";
-}
 
 function inviteBody(tier: SquadTier): string {
   return `Você foi convidado para o NexaSquad como ${TIER_LABELS[tier]}. Abra o app para ver o convite.`;
@@ -480,7 +473,7 @@ export async function sendInviteCore(
   if (periodEnd !== null && (!DATE_RE.test(periodEnd) || periodEnd <= (periodStart ?? todayKey))) fields.push("periodEnd");
   const message = input.message == null || input.message === "" ? null : input.message;
   if (message !== null && !text(message, 1, MESSAGE_MAX)) fields.push("message");
-  const codeScope = inviteCodeScope(input.codeScope);
+  const codeScope = codeScopeInputOf(input.codeScope);
   if (codeScope === "invalid") fields.push("codeScope");
   // A segunda checagem só estreita o tipo de `codeScope` para o TypeScript.
   if (fields.length > 0 || codeScope === "invalid") throw invalid(fields);
@@ -752,7 +745,7 @@ export async function acceptInviteCore(
       endedAt: null,
       amendments: [],
       // Escopo combinado no convite; sem ele, o contrato nasce sem o campo (vale em tudo).
-      ...(isObj(d["codeScope"]) ? {codeScope: followerDiscountScopeOf(d["codeScope"])} : {}),
+      ...(isObj(d["codeScope"]) ? {codeScope: codeScopeOf(d["codeScope"])} : {}),
       inviteId: invite.id,
       cycleId: str(d["cycleId"]) || cycle.id,
       createdAt: prev?.["createdAt"] ?? now,

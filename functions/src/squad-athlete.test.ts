@@ -297,7 +297,7 @@ describe("onde o código vale (contrato ∧ nível ∧ regras)", () => {
     fake.seedDoc("squadConfig/rules/versions/1", {rules: {tiers: {ath: {...DEFAULT_SQUAD_RULES.tiers.ath,
       codeScope: {registration: true, booking: false, club: true}}}}});
     const view = await mySquadCore(db, "jv", NOW);
-    assert.deepEqual(view.member?.followerDiscountScope, {registration: true, booking: false, club: false});
+    assert.deepEqual(view.member?.followerDiscountScope, {registration: true, booking: false, club: false, store: false});
   });
 
   it("convite: o pacote vigente do nível e o escopo do convite", async () => {
@@ -309,6 +309,6 @@ describe("onde o código vale (contrato ∧ nível ∧ regras)", () => {
       codeScope: {registration: true, booking: false, club: true},
     });
     const v = await inviteViewCore(db, "caio", "i1", NOW);
-    assert.deepEqual(v.followerDiscountScope, {registration: true, booking: false, club: false});
+    assert.deepEqual(v.followerDiscountScope, {registration: true, booking: false, club: false, store: false});
   });
 });

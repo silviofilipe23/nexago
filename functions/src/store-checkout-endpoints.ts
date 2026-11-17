@@ -8,6 +8,7 @@ import {getFirestore, type DocumentReference, type Firestore} from "firebase-adm
 import {getStorage} from "firebase-admin/storage";
 import {logger} from "firebase-functions/v2";
 import {onDocumentWritten} from "firebase-functions/v2/firestore";
+import {confirmStoreSquadQuietly, syncStoreSquadOnOrderWriteCore} from "./store-squad";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {asaasArenaSecrets} from "./asaas-client";
@@ -187,6 +188,11 @@ export async function processStoreOrderAsaasNotification(
   case "confirmed":
   case "already_paid":
     await processedRef.set({...base, outcome: "approved"}, {merge: true});
+    // Comissão do Squad com o líquido do Asaas; o gatilho do pedido cobre quem chegar sem webhook.
+    await confirmStoreSquadQuietly(db, {
+      orderId, paymentId, valueCents: toCents(payment.value),
+      netValueCents: typeof payment.netValue === "number" ? toCents(payment.netValue) : null,
+    }, now);
     await attachArtUrls(db, r.customItemIds);
     return;
   case "not_pending":
@@ -256,6 +262,10 @@ export const onStoreOrderWrittenSyncView = onDocumentWritten(`${ORDERS}/{orderId
   const reservation = after?.["couponReservation"] as {status?: string} | null | undefined;
   if (after?.["status"] === "can" && !after["paidAt"] && reservation?.status === "reservado") {
     await releaseCouponOnCancelCore(db, orderId, new Date());
+  }
+  if (after?.["squad"]) {
+    await syncStoreSquadOnOrderWriteCore(db, orderId, new Date()).catch((e) =>
+      logger.error("Loja: comissão do Squad não acompanhou o pedido", {orderId, error: String(e)}));
   }
 });
 

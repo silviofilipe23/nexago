@@ -28,7 +28,7 @@ import {SQUAD_AMBASSADORS} from "./squad-commissions";
 import {SQUAD_PUBLIC} from "./squad-public";
 import {
   FOLLOWER_DISCOUNT_KINDS,
-  followerDiscountScopeOf,
+  codeScopeOf,
   intersectScopes,
   loadAttributionRules,
   tierCodeScope,
@@ -92,7 +92,7 @@ function contractOf(uid: string, d: Raw | undefined): AmbassadorContract | null 
     followerDiscountPct: typeof d["followerDiscountPct"] === "number" &&
       d["followerDiscountPct"] >= 0 && d["followerDiscountPct"] <= 30 ? d["followerDiscountPct"] : null,
     rulesVersion: typeof d["rulesVersion"] === "number" ? d["rulesVersion"] : null,
-    codeScope: followerDiscountScopeOf(d["codeScope"]),
+    codeScope: codeScopeOf(d["codeScope"]),
   };
 }
 
@@ -100,6 +100,7 @@ const SCOPE_LABELS: Record<FollowerDiscountKind, string> = {
   registration: "inscrições em torneios",
   booking: "reservas de quadra",
   club: "clubinho",
+  store: "a Loja",
 };
 
 /** "O código X vale só para inscrições em torneios." — o que o atleta lê ao digitar fora do escopo. */
@@ -113,6 +114,19 @@ export function outOfScopeMessage(code: string, scope: FollowerDiscountScope): s
 /** Onde o código existe: o contrato e o pacote do nível (versão do contrato) precisam deixar. */
 export async function codeScopeFor(db: Firestore, ambassador: AmbassadorContract): Promise<FollowerDiscountScope> {
   return intersectScopes(ambassador.codeScope, await tierCodeScope(db, ambassador.tier, ambassador.rulesVersion));
+}
+
+/**
+ * Onde o código existe NESTA compra: contrato ∧ nível e, só na Loja, também a regra global (a
+ * Loja nasce desligada no programa). Nas outras áreas a global decide só o desconto.
+ */
+async function purposeScope(
+  db: Firestore,
+  ambassador: AmbassadorContract,
+  rules: {followerDiscountScope: FollowerDiscountScope},
+): Promise<FollowerDiscountScope> {
+  const scope = await codeScopeFor(db, ambassador);
+  return {...scope, store: scope.store && rules.followerDiscountScope.store};
 }
 
 export async function findAmbassadorByCode(db: Firestore, code: string): Promise<AmbassadorContract | null> {
@@ -186,7 +200,7 @@ export async function resolveRegistrationAttribution(
       throw new HttpsError("invalid-argument", paused ? PAUSED_CODE_MESSAGE : UNKNOWN_CODE_MESSAGE, {field: "squadCode"});
     }
     if (isSelf(ambassador)) throw new HttpsError("failed-precondition", SELF_REFERRAL_MESSAGE, {field: "squadCode"});
-    const scope = await codeScopeFor(db, ambassador);
+    const scope = await purposeScope(db, ambassador, rules);
     if (!scope[input.purpose]) {
       throw new HttpsError("failed-precondition", outOfScopeMessage(ambassador.code, scope), {field: "squadCode"});
     }
@@ -198,7 +212,7 @@ export async function resolveRegistrationAttribution(
   const at = dateOf(d?.["at"]);
   if (!d || !at || now.getTime() - at.getTime() > rules.windowDays * DAY_MS) return null;
   const ambassador = await findAmbassador(db, String(d["ambassadorId"] ?? ""));
-  if (!ambassador || isSelf(ambassador) || !(await codeScopeFor(db, ambassador))[input.purpose]) return null;
+  if (!ambassador || isSelf(ambassador) || !(await purposeScope(db, ambassador, rules))[input.purpose]) return null;
   return {ambassador, origin: d["origin"] === "qr" ? "qr" : "link"};
 }
 
@@ -233,7 +247,7 @@ export interface SquadCodeCheck {
 }
 
 /** Que cobrança o checkout vai gerar: inscrição (padrão), reserva de quadra ou clubinho. */
-export type SquadCheckPurpose = "registration" | "booking" | "club";
+export type SquadCheckPurpose = "registration" | "booking" | "club" | "store";
 
 /**
  * Confere o código no checkout antes de pagar ("indicação de João · 10% de desconto"). Sem código,
@@ -282,7 +296,8 @@ export async function checkSquadCodeCore(
     });
     discountPct = discount.pct;
   } else {
-    // Reserva e clubinho: "só na primeira" vale por tipo de compra (primeira reserva, primeiro clubinho).
+    // Reserva, clubinho e Loja: "só na primeira" vale por tipo de compra (primeira reserva, primeira
+    // compra na Loja…). Na Loja quem liga é a regra global, já conferida na atribuição.
     const rules = await loadAttributionRules(db);
     const off = !rules.followerDiscountScope[purpose] ||
       (rules.followerDiscountFirstOnly && await payerUsedDiscount(db, input.payerUid, purpose));
@@ -306,6 +321,10 @@ async function feeOfPurpose(
   ids: {registrationId: string; arenaId: string},
   now: Date,
 ): Promise<{feePercent: number | null; feeFloorReais: number}> {
+  if (purpose === "store") {
+    // Loja: a nexaGO vende o produto; não há taxa de plataforma para servir de teto.
+    return {feePercent: null, feeFloorReais: 0};
+  }
   if (purpose === "club") {
     return {feePercent: await loadArenaFeePercent(db, ids.arenaId, undefined, "club", now), feeFloorReais: 0};
   }
@@ -337,7 +356,8 @@ export const checkSquadCode = onCall(CLIENT_CALLABLE, async (request) => {
   const db = getFirestore();
   const now = new Date();
   const registrationId = typeof data.registrationId === "string" ? data.registrationId : "";
-  const purpose: SquadCheckPurpose = data.purpose === "booking" || data.purpose === "club" ? data.purpose : "registration";
+  const purpose: SquadCheckPurpose =
+    data.purpose === "booking" || data.purpose === "club" || data.purpose === "store" ? data.purpose : "registration";
   const fee = await feeOfPurpose(db, purpose, {
     registrationId,
     arenaId: typeof data.arenaId === "string" ? data.arenaId : "",

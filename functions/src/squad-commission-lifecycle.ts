@@ -34,10 +34,25 @@ export const SQUAD_CHARGE_DISCOUNTS = "squadChargeDiscounts";
 /** O Asaas não cobra PIX abaixo disto: o desconto nunca deixa a cobrança menor. */
 const MIN_CHARGE_CENTS = 5_00;
 
-/** O pagador já tem conversão viva (pendente, liberada ou paga) em OUTRA cobrança? */
-async function payerAlreadyConverted(db: Firestore, payerUid: string, exceptId: string): Promise<boolean> {
+/** De onde vem a comissão: inscrição (o padrão, docs antigos não têm o campo) ou Loja. */
+export type CommissionSource = "registration" | "store";
+
+/**
+ * O pagador já tem conversão viva (pendente, liberada ou paga) em OUTRA cobrança DA MESMA ÁREA?
+ * "Uma conversão por atleta" vale por área: a da Loja não tira a da inscrição, e vice-versa.
+ */
+async function payerAlreadyConverted(
+  db: Firestore,
+  payerUid: string,
+  exceptId: string,
+  source: CommissionSource = "registration",
+): Promise<boolean> {
   const previous = await db.collection(SQUAD_COMMISSIONS).where("payerUid", "==", payerUid).get();
-  return previous.docs.some((d) => d.id !== exceptId && LIVE_STATUSES.includes(String(d.data()["status"])));
+  return previous.docs.some((d) => {
+    const data = d.data();
+    return d.id !== exceptId && (data["source"] ?? "registration") === source &&
+      LIVE_STATUSES.includes(String(data["status"]));
+  });
 }
 
 /** % do desconto do seguidor: o do contrato, senão o do nível na versão das regras congelada nele. */
@@ -89,7 +104,7 @@ export async function followerDiscountFor(
 }
 
 /** Onde o desconto foi dado: inscrição (com comissão), reserva de quadra ou clubinho (só desconto). */
-export type ChargeDiscountKind = "registration" | "booking" | "club";
+export type ChargeDiscountKind = "registration" | "booking" | "club" | "store";
 
 export interface ChargeDiscountRecord {
   paymentId: string;
@@ -261,6 +276,76 @@ export async function createPendingCommission(
   });
 }
 
+export interface StoreCommissionInput {
+  orderId: string;
+  orderNumber: string;
+  paymentId: string;
+  payerUid: string;
+  /** O que o pedido cobra (produtos + frete + acréscimo, já com os descontos). */
+  totalCents: number;
+  /** A parte dos produtos nesse total: a comissão não incide sobre frete nem acréscimo. */
+  productsCents: number;
+  attribution: ResolvedAttribution;
+}
+
+/**
+ * Comissão pendente da Loja (`store_{orderId}`), só na 1ª compra do seguidor na Loja. Devolve o id,
+ * ou `null` quando ele já converteu na Loja ou não sobra valor de produto.
+ */
+export async function createStoreCommission(db: Firestore, input: StoreCommissionInput, now: Date): Promise<string | null> {
+  if (!(input.totalCents > 0) || !(input.productsCents > 0)) return null;
+  const id = `store_${input.orderId}`;
+  if (await payerAlreadyConverted(db, input.payerUid, id, "store")) return null;
+  const {ambassador, origin} = input.attribution;
+  const ratio = Math.min(1, input.productsCents / input.totalCents);
+  const user = (await db.collection("users").doc(input.payerUid).get()).data() ?? {};
+  const name = [user["fullName"], user["name"], user["displayName"]].find((v) => typeof v === "string" && v.trim());
+  const ref = db.collection(SQUAD_COMMISSIONS).doc(id);
+  await ref.create({
+    source: "store",
+    orderId: input.orderId,
+    ambassadorId: ambassador.uid,
+    ambassadorName: ambassador.displayName,
+    ambassadorCode: ambassador.code,
+    ambassadorTier: ambassador.tier,
+    registrationId: null,
+    tournamentId: null,
+    // As telas de comissão mostram estes dois campos: a origem lê "Loja nexaGO · Pedido NX-…".
+    tournamentName: "Loja nexaGO",
+    categoryName: `Pedido ${input.orderNumber}`,
+    paymentId: input.paymentId,
+    payerUid: input.payerUid,
+    convertedAthleteIds: [input.payerUid],
+    convertedLabel: shortAthleteName(String(name ?? "Atleta")),
+    origin,
+    baseRatio: ratio,
+    grossCents: input.totalCents,
+    feeCents: 0,
+    netCents: input.totalCents,
+    pct: ambassador.commissionPct,
+    amountCents: commissionAmount(input.productsCents, ambassador.commissionPct),
+    rulesVersion: ambassador.rulesVersion,
+    status: "pending",
+    cancelReason: null,
+    cancelNote: null,
+    payoutId: null,
+    hold: null,
+    processedEvents: [],
+    timeline: [{
+      at: now,
+      event: "registered",
+      by: null,
+      note: `Compra na Loja com ${origin === "code" ? "código" : origin === "qr" ? "QR" : "link"} ${ambassador.code}`,
+    }],
+    registeredAt: now,
+    createdAt: now,
+    releasedAt: null,
+    paidAt: null,
+    canceledAt: null,
+  });
+  return id;
+}
+
 export interface ChargeCommissionInput extends Omit<PendingCommissionInput, "convertedLabel"> {
   teamName: string | null;
 }
@@ -282,8 +367,11 @@ export async function recordCommissionForCharge(
 }
 
 export interface PaymentEventInput {
-  registrationId: string;
-  payerUid: string;
+  /** Comissão de inscrição: `{registrationId}_{payerUid}`. */
+  registrationId?: string;
+  payerUid?: string;
+  /** Comissão que não é de inscrição (Loja): o id direto. */
+  commissionId?: string;
   paymentId: string;
   event: PaymentEvent;
   /** Valor cobrado (`value` do Asaas), em centavos. */
@@ -295,6 +383,12 @@ export interface PaymentEventInput {
 }
 
 type Raw = Record<string, unknown>;
+
+/** Parte do pagamento que conta para a comissão (Loja: produtos ÷ total); ausente = tudo. */
+function baseRatioOf(d: Raw): number {
+  const r = d["baseRatio"];
+  return typeof r === "number" && r > 0 && r <= 1 ? r : 1;
+}
 
 const timelineOf = (d: Raw) => (Array.isArray(d["timeline"]) ? (d["timeline"] as unknown[]) : []);
 const processedOf = (d: Raw) => (Array.isArray(d["processedEvents"]) ? (d["processedEvents"] as string[]) : []);
@@ -340,7 +434,8 @@ function cancelInTx(
  * pagamento que de fato entrou.
  */
 export async function applySquadPaymentEvent(db: Firestore, input: PaymentEventInput, now: Date): Promise<boolean> {
-  const ref = db.collection(SQUAD_COMMISSIONS).doc(squadCommissionId(input.registrationId, input.payerUid));
+  const id = input.commissionId ?? squadCommissionId(input.registrationId ?? "", input.payerUid ?? "");
+  const ref = db.collection(SQUAD_COMMISSIONS).doc(id);
   return db.runTransaction(async (tx) => {
     const s = await tx.get(ref);
     if (!s.exists) return false;
@@ -363,6 +458,8 @@ export async function applySquadPaymentEvent(db: Firestore, input: PaymentEventI
       }
       const gross = input.valueCents && input.valueCents > 0 ? input.valueCents : Number(d["grossCents"] ?? 0);
       const net = input.netValueCents && input.netValueCents > 0 ? input.netValueCents : gross;
+      // Loja: a comissão é sobre os produtos, não sobre o frete (`baseRatio` = produtos ÷ total).
+      const ratio = baseRatioOf(d);
       tx.update(ref, {
         ...mark,
         status: "released",
@@ -370,7 +467,7 @@ export async function applySquadPaymentEvent(db: Firestore, input: PaymentEventI
         grossCents: gross,
         feeCents: Math.max(0, gross - net),
         netCents: net,
-        amountCents: commissionAmount(net, pct),
+        amountCents: commissionAmount(Math.round(net * ratio), pct),
         releasedAt: now,
         timeline: [...timeline, {at: now, event: "released", by: null, note: "Pagamento confirmado"}],
       });
@@ -397,7 +494,7 @@ export async function applySquadPaymentEvent(db: Firestore, input: PaymentEventI
     if (refunded !== null && refunded > 0 && value > 0 && refunded < value) {
       const amount = Number(d["amountCents"] ?? 0);
       const net = Math.round(Number(d["netCents"] ?? 0) * ((value - refunded) / value));
-      const newAmount = commissionAmount(net, pct);
+      const newAmount = commissionAmount(Math.round(net * baseRatioOf(d)), pct);
       const note = `Reembolso parcial: comissão de ${amount} para ${newAmount} centavos`;
       if (status === "paid") {
         tx.set(db.collection(SQUAD_ADJUSTMENTS).doc(`${s.id}_${input.paymentId}_partial`), {

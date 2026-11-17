@@ -5,6 +5,7 @@
  * entrega, personalização e cupom são relidos aqui a partir das coleções do backoffice. Tudo
  * puro — quem carrega os docs é `store-checkout.ts`. Contrato em `docs/business-rules/loja-checkout.md`.
  */
+import type {ResolvedAttribution} from "./squad-attribution";
 import {MAX_QTY_PER_ITEM, variantLabelOf, type Axis} from "./store-catalog";
 import {
   CUSTOM_UPLOAD_PREFIX,
@@ -77,6 +78,18 @@ export interface CouponDoc {
   reserved: number;
 }
 
+/**
+ * Indicação de embaixador que vale nesta compra (resolvida no servidor: código digitado ou link),
+ * com o % de desconto que o pagador ganha agora (0 = "só na primeira" já usado).
+ */
+export interface SquadOffer {
+  ambassadorId: string;
+  ambassadorName: string;
+  code: string;
+  origin: "code" | "link" | "qr";
+  pct: number;
+}
+
 export interface CheckoutSnapshot {
   /** O dono do carrinho: a arte da linha personalizada tem de ser dele. */
   uid: string;
@@ -89,6 +102,12 @@ export interface CheckoutSnapshot {
   pickupPoint: PickupPoint | null;
   address: CheckoutAddress | null;
   coupon: CouponDoc | null;
+  /** Indicação que vale na Loja; ausente = nenhuma. */
+  squad?: SquadOffer | null;
+  /** Código de embaixador digitado que não vale aqui (texto pronto para o campo). */
+  squadError?: {code: string; message: string} | null;
+  /** A atribuição por trás de `squad` (para registrar desconto e comissão no pedido). */
+  squadAttribution?: ResolvedAttribution | null;
 }
 
 export type LineProblem = "indisponivel" | "esgotado" | "sem_retirada" | "sem_entrega" | "personalizacao_off";
@@ -125,7 +144,9 @@ export type CouponProblem =
   | "minimo"
   | "esgotado"
   | "ja_usado"
-  | "reservado";
+  | "reservado"
+  /** O desconto do embaixador é maior: o cupom fica de fora (não trava o checkout). */
+  | "nao_acumula";
 
 export interface QuoteCoupon {
   id: string | null;
@@ -134,6 +155,22 @@ export interface QuoteCoupon {
   stacksWithPix: boolean;
   problem: CouponProblem | null;
   /** Texto pronto pro atleta quando há problema. */
+  message: string | null;
+}
+
+/** `cupom_maior`: o cupom da Loja deu mais e o pedido sai sem embaixador; `invalido`: o código não vale. */
+export type QuoteSquadReason = "cupom_maior" | "invalido";
+
+export interface QuoteSquad {
+  code: string;
+  ambassadorName: string | null;
+  origin: "code" | "link" | "qr";
+  pct: number;
+  /** O desconto que o embaixador daria (aplicado ou não). */
+  discountCents: number;
+  /** O pedido sai com este embaixador (desconto, registro e comissão). */
+  applied: boolean;
+  reason: QuoteSquadReason | null;
   message: string | null;
 }
 
@@ -151,6 +188,10 @@ export interface Quote {
   units: number;
   subtotalCents: number;
   coupon: QuoteCoupon | null;
+  /** Indicação de embaixador desta compra; `null` = nenhuma. */
+  squad: QuoteSquad | null;
+  /** Desconto do embaixador aplicado neste total (0 quando o cupom vence ou não há). */
+  squadDiscountCents: number;
   pixDiscountPct: number | null;
   /** Desconto Pix aplicado NESTE total (0 no cartão). */
   pixDiscountCents: number;
@@ -177,6 +218,7 @@ const COUPON_MESSAGES: Record<CouponProblem, string> = {
   esgotado: "Esse cupom chegou ao limite de usos",
   ja_usado: "Você já usou esse cupom",
   reservado: "Esse cupom está num pedido seu esperando o Pix",
+  nao_acumula: "O desconto da indicação é maior que este cupom",
 };
 
 export function couponMessage(problem: CouponProblem, minCents?: number | null): string {
@@ -200,6 +242,51 @@ function cents(v: unknown): number {
 }
 
 /** "web" ou "app" — o canal do produto (`channels.web` / `channels.app`). */
+/** O Asaas não cobra abaixo disto: o desconto do embaixador nunca deixa os produtos menores. */
+const SQUAD_MIN_CHARGE_CENTS = 5_00;
+
+/** % do embaixador sobre os produtos, arredondado, sem deixar os produtos abaixo do mínimo. */
+export function squadDiscountOf(productsCents: number, pct: number): number {
+  if (!(pct > 0) || !(productsCents > 0)) return 0;
+  const raw = Math.round((productsCents * pct) / 100);
+  return Math.max(0, Math.min(raw, productsCents - SQUAD_MIN_CHARGE_CENTS));
+}
+
+/**
+ * Um desconto só por pedido: entre o cupom da Loja (válido) e o embaixador, vale o maior; empate
+ * fica com o cupom. Devolve o que entra no total e como cupom/indicação aparecem na cotação.
+ */
+export function pickPromo(
+  coupon: QuoteCoupon | null,
+  snap: Pick<CheckoutSnapshot, "squad" | "squadError">,
+  productsCents: number,
+): {coupon: QuoteCoupon | null; couponCents: number; squad: QuoteSquad | null; squadCents: number} {
+  const couponCents = coupon?.problem === null ? coupon.discountCents : 0;
+  if (snap.squadError) {
+    return {
+      coupon, couponCents, squadCents: 0,
+      squad: {
+        code: snap.squadError.code, ambassadorName: null, origin: "code", pct: 0, discountCents: 0,
+        applied: false, reason: "invalido", message: snap.squadError.message,
+      },
+    };
+  }
+  const offer = snap.squad;
+  if (!offer) return {coupon, couponCents, squad: null, squadCents: 0};
+  const squadCents = squadDiscountOf(productsCents, offer.pct);
+  const base = {code: offer.code, ambassadorName: offer.ambassadorName, origin: offer.origin, pct: offer.pct, discountCents: squadCents};
+  if (couponCents > 0 && squadCents <= couponCents) {
+    return {
+      coupon, couponCents, squadCents: 0,
+      squad: {...base, applied: false, reason: "cupom_maior", message: "O cupom da Loja dá mais desconto que a indicação"},
+    };
+  }
+  const losing = couponCents > 0 && coupon ?
+    {...coupon, problem: "nao_acumula" as const, message: `O desconto da indicação de ${offer.ambassadorName} é maior que este cupom`} :
+    coupon;
+  return {coupon: losing, couponCents: 0, squadCents, squad: {...base, applied: true, reason: null, message: null}};
+}
+
 export function channelKind(channel: CheckoutChannel): "web" | "app" {
   return channel === "web" ? "web" : "app";
 }
@@ -507,12 +594,14 @@ export function priceCheckout(
   const units = okLines.reduce((n, l) => n + l.qty, 0);
 
   const code = input.couponCode?.trim() ?? "";
-  const coupon = code ? priceCoupon(code, snap.coupon, lines, input.channel, delivery, now) : null;
-  const couponCents = coupon?.problem === null ? coupon.discountCents : 0;
+  const priced = code ? priceCoupon(code, snap.coupon, lines, input.channel, delivery, now) : null;
+  const {coupon, couponCents, squad, squadCents} = pickPromo(priced, snap, subtotalCents);
+  const promoCents = couponCents + squadCents;
 
   const pct = pixPercent(snap.discounts);
+  // O embaixador acumula com o Pix; o cupom, conforme a regra dele.
   const pixApplies = couponCents === 0 || coupon?.stacksWithPix !== false;
-  const pixDiscountCents = pixApplies ? pixDiscountOf(subtotalCents - couponCents, pct) : 0;
+  const pixDiscountCents = pixApplies ? pixDiscountOf(subtotalCents - promoCents, pct) : 0;
 
   let shippingCents = 0;
   let freeShipping = false;
@@ -530,8 +619,8 @@ export function priceCheckout(
     }
   }
 
-  const pixTotalCents = Math.max(0, subtotalCents - couponCents - pixDiscountCents + shippingCents);
-  const cardBaseCents = Math.max(0, subtotalCents - couponCents + shippingCents);
+  const pixTotalCents = Math.max(0, subtotalCents - promoCents - pixDiscountCents + shippingCents);
+  const cardBaseCents = Math.max(0, subtotalCents - promoCents + shippingCents);
   const cardFeeCents = cardBaseCents > 0 ? Math.max(0, Math.round(cardFeeOf(cardBaseCents))) : 0;
   const cardTotalCents = cardBaseCents + cardFeeCents;
   const card = paymentMethod === "cartao";
@@ -542,6 +631,8 @@ export function priceCheckout(
     units,
     subtotalCents,
     coupon,
+    squad,
+    squadDiscountCents: squadCents,
     pixDiscountPct: pct,
     pixDiscountCents: card ? 0 : pixDiscountCents,
     cardFeeCents: card ? cardFeeCents : 0,

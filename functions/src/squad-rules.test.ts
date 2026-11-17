@@ -8,6 +8,8 @@ import {
   normalizeSquadRules,
   rulesChanges,
   saveSquadRulesCore,
+  codeScopeOf,
+  followerDiscountScopeOf,
   squadRulesErrors,
   tierCodeScope,
   type SquadRules,
@@ -143,20 +145,20 @@ describe("squadRulesErrors", () => {
 describe("normalizeSquadRules", () => {
   it("regras salvas sem escopo do desconto passam a valer em tudo", () => {
     const old = rules((r) => delete (r.attribution as Partial<SquadRules["attribution"]>).followerDiscountScope);
-    assert.deepEqual(normalizeSquadRules(old).attribution.followerDiscountScope, {registration: true, booking: true, club: true});
-    const onlyBooking = rules((r) => (r.attribution.followerDiscountScope = {registration: false, booking: true, club: false}));
-    assert.deepEqual(normalizeSquadRules(onlyBooking).attribution.followerDiscountScope, {registration: false, booking: true, club: false});
+    assert.deepEqual(normalizeSquadRules(old).attribution.followerDiscountScope, {registration: true, booking: true, club: true, store: false});
+    const onlyBooking = rules((r) => (r.attribution.followerDiscountScope = {registration: false, booking: true, club: false, store: false}));
+    assert.deepEqual(normalizeSquadRules(onlyBooking).attribution.followerDiscountScope, {registration: false, booking: true, club: false, store: false});
   });
 });
 
 describe("escopo do código por nível (tiers.*.codeScope)", () => {
-  const ONLY_REGISTRATION = {registration: true, booking: false, club: false};
+  const ONLY_REGISTRATION = {registration: true, booking: false, club: false, store: false};
 
   it("é opcional; quando vem, precisa dos três tipos booleanos e ao menos um ligado", () => {
     assert.deepEqual(squadRulesErrors(rules()), []);
     assert.deepEqual(squadRulesErrors(rules((r) => (r.tiers.ath.codeScope = ONLY_REGISTRATION))), []);
     assert.deepEqual(
-      squadRulesErrors(rules((r) => (r.tiers.ath.codeScope = {registration: false, booking: false, club: false}))),
+      squadRulesErrors(rules((r) => (r.tiers.ath.codeScope = {registration: false, booking: false, club: false, store: false}))),
       ["tiers.ath.codeScope"],
     );
     assert.deepEqual(
@@ -166,7 +168,7 @@ describe("escopo do código por nível (tiers.*.codeScope)", () => {
   });
 
   it("normaliza: tudo ligado não grava o campo (sem diferença falsa no pacote); restrito grava", () => {
-    const allOn = normalizeSquadRules(rules((r) => (r.tiers.amb.codeScope = {registration: true, booking: true, club: true})));
+    const allOn = normalizeSquadRules(rules((r) => (r.tiers.amb.codeScope = {registration: true, booking: true, club: true, store: true})));
     assert.equal("codeScope" in allOn.tiers.amb, false);
     assert.deepEqual(rulesChanges(DEFAULT_SQUAD_RULES, allOn), []);
     const scoped = normalizeSquadRules(rules((r) => (r.tiers.ath.codeScope = ONLY_REGISTRATION)));
@@ -177,7 +179,7 @@ describe("escopo do código por nível (tiers.*.codeScope)", () => {
 
   it("lê o escopo do nível na versão do contrato; versão sem o campo vale em tudo", async () => {
     const {fake, db} = makeDb();
-    const all = {registration: true, booking: true, club: true};
+    const all = {registration: true, booking: true, club: true, store: true};
     assert.deepEqual(await tierCodeScope(db, "ath", null), all, "sem regras: padrão");
     fake.seedDoc("squadConfig/rules", {version: 3, rules: {tiers: {ath: {codeScope: ONLY_REGISTRATION}}}});
     fake.seedDoc("squadConfig/rules/versions/2", {rules: {tiers: {ath: {commissionPct: 5}}}});
@@ -187,6 +189,43 @@ describe("escopo do código por nível (tiers.*.codeScope)", () => {
     assert.deepEqual(await tierCodeScope(db, "ath", 9), ONLY_REGISTRATION, "versão sem retrato: as vigentes");
     assert.deepEqual(await tierCodeScope(db, "amb", 3), all);
     assert.deepEqual(await tierCodeScope(db, null, 3), all);
+  });
+});
+
+describe("Loja como 4ª área do escopo (store)", () => {
+  it("global: Loja nasce desligada; contrato e nível só restringem (ausente = ligada)", () => {
+    assert.equal(followerDiscountScopeOf(undefined).store, false);
+    assert.equal(followerDiscountScopeOf({registration: true}).store, false);
+    assert.equal(followerDiscountScopeOf({store: true}).store, true);
+    assert.equal(DEFAULT_SQUAD_RULES.attribution.followerDiscountScope.store, false);
+    assert.deepEqual(codeScopeOf(undefined), {registration: true, booking: true, club: true, store: true});
+    assert.equal(codeScopeOf({registration: true, booking: false, club: true}).store, true);
+    assert.equal(codeScopeOf({store: false}).store, false);
+  });
+
+  it("escopos salvos sem a Loja continuam válidos; Loja precisa ser booleano", () => {
+    const legacy = {registration: true, booking: false, club: false};
+    assert.deepEqual(squadRulesErrors(rules((r) => (r.tiers.ath.codeScope = legacy as never))), []);
+    assert.deepEqual(
+      squadRulesErrors(rules((r) => (r.tiers.ath.codeScope = {...legacy, store: "sim"} as never))),
+      ["tiers.ath.codeScope"],
+    );
+    assert.deepEqual(
+      squadRulesErrors(rules((r) => (r.attribution.followerDiscountScope = {registration: true, booking: true, club: true} as never))),
+      [],
+    );
+    assert.deepEqual(
+      squadRulesErrors(rules((r) => (r.attribution.followerDiscountScope = {registration: true, booking: true, club: true, store: 1} as never))),
+      ["attribution.followerDiscountScope"],
+    );
+  });
+
+  it("normaliza: nível sem a Loja grava o campo; global guarda a Loja", () => {
+    const tier = normalizeSquadRules(rules((r) => (r.tiers.amb.codeScope = {registration: true, booking: true, club: true, store: false})));
+    assert.deepEqual(tier.tiers.amb.codeScope, {registration: true, booking: true, club: true, store: false});
+    const on = normalizeSquadRules(rules((r) => (r.attribution.followerDiscountScope = {registration: true, booking: true, club: true, store: true})));
+    assert.equal(on.attribution.followerDiscountScope.store, true);
+    assert.deepEqual(rulesChanges(DEFAULT_SQUAD_RULES, on), ["Regras de atribuição"]);
   });
 });
 

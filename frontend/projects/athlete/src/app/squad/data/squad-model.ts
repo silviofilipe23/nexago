@@ -166,8 +166,9 @@ export function discountWhere(
       ['registration', 'inscrição', 'inscrições'],
       ['booking', 'reserva', 'reservas'],
       ['club', 'clubinho', 'clubinhos'],
+      ['store', 'compra na Loja', 'compras na Loja'],
     ] as const
-  ).filter(([k]) => scope[k]);
+  ).filter(([k]) => scope[k] === true);
   if (kinds.length === 0) return null;
   const names = kinds.map(([, one, many]) => (m.followerDiscountFirstOnly ? one : many));
   const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;

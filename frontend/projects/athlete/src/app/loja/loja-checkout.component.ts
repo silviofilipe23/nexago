@@ -8,6 +8,8 @@ import {
   addressArea,
   addressLine,
   appliedCoupon,
+  appliedSquad,
+  couponBlocks,
   cartFulfillment,
   cartLineKey,
   defaultAddressId,
@@ -83,6 +85,10 @@ export class LojaCheckoutComponent {
   private readonly modeChoice = signal<string | null>(null);
   protected readonly couponInput = signal('');
   protected readonly couponCode = signal<string | null>(null);
+  /** Código de embaixador digitado (`null` = vale a indicação por link, se houver). */
+  protected readonly squadCode = signal<string | null>(null);
+  protected readonly squadInput = signal('');
+  protected readonly squadOpen = signal(false);
   protected readonly arenaMenuOpen = signal(false);
   /** Forma escolhida. O cartão só aparece quando o servidor já cota os dois totais. */
   protected readonly method = signal<PaymentMethod>('pix');
@@ -160,6 +166,7 @@ export class LojaCheckoutComponent {
     delivery: this.delivery(),
     couponCode: this.couponCode(),
     paymentMethod: this.method(),
+    ...(this.squadCode() ? { squadCode: this.squadCode()! } : {}),
   }));
 
   /** Muda a cada linha/quantidade do carrinho: a cotação velha deixa de valer. */
@@ -207,12 +214,23 @@ export class LojaCheckoutComponent {
     const c = this.quote()?.coupon;
     return c && c.problem !== null && this.couponCode() !== null ? (c.message ?? 'Cupom inválido.') : null;
   });
+  /** Só o problema que trava (o cupom que perdeu para a indicação apenas avisa). */
+  private readonly couponBlocking = computed(() => this.couponCode() !== null && couponBlocks(this.quote()?.coupon ?? null));
+  protected readonly squad = computed(() => this.quote()?.squad ?? null);
+  protected readonly squadApplied = computed(() => appliedSquad(this.quote()));
+  /** Por que a indicação ficou de fora (código que não vale, cupom maior). */
+  protected readonly squadMessage = computed(() => {
+    const s = this.squad();
+    return s && !s.applied ? s.message : null;
+  });
+  private readonly squadBlocking = computed(() => this.squadCode() !== null && this.squad()?.reason === 'invalido');
 
   protected readonly blocker = computed(() => {
     const q = this.quote();
     if (!q) return null;
     if (this.kind() === 'casa' && this.addresses().length === 0) return 'Cadastre um endereço de entrega.';
-    if (this.couponProblem()) return 'Remova ou troque o cupom pra seguir.';
+    if (this.couponBlocking()) return 'Remova ou troque o cupom pra seguir.';
+    if (this.squadBlocking()) return 'Remova ou troque o código de embaixador pra seguir.';
     return quoteBlocker(q);
   });
 
@@ -442,6 +460,23 @@ export class LojaCheckoutComponent {
   protected removeCoupon(): void {
     this.couponCode.set(null);
     this.couponInput.set('');
+  }
+
+  // ── Código de embaixador ────────────────────────────────────────
+
+  protected applySquad(event: Event): void {
+    event.preventDefault();
+    const code = this.squadInput().trim().toUpperCase();
+    if (!code) return;
+    this.squadCode.set(code);
+    this.squadOpen.set(false);
+    trackLojaEvent('loja_embaixador_aplicar', { codigo: code });
+  }
+
+  /** Tira o código digitado: volta a valer a indicação por link, se houver. */
+  protected removeSquad(): void {
+    this.squadCode.set(null);
+    this.squadInput.set('');
   }
 
   // ── Pagamento ───────────────────────────────────────────────────

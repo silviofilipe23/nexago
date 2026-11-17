@@ -35,7 +35,7 @@ describe('parseSquadReferral', () => {
       found(
         referral({
           ambassador: { uid: 'amb1', name: 'Silvio', photoUrl: 'https://cdn.test/s.jpg', tier: 'amb', place: 'Goiânia, GO · Arena Sol' },
-          scope: { registration: true, booking: false, club: true },
+          scope: { registration: true, booking: false, club: true, store: false },
         }),
       ),
     );

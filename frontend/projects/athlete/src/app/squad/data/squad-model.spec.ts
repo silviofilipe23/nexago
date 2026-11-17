@@ -1,5 +1,6 @@
 import { SQUAD_TEST_NOW, ambassadorView, callableResponses, candidateView, commission, daysAgoIso, member, ranking } from '../../../testing/squad-fixtures';
 import {
+  discountWhere,
   availableHint,
   benefitsOf,
   brl,
@@ -71,6 +72,16 @@ describe('squad-model', () => {
     expect(
       benefitsOf(member({ followerDiscountScope: scope(false, false, false) })).some((b) => b.label.includes('OFF')),
     ).toBeFalse();
+  });
+
+  it('Loja entra na oferta só quando o servidor manda ligada', () => {
+    const base = { followerDiscountFirstOnly: true };
+    expect(discountWhere({ ...base, followerDiscountScope: { registration: true, booking: false, club: false, store: true } }))
+      .toBe('na primeira inscrição e compra na Loja');
+    expect(discountWhere({ ...base, followerDiscountScope: { registration: true, booking: false, club: false } }))
+      .toBe('na primeira inscrição');
+    expect(discountWhere({ followerDiscountFirstOnly: false, followerDiscountScope: { registration: false, booking: false, club: false, store: true } }))
+      .toBe('em compras na Loja');
   });
 
   it('disponível: data do repasse, o que fica para depois e o mínimo', () => {

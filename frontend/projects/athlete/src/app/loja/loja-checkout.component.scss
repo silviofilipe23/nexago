@@ -653,3 +653,33 @@ a.ck-line-name:hover {
   font-size: 12px;
   color: var(--nx-text-dim);
 }
+
+// ── Código de embaixador ─────────────────────────────────────────
+.ck-squad {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.ck-squad-applied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(43, 209, 126, 0.08);
+  border: 1px solid rgba(43, 209, 126, 0.3);
+  font-size: 13px;
+  color: var(--nx-text);
+
+  strong {
+    font-family: var(--nx-font-mono);
+    letter-spacing: 0.04em;
+  }
+}
+
+.ck-squad-toggle {
+  align-self: flex-start;
+}

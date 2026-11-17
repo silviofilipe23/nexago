@@ -105,8 +105,14 @@ export function arenaRecurringBookingFromDoc(doc: QueryDocumentSnapshot): ArenaR
   };
 }
 
-export function recurringCustomerLabel(series: Pick<ArenaRecurringBooking, 'customerName' | 'athleteId'>): string {
+/** A série com atleta vinculado grava só o `athleteId` (sem `customerName`): o nome vem de
+ *  `athleteNames`, resolvido pela tela em `public_profiles` — vale pra cliente da arena e pra
+ *  atleta achado na busca em todo o nexaGO. Sem nome ainda, cai no fim do id. */
+export function recurringCustomerLabel(
+  series: Pick<ArenaRecurringBooking, 'customerName' | 'athleteId'>,
+  athleteNames: ReadonlyMap<string, string> = new Map(),
+): string {
   if (series.customerName) return series.customerName;
-  if (series.athleteId) return `Atleta (…${series.athleteId.slice(-6)})`;
+  if (series.athleteId) return athleteNames.get(series.athleteId) ?? `Atleta (…${series.athleteId.slice(-6)})`;
   return 'Mensalista';
 }

@@ -1,5 +1,5 @@
 import { Timestamp, type QueryDocumentSnapshot } from 'firebase/firestore';
-import { arenaRecurringBookingFromDoc, estimateMonthlyReais } from './arena-recurring-booking.model';
+import { arenaRecurringBookingFromDoc, estimateMonthlyReais, recurringCustomerLabel } from './arena-recurring-booking.model';
 
 function fakeDoc(id: string, data: Record<string, unknown>): QueryDocumentSnapshot {
   return {
@@ -54,5 +54,27 @@ describe('estimateMonthlyReais', () => {
   it('valor zero ou negativo retorna 0', () => {
     expect(estimateMonthlyReais(0)).toBe(0);
     expect(estimateMonthlyReais(-10)).toBe(0);
+  });
+});
+
+describe('recurringCustomerLabel — nome do atleta vinculado', () => {
+  const athleteId = 'u1AbCdEfGhbqDmz1';
+
+  it('usa o nome resolvido do atleta no lugar do id', () => {
+    const names = new Map([[athleteId, 'Ana Souza']]);
+    expect(recurringCustomerLabel({ customerName: null, athleteId }, names)).toBe('Ana Souza');
+  });
+
+  it('sem nome resolvido ainda, mostra o fim do id (fallback de hoje)', () => {
+    expect(recurringCustomerLabel({ customerName: null, athleteId })).toBe('Atleta (…bqDmz1)');
+  });
+
+  it('customerName gravado na série continua vencendo', () => {
+    const names = new Map([[athleteId, 'Ana Souza']]);
+    expect(recurringCustomerLabel({ customerName: 'Professor · Turma', athleteId }, names)).toBe('Professor · Turma');
+  });
+
+  it('avulso sem atleta nem nome vira "Mensalista"', () => {
+    expect(recurringCustomerLabel({ customerName: null, athleteId: null }, new Map())).toBe('Mensalista');
   });
 });

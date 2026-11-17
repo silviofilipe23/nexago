@@ -9,6 +9,9 @@ import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { recurringCustomerLabel, type ArenaRecurringBooking } from '../recurring/arena-recurring-booking.model';
 import { watchVisibleSeries } from '../recurring/recurring-bookings-repository';
+import { RecurringAthleteProfiles } from '../recurring/recurring-athlete-profiles';
+import { resolveAthleteProfile } from '../bookings/bookings-repository';
+import { AvatarComponent } from '../ui/avatar.component';
 import { ChartTabsComponent } from '../ui/chart-tabs.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PillComponent } from '../ui/pill.component';
@@ -35,7 +38,7 @@ const ALL = 'Todas';
 @Component({
   selector: 'ar-panel-ph-grid',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PhPageComponent, PhBarComponent, PhLineComponent, PhIconComponent, PanelCardComponent, PillComponent, ChartTabsComponent, RouterLink],
+  imports: [PhPageComponent, PhBarComponent, PhLineComponent, PhIconComponent, PanelCardComponent, PillComponent, ChartTabsComponent, RouterLink, AvatarComponent],
   template: `
     <ar-ph-page [subtitle]="'Grade da semana · ' + store.activeCourts().length + ' quadra' + (store.activeCourts().length === 1 ? '' : 's')" tab="grade">
       <div page-actions class="court-tabs">
@@ -96,6 +99,9 @@ const ALL = 'Todas';
               @for (c of s.courts; track c.court.id; let last = $last) {
                 <div class="occ" [class.last]="last">
                   <span class="q" [class.fixed]="c.block?.kind === 'fixed'" [class.class]="c.block?.kind === 'class'">{{ c.court.name }}</span>
+                  @if (c.block?.person; as person) {
+                    <ar-avatar [name]="person.name" [photoUrl]="person.photoUrl" [size]="28" zoomable />
+                  }
                   <div class="occ-body">
                     <div class="occ-title">{{ c.block?.title ?? 'Livre para avulso' }}</div>
                     @if (c.block) {
@@ -212,6 +218,8 @@ export class PanelPhGridComponent {
   protected readonly groupDays = DAY_GROUP_DAYS;
 
   private readonly series = signal<ArenaRecurringBooking[]>([]);
+  /** Nome e foto do atleta do horário fixo fora de plano — a série só grava o `athleteId`. */
+  private readonly athleteProfiles = new RecurringAthleteProfiles((id) => resolveAthleteProfile(arenaFirestore(), id));
   private readonly classes = signal<ArenaClass[]>([]);
   private readonly clubs = signal<ArenaClub[]>([]);
   protected readonly courtFilter = signal(ALL);
@@ -237,14 +245,18 @@ export class PanelPhGridComponent {
         out.push({
           kind: 'fixed', weekday: slot.weekday, startTime: slot.startTime, endTime: slot.endTime, courtIds: [slot.courtId],
           title: sub.holderName, detail: `${sub.planName} · ${CYCLE_LABEL[sub.cycle].toLowerCase()}${status}`,
+          person: { name: sub.holderName, photoUrl: sub.holderPhotoUrl },
         });
       }
     }
+    const athleteNames = this.athleteProfiles.names();
     for (const s of this.series()) {
       if (s.status !== 'active' || planSeries.has(s.id) || (s.endDate && s.endDate < today)) continue;
+      const name = recurringCustomerLabel(s, athleteNames);
       out.push({
         kind: 'fixed', weekday: s.weekday, startTime: s.startTime, endTime: s.endTime, courtIds: [s.courtId],
-        title: recurringCustomerLabel(s), detail: 'Horário fixo (fora de plano)',
+        title: name, detail: 'Horário fixo (fora de plano)',
+        person: { name, photoUrl: this.athleteProfiles.photoOf(s.athleteId) },
       });
     }
     for (const c of this.classes()) {
@@ -296,7 +308,10 @@ export class PanelPhGridComponent {
       unsub = null;
       if (!arenaId) return;
       const db = arenaFirestore();
-      unsub = watchVisibleSeries(db, arenaId, (s) => this.series.set(s));
+      unsub = watchVisibleSeries(db, arenaId, (s) => {
+        this.series.set(s);
+        void this.athleteProfiles.load(s);
+      });
       void fetchClasses(db, arenaId).then((c) => this.classes.set(c)).catch(() => this.classes.set([]));
       void fetchClubs(db, arenaId).then((c) => this.clubs.set(c)).catch(() => this.clubs.set([]));
     });

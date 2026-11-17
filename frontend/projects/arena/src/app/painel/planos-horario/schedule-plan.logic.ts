@@ -614,6 +614,8 @@ export interface GridBlock {
   courtIds: string[];
   title: string;
   detail: string;
+  /** Quem ocupa o horário fixo (assinante ou mensalista), para o avatar. Turma e Clubinho não têm. */
+  person?: { name: string; photoUrl: string | null };
 }
 
 export interface GridCourt {

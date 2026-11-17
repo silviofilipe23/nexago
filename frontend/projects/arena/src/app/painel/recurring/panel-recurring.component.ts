@@ -197,7 +197,7 @@ import type { AthleteCandidate } from './athlete-search-filter';
           </div>
 
           @if (mensalistaMode() === 'atleta') {
-            <ar-athlete-search-field [arenaId]="arenaContext.arenaId() ?? ''" (selected)="onAthleteSelected($event)" />
+            <ar-athlete-search-field [arenaId]="arenaContext.arenaId() ?? ''" searchPlatform (selected)="onAthleteSelected($event)" />
             @if (athleteId()) {
               <p class="athlete-selected-hint">Selecionado: {{ athleteName() }}</p>
             }

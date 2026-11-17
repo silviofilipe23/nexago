@@ -15,6 +15,7 @@ import { applyBookingsOverlay, applyScheduleFilters, scheduleDayStats, type Aren
 import { ARENA_SLOT_BLOCK_REASON_LABEL, ARENA_SLOT_BLOCK_REASONS, type ArenaSlot, type ArenaSlotBlockReason } from './arena-slot.model';
 import { blockSlots, fetchCourtsRaw, unblockSlots, watchArenaDaySlots, watchArenaWeekSlots } from './schedule-repository';
 import { weekDatesFor, type WeekDay } from './agenda-week-math';
+import { mergeConsecutiveBookingBlocks } from './merge-booking-blocks';
 import { AgendaGridComponent, type AgendaBlock, type AgendaBlockStatus, type AgendaCourt } from '../ui/agenda-grid.component';
 import { AgendaWeekGridComponent, type AgendaWeekBlock } from '../ui/agenda-week-grid.component';
 import { ChartTabsComponent } from '../ui/chart-tabs.component';
@@ -739,17 +740,18 @@ export class PanelAgendaComponent {
       if (end <= start) end += 24 * 60;
       blocks.push({ id: s.id, dateKey: s.dateKey, courtId: s.courtId, start, dur: end - start, status: this.slotStatusForBlock(s), client: this.clientLabelFor(s), tag: this.tagFor(s, true) });
     }
+    const merged = this.mergeBookingHours(blocks, this.filteredWeekSlots());
     const showMaintenance = this.statusFilter() === 'all' || this.statusFilter() === 'blocked';
     if (showMaintenance) {
       for (const day of this.weekDays()) {
         for (const c of this.courts()) {
           if (c.status !== 'maintenance') continue;
           if (this.courtFilter() && this.courtFilter() !== c.id) continue;
-          blocks.push({ id: `maint-${day.dateKey}-${c.id}`, dateKey: day.dateKey, courtId: c.id, start: 7 * 60, dur: 15 * 60, status: 'manutencao', client: '' });
+          merged.push({ id: `maint-${day.dateKey}-${c.id}`, dateKey: day.dateKey, courtId: c.id, start: 7 * 60, dur: 15 * 60, status: 'manutencao', client: '' });
         }
       }
     }
-    return blocks;
+    return merged;
   });
 
   protected readonly agendaCourts = computed<AgendaCourt[]>(() =>
@@ -784,6 +786,17 @@ export class PanelAgendaComponent {
     return this.athleteLabels()[booking.athleteId] ?? 'Carregando…';
   }
 
+  /** Horas seguidas da mesma reserva viram um bloco contínuo na grade (ver
+   *  `mergeConsecutiveBookingBlocks`). Só funde horário reservado — livre e bloqueado seguem
+   *  um por hora, porque cada um é clicável sozinho (bloquear/desbloquear a partir dele). */
+  private mergeBookingHours<T extends { id: string; courtId: string; start: number; dur: number; status: AgendaBlockStatus; dateKey?: string }>(
+    blocks: T[],
+    slots: readonly ArenaSlot[],
+  ): T[] {
+    const bookingIdBySlot = new Map(slots.filter((s) => s.status === 'booked' && s.bookingId).map((s) => [s.id, s.bookingId]));
+    return mergeConsecutiveBookingBlocks(blocks, (b) => bookingIdBySlot.get(b.id));
+  }
+
   protected readonly agendaBlocks = computed<AgendaBlock[]>(() => {
     const blocks: AgendaBlock[] = [];
     for (const s of this.filteredSlots()) {
@@ -792,15 +805,16 @@ export class PanelAgendaComponent {
       if (end <= start) end += 24 * 60;
       blocks.push({ id: s.id, courtId: s.courtId, start, dur: end - start, status: this.slotStatusForBlock(s), client: this.clientLabelFor(s), tag: this.tagFor(s) });
     }
+    const merged = this.mergeBookingHours(blocks, this.filteredSlots());
     const showMaintenance = this.statusFilter() === 'all' || this.statusFilter() === 'blocked';
     if (showMaintenance) {
       for (const c of this.courts()) {
         if (c.status !== 'maintenance') continue;
         if (this.courtFilter() && this.courtFilter() !== c.id) continue;
-        blocks.push({ id: `maint-${c.id}`, courtId: c.id, start: 7 * 60, dur: 15 * 60, status: 'manutencao', client: '' });
+        merged.push({ id: `maint-${c.id}`, courtId: c.id, start: 7 * 60, dur: 15 * 60, status: 'manutencao', client: '' });
       }
     }
-    return blocks;
+    return merged;
   });
 
   protected readonly listRows = computed<AgendaListRow[]>(() => {

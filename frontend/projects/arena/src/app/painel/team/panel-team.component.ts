@@ -10,6 +10,8 @@ import {
 } from '../data/arena-roles.model';
 import { arenaInviteLink, arenaInviteWhatsAppUrl, type ArenaStaffInvite, type ArenaStaffMember } from '../data/arena-staff.model';
 import { ArenaStaffService } from '../data/arena-staff.service';
+import { AthleteSearchFieldComponent } from '../recurring/athlete-search-field.component';
+import type { AthleteCandidate } from '../recurring/athlete-search-filter';
 import { IconComponent } from '../ui/icon.component';
 import { initialsOf } from '../ui/initials';
 import { ModalComponent } from '../ui/modal.component';
@@ -31,8 +33,13 @@ interface StaffRow {
   invite: ArenaStaffInvite | null;
 }
 
+/** Atleta: conta do nexaGO escolhida na busca, entra ativa na hora.
+ *  E-mail: convite (ativo se o e-mail já tem conta, senão link pendente). */
+type AddMode = 'athlete' | 'email';
+
 interface InviteOutcome {
-  email: string;
+  /** E-mail convidado ou nome do atleta escolhido. */
+  label: string;
   ok: boolean;
   status?: 'active' | 'pending';
   link?: string;
@@ -75,6 +82,7 @@ function localPartOf(email: string): string {
     IconComponent,
     ModalComponent,
     RouterLink,
+    AthleteSearchFieldComponent,
   ],
   host: {
     '(document:click)': 'onDocumentClick($event)',
@@ -83,8 +91,8 @@ function localPartOf(email: string): string {
     <ar-panel-shell>
       <ar-page-header title="Equipe" [subtitle]="arenaName() + ' · quem tem acesso ao painel'">
         <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="readOnly()" (click)="openInviteModal()">
-          <ar-icon name="mail" [size]="14" />
-          Convidar membro
+          <ar-icon name="plus" [size]="14" />
+          Adicionar membro
         </button>
       </ar-page-header>
 
@@ -190,13 +198,13 @@ function localPartOf(email: string): string {
       @if (showInvite()) {
         <ar-modal (close)="dismissInviteModal()">
           @if (inviteResults(); as results) {
-            <h2 class="modal-title">Resultado do convite</h2>
-            <p class="modal-subtitle">Confira o que aconteceu com cada e-mail convidado.</p>
+            <h2 class="modal-title">Resultado</h2>
+            <p class="modal-subtitle">Confira o que aconteceu com cada pessoa adicionada.</p>
 
             <div class="invite-results">
-              @for (r of results; track r.email) {
+              @for (r of results; track r.label) {
                 <div class="result-row" [class.result-error]="!r.ok">
-                  <div class="result-email">{{ r.email }}</div>
+                  <div class="result-email">{{ r.label }}</div>
                   @if (r.ok && r.status === 'active') {
                     <ar-pill tone="green">Adicionado à equipe</ar-pill>
                   } @else if (r.ok && r.status === 'pending') {
@@ -218,13 +226,26 @@ function localPartOf(email: string): string {
             </div>
 
             <div class="actions">
-              <button type="button" class="ar-ghost-btn" (click)="resetInviteForm()">Convidar mais</button>
+              <button type="button" class="ar-ghost-btn" (click)="resetInviteForm()">Adicionar mais</button>
               <button type="button" class="ar-mini-btn ar-mini-btn-primary confirm-btn" (click)="closeInviteModal()">Concluir</button>
             </div>
           } @else {
-            <h2 class="modal-title">Convidar membro</h2>
-            <p class="modal-subtitle">Envie um convite por e-mail para acessar o painel da {{ arenaName() }}</p>
+            <h2 class="modal-title">Adicionar membro</h2>
+            <p class="modal-subtitle">Dê acesso ao painel da {{ arenaName() }}</p>
 
+            <div class="seg" role="radiogroup" aria-label="Como adicionar">
+              <button type="button" role="radio" [class.on]="addMode() === 'athlete'" [attr.aria-checked]="addMode() === 'athlete'" (click)="addMode.set('athlete')">
+                Atleta do nexaGO
+              </button>
+              <button type="button" role="radio" [class.on]="addMode() === 'email'" [attr.aria-checked]="addMode() === 'email'" (click)="addMode.set('email')">
+                Convite por e-mail
+              </button>
+            </div>
+
+            @if (addMode() === 'athlete') {
+              <ar-athlete-search-field [arenaId]="arenaId()" searchPlatform (selected)="pickedAthlete.set($event)" />
+              <div class="hint-line">Quem já tem conta no nexaGO entra na equipe na hora, sem convite.</div>
+            } @else {
             <div class="field-label">E-mail</div>
             <div class="email-box">
               @for (email of emails(); track email) {
@@ -243,6 +264,7 @@ function localPartOf(email: string): string {
               />
             </div>
             <div class="hint-line">Separe múltiplos e-mails com vírgula ou Enter</div>
+            }
 
             <div class="field-label role-label">Cargo</div>
             <div class="role-list">
@@ -277,8 +299,8 @@ function localPartOf(email: string): string {
                 [disabled]="!canSend() || sendingInvites()"
                 (click)="sendInvite()"
               >
-                <ar-icon name="mail" [size]="14" />
-                {{ sendingInvites() ? 'Enviando…' : 'Enviar convite' }}
+                <ar-icon [name]="addMode() === 'athlete' ? 'plus' : 'mail'" [size]="14" />
+                {{ submitLabel() }}
               </button>
             </div>
           }
@@ -600,6 +622,31 @@ function localPartOf(email: string): string {
 
     .role-label {
       margin-top: 22px;
+    }
+
+    .seg {
+      display: flex;
+      padding: 3px;
+      margin-bottom: 18px;
+      border-radius: 10px;
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+    }
+
+    .seg button {
+      flex: 1;
+      padding: 9px 6px;
+      border-radius: 8px;
+      font: 600 12.5px var(--nx-font-ui);
+      color: var(--nx-text-mute);
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    .seg button.on {
+      background: var(--nx-orange-500);
+      color: var(--nx-text-on-orange);
     }
 
     .email-box {
@@ -985,6 +1032,7 @@ export class PanelTeamComponent {
   protected readonly arenaLoading = computed(() => this.arenaContext.loading());
   protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
   protected readonly arenaName = computed(() => this.arenaContext.arenaName() ?? 'Arena');
+  protected readonly arenaId = computed(() => this.arenaContext.arenaId() ?? '');
   protected readonly readOnly = computed(() => !this.arenaContext.hasCapability('equipe'));
 
   protected readonly members = signal<ArenaStaffMember[]>([]);
@@ -1036,6 +1084,8 @@ export class PanelTeamComponent {
   protected readonly removeError = signal<string | null>(null);
 
   protected readonly showInvite = signal(false);
+  protected readonly addMode = signal<AddMode>('athlete');
+  protected readonly pickedAthlete = signal<AthleteCandidate | null>(null);
   protected readonly emails = signal<string[]>([]);
   protected readonly emailDraft = signal('');
   protected readonly selectedRole = signal<ArenaStaffRole>('recepcao');
@@ -1043,7 +1093,16 @@ export class PanelTeamComponent {
   protected readonly inviteResults = signal<InviteOutcome[] | null>(null);
   protected readonly copiedLink = signal<string | null>(null);
 
-  protected readonly canSend = computed(() => this.emails().length > 0 || this.emailDraft().trim().includes('@'));
+  protected readonly canSend = computed(() =>
+    this.addMode() === 'athlete'
+      ? this.pickedAthlete() !== null
+      : this.emails().length > 0 || this.emailDraft().trim().includes('@'),
+  );
+
+  protected readonly submitLabel = computed(() => {
+    if (this.addMode() === 'athlete') return this.sendingInvites() ? 'Adicionando…' : 'Adicionar à equipe';
+    return this.sendingInvites() ? 'Enviando…' : 'Enviar convite';
+  });
 
   constructor() {
     effect((onCleanup) => {
@@ -1172,6 +1231,8 @@ export class PanelTeamComponent {
   protected resetInviteForm(): void {
     this.emails.set([]);
     this.emailDraft.set('');
+    this.pickedAthlete.set(null);
+    this.addMode.set('athlete');
     this.selectedRole.set('recepcao');
     this.inviteResults.set(null);
   }
@@ -1198,6 +1259,10 @@ export class PanelTeamComponent {
   }
 
   protected async sendInvite(): Promise<void> {
+    if (this.addMode() === 'athlete') {
+      await this.addPickedAthlete();
+      return;
+    }
     this.commitDraft();
     const list = this.emails();
     const arenaId = this.arenaContext.arenaId();
@@ -1215,23 +1280,23 @@ export class PanelTeamComponent {
       try {
         const result = await this.staffService.invite(arenaId, email, role);
         if (result.status === 'active') {
-          outcomes.push({ email, ok: true, status: 'active' });
+          outcomes.push({ label: email, ok: true, status: 'active' });
         } else if (result.status === 'pending' && result.inviteId) {
           const link = arenaInviteLink(location.origin, result.inviteId);
-          outcomes.push({ email, ok: true, status: 'pending', link, whatsappUrl: arenaInviteWhatsAppUrl(link, arenaName) });
+          outcomes.push({ label: email, ok: true, status: 'pending', link, whatsappUrl: arenaInviteWhatsAppUrl(link, arenaName) });
         } else {
           // Contrato quebrado (status 'pending' sem inviteId, ou valor
           // inesperado): não presumir sucesso — errar pro lado de avisar que
           // algo pode ter sido criado sem link, nunca dizer "adicionado à
           // equipe" quando não foi isso que aconteceu (achado de review).
           outcomes.push({
-            email,
+            label: email,
             ok: false,
             errorMessage: 'O convite pode ter sido criado, mas não foi possível gerar o link. Confira a lista de Equipe.',
           });
         }
       } catch (err) {
-        outcomes.push({ email, ok: false, errorMessage: err instanceof Error ? err.message : 'Não foi possível enviar o convite.' });
+        outcomes.push({ label: email, ok: false, errorMessage: err instanceof Error ? err.message : 'Não foi possível enviar o convite.' });
       }
     }
 
@@ -1239,6 +1304,28 @@ export class PanelTeamComponent {
     this.emails.set([]);
     this.emailDraft.set('');
     this.inviteResults.set(outcomes);
+  }
+
+  private async addPickedAthlete(): Promise<void> {
+    const athlete = this.pickedAthlete();
+    const arenaId = this.arenaContext.arenaId();
+    if (!athlete || !arenaId || this.sendingInvites()) return;
+
+    this.sendingInvites.set(true);
+    let outcome: InviteOutcome;
+    try {
+      await this.staffService.addAthlete(arenaId, athlete.athleteId, this.selectedRole());
+      outcome = { label: athlete.name, ok: true, status: 'active' };
+    } catch (err) {
+      outcome = {
+        label: athlete.name,
+        ok: false,
+        errorMessage: err instanceof Error ? err.message : 'Não foi possível adicionar o atleta.',
+      };
+    }
+    this.sendingInvites.set(false);
+    this.pickedAthlete.set(null);
+    this.inviteResults.set([outcome]);
   }
 
   protected async copyLink(link: string): Promise<void> {

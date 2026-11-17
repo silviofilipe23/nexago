@@ -3,6 +3,7 @@ import {test} from "node:test";
 import {
   assertSeatAvailable,
   countPendingInvitesExcluding,
+  directAddRejection,
   inviteClaimState,
 } from "./arena-staff-ops";
 
@@ -79,4 +80,25 @@ test("countPendingInvitesExcluding nao ignora quem nao bate com a exclusao", () 
 
 test("countPendingInvitesExcluding conta duplicatas do mesmo email nao excluido", () => {
   assert.equal(countPendingInvitesExcluding(["a@b.com", "a@b.com", "c@d.com"], "z@z.com"), 3);
+});
+
+test("directAddRejection libera quem nao e o dono nem ja esta na equipe", () => {
+  assert.equal(directAddRejection("dono", "atleta", false), null);
+});
+
+test("directAddRejection barra o dono adicionando a si mesmo", () => {
+  const r = directAddRejection("dono", "dono", false);
+  assert.equal(r?.code, "invalid-argument");
+  assert.match(r?.message ?? "", /dono/i);
+});
+
+test("directAddRejection barra quem ja esta na equipe", () => {
+  const r = directAddRejection("dono", "atleta", true);
+  assert.equal(r?.code, "already-exists");
+});
+
+// O dono tem precedencia: mesmo com um vinculo de equipe esquecido para ele,
+// a mensagem certa e "voce ja e o dono", nao "ja esta na equipe".
+test("directAddRejection poe o dono na frente do vinculo existente", () => {
+  assert.equal(directAddRejection("dono", "dono", true)?.code, "invalid-argument");
 });

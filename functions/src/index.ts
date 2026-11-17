@@ -810,6 +810,7 @@ export {completeArenaSignup} from "./arena-signup";
 export {geocodeAddress} from "./geocode-address";
 export {
   inviteArenaStaff,
+  addArenaStaffMember,
   acceptArenaStaffInvite,
   revokeArenaStaffInvite,
   updateArenaStaffRole,

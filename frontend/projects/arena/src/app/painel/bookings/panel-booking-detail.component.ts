@@ -32,6 +32,15 @@ import {
   professorDiscountLabel,
   type ArenaBooking,
 } from './arena-booking.model';
+import { BookingStoryDialogComponent } from './booking-story-dialog.component';
+import {
+  bookingStoryCrew,
+  bookingStoryFileName,
+  bookingStoryFrom,
+  bookingStoryMoment,
+  bookingStoryShareable,
+  type BookingStory,
+} from './booking-story';
 import { bookingContactsKey, bookingWhatsappText, fetchBookingContacts, whatsappLink } from './booking-contacts';
 import { bookingCanChangeCourt, changeBookingCourt, clubSessionDayLabel, courtAssignOptions } from './booking-court-change';
 import {
@@ -114,10 +123,26 @@ export function bookingChannelLabel(channel: string | null): string {
 @Component({
   selector: 'ar-panel-booking-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, ModalComponent, RouterLink, AvatarComponent],
+  imports: [
+    PanelShellComponent,
+    PageHeaderComponent,
+    PanelCardComponent,
+    PillComponent,
+    IconComponent,
+    ModalComponent,
+    RouterLink,
+    AvatarComponent,
+    BookingStoryDialogComponent,
+  ],
   template: `
     <ar-panel-shell>
       <ar-page-header [title]="headerTitle()" [subtitle]="headerSubtitle()">
+        @if (story()) {
+          <button type="button" class="ar-ghost-btn" data-testid="share-story" (click)="showStory.set(true)">
+            <ar-icon name="share" [size]="14" />
+            Compartilhar no story
+          </button>
+        }
         @if (resolvedBooking()) {
           <button type="button" class="ar-ghost-btn" (click)="copyCode()">
             <ar-icon name="tag" [size]="14" />
@@ -377,6 +402,10 @@ export function bookingChannelLabel(channel: string | null): string {
           </div>
         }
       </div>
+
+      @if (showStory() && story(); as s) {
+        <ar-booking-story-dialog [story]="s" [coverUrl]="arenaCoverUrl()" [fileName]="storyFileName()" (close)="showStory.set(false)" />
+      }
 
       @if (showCourtChange()) {
         <ar-modal (close)="closeCourtChange()">
@@ -1428,6 +1457,8 @@ export class PanelBookingDetailComponent {
   protected readonly cancelReason = signal('');
   protected readonly successMessage = signal<string | null>(null);
 
+  protected readonly showStory = signal(false);
+
   protected readonly showCourtChange = signal(false);
   protected readonly targetCourtId = signal<string | null>(null);
   protected readonly courtChangeReason = signal('');
@@ -1670,6 +1701,34 @@ export class PanelBookingDetailComponent {
   });
 
   protected readonly when = timelineWhen;
+
+  /** Separado do \`live()\` (que muda a cada segundo): a arte só redesenha quando o momento muda. */
+  private readonly storyMoment = computed(() => bookingStoryMoment(this.live().tone));
+
+  /** Story 9:16 da reserva para a arena postar. Sem story: cancelada, esperando o pagamento
+   *  online ou bloqueio de aula (a aula tem a própria tela). */
+  protected readonly story = computed<BookingStory | null>(() => {
+    const b = this.resolvedBooking();
+    if (!b || b.classSessionId || !bookingStoryShareable(b.status)) return null;
+    // Sem nome ainda (perfil carregando) ou cliente de balcão sem nome: fica fora da "Galera".
+    const people = this.players().filter(
+      (p) => !(p.owner && ((b.athleteId && this.athleteLabel() == null) || (!b.athleteId && !b.customerName))),
+    );
+    return bookingStoryFrom({
+      booking: b,
+      arenaName: this.arenaContext.arenaName() ?? '',
+      moment: this.storyMoment(),
+      crew: bookingStoryCrew(people),
+    });
+  });
+  protected readonly storyFileName = computed(() => {
+    const b = this.booking();
+    return b ? bookingStoryFileName(b) : 'story-reserva.png';
+  });
+  protected readonly arenaCoverUrl = computed(() => {
+    const cover = this.arenaContext.arenaDocData()?.['coverUrl'];
+    return typeof cover === 'string' && cover.trim() ? cover.trim() : null;
+  });
 
   protected readonly headerTitle = computed(() => {
     const b = this.resolvedBooking();

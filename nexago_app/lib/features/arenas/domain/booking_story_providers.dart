@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/profiles/app_user_profile.dart';
 import '../../tournaments/data/partner_search_service.dart';
+import 'booking_players.dart';
 import 'booking_providers.dart';
 import 'booking_result.dart';
 import 'my_booking_confirmed_athlete.dart';
@@ -16,12 +17,16 @@ class BookingStorySource {
   const BookingStorySource({
     this.sport,
     this.ownerUid,
+    this.rosterUids = const [],
     this.confirmed = const [],
     this.arenaId,
   });
 
   final String? sport;
   final String? ownerUid;
+
+  /// Lista de jogadores que pode lançar o placar (`bookingRosterUids`).
+  final List<String> rosterUids;
   final List<MyBookingConfirmedAthlete> confirmed;
   final String? arenaId;
 }
@@ -37,6 +42,7 @@ final bookingStorySourceProvider =
   return BookingStorySource(
     sport: item.sport,
     ownerUid: item.ownerAthleteId,
+    rosterUids: bookingRosterUids(snap.data() ?? const {}),
     confirmed: item.confirmedAthletes,
     arenaId: item.arenaId,
   );

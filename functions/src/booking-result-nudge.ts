@@ -21,6 +21,7 @@ import {
   BOOKING_RESULTS,
   bookingEndAt,
   bookingOwnerUid,
+  bookingRosterUids,
   bookingResultOpenError,
   isDocId,
   parseBookingResultInput,
@@ -158,21 +159,6 @@ export async function promptBookingResultsCore(
   return {prompted: notices.length, notices};
 }
 
-/** Quem pode sugerir: convidado da reserva (`participants`) ou quem já está no placar salvo. */
-function bookingGuestUids(booking: Data): Set<string> {
-  const out = new Set<string>();
-  for (const key of ["participantUids"]) {
-    const list = booking[key];
-    if (Array.isArray(list)) for (const v of list) if (typeof v === "string" && v) out.add(v);
-  }
-  const raw = Array.isArray(booking["participants"]) ? (booking["participants"] as unknown[]) : [];
-  for (const entry of raw) {
-    const uid = str((entry as Data | null)?.["uid"]);
-    if (uid) out.add(uid);
-  }
-  return out;
-}
-
 /**
  * "Mandar para quem reservou enviar": o convidado grava a sugestão (teams/games validados como no
  * "Salvar placar"; nomes e fotos vêm dos perfis) e quem reservou é avisado.
@@ -198,7 +184,8 @@ export async function suggestBookingResultCore(
   const saved = await db.collection(BOOKING_RESULTS).doc(input.bookingId).get();
   const savedData = saved.exists ? (saved.data() as Data) : null;
   const savedPlayers = Array.isArray(savedData?.["playerUids"]) ? (savedData!["playerUids"] as unknown[]) : [];
-  if (!bookingGuestUids(booking).has(uid) && !savedPlayers.includes(uid)) {
+  // O app novo deixa a lista de jogadores salvar direto; a sugestão fica para o app antigo.
+  if (!bookingRosterUids(booking).includes(uid) && !savedPlayers.includes(uid)) {
     throw new HttpsError("permission-denied", "Só quem está na reserva sugere o placar.");
   }
   const closed = bookingResultOpenError(booking, now);

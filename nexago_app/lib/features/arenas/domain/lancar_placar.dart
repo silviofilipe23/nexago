@@ -277,6 +277,19 @@ String lancarInviteFallbackMessage({
 String _firstName(String? name) =>
     (name ?? '').trim().split(RegExp(r'\s+')).first;
 
+/// Quem envia o placar direto: qualquer atleta da lista de jogadores da
+/// reserva (`bookingRosterUids`), não só quem reservou. Reserva sem dono (ou
+/// ainda carregando): deixa enviar e o servidor decide.
+bool lancarCanSave({
+  required String? uid,
+  required String? ownerUid,
+  List<String> rosterUids = const [],
+}) {
+  if (ownerUid == null || ownerUid.isEmpty) return true;
+  if (uid == null || uid.isEmpty) return false;
+  return uid == ownerUid || rosterUids.contains(uid);
+}
+
 /// Botão do convidado: o placar vai para quem reservou conferir.
 String lancarGuestSendLabel(String? hostName) {
   final first = _firstName(hostName);

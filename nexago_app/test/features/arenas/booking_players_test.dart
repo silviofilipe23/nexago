@@ -62,4 +62,43 @@ void main() {
       expect(guests.single.fromResult, isFalse);
     });
   });
+
+  group('bookingRosterUids (quem lança o placar, igual ao servidor)', () {
+    test('dono, convidados e quem está no placar, sem repetir e na ordem', () {
+      final roster = bookingRosterUids({
+        'athleteId': 'dono',
+        'participantUids': ['enzo', ' '],
+        'participants': [
+          {'uid': 'lia'},
+          {'uid': 'enzo'},
+          {'name': 'Sem uid'},
+        ],
+        'resultPlayerUids': ['rafa'],
+        'resultPlayers': [
+          {'uid': 'rafa'},
+          {'uid': 'bia'},
+        ],
+      });
+      expect(roster, ['dono', 'enzo', 'lia', 'rafa', 'bia']);
+    });
+
+    test('reserva antiga: dono em bookingAthleteId', () {
+      expect(bookingRosterUids({'bookingAthleteId': 'dono'}), ['dono']);
+    });
+
+    test('campos legados do convite não entram (o servidor não os aceita)', () {
+      expect(
+        bookingRosterUids({
+          'athleteId': 'dono',
+          'guests': [
+            {'uid': 'x'},
+          ],
+          'players': [
+            {'userId': 'y'},
+          ],
+        }),
+        ['dono'],
+      );
+    });
+  });
 }

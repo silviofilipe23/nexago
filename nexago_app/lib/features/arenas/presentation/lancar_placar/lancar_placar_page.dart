@@ -155,11 +155,15 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     return code ?? 'other';
   }
 
+  /// Qualquer atleta da lista de jogadores da reserva envia direto.
   bool get _canSave {
-    final uid = ref.read(bookingResultUidProvider);
-    final owner =
-        ref.read(bookingStorySourceProvider(widget.args.bookingId))?.ownerUid;
-    return _bookingId.isNotEmpty && (owner == null || owner == uid);
+    final source = ref.read(bookingStorySourceProvider(widget.args.bookingId));
+    return _bookingId.isNotEmpty &&
+        lancarCanSave(
+          uid: ref.read(bookingResultUidProvider),
+          ownerUid: source?.ownerUid,
+          rosterUids: source?.rosterUids ?? const [],
+        );
   }
 
   String get _ownerId {
@@ -464,14 +468,18 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     final unlock = ref.watch(bookingSocialUnlockProvider(args.bookingId));
     final loaded = ref.watch(myBookingResultsLoadedProvider);
     final saved = ref.watch(savedBookingResultProvider(args.bookingId));
-    final canSaveNow = args.bookingId.trim().isNotEmpty &&
+    // Quem reservou (ou reserva sem dono). Convidado da lista também envia
+    // direto (`_canSave`), mas sugestão, convite e "reservou a quadra" seguem
+    // sendo do dono.
+    final isHost = args.bookingId.trim().isNotEmpty &&
         (source?.ownerUid == null || source!.ownerUid == uid);
-    // Quem reservou: o placar que o convidado mandou abre já preenchido.
-    final suggestionAsync = canSaveNow
+    // Quem reservou: o placar que o convidado mandou abre já preenchido. A
+    // rule da sugestão só deixa o dono (e quem sugeriu) ler.
+    final suggestionAsync = isHost
         ? ref.watch(bookingResultSuggestionProvider(args.bookingId))
         : const AsyncValue<BookingResultSuggestion?>.data(null);
     // Convidado: o perfil de quem reservou entra nos times iniciais.
-    final hostUid = canSaveNow ? null : source?.ownerUid;
+    final hostUid = isHost ? null : source?.ownerUid;
     final hostAsync = hostUid == null
         ? const AsyncValue<AppUserProfile?>.data(null)
         : ref.watch(appUserPublicProfileProvider(hostUid));
@@ -706,7 +714,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
                   ),
                 ),
               ),
-            if (canSaveNow)
+            if (isHost)
               Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: SizedBox(

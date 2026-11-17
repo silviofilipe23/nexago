@@ -143,6 +143,14 @@ describe("placar sugerido pelo convidado", () => {
     await rejects(suggestBookingResultCore(db(fake), "zé", payload(), NOW), "permission-denied");
   });
 
+  it("app antigo: quem está só no espelho do placar (resultPlayerUids) também sugere", async () => {
+    const fake = new FakeFirestore();
+    fake.seedDoc("arenaBookings/bk1", {...booking(), participantUids: [], participants: [], resultPlayerUids: ["lia"]});
+    seedUsers(fake);
+    const {result} = await suggestBookingResultCore(db(fake), "lia", payload(), NOW);
+    assert.equal(result.status, "suggested");
+  });
+
   it("recusa placar já confirmado e jogo que não começou", async () => {
     const fake = new FakeFirestore();
     fake.seedDoc("arenaBookings/bk1", booking());

@@ -52,6 +52,7 @@ const maria = AthleteProfile(
 const galera = BookingStorySource(
   sport: 'beachVolleyball',
   ownerUid: 'u1',
+  rosterUids: ['u1', 'u2', 'u3', 'u4'],
   confirmed: [
     MyBookingConfirmedAthlete(userId: 'u2', displayName: 'Enzo Lima'),
     MyBookingConfirmedAthlete(userId: 'u3', displayName: 'Rafael Souza'),
@@ -111,6 +112,7 @@ Future<FakeBookingResultRepository> abrir(
               : BookingStorySource(
                   sport: source.sport,
                   ownerUid: source.ownerUid,
+                  rosterUids: source.rosterUids,
                   confirmed: source.confirmed,
                   arenaId: 'a1',
                 ),
@@ -505,11 +507,46 @@ void main() {
     expect(inCard(find.text('As brabas')), findsOneWidget);
   });
 
-  group('convidado da reserva (entra pela Agenda desde o #779)', () {
+  group('convidado da reserva (lista de jogadores lança o placar)', () {
     testWidgets(
-        'convidado marca e manda para quem reservou enviar (não grava o '
-        'placar)', (tester) async {
-      final repo = await abrir(tester, uid: 'u3');
+        'convidado da lista de jogadores envia direto, sem convite por link',
+        (tester) async {
+      final repo = await abrir(tester, uid: 'u2');
+
+      await lancar(tester);
+      // Convidar quem não tem conta continua sendo de quem reservou.
+      expect(find.byKey(const Key('lancar-placar-invite')), findsNothing);
+      await proximo(tester);
+      await placar(tester, 0, 21, 19);
+      expect(find.textContaining('Mandar para'), findsNothing);
+      await enviar(tester);
+
+      expect(repo.suggestions, isEmpty);
+      expect(repo.saves.single.$1, 'b1');
+      expect(repo.saves.single.$2.games.single.scoreA, 21);
+      expect(find.byType(PlacarEnviadoPage), findsOneWidget);
+    });
+
+    testWidgets(
+        'fora da lista de jogadores: marca e manda para quem reservou enviar '
+        '(não grava o placar)', (tester) async {
+      final repo = await abrir(
+        tester,
+        uid: 'u3',
+        source: const BookingStorySource(
+          sport: 'beachVolleyball',
+          ownerUid: 'u1',
+          rosterUids: ['u1'],
+          confirmed: [
+            MyBookingConfirmedAthlete(userId: 'u2', displayName: 'Enzo Lima'),
+            MyBookingConfirmedAthlete(
+              userId: 'u3',
+              displayName: 'Rafael Souza',
+            ),
+            MyBookingConfirmedAthlete(userId: 'u4', displayName: 'Lia Martins'),
+          ],
+        ),
+      );
 
       await lancar(tester);
       // Só quem reservou convida quem não tem conta.

@@ -1,4 +1,5 @@
 import { ApplicationRef, provideZonelessChangeDetection, signal } from '@angular/core';
+import { SQUAD_PHOTOS_LOADER } from '../data/squad-photos';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { AuthService } from '../../../auth/auth.service';
@@ -57,6 +58,7 @@ describe('PanelCandidaturasComponent', () => {
       imports: [PanelCandidaturasComponent],
       providers: [
         provideZonelessChangeDetection(),
+        { provide: SQUAD_PHOTOS_LOADER, useValue: async () => new Map<string, string>() },
         provideRouter([]),
         {
           provide: AuthService,

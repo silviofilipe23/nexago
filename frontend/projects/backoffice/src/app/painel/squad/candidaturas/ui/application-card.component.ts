@@ -20,7 +20,7 @@ import { highlight, type Application, type Fact } from '../data/application';
   },
   template: `
     <div class="top">
-      <bo-ambassador-avatar [id]="app().athleteId || app().id" [name]="app().name" [size]="44" />
+      <bo-ambassador-avatar [id]="app().athleteId || app().id" [name]="app().name" [size]="44" [photoUrl]="app().snapshot.photoUrl" />
       <div class="who">
         <strong>
           @for (part of nameParts(); track $index) {

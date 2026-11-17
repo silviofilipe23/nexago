@@ -6,6 +6,7 @@
  * Fato sem fonte mostra "—", nunca número inventado.
  */
 import { dateOf } from '../../comissoes/data/commission';
+import { safePhotoUrl } from '../../data/squad-photos';
 import { TIER_LABELS, type SquadTier } from '../../niveis-regras/data/squad-rules';
 import {
   DAY_MS,
@@ -64,6 +65,8 @@ export interface Snapshot {
   referredCount: number | null;
   conductIncidents: number | null;
   memberSince: Date | null;
+  /** Foto do atleta no retrato da candidatura (só https). */
+  photoUrl: string | null;
 }
 
 export interface Application {
@@ -150,6 +153,7 @@ export function applicationFromDoc(id: string, d: Raw): Application {
       referredCount: numOrNull(snap['referredCount']),
       conductIncidents: numOrNull(snap['conductIncidents']),
       memberSince: dateOf(snap['memberSince']),
+      photoUrl: safePhotoUrl(snap['photoUrl']),
     },
     suggestedTier: TIERS.includes(d['suggestedTier'] as SquadTier) ? (d['suggestedTier'] as SquadTier) : 'ath',
     suggestedAuto: d['suggestedBy'] === 'auto' || d['suggestedBy'] == null,

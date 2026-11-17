@@ -28,6 +28,13 @@ function app(over: Record<string, unknown> = {}) {
 }
 
 describe('tela 04 · candidaturas', () => {
+  it('foto do retrato da candidatura: só https; sem foto fica null', () => {
+    const withPhoto = applicationFromDoc('a2', { athleteId: 'u2', snapshot: { photoUrl: 'https://cdn.test/u2.jpg' } });
+    expect(withPhoto.snapshot.photoUrl).toBe('https://cdn.test/u2.jpg');
+    expect(applicationFromDoc('a3', { athleteId: 'u3', snapshot: { photoUrl: 'http://x/y.jpg' } }).snapshot.photoUrl).toBeNull();
+    expect(applicationFromDoc('a4', { athleteId: 'u4' }).snapshot.photoUrl).toBeNull();
+  });
+
   it('fatos do card seguem a sugestão', () => {
     expect(cardFacts(app(), null, null)).toEqual([
       { label: 'Indicou', value: '22 atletas' },

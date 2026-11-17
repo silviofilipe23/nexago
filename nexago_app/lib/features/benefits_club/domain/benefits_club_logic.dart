@@ -123,6 +123,35 @@ String? couponFor(Partner partner, String uid) => switch (partner.couponMode) {
   PartnerCouponMode.athlete => uid.trim().isEmpty ? null : athleteCode(uid),
 };
 
+/// O cupom do atleta só sai da `claimBenefit`: com requisito (cupom privado)
+/// ou com desconto por elo (o cupom da faixa não está no doc público). Aí o
+/// `couponCode` público nunca é mostrado como se fosse o dele.
+bool couponViaClaim(Partner partner) =>
+    !partner.requirement.isNone || partner.levelTiers.isNotEmpty;
+
+/// O parceiro como o atleta do elo [rankCode] o vê: o selo e o título da
+/// faixa dele (ou o benefício-base abaixo da primeira faixa) e a escada
+/// completa em `levelLadder`. Sem faixas (ou já resolvido), volta igual.
+Partner partnerForSandRank(Partner partner, String rankCode) {
+  if (partner.levelTiers.isEmpty || partner.levelLadder != null) {
+    return partner;
+  }
+  final base = PartnerLevelTier(
+    minRank: sandRankCodes.first,
+    benefitHighlight: partner.benefitHighlight,
+    benefitTitle: partner.benefitTitle,
+  );
+  final current = levelTierFor(partner.levelTiers, rankCode) ?? base;
+  return partner.withLevelBenefit(
+    benefitHighlight: current.benefitHighlight,
+    benefitTitle: current.benefitTitle,
+    levelLadder: PartnerLevelLadder(
+      rungs: List.unmodifiable([base, ...partner.levelTiers]),
+      currentRank: current.minRank,
+    ),
+  );
+}
+
 /// UTMs do clube no app (`utm_medium=web` é do portal).
 const Map<String, String> benefitsAppUtm = {
   'utm_source': 'nexago',

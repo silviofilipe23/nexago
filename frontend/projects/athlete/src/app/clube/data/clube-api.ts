@@ -4,11 +4,13 @@ import {
   clubConfigFromDoc,
   formatWhatsapp,
   partnerFromDoc,
+  sandRankCodeOf,
   type BenefitsClubConfig,
   type ClubSource,
   type Partner,
   type ValidLead,
 } from '../clube.logic';
+import type { SandRankCode } from '../../profile/sand-rank';
 
 /** Eventos que o portal manda (`lead_submit` só o servidor grava, dentro do `submitPartnerLead`). */
 export type ClubEventType = 'club_view' | 'partner_view' | 'cta_click' | 'code_copy';
@@ -19,12 +21,17 @@ export interface ClubEvent {
   source: ClubSource;
 }
 
-/** O que o clube usa do perfil (`users/{uid}`): o filtro de cidade e o pré-preenchimento do lead. */
+/**
+ * O que o clube usa do perfil (`users/{uid}`): o filtro de cidade, o pré-preenchimento do lead e o
+ * elo do SandRanking (desconto por elo).
+ */
 export interface ClubAthleteProfile {
   name: string;
   /** Já formatado para o campo: `(62) 98240-6456`. */
   whatsapp: string;
   city: string | null;
+  /** Do espelho `sandRank`; sem espelho, Iniciante (mesma leitura do servidor). */
+  sandRank: SandRankCode;
 }
 
 export interface LeadSubmitResult {
@@ -44,6 +51,8 @@ export interface ClubApi {
   fetchProfile(uid: string): Promise<ClubAthleteProfile | null>;
   track(event: ClubEvent): Promise<void>;
   submitLead(lead: ValidLead, source: ClubSource): Promise<LeadSubmitResult>;
+  /** Cupom que o servidor libera para esta pessoa (privado do requisito ou da faixa do elo). */
+  claimBenefit(partnerId: string, source: ClubSource): Promise<string | null>;
 }
 
 function text(value: unknown): string {
@@ -97,6 +106,7 @@ export function firebaseClubApi(): ClubApi {
         name: text(data['fullName']) || text(data['name']),
         whatsapp: formatWhatsapp(text(data['phoneNumber'])),
         city: text(data['city']) || null,
+        sandRank: sandRankCodeOf(data),
       };
     },
 
@@ -119,6 +129,11 @@ export function firebaseClubApi(): ClubApi {
         platform: 'web',
       });
       return { successMessage: text((data as { successMessage?: unknown } | null)?.successMessage) || null };
+    },
+
+    async claimBenefit(partnerId, source) {
+      const data = await callable('claimBenefit', { partnerId, source, surface: 'web', platform: 'web' });
+      return text((data as { coupon?: unknown } | null)?.coupon) || null;
     },
   };
 }

@@ -42,6 +42,19 @@ export const SAND_RANK_TRACK: readonly SandRankStep[] = [
   step(15, 'LENDA', 'Lenda', 0, 12500),
 ];
 
+/** Elos na ordem da escada (Iniciante → Lenda), sem repetir as divisões. */
+export const SAND_RANK_CODES: readonly SandRankCode[] = [...new Set(SAND_RANK_TRACK.map((s) => s.rankCode))];
+
+/** Nome do elo sem a divisão ("Competidor"). */
+export const SAND_RANK_NAME: Record<SandRankCode, string> = {
+  INICIANTE: 'Iniciante',
+  COMPETIDOR: 'Competidor',
+  DESAFIANTE: 'Desafiante',
+  ELITE: 'Elite',
+  MESTRE: 'Mestre',
+  LENDA: 'Lenda',
+};
+
 /** Cores por elo — `sandRankColor` (sand_rank_reward_catalog.dart). */
 export const SAND_RANK_COLOR: Record<SandRankCode, string> = {
   INICIANTE: '#B08D57',

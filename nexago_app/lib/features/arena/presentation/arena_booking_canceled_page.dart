@@ -10,7 +10,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/feedback/feedback_page.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../domain/arena_booking_canceled_args.dart';
-import 'widgets/arena_manual_booking_sheet.dart';
+import 'arena_manual_booking_page.dart';
 
 /// Tela pós-cancelamento com undo (mock 06).
 class ArenaBookingCanceledPage extends ConsumerStatefulWidget {
@@ -104,7 +104,7 @@ class _ArenaBookingCanceledPageState
   Future<void> _createBooking() async {
     final slot = widget.args.releasedSlot;
     if (slot == null) return;
-    final ok = await ArenaManualBookingSheet.show(
+    final ok = await ArenaManualBookingPage.open(
       context,
       slot: slot,
       courtName: widget.args.courtName,

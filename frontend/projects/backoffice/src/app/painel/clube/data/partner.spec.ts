@@ -56,6 +56,7 @@ const RULE_CONTENT_FIELDS = [
   'locations',
   'requirement',
   'requirementLabel',
+  'levelTiers',
 ].sort();
 
 function fastForm(over: Partial<PartnerForm> = {}): PartnerForm {
@@ -121,6 +122,7 @@ describe('clube: parceiro', () => {
       locations: [],
       requirement: { type: 'none' },
       requirementLabel: null,
+      levelTiers: [],
     });
   });
 

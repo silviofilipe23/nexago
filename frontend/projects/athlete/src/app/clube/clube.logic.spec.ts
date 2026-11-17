@@ -11,6 +11,7 @@ import {
   clubVisible,
   consentTextFor,
   couponFor,
+  couponViaClaim,
   ctaHint,
   defaultConsentText,
   emphasize,
@@ -20,14 +21,18 @@ import {
   isAdminClaims,
   isLocked,
   isTester,
+  levelTierFor,
+  levelTiersFromDoc,
   lockLabel,
   maskCep,
   masterSponsor,
   parseClubSource,
+  partnerForRank,
   partnerFromDoc,
   partnerInitials,
   partnersInCategory,
   requirementFromDoc,
+  sandRankCodeOf,
   toMillisOrNull,
   trackedPartnerUrl,
   validateLead,
@@ -35,6 +40,7 @@ import {
   withinWindow,
   type LeadFormInput,
   type Partner,
+  type PartnerLevelTier,
 } from './clube.logic';
 
 function partner(overrides: Partial<Partner> = {}): Partner {
@@ -66,6 +72,8 @@ function partner(overrides: Partial<Partner> = {}): Partner {
     validUntil: null,
     requirement: { type: 'none' },
     requirementLabel: null,
+    levelTiers: [],
+    levelLadder: [],
     ...overrides,
   };
 }
@@ -502,5 +510,93 @@ describe('clube.logic — aparência e erros', () => {
     expect(clubErrorMessage({ code: 'functions/unauthenticated', message: 'x' }, fallback))
       .toBe('Sua sessão expirou. Entre de novo para continuar.');
     expect(clubErrorMessage(new Error('boom'), fallback)).toBe(fallback);
+  });
+});
+
+describe('clube.logic — desconto por elo do SandRanking', () => {
+  const TIERS: PartnerLevelTier[] = [
+    { minRank: 'DESAFIANTE', benefitHighlight: '10% OFF', benefitTitle: '10% em tudo' },
+    { minRank: 'MESTRE', benefitHighlight: '20% OFF', benefitTitle: '20% em tudo' },
+  ];
+
+  it('parse defensivo: ignora malformado, repetido e elo-base; ordena pela escada', () => {
+    const tiers = levelTiersFromDoc([
+      { minRank: 'MESTRE', benefitHighlight: '20% OFF', benefitTitle: '20% em tudo' },
+      { minRank: 'INICIANTE', benefitHighlight: 'X', benefitTitle: 'base não é faixa' },
+      { minRank: 'REI', benefitHighlight: 'X', benefitTitle: 'elo desconhecido' },
+      { minRank: 'ELITE', benefitHighlight: 'x'.repeat(25), benefitTitle: 'selo longo demais' },
+      { minRank: 'ELITE', benefitHighlight: '15%', benefitTitle: '   ' },
+      { minRank: 'LENDA', benefitHighlight: 7, benefitTitle: 'selo não é texto' },
+      'lixo',
+      null,
+      { minRank: 'DESAFIANTE', benefitHighlight: '10% OFF', benefitTitle: '10% em tudo' },
+      { minRank: 'DESAFIANTE', benefitHighlight: '99% OFF', benefitTitle: 'repetida: vale a primeira' },
+    ]);
+    expect(tiers).toEqual(TIERS);
+    expect(levelTiersFromDoc('não é lista')).toEqual([]);
+    expect(levelTiersFromDoc(undefined)).toEqual([]);
+  });
+
+  it('faixa só com cupom fixo; doc sem faixas fica com lista vazia', () => {
+    const doc = { name: 'Arena Shop', levelTiers: TIERS };
+    expect(partnerFromDoc('a', { ...doc, couponMode: 'fixed' })!.levelTiers).toEqual(TIERS);
+    expect(partnerFromDoc('a', { ...doc, couponMode: 'athlete' })!.levelTiers).toEqual([]);
+    expect(partnerFromDoc('a', { name: 'Sem faixa', couponMode: 'fixed' })!.levelTiers).toEqual([]);
+    expect(partnerFromDoc('a', doc)!.levelLadder).toEqual([]);
+  });
+
+  it('elo do espelho: código, senão o degrau, senão Iniciante', () => {
+    expect(sandRankCodeOf({ sandRank: { code: 'ELITE', division: 2, trackIndex: 10 } })).toBe('ELITE');
+    expect(sandRankCodeOf({ sandRank: { code: '???', trackIndex: 7 } })).toBe('DESAFIANTE');
+    expect(sandRankCodeOf({ sandRank: { trackIndex: 99 } })).toBe('INICIANTE');
+    expect(sandRankCodeOf({ sandRank: 'ELITE' })).toBe('INICIANTE');
+    expect(sandRankCodeOf({})).toBe('INICIANTE');
+    expect(sandRankCodeOf(undefined)).toBe('INICIANTE');
+  });
+
+  it('a faixa mais alta que o elo alcança; abaixo da primeira = base', () => {
+    expect(levelTierFor(TIERS, 'INICIANTE')).toBeNull();
+    expect(levelTierFor(TIERS, 'COMPETIDOR')).toBeNull();
+    expect(levelTierFor(TIERS, 'DESAFIANTE')?.minRank).toBe('DESAFIANTE');
+    expect(levelTierFor(TIERS, 'ELITE')?.minRank).toBe('DESAFIANTE');
+    expect(levelTierFor(TIERS, 'LENDA')?.minRank).toBe('MESTRE');
+    expect(levelTierFor([], 'LENDA')).toBeNull();
+  });
+
+  it('resolve o parceiro pelo elo: base, intermediária e topo, com a escada marcada', () => {
+    const shop = partner({ benefitHighlight: '5% OFF', benefitTitle: '5% em tudo', levelTiers: TIERS });
+    const marks = (p: Partner) => p.levelLadder.map((r) => `${r.rank}:${r.current ? 'x' : '-'}`);
+
+    const base = partnerForRank(shop, 'COMPETIDOR');
+    expect([base.benefitHighlight, base.benefitTitle]).toEqual(['5% OFF', '5% em tudo']);
+    expect(marks(base)).toEqual(['INICIANTE:x', 'DESAFIANTE:-', 'MESTRE:-']);
+
+    const middle = partnerForRank(shop, 'ELITE');
+    expect([middle.benefitHighlight, middle.benefitTitle]).toEqual(['10% OFF', '10% em tudo']);
+    expect(marks(middle)).toEqual(['INICIANTE:-', 'DESAFIANTE:x', 'MESTRE:-']);
+
+    const top = partnerForRank(shop, 'LENDA');
+    expect(top.benefitHighlight).toBe('20% OFF');
+    expect(marks(top)).toEqual(['INICIANTE:-', 'DESAFIANTE:-', 'MESTRE:x']);
+    expect(top.levelLadder[0]).toEqual({ rank: 'INICIANTE', benefitHighlight: '5% OFF', benefitTitle: '5% em tudo', current: false });
+
+    // Resolver de novo (outro elo) parte da base da escada, não do selo já trocado.
+    const again = partnerForRank(top, 'INICIANTE');
+    expect(again.benefitHighlight).toBe('5% OFF');
+    expect(marks(again)).toEqual(['INICIANTE:x', 'DESAFIANTE:-', 'MESTRE:-']);
+  });
+
+  it('parceiro sem faixas não muda', () => {
+    const plain = partner();
+    expect(partnerForRank(plain, 'LENDA')).toBe(plain);
+  });
+
+  it('cupom via claim: requisito ou faixas; nunca o cupom público de quem tem faixa', () => {
+    expect(couponViaClaim(partner())).toBeFalse();
+    expect(couponViaClaim(partner({ requirement: { type: 'squad' } }))).toBeTrue();
+    expect(couponViaClaim(partner({ levelTiers: TIERS }))).toBeTrue();
+    expect(couponFor(partner({ levelTiers: TIERS }), 'abcd1234')).toBeNull();
+    // Faixa não bloqueia ninguém.
+    expect(isLocked(partner({ levelTiers: TIERS }))).toBeFalse();
   });
 });

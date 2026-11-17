@@ -130,8 +130,8 @@ describe('PanelClubeComponent', () => {
     expect(id).toBe('linq');
     expect(payload.active).toBeFalse();
     expect(payload.isMasterSponsor).toBeTrue();
-    // 21 campos da v1 + 10 da versão premium (allowlist da rule, sem autoria).
-    expect(Object.keys(payload).length).toBe(31);
+    // 21 campos da v1 + 10 da versão premium + `levelTiers` (allowlist da rule, sem autoria).
+    expect(Object.keys(payload).length).toBe(32);
     expect(host.querySelector('.bo-feedback')!.textContent).toContain('LinQ Telecom saiu do clube.');
   });
 

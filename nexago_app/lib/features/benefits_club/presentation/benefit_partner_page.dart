@@ -20,6 +20,7 @@ import '../domain/benefits_club_premium_logic.dart';
 import '../domain/partner.dart';
 import 'benefits_club_navigation.dart';
 import 'widgets/benefit_partner_extras.dart';
+import 'widgets/benefit_partner_level_ladder.dart';
 import 'widgets/benefit_partner_parts.dart';
 import 'widgets/benefits_club_parts.dart';
 import 'widgets/benefits_member_card.dart';
@@ -50,7 +51,7 @@ class BenefitPartnerPage extends ConsumerStatefulWidget {
 class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
   bool _viewTracked = false;
 
-  /// Cupom que veio da `claimBenefit` (parceiro com requisito).
+  /// Cupom que veio da `claimBenefit` (requisito ou desconto por elo).
   String? _claimedCoupon;
   bool _claiming = false;
   bool _redeeming = false;
@@ -128,7 +129,7 @@ class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
 
   /// Cupom que a tela já conhece: o público/do atleta ou o da `claimBenefit`.
   String? _knownCoupon(Partner partner, String uid) =>
-      partner.requirement.isNone ? couponFor(partner, uid) : _claimedCoupon;
+      couponViaClaim(partner) ? _claimedCoupon : couponFor(partner, uid);
 
   Widget _partnerView(Partner partner) {
     final uid = ref.watch(benefitsClubUidProvider);
@@ -144,7 +145,7 @@ class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
     final ending = endingBadge(partner, now);
     final showClaim =
         !locked &&
-        !partner.requirement.isNone &&
+        couponViaClaim(partner) &&
         partner.couponMode != PartnerCouponMode.none &&
         _claimedCoupon == null;
 
@@ -200,6 +201,10 @@ class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
                         ),
                         const SizedBox(height: AppSpacing.lg),
                         BenefitDetailsCard(partner: partner),
+                        if (partner.levelLadder case final ladder?) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          BenefitLevelLadder(ladder: ladder),
+                        ],
                         if (partner.termsTags.isNotEmpty) ...[
                           const SizedBox(height: AppSpacing.md),
                           BenefitTermsChips(tags: partner.termsTags),
@@ -382,7 +387,7 @@ class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
     }
   }
 
-  /// Pede o cupom à `claimBenefit` (parceiro com requisito). `null` em erro
+  /// Pede o cupom à `claimBenefit` (requisito ou desconto por elo). `null` em erro
   /// (a mensagem amigável já apareceu).
   Future<String?> _claim(Partner partner) async {
     final known = _claimedCoupon;
@@ -428,7 +433,7 @@ class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
     try {
       String? coupon = _knownCoupon(partner, uid);
       final needsClaim =
-          !partner.requirement.isNone &&
+          couponViaClaim(partner) &&
           partner.couponMode != PartnerCouponMode.none &&
           coupon == null;
       if (needsClaim) {

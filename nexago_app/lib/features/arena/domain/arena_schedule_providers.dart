@@ -41,6 +41,16 @@ final arenaScheduleSlotsWithBookingsProvider =
   );
 });
 
+/// Horários do dia [dateKey] (todas as quadras, reservas aplicadas) para a
+/// reserva de balcão em horários seguidos. Só conhece o dia aberto na agenda:
+/// outro dia devolve vazio e a folha fica só com o horário tocado.
+final arenaManualBookingDaySlotsProvider =
+    Provider.autoDispose.family<List<ArenaSlot>, String>((ref, dateKey) {
+  final selected = arenaDateKey(ref.watch(arenaScheduleSelectedDateProvider));
+  if (selected != dateKey) return const [];
+  return ref.watch(arenaScheduleSlotsWithBookingsProvider);
+});
+
 /// Contagens do dia selecionado (chips de filtro).
 final arenaScheduleDayStatsProvider =
     Provider.autoDispose<ArenaScheduleDayStats>((ref) {

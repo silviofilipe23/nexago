@@ -4,24 +4,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/errors/friendly_error_message.dart';
-import '../../../../core/profiles/app_user_profile.dart';
-import '../../../../core/profiles/users_repository.dart';
-import '../../../../core/search/search_keywords.dart';
-import '../../../../core/theme/app_colors.dart';
+import '../../../core/errors/friendly_error_message.dart';
+import '../../../core/profiles/app_user_profile.dart';
+import '../../../core/profiles/users_repository.dart';
+import '../../../core/search/search_keywords.dart';
+import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../../../core/ui/app_snackbar.dart';
-import '../../../arenas/domain/arena_slot.dart';
-import '../../domain/arena_manual_booking.dart';
-import '../../domain/arena_schedule_providers.dart';
-import '../../domain/arena_shell_providers.dart';
+import '../../../core/ui/app_snackbar.dart';
+import '../../arenas/domain/arena_slot.dart';
+import '../domain/arena_manual_booking.dart';
+import '../domain/arena_schedule_providers.dart';
+import '../domain/manual_booking_slot_chain.dart';
 
-/// Bottom sheet "Criar reserva" do detalhe do horário: reserva de balcão para
-/// um atleta cadastrado (com banco de horas, se for mensalista) ou para um
-/// cliente sem conta, só pelo nome. Grava pela callable
+/// Tela "Criar reserva" (aberta do detalhe do horário e da reserva cancelada):
+/// reserva de balcão para um atleta cadastrado (com banco de horas, se for
+/// mensalista) ou para um cliente sem conta, só pelo nome. Grava pela callable
 /// `createArenaManualBooking` — a mesma do portal da arena.
-class ArenaManualBookingSheet extends ConsumerStatefulWidget {
-  const ArenaManualBookingSheet({
+///
+/// Era uma bottom sheet; com o select de horário e o teclado, ela subia até a
+/// área do relógio/notch. Tela cheia no navegador raiz respeita a área segura
+/// e cobre o shell (sem barra de abas por baixo).
+///
+/// Quando os horários seguintes da mesma quadra estão livres, o gestor junta
+/// vários numa reserva só (ex.: 18h–21h): vira um único intervalo
+/// `startTime → endTime`, que o servidor trava hora a hora.
+class ArenaManualBookingPage extends ConsumerStatefulWidget {
+  const ArenaManualBookingPage({
     super.key,
     required this.slot,
     required this.courtName,
@@ -30,36 +38,42 @@ class ArenaManualBookingSheet extends ConsumerStatefulWidget {
   final ArenaSlot slot;
   final String courtName;
 
-  /// `true` quando a reserva foi criada.
-  static Future<bool> show(
+  /// Abre a tela; `true` quando a reserva foi criada.
+  static Future<bool> open(
     BuildContext context, {
     required ArenaSlot slot,
     required String courtName,
   }) async {
-    final result = await showArenaShellModalBottomSheet<bool>(
-      context: context,
-      builder: (ctx) =>
-          ArenaManualBookingSheet(slot: slot, courtName: courtName),
+    final result = await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<bool>(
+        fullscreenDialog: true,
+        // Messenger próprio, acima da tela: os avisos dela (valor inválido,
+        // recusa do servidor) aparecem nela, não na página de baixo.
+        builder: (_) => ScaffoldMessenger(
+          child: ArenaManualBookingPage(slot: slot, courtName: courtName),
+        ),
+      ),
     );
     return result == true;
   }
 
   @override
-  ConsumerState<ArenaManualBookingSheet> createState() =>
-      _ArenaManualBookingSheetState();
+  ConsumerState<ArenaManualBookingPage> createState() =>
+      _ArenaManualBookingPageState();
 }
 
 /// Nome de exibição do atleta: apelido, senão nome completo.
 String manualBookingAthleteName(AppUserProfile user) {
   final nickname = user.nickname?.trim() ?? '';
-  final clean = nickname.startsWith('@') ? nickname.substring(1).trim() : nickname;
+  final clean =
+      nickname.startsWith('@') ? nickname.substring(1).trim() : nickname;
   if (clean.isNotEmpty) return clean;
   final full = user.fullName?.trim() ?? '';
   return full.isNotEmpty ? full : 'Atleta';
 }
 
-class _ArenaManualBookingSheetState
-    extends ConsumerState<ArenaManualBookingSheet> {
+class _ArenaManualBookingPageState
+    extends ConsumerState<ArenaManualBookingPage> {
   static const _maxResults = 5;
 
   final _searchController = TextEditingController();
@@ -79,6 +93,9 @@ class _ArenaManualBookingSheetState
   int _quoteSeq = 0;
   bool _amountEdited = false;
   bool _busy = false;
+
+  /// Quantos horários seguidos (a partir do tocado) entram na reserva.
+  int _slotCount = 1;
 
   @override
   void initState() {
@@ -100,6 +117,28 @@ class _ArenaManualBookingSheetState
     super.dispose();
   }
 
+  /// Horários livres seguidos a partir do tocado (ele incluso), ao vivo.
+  List<ArenaSlot> _readChain() => consecutiveAvailableSlots(
+        widget.slot,
+        ref.read(arenaManualBookingDaySlotsProvider(widget.slot.dateKey)),
+      );
+
+  /// Fim da reserva: o do último horário escolhido que segue livre.
+  String _endTimeOf(List<ArenaSlot> chain) =>
+      chain[_slotCount.clamp(1, chain.length) - 1].endTime;
+
+  /// Trocar a duração refaz a sugestão de valor: o de 1h não vale para 3h.
+  void _selectSlotCount(int count, List<ArenaSlot> chain) {
+    if (count == _slotCount) return;
+    final suggested = sumSlotPrices(chain.take(count));
+    setState(() {
+      _slotCount = count;
+      _amountEdited = false;
+      _amountController.text = suggested?.toStringAsFixed(2) ?? '';
+    });
+    _loadQuote(athleteId: _athlete?.uid);
+  }
+
   /// Preço do servidor (quadra + promoções) substitui o do slot enquanto o
   /// gestor não mexeu no campo; com atleta, traz o banco de horas dele.
   /// Falha aqui não bloqueia: o gestor digita e a reserva sai avulsa.
@@ -112,7 +151,7 @@ class _ArenaManualBookingSheetState
             courtId: slot.courtId,
             dateKey: slot.dateKey,
             startTime: slot.startTime,
-            endTime: slot.endTime,
+            endTime: _endTimeOf(_readChain()),
             athleteId: athleteId,
           );
       if (!mounted || seq != _quoteSeq) return;
@@ -185,98 +224,131 @@ class _ArenaManualBookingSheetState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = context.themeColors;
     final dateLabel = DateFormat(
       'EEE, d \'de\' MMMM',
       'pt_BR',
     ).format(widget.slot.date).toUpperCase().replaceAll('.', '');
-    final timeRange = '${widget.slot.startTime} — ${widget.slot.endTime}';
+    final chain = consecutiveAvailableSlots(
+      widget.slot,
+      ref.watch(arenaManualBookingDaySlotsProvider(widget.slot.dateKey)),
+    );
+    final endTime = _endTimeOf(chain);
+    final timeRange = '${widget.slot.startTime} — $endTime';
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 12,
-        bottom: 20 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: context.themeColors.onSurfaceMuted.withValues(
-                    alpha: 0.35,
+    return Scaffold(
+      backgroundColor: colors.canvas,
+      body: SafeArea(
+        // Toque fora dos campos fecha o teclado (os campos ganham o toque).
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _ManualBookingHeader(
+                eyebrow: '$dateLabel · ${widget.courtName.toUpperCase()}',
+                onClose: _busy ? null : _cancel,
+              ),
+              Expanded(
+                // Formulário curto: tudo construído de uma vez (ListView
+                // descartaria campos fora da tela e o foco junto).
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        timeRange,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: colors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Reserva de balcão: o horário sai da agenda pública e o '
+                        'pagamento é acertado direto com a arena.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colors.onSurfaceMuted,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      _buildEndTimeSelect(context, chain),
+                      const SizedBox(height: 20),
+                      ..._buildCustomer(context),
+                      const SizedBox(height: 20),
+                      _label(context, 'VALOR (R\$)'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _amountController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        onChanged: (_) => setState(() => _amountEdited = true),
+                        style: TextStyle(color: colors.onSurface),
+                        decoration: _decoration(context, hint: 'Ex: 120,00'),
+                      ),
+                      if (_memberHours != null) ...[
+                        const SizedBox(height: 12),
+                        _buildMemberHours(context, _memberHours!, endTime),
+                      ],
+                      const SizedBox(height: 20),
+                      _label(context, 'NOTA (OPCIONAL)'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _noteController,
+                        maxLines: 2,
+                        style: TextStyle(color: colors.onSurface),
+                        decoration: _decoration(
+                          context,
+                          hint: 'Ex: paga no balcão',
+                        ),
+                      ),
+                    ],
                   ),
-                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '$dateLabel · ${widget.courtName.toUpperCase()}',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              timeRange,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: context.themeColors.onSurface,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Criar reserva',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: context.themeColors.onSurface,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Reserva de balcão: o horário sai da agenda pública e o '
-              'pagamento é acertado direto com a arena.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 20),
-            ..._buildCustomer(context),
-            const SizedBox(height: 20),
-            _label(context, 'VALOR (R\$)'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _amountController,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (_) => setState(() => _amountEdited = true),
-              style: TextStyle(color: context.themeColors.onSurface),
-              decoration: _decoration(context, hint: 'Ex: 120,00'),
-            ),
-            if (_memberHours != null) ...[
-              const SizedBox(height: 12),
-              _buildMemberHours(context, _memberHours!),
+              _buildActions(context),
             ],
-            const SizedBox(height: 20),
-            _label(context, 'NOTA (OPCIONAL)'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _noteController,
-              maxLines: 2,
-              style: TextStyle(color: context.themeColors.onSurface),
-              decoration: _decoration(context, hint: 'Ex: paga no balcão'),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Cancelar + Criar reserva fixos no rodapé (sobem junto com o teclado).
+  Widget _buildActions(BuildContext context) {
+    final colors = context.themeColors;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      decoration: BoxDecoration(
+        color: colors.canvas,
+        border: Border(
+          top: BorderSide(
+            color: colors.onSurfaceMuted.withValues(alpha: 0.15),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _busy ? null : _cancel,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colors.onSurface,
+                side: BorderSide(
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.35),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text('Cancelar'),
             ),
-            const SizedBox(height: 24),
-            FilledButton(
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(
               onPressed: _busy ? null : _confirm,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brand,
@@ -294,11 +366,13 @@ class _ArenaManualBookingSheetState
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+
+  void _cancel() => Navigator.pop(context, false);
 
   List<Widget> _buildCustomer(BuildContext context) {
     final colors = context.themeColors;
@@ -393,7 +467,61 @@ class _ArenaManualBookingSheetState
     ];
   }
 
-  Widget _buildMemberHours(BuildContext context, ArenaMemberHours mh) {
+  /// Até que horas vai a reserva: um item por horário livre seguido, sem
+  /// teto (a sequência acaba no primeiro horário ocupado ou na meia-noite).
+  Widget _buildEndTimeSelect(BuildContext context, List<ArenaSlot> chain) {
+    final colors = context.themeColors;
+    final selected = _slotCount.clamp(1, chain.length);
+    final canExtend = chain.length > 1;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _label(context, 'ATÉ QUE HORAS'),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<int>(
+          // A seleção pode encolher sozinha (horário ocupado ao vivo): a chave
+          // recria o campo com o valor certo.
+          key: ValueKey('manual-booking-end-$selected-${chain.length}'),
+          initialValue: selected,
+          isExpanded: true,
+          dropdownColor: colors.surfaceRaised,
+          style: TextStyle(color: colors.onSurface, fontSize: 16),
+          decoration: _decoration(context, hint: 'Fim da reserva'),
+          items: [
+            for (var i = 1; i <= chain.length; i++)
+              DropdownMenuItem(
+                value: i,
+                child: Text(_endTimeLabel(chain[i - 1].endTime)),
+              ),
+          ],
+          onChanged: _busy || !canExtend
+              ? null
+              : (count) {
+                  if (count != null) _selectSlotCount(count, chain);
+                },
+        ),
+        const SizedBox(height: 6),
+        Text(
+          canExtend
+              ? 'Junte os próximos horários livres desta quadra numa reserva só.'
+              : 'Sem horário livre logo em seguida nesta quadra.',
+          style: TextStyle(fontSize: 13, color: colors.onSurfaceMuted),
+        ),
+      ],
+    );
+  }
+
+  /// "22:00 · 3h".
+  String _endTimeLabel(String endTime) {
+    final minutes = slotSpanMinutes(widget.slot.startTime, endTime);
+    return '$endTime · ${formatMemberMinutes(minutes)}';
+  }
+
+  Widget _buildMemberHours(
+    BuildContext context,
+    ArenaMemberHours mh,
+    String endTime,
+  ) {
     final colors = context.themeColors;
     final textStyle = TextStyle(
       fontSize: 13,
@@ -429,7 +557,10 @@ class _ArenaManualBookingSheetState
             ),
           ),
           if (_useMemberHours)
-            Text('A cobrar: ${_memberChargeLabel(mh)}', style: textStyle),
+            Text(
+              'A cobrar: ${_memberChargeLabel(mh, endTime)}',
+              style: textStyle,
+            ),
         ],
       );
     } else {
@@ -452,13 +583,13 @@ class _ArenaManualBookingSheetState
     );
   }
 
-  String _memberChargeLabel(ArenaMemberHours mh) {
+  String _memberChargeLabel(ArenaMemberHours mh, String endTime) {
     final amount = parseManualBookingAmount(_amountController.text);
     if (amount == null) return '—';
     final left = amountAfterMemberHours(
       amount,
       widget.slot.startTime,
-      widget.slot.endTime,
+      endTime,
       mh.coverMinutes,
     );
     if (left <= 0) return 'nada (coberta pelo plano)';
@@ -512,6 +643,20 @@ class _ArenaManualBookingSheetState
       return;
     }
 
+    // Um dos horários escolhidos foi reservado com a folha aberta: não manda
+    // um intervalo menor com o valor do maior.
+    final chain = _readChain();
+    if (_slotCount > chain.length) {
+      setState(() => _slotCount = chain.length);
+      showAppSnackBar(
+        context,
+        'Um dos horários escolhidos acabou de ser ocupado. Confira a duração '
+        'e o valor.',
+        isError: true,
+      );
+      return;
+    }
+
     setState(() => _busy = true);
     try {
       final slot = widget.slot;
@@ -520,7 +665,7 @@ class _ArenaManualBookingSheetState
             courtId: slot.courtId,
             dateKey: slot.dateKey,
             startTime: slot.startTime,
-            endTime: slot.endTime,
+            endTime: _endTimeOf(chain),
             amountReais: amount,
             athleteId: athlete?.uid,
             customerName: athlete != null
@@ -572,6 +717,58 @@ class _AthleteAvatar extends StatelessWidget {
               ),
             )
           : null,
+    );
+  }
+}
+
+/// Topo da tela: fechar + data/quadra + título.
+class _ManualBookingHeader extends StatelessWidget {
+  const _ManualBookingHeader({required this.eyebrow, required this.onClose});
+
+  final String eyebrow;
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.themeColors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 20, 8),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Fechar',
+            onPressed: onClose,
+            icon: Icon(Icons.close_rounded, color: colors.onSurface),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  eyebrow,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceMuted,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Criar reserva',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: colors.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

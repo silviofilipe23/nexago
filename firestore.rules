@@ -1220,7 +1220,12 @@ service cloud.firestore {
           (d.requirementLabel is string && d.requirementLabel.size() <= 80)) &&
         // Com requisito, o cupom não fica no doc público: vai para `partnerPrivate/{partnerId}`.
         (d.get('requirement', null) == null || d.requirement.type == 'none' ||
-          d.get('couponCode', null) == null);
+          d.get('couponCode', null) == null) &&
+        // Desconto por elo do SandRanking: até 5 faixas (Competidor → Lenda), cada uma com o seu
+        // cupom em `partnerPrivate.tierCoupons`. Só com cupom fixo: é o cupom que diz ao parceiro
+        // qual desconto dar. O item é conferido pelo backoffice e lido de forma defensiva.
+        (d.get('levelTiers', null) == null || (d.levelTiers is list && d.levelTiers.size() <= 5 &&
+          (d.levelTiers.size() == 0 || d.couponMode == 'fixed')));
     }
     function partnerValid(d) {
       return d.keys().hasOnly(['name', 'logoUrl', 'category', 'benefitHighlight', 'benefitTitle',
@@ -1229,7 +1234,7 @@ service cloud.firestore {
           'leadConsentText', 'leadSuccessMessage', 'createdAt', 'createdByName', 'updatedAt',
           'updatedBy', 'updatedByName', 'coverUrl', 'startsAt', 'validUntil', 'featured',
           'placements', 'couponUrlParam', 'termsTags', 'locations', 'requirement',
-          'requirementLabel']) &&
+          'requirementLabel', 'levelTiers']) &&
         partnerV2Valid(d) &&
         d.name is string && d.name.size() > 0 && d.name.size() <= 80 &&
         (d.get('logoUrl', null) == null ||
@@ -1281,14 +1286,17 @@ service cloud.firestore {
       allow read: if isAdmin() || isSuperAdmin();
       allow write: if false;
     }
-    // v2: cupom de parceiro com requisito e as marcas do push "uma vez por parceiro e tipo". Só a
+    // v2: cupom de parceiro com requisito (e os das faixas do desconto por elo) e as marcas do push "uma vez por parceiro e tipo". Só a
     // equipe lê e grava; as marcas (`notified*At`) são do servidor (`notifyBenefitPartner`): o
     // backoffice não cria nem altera, só preserva no merge.
     function partnerPrivateValid(d) {
-      return d.keys().hasOnly(['couponCode', 'notifiedNewAt', 'notifiedEndingAt', 'updatedAt',
-          'updatedBy', 'updatedByName']) &&
+      return d.keys().hasOnly(['couponCode', 'tierCoupons', 'notifiedNewAt', 'notifiedEndingAt',
+          'updatedAt', 'updatedBy', 'updatedByName']) &&
         (d.get('couponCode', null) == null ||
           (d.couponCode is string && d.couponCode.size() > 0 && d.couponCode.size() <= 24)) &&
+        // Cupom de cada faixa do desconto por elo, por código do elo.
+        (d.get('tierCoupons', null) == null || (d.tierCoupons is map &&
+          d.tierCoupons.keys().hasOnly(['COMPETIDOR', 'DESAFIANTE', 'ELITE', 'MESTRE', 'LENDA']))) &&
         (d.get('updatedByName', null) == null ||
           (d.updatedByName is string && d.updatedByName.size() <= 120)) &&
         d.updatedAt == request.time &&

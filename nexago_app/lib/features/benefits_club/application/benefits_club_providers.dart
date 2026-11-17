@@ -120,12 +120,21 @@ final benefitsVisiblePartnersProvider =
       // cidade específica não aparecer depois dos outros.
       if (!profile.hasValue && !profile.hasError) return const AsyncLoading();
 
+      // Desconto por elo: cada parceiro já sai com o benefício da faixa do
+      // atleta (espelho `users/{uid}.sandRank`, o mesmo que a `claimBenefit`
+      // lê), para todas as telas mostrarem o desconto dele.
+      final rankCode = sandRankCodeForTrackIndex(
+        profile.valueOrNull?.sandRankTrackIndex,
+      );
+      final visible = visiblePartners(
+        list,
+        tester: isTesterValue,
+        athleteCity: profile.valueOrNull?.city,
+        now: ref.watch(benefitsClockProvider)(),
+      );
       return AsyncData(
-        visiblePartners(
-          list,
-          tester: isTesterValue,
-          athleteCity: profile.valueOrNull?.city,
-          now: ref.watch(benefitsClockProvider)(),
+        List.unmodifiable(
+          visible.map((partner) => partnerForSandRank(partner, rankCode)),
         ),
       );
     });

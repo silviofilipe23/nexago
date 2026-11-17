@@ -40,6 +40,7 @@ import {
   parseSteps,
   partnerPayload,
   privateCouponCode,
+  privateTierCoupons,
   uniquePartnerId,
   validatePartnerForm,
   type PartnerForm,
@@ -48,6 +49,7 @@ import {
   type PartnerPrivate,
 } from './data/partner';
 import type { PrivateCouponWrite } from './data/club.repository';
+import { PartnerLevelTiersComponent } from './ui/partner-level-tiers.component';
 import { PartnerLogoComponent } from './ui/partner-logo.component';
 import { PartnerNotifyComponent } from './ui/partner-notify.component';
 import { PartnerPremiumFieldsComponent } from './ui/partner-premium-fields.component';
@@ -55,9 +57,9 @@ import { PartnerPreviewComponent } from './ui/partner-preview.component';
 
 type LoadState = 'loading' | 'ok' | 'missing' | 'error';
 
-/** O que conta como "alterado": o doc público e o cupom privado (parceiro com requisito). */
+/** O que conta como "alterado": o doc público e os cupons privados (requisito e faixas por elo). */
 function snapshotOf(form: PartnerForm): string {
-  return JSON.stringify({ doc: partnerPayload(form), privateCoupon: privateCouponCode(form) });
+  return JSON.stringify({ doc: partnerPayload(form), privateCoupon: privateCouponCode(form), tierCoupons: privateTierCoupons(form) });
 }
 
 /**
@@ -82,6 +84,7 @@ function snapshotOf(form: PartnerForm): string {
     PartnerPreviewComponent,
     PartnerPremiumFieldsComponent,
     PartnerNotifyComponent,
+    PartnerLevelTiersComponent,
   ],
   template: `
     <bo-panel-shell>
@@ -332,6 +335,16 @@ function snapshotOf(form: PartnerForm): string {
                     }
                   </div>
                 </bo-panel-card>
+
+                @if (form().couponMode === 'fixed') {
+                  <bo-partner-level-tiers
+                    [tiers]="form().levelTiers"
+                    [showErrors]="submitted() || touched().has('levelTiers')"
+                    [disabled]="saving()"
+                    (tiersChange)="patch({ levelTiers: $event })"
+                    (touch)="touch($event)"
+                  />
+                }
 
                 <bo-partner-premium-fields
                   [form]="form()"
@@ -592,7 +605,7 @@ export class PartnerEditorComponent {
         return;
       }
       const priv = await this.readPrivate(id);
-      const form = formFromPartner(partner, priv?.couponCode ?? null);
+      const form = formFromPartner(partner, priv?.couponCode ?? null, priv?.tierCoupons ?? {});
       this.form.set(form);
       this.savedJson.set(snapshotOf(form));
       this.savedName.set(partner.name);
@@ -706,7 +719,14 @@ export class PartnerEditorComponent {
       this.savedActive.set(payload.active);
       this.savedValidUntil.set(payload.validUntil);
       if (privateWrite) {
-        this.privateInfo.update((p) => ({ notifiedNewAt: null, notifiedEndingAt: null, ...p, couponCode: privateWrite.couponCode }));
+        this.privateInfo.update((p) => ({
+          notifiedNewAt: null,
+          notifiedEndingAt: null,
+          tierCoupons: {},
+          ...p,
+          couponCode: privateWrite.couponCode,
+          ...(privateWrite.tierCoupons ? { tierCoupons: privateWrite.tierCoupons } : {}),
+        }));
       }
       this.submitted.set(false);
       this.touched.set(new Set());
@@ -730,13 +750,17 @@ export class PartnerEditorComponent {
   }
 
   /**
-   * O que gravar em `partnerPrivate`: o código do parceiro com requisito; `null` para limpar um
-   * código que havia (o parceiro deixou de ter requisito); nada quando não há o que mudar.
+   * O que gravar em `partnerPrivate`: o código do parceiro com requisito (`null` limpa um código que
+   * havia) e, se há ou havia faixas por elo, o mapa inteiro dos cupons delas (faixa removida ou modo
+   * de cupom trocado: o cupom some). Nada quando não há o que mudar.
    */
   private privateWrite(): PrivateCouponWrite {
     const code = privateCouponCode(this.form());
-    if (code !== null) return { couponCode: code };
-    return this.privateInfo()?.couponCode ? { couponCode: null } : undefined;
+    const tiers = privateTierCoupons(this.form());
+    const saved = this.privateInfo();
+    const touchesTiers = Object.keys(tiers).length > 0 || Object.keys(saved?.tierCoupons ?? {}).length > 0;
+    if (code === null && !saved?.couponCode && !touchesTiers) return undefined;
+    return touchesTiers ? { couponCode: code, tierCoupons: tiers } : { couponCode: code };
   }
 
   private savedMessage(created: boolean, active: boolean): string {

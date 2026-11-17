@@ -10,6 +10,14 @@ const FAST = partnerFromDoc('fast-acai', {
   link: 'https://fast.example.com', couponMode: 'fixed', couponCode: 'NEXAGO10', brandColor: '#5E1E7A',
   cities: ['Goiânia'], priority: 50, active: true, audience: 'all',
 })!;
+const ARENA_SHOP = partnerFromDoc('arena-shop', {
+  name: 'Arena Shop', category: 'sports', benefitHighlight: '5% OFF', benefitTitle: '5% em tudo', ctaType: 'link',
+  link: 'https://shop.example.com', couponMode: 'fixed', couponCode: 'BASE5', priority: 10, active: true,
+  audience: 'all', levelTiers: [
+    { minRank: 'DESAFIANTE', benefitHighlight: '10% OFF', benefitTitle: '10% em tudo' },
+    { minRank: 'MESTRE', benefitHighlight: '20% OFF', benefitTitle: '20% em tudo' },
+  ],
+})!;
 const LINQ = partnerFromDoc('linq', {
   name: 'LinQ Telecom', category: 'services', benefitTitle: 'Instalação grátis', ctaType: 'lead_form',
   ctaLabel: 'Quero contratar', couponMode: 'none', brandColor: '#0F62FE', isMasterSponsor: true, priority: 100,
@@ -27,7 +35,7 @@ describe('ClubStore', () => {
   let api: jasmine.SpyObj<ClubApi>;
 
   function setup(): ClubStore {
-    api = jasmine.createSpyObj<ClubApi>('ClubApi', ['fetchConfig', 'fetchPartners', 'fetchProfile', 'track', 'submitLead']);
+    api = jasmine.createSpyObj<ClubApi>('ClubApi', ['fetchConfig', 'fetchPartners', 'fetchProfile', 'track', 'submitLead', 'claimBenefit']);
     api.fetchConfig.and.callFake(async () => config);
     api.fetchPartners.and.callFake(async () => partners);
     api.fetchProfile.and.callFake(async () => profile);
@@ -46,7 +54,7 @@ describe('ClubStore', () => {
   beforeEach(() => {
     config = { enabled: true, testerUids: [] };
     partners = [FAST, LINQ];
-    profile = { name: 'Ana', whatsapp: '(62) 98240-6456', city: 'goiania' };
+    profile = { name: 'Ana', whatsapp: '(62) 98240-6456', city: 'goiania', sandRank: 'INICIANTE' };
   });
 
   it('link direto: carrega a vitrine sem esperar o effect do acesso', async () => {
@@ -127,6 +135,44 @@ describe('ClubStore', () => {
     api.submitLead.and.rejectWith({ code: 'functions/not-found', message: 'NOT FOUND' });
     await expectAsync(store.submitLead(LINQ, lead, 'deeplink')).toBeRejectedWithError(
       'Não foi possível enviar agora. Tente de novo.',
+    );
+  });
+
+  it('desconto por elo: a vitrine já sai com o selo e o título da faixa do atleta', async () => {
+    partners = [ARENA_SHOP];
+    profile = { ...profile!, sandRank: 'ELITE' };
+    const store = setup();
+    await store.reload();
+    const shop = store.partner('arena-shop')!;
+    expect(shop.benefitHighlight).toBe('10% OFF');
+    expect(shop.benefitTitle).toBe('10% em tudo');
+    expect(shop.levelLadder.map((r) => [r.rank, r.benefitHighlight, r.current])).toEqual([
+      ['INICIANTE', '5% OFF', false],
+      ['DESAFIANTE', '10% OFF', true],
+      ['MESTRE', '20% OFF', false],
+    ]);
+  });
+
+  it('desconto por elo: sem perfil (sem elo) fica no benefício-base', async () => {
+    partners = [ARENA_SHOP];
+    profile = null;
+    const store = setup();
+    await store.reload();
+    const shop = store.partners().find((p) => p.id === 'arena-shop');
+    // Sem perfil não há cidade; o parceiro serve todas as cidades, então segue na vitrine.
+    expect(shop?.benefitHighlight).toBe('5% OFF');
+    expect(shop?.levelLadder[0]?.current).toBeTrue();
+  });
+
+  it('claim: devolve o cupom do servidor ou erro em português', async () => {
+    const store = setup();
+    api.claimBenefit.and.resolveTo('ELITE10');
+    expect(await store.claimCoupon('arena-shop', 'club_list')).toBe('ELITE10');
+    expect(api.claimBenefit).toHaveBeenCalledWith('arena-shop', 'club_list');
+
+    api.claimBenefit.and.rejectWith({ code: 'functions/not-found', message: 'NOT FOUND' });
+    await expectAsync(store.claimCoupon('arena-shop', 'club_list')).toBeRejectedWithError(
+      'Não foi possível carregar seu cupom agora. Tente de novo.',
     );
   });
 });

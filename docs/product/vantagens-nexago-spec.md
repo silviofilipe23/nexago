@@ -218,3 +218,30 @@ Origens novas aceitas: `post_game`, `tournament_day`, `featured`, `search`, `map
 - Agendada `benefitExpiryReminders` (diária, 10h de Brasília): parceiro que termina nas próximas 48 h →
   push para quem salvou e ainda não usou depois de salvar, uma vez por pessoa e parceiro.
 - Push: `url` = `/athlete/clube/<partnerId>?origem=push` (app) e `webUrl` = `/clube/<partnerId>?origem=push`.
+
+# Desconto por elo do SandRanking
+
+Pedido de 17/11/2026: o desconto do parceiro pode variar com o elo do SandRanking do atleta ("quem
+joga mais merece mais benefício"). O elo é o da escada de engajamento por XP
+(`functions/src/sand-rank-engine.ts`: Iniciante → Competidor → Desafiante → Elite → Mestre → Lenda),
+lido do espelho `users/{uid}.sandRank` (`{code, division, trackIndex}`). Não é o nível técnico
+(`levelsBySport`), que segue só no requisito `min_level`. Sem espelho, o atleta conta como Iniciante.
+
+### `partners/{partnerId}.levelTiers` (opcional)
+
+Lista de até 5 faixas `{minRank, benefitHighlight (≤ 24), benefitTitle (1–80)}`, uma por elo, com
+`minRank` ∈ `COMPETIDOR`, `DESAFIANTE`, `ELITE`, `MESTRE`, `LENDA`, em ordem crescente.
+
+- O benefício-base do parceiro (`benefitHighlight`, `benefitTitle`, `couponCode` ou o cupom privado
+  do requisito) vale para quem está abaixo da primeira faixa (Iniciante e quem não tem elo).
+- O atleta fica com a faixa mais alta que o elo dele alcança: o selo e o título passam a ser os da
+  faixa, nas telas do clube.
+- Só com `couponMode: 'fixed'` (as rules garantem): o cupom é o que diz ao parceiro qual desconto
+  dar. O código por atleta (NEXA-XXXX) e o "sem cupom" não variam com o elo.
+- O cupom de cada faixa fica em `partnerPrivate/{partnerId}.tierCoupons` (mapa `{ELO: código}`, só
+  a equipe lê) e sai pela `claimBenefit`: o doc público é lido por qualquer pessoa logada, então o
+  cupom da faixa alta não pode estar nele. Faixa sem cupom cadastrado cai no cupom-base.
+- Combina com `requirement`: quem não cumpre continua bloqueado; quem cumpre recebe o da faixa.
+
+`claimBenefit` (alterada): com `levelTiers`, lê o elo do atleta e devolve o cupom da faixa.
+Implementação em `functions/src/benefits-club-level-tiers.ts`.

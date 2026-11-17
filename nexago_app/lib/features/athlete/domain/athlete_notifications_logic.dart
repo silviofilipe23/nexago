@@ -406,6 +406,7 @@ AthleteNotificationPresentation _basePresentation(
       );
     case 'pelada_score_prompt':
     case 'pelada_score_suggested':
+    case 'pelada_score_keeper':
       final bookingId = data['bookingId'] ?? '';
       return AthleteNotificationPresentation(
         icon: Icons.scoreboard_outlined,
@@ -413,9 +414,11 @@ AthleteNotificationPresentation _basePresentation(
         iconBackground: _bookingIconBackground,
         actions: [
           AthleteNotificationAction(
-            label: type == 'pelada_score_suggested'
-                ? 'Conferir e enviar'
-                : 'Lançar placar',
+            label: switch (type) {
+              'pelada_score_suggested' => 'Conferir e enviar',
+              'pelada_score_keeper' => 'Marcar placar',
+              _ => 'Lançar placar',
+            },
             kind: AthleteNotificationActionKind.primary,
           ),
         ],

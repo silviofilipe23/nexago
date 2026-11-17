@@ -232,10 +232,16 @@ export function resultFormat(teamCount: number): BookingResultFormat {
   return teamCount > 2 ? "king_of_court" : "duo_vs_duo";
 }
 
+/** Reserva garantida (nem cancelada, nem esperando pagamento). */
+export function bookingPlayableStatusError(booking: Data): string | null {
+  const status = str(booking["status"]).toLowerCase();
+  return NOT_PLAYABLE_STATUSES.has(status) ? "O placar só abre em reserva garantida." : null;
+}
+
 /** A reserva já tem jogo para lançar: garantida e com o horário de início passado (parede SP). */
 export function bookingResultOpenError(booking: Data, now: Date): string | null {
-  const status = str(booking["status"]).toLowerCase();
-  if (NOT_PLAYABLE_STATUSES.has(status)) return "O placar só abre em reserva garantida.";
+  const notPlayable = bookingPlayableStatusError(booking);
+  if (notPlayable) return notPlayable;
   const startAt = bookingStartAt(str(booking["date"]) || str(booking["dateKey"]), str(booking["startTime"]));
   if (!startAt) return "Não achamos o horário dessa reserva.";
   if (startAt.getTime() > now.getTime()) return "O placar abre quando a partida começar.";
@@ -265,8 +271,10 @@ export function bookingOwnerUid(booking: Data): string {
 }
 
 /**
- * Lista de jogadores da reserva, sem repetir: dono, convidados (`participantUids`/`participants`)
- * e quem já está no placar (`resultPlayerUids`/`resultPlayers`). Qualquer um deles lança o placar.
+ * Lista de jogadores da reserva, sem repetir: dono, convidados (`participantUids`/`participants`),
+ * quem já está no placar (`resultPlayerUids`/`resultPlayers`) e quem foi liberado ao ser adicionado
+ * na tela de lançamento (`scoreKeeperUids`/`scoreKeepers`, `booking-result-keepers.ts`). Qualquer
+ * um deles lança o placar.
  * O app faz a mesma conta (Dart `bookingRosterUids` em `booking_players.dart`) para mostrar o botão.
  */
 export function bookingRosterUids(booking: Data): string[] {
@@ -277,7 +285,11 @@ export function bookingRosterUids(booking: Data): string[] {
   };
   add(bookingOwnerUid(booking));
   // Convidados antes de quem está no placar: a mesma ordem da lista no app.
-  for (const [uidsKey, listKey] of [["participantUids", "participants"], ["resultPlayerUids", "resultPlayers"]]) {
+  for (const [uidsKey, listKey] of [
+    ["participantUids", "participants"],
+    ["resultPlayerUids", "resultPlayers"],
+    ["scoreKeeperUids", "scoreKeepers"],
+  ]) {
     const uids = booking[uidsKey];
     if (Array.isArray(uids)) uids.forEach(add);
     const list = booking[listKey];

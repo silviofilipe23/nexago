@@ -290,6 +290,33 @@ bool lancarCanSave({
   return uid == ownerUid || rosterUids.contains(uid);
 }
 
+/// Atleta posto num time pela tela de lançamento que ainda não está na lista
+/// de jogadores da reserva: libera no servidor para ele lançar do próprio
+/// celular (o deste pode travar no meio da pelada). Só quem pode enviar
+/// libera, e só com a reserva carregada.
+bool lancarNeedsLink({
+  required ResultPlayer player,
+  required String? uid,
+  required String? ownerUid,
+  required List<String> rosterUids,
+  required bool canSave,
+}) {
+  if (!canSave || ownerUid == null || ownerUid.isEmpty) return false;
+  final id = player.id.trim();
+  if (id.isEmpty || player.isGuest || id == uid) return false;
+  return !rosterUids.contains(id);
+}
+
+/// Sem conexão (ou recusado) ao liberar: o atleta ainda entra quando o
+/// placar for enviado.
+String lancarLinkFailedMessage(String? name) {
+  final first = _firstName(name);
+  final who = first.isEmpty ? 'quem você adicionou' : first;
+  final again = first.isEmpty ? 'essa pessoa' : first;
+  return 'Não deu para liberar $who agora. Quando o placar for enviado, '
+      '$again também poderá lançar.';
+}
+
 /// Botão do convidado: o placar vai para quem reservou conferir.
 String lancarGuestSendLabel(String? hostName) {
   final first = _firstName(hostName);

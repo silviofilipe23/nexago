@@ -18,6 +18,7 @@ class BookingStorySource {
     this.sport,
     this.ownerUid,
     this.rosterUids = const [],
+    this.scoreKeepers = const [],
     this.confirmed = const [],
     this.arenaId,
   });
@@ -27,6 +28,10 @@ class BookingStorySource {
 
   /// Lista de jogadores que pode lançar o placar (`bookingRosterUids`).
   final List<String> rosterUids;
+
+  /// Liberados na tela de lançamento (`bookingScoreKeepersOf`): entram nos
+  /// jogadores do "Lançar placar" de qualquer celular.
+  final List<MyBookingConfirmedAthlete> scoreKeepers;
   final List<MyBookingConfirmedAthlete> confirmed;
   final String? arenaId;
 }
@@ -43,6 +48,7 @@ final bookingStorySourceProvider =
     sport: item.sport,
     ownerUid: item.ownerAthleteId,
     rosterUids: bookingRosterUids(snap.data() ?? const {}),
+    scoreKeepers: bookingScoreKeepersOf(snap.data() ?? const {}),
     confirmed: item.confirmedAthletes,
     arenaId: item.arenaId,
   );

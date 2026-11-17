@@ -82,6 +82,23 @@ void main() {
       expect(roster, ['dono', 'enzo', 'lia', 'rafa', 'bia']);
     });
 
+    test('quem foi liberado na tela de lançamento também lança', () {
+      final data = {
+        'athleteId': 'dono',
+        'scoreKeeperUids': ['ze'],
+        'scoreKeepers': [
+          {'uid': 'ze', 'name': 'Zé', 'avatarUrl': 'https://x/z.jpg'},
+          {'uid': 'lia', 'name': 'Lia'},
+        ],
+      };
+      expect(bookingRosterUids(data), ['dono', 'ze', 'lia']);
+      expect(
+        [for (final a in bookingScoreKeepersOf(data)) a.userId],
+        ['ze', 'lia'],
+      );
+      expect(bookingScoreKeepersOf(data).first.avatarUrl, 'https://x/z.jpg');
+    });
+
     test('reserva antiga: dono em bookingAthleteId', () {
       expect(bookingRosterUids({'bookingAthleteId': 'dono'}), ['dono']);
     });

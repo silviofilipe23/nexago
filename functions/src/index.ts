@@ -1132,6 +1132,7 @@ export {moderateStoreReview, onStoreOrderReviewWrittenSyncPublic, submitStoreOrd
 // Placar do pós-jogo do aluguel: o dono salva, os adversários com conta confirmam ou contestam.
 export {respondBookingResult, saveBookingResult, sweepBookingResults} from "./booking-result-write";
 export {promptBookingResults, suggestBookingResult} from "./booking-result-nudge";
+export {linkBookingResultPlayers} from "./booking-result-keepers";
 export {syncArenaBookingAppPayment, syncScheduleChargeSocialUnlock} from "./booking-app-payment";
 
 // Prévia de link (OG/Twitter Card) das rotas dinâmicas do site público — a SPA Angular não

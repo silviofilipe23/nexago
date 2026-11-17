@@ -717,9 +717,12 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     return '$path?$query';
   }
 
-  // "Como foi o jogo?" e placar sugerido pelo convidado
-  // (`booking-result-nudge.ts`): abrem o "Lançar placar" da reserva.
-  if (type == 'pelada_score_prompt' || type == 'pelada_score_suggested') {
+  // "Como foi o jogo?", placar sugerido pelo convidado
+  // (`booking-result-nudge.ts`) e atleta liberado na tela de lançamento
+  // (`booking-result-keepers.ts`): abrem o "Lançar placar" da reserva.
+  if (type == 'pelada_score_prompt' ||
+      type == 'pelada_score_suggested' ||
+      type == 'pelada_score_keeper') {
     final bookingId = (data['bookingId'] as String?)?.trim() ?? '';
     if (bookingId.isEmpty) return AppRoutes.athleteMatchHistory;
     return AppRoutes.lancarPlacar

@@ -49,16 +49,16 @@ class FirebaseBookingResultRepository implements BookingResultRepository {
         // Sem acesso (pendente de outra pessoa) ou doc inexistente: a rule
         // nega e o listener morre — vira `null` ("não encontrada").
         .transform(
-          StreamTransformer.fromHandlers(
-            handleError: (error, stack, sink) {
-              if (error is FirebaseException) {
-                sink.add(null);
-              } else {
-                sink.addError(error, stack);
-              }
-            },
-          ),
-        );
+      StreamTransformer.fromHandlers(
+        handleError: (error, stack, sink) {
+          if (error is FirebaseException) {
+            sink.add(null);
+          } else {
+            sink.addError(error, stack);
+          }
+        },
+      ),
+    );
   }
 
   @override
@@ -104,16 +104,16 @@ class FirebaseBookingResultRepository implements BookingResultRepository {
                 ),
         )
         .transform(
-          StreamTransformer.fromHandlers(
-            handleError: (error, stack, sink) {
-              if (error is FirebaseException) {
-                sink.add(null);
-              } else {
-                sink.addError(error, stack);
-              }
-            },
-          ),
-        );
+      StreamTransformer.fromHandlers(
+        handleError: (error, stack, sink) {
+          if (error is FirebaseException) {
+            sink.add(null);
+          } else {
+            sink.addError(error, stack);
+          }
+        },
+      ),
+    );
   }
 
   @override
@@ -121,6 +121,24 @@ class FirebaseBookingResultRepository implements BookingResultRepository {
       'suggestBookingResult',
       bookingResultPayload(bookingId, result),
       'Não foi possível mandar o placar. Tente de novo.');
+
+  @override
+  Future<List<String>> linkPlayers(
+    String bookingId,
+    List<String> playerIds,
+  ) async {
+    final data = await _call(
+      'linkBookingResultPlayers',
+      {'bookingId': bookingId, 'playerIds': playerIds},
+      'Não foi possível liberar o atleta. Tente de novo.',
+    );
+    final linked = data is Map ? data['linked'] : null;
+    return [
+      if (linked is List)
+        for (final id in linked)
+          if (id is String) id,
+    ];
+  }
 
   @override
   Future<void> save(String bookingId, BookingResult result) => _call(
@@ -146,10 +164,12 @@ class FirebaseBookingResultRepository implements BookingResultRepository {
         'Não foi possível enviar sua resposta. Tente de novo.',
       );
 
-  Future<void> _call(
+  /// Chama a callable e devolve o `data` da resposta.
+  Future<Object?> _call(
       String name, Map<String, Object?> data, String fallback) async {
     try {
-      await _functions.httpsCallable(name).call<Object?>(data);
+      final res = await _functions.httpsCallable(name).call<Object?>(data);
+      return res.data;
     } on FirebaseFunctionsException catch (e) {
       throw BookingResultException(
           callableErrorMessage(e.code, e.message, fallback));

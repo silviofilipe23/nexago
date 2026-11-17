@@ -16,8 +16,19 @@ class BookingGuest {
 /// salvo), na ordem dos times e sem repetir. Reserva sem placar: lista vazia.
 List<MyBookingConfirmedAthlete> bookingResultPlayersOf(
   Map<String, dynamic> data,
-) {
-  final raw = data['resultPlayers'];
+) =>
+    _serverAthletesOf(data['resultPlayers']);
+
+/// Quem foi liberado ao ser adicionado na tela de lançamento
+/// (`arenaBookings.scoreKeepers`, gravado por `linkBookingResultPlayers`):
+/// entra nos jogadores do "Lançar placar" de qualquer celular da pelada.
+List<MyBookingConfirmedAthlete> bookingScoreKeepersOf(
+  Map<String, dynamic> data,
+) =>
+    _serverAthletesOf(data['scoreKeepers']);
+
+/// Lista `{uid, name, avatarUrl}` que só o servidor grava, sem repetir.
+List<MyBookingConfirmedAthlete> _serverAthletesOf(dynamic raw) {
   if (raw is! List) return const [];
   final seen = <String>{};
   final out = <MyBookingConfirmedAthlete>[];
@@ -63,8 +74,9 @@ List<BookingGuest> bookingGuestsOf(
 }
 
 /// Lista de jogadores da reserva que pode lançar o placar, sem repetir: dono,
-/// convidados (`participantUids`/`participants`) e quem já está no placar
-/// (`resultPlayerUids`/`resultPlayers`). Os MESMOS campos que o servidor
+/// convidados (`participantUids`/`participants`), quem já está no placar
+/// (`resultPlayerUids`/`resultPlayers`) e quem foi liberado na tela de
+/// lançamento (`scoreKeeperUids`/`scoreKeepers`). Os MESMOS campos que o servidor
 /// aceita (`bookingRosterUids` em `functions/src/booking-result.ts`): campo
 /// legado do convite não entra, senão o botão apareceria e o servidor recusaria.
 List<String> bookingRosterUids(Map<String, dynamic> data) {
@@ -79,6 +91,7 @@ List<String> bookingRosterUids(Map<String, dynamic> data) {
   for (final (uidsKey, listKey) in [
     ('participantUids', 'participants'),
     ('resultPlayerUids', 'resultPlayers'),
+    ('scoreKeeperUids', 'scoreKeepers'),
   ]) {
     final uids = data[uidsKey];
     if (uids is List) uids.forEach(add);

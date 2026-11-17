@@ -15,6 +15,10 @@ class FakeBookingResultRepository implements BookingResultRepository {
   final saves = <(String bookingId, BookingResult result)>[];
   final suggestions = <(String bookingId, BookingResult result)>[];
 
+  /// Atletas liberados pela tela de lançamento (`linkPlayers`).
+  final links = <(String bookingId, List<String> playerIds)>[];
+  String? linkError;
+
   /// Placar sugerido pelo convidado que quem reservou vê ao abrir.
   BookingResultSuggestion? suggestion;
   final responses =
@@ -72,6 +76,16 @@ class FakeBookingResultRepository implements BookingResultRepository {
       Stream.value(
         suggestion?.bookingId == bookingId ? suggestion : null,
       );
+
+  @override
+  Future<List<String>> linkPlayers(
+    String bookingId,
+    List<String> playerIds,
+  ) async {
+    if (linkError != null) throw BookingResultException(linkError!);
+    links.add((bookingId, playerIds));
+    return playerIds;
+  }
 
   @override
   Future<void> suggest(String bookingId, BookingResult result) async {

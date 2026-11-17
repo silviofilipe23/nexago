@@ -23,6 +23,7 @@ import '../../data/pelada_live_draft_store.dart';
 import '../../domain/booking_result.dart';
 import '../../domain/booking_result_record.dart';
 import '../../domain/booking_result_record_providers.dart';
+import '../../domain/booking_result_repository.dart';
 import '../../domain/booking_social_unlock.dart';
 import '../../domain/booking_story.dart';
 import '../../domain/booking_story_providers.dart';
@@ -194,6 +195,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     if (!_extra.contains(player) && !_candidates().contains(player)) {
       _extra.add(player);
     }
+    if (outcome == LancarAssignOutcome.assigned) unawaited(_link(player));
     // Escolheu o time de alguém da busca: limpa o campo e fecha o teclado,
     // e a lista volta inteira (com quem acabou de entrar).
     final clearSearch = outcome == LancarAssignOutcome.assigned &&
@@ -207,6 +209,33 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
       _r = next;
       if (clearSearch) _search = '';
     });
+  }
+
+  /// Quem já foi liberado (ou está sendo) nesta tela: uma chamada por atleta.
+  final Set<String> _linked = {};
+
+  /// Atleta da busca entrou num time: libera no servidor para ele lançar do
+  /// próprio celular, sem depender deste (`linkBookingResultPlayers`).
+  Future<void> _link(ResultPlayer player) async {
+    final source = ref.read(bookingStorySourceProvider(widget.args.bookingId));
+    final needs = lancarNeedsLink(
+      player: player,
+      uid: ref.read(bookingResultUidProvider),
+      ownerUid: source?.ownerUid,
+      rosterUids: source?.rosterUids ?? const [],
+      canSave: _canSave,
+    );
+    if (!needs || !_linked.add(player.id)) return;
+    try {
+      await ref
+          .read(bookingResultRepositoryProvider)
+          .linkPlayers(_bookingId, [player.id]);
+    } on BookingResultException {
+      // Tenta de novo se o atleta for posto num time outra vez.
+      _linked.remove(player.id);
+      if (!mounted) return;
+      showAppSnackBar(context, lancarLinkFailedMessage(player.name));
+    }
   }
 
   Future<void> _rename(ResultTeam team, int index) async {
@@ -444,6 +473,8 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
             avatarUrl: host.profilePhotoUrl,
           ),
         ...?source?.confirmed,
+        // Liberados por outro celular da pelada: já entram na lista.
+        ...?source?.scoreKeepers,
       ],
     );
     final out = [...crew];

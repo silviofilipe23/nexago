@@ -361,4 +361,30 @@ void main() {
       expect(BenefitSource.fromQuery('banner'), BenefitSource.unknown);
     });
   });
+
+  group('partnerAppRouteOrNull', () {
+    test('aceita só caminho interno do app; o doc lê o campo', () {
+      expect(partnerAppRouteOrNull(' /arena/abc '), '/arena/abc');
+      expect(
+        partnerAppRouteOrNull('/loja/produto/x?y=1'),
+        '/loja/produto/x?y=1',
+      );
+      for (final bad in [
+        null,
+        42,
+        '',
+        'arena/abc',
+        '//evil.example/x',
+        'https://atleta.nexago.com.br/reservar/abc',
+        '/arena abc',
+      ]) {
+        expect(partnerAppRouteOrNull(bad), isNull, reason: '$bad');
+      }
+      final partner = Partner.fromFirestore('v', const {
+        'appRoute': '/arena/abc',
+      });
+      expect(partner.appRoute, '/arena/abc');
+      expect(Partner.fromFirestore('v', const {}).appRoute, isNull);
+    });
+  });
 }

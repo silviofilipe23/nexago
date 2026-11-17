@@ -35,6 +35,7 @@ const RULE_CONTENT_FIELDS = [
   'ctaType',
   'ctaLabel',
   'link',
+  'appRoute',
   'couponMode',
   'couponCode',
   'brandColor',
@@ -102,6 +103,7 @@ describe('clube: parceiro', () => {
       ctaType: 'link',
       ctaLabel: 'Pedir com 10% off',
       link: 'https://fast.example/cardapio',
+      appRoute: null,
       couponMode: 'fixed',
       couponCode: 'NEXAGO10',
       brandColor: '#5E1E7A',
@@ -174,6 +176,20 @@ describe('clube: parceiro', () => {
     expect(validatePartnerForm(fastForm({ link: '', active: false })).link).toBeUndefined();
     expect(validatePartnerForm(fastForm({ link: 'http://fast.example' })).link).toContain('https://');
     expect(partnerPayload(fastForm({ link: '', active: false })).link).toBeNull();
+  });
+
+  it('tela do app: caminho interno opcional; ativa sem link; recusa URL e barra dupla; some no formulário', () => {
+    const vegeton = fastForm({ appRoute: ' /arena/TtYSz7IaOHB7Hf7CXdIr ' });
+    expect(validatePartnerForm(vegeton).appRoute).toBeUndefined();
+    expect(partnerPayload(vegeton).appRoute).toBe('/arena/TtYSz7IaOHB7Hf7CXdIr');
+    expect(validatePartnerForm(fastForm({ link: '', appRoute: '/arena/x' })).link).toBeUndefined();
+    for (const bad of ['arena/x', 'https://atleta.nexago.com.br/reservar/x', '//evil.example/x', '/arena x']) {
+      expect(validatePartnerForm(fastForm({ appRoute: bad })).appRoute).toContain('começando com /');
+    }
+    expect(partnerPayload(fastForm()).appRoute).toBeNull();
+    expect(partnerPayload(fastForm({ ctaType: 'lead_form', appRoute: '/arena/x' })).appRoute).toBeNull();
+    expect(partnerFromDoc('v', { appRoute: '//evil.example' }).appRoute).toBeNull();
+    expect(formFromPartner(partnerFromDoc('v', { appRoute: '/arena/x' })).appRoute).toBe('/arena/x');
   });
 
   it('cupom fixo exige o código; formulário confere consentimento e mensagem', () => {

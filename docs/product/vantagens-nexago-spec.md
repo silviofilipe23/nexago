@@ -30,6 +30,7 @@ reunião comercial. Origem: quadro de tarefas do backoffice, etapas 1 a 4.
 | `ctaType` | `link` \| `lead_form` | o que o botão faz |
 | `ctaLabel` | string (≤ 32) | "Pedir com 10% off", "Quero contratar" |
 | `link` | string \| null | URL https do parceiro (só `link`) |
+| `appRoute` | string \| null | tela do app que o botão abre no lugar do link, como `/arena/{id}` (só `link`). Caminho interno: começa com uma barra só, sem esquema nem host. O portal e o app antigo seguem no `link` |
 | `couponMode` | `none` \| `fixed` \| `athlete` | código fixo (NEXAGO10) ou por atleta (NEXA-XXXX) |
 | `couponCode` | string \| null | o código fixo |
 | `brandColor` | string `#RRGGBB` | cor da marca (banner, botão, iniciais) |

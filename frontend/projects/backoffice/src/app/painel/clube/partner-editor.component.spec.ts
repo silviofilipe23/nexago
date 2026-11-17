@@ -161,8 +161,8 @@ describe('PartnerEditorComponent', () => {
     const [id, payload] = update.calls.mostRecent().args;
     expect(id).toBe('fast-acai');
     expect(payload).toEqual({ ...partnerPayload(formFromPartner(FAST)), benefitHighlight: '15% OFF' });
-    // 21 campos da v1 + 10 da versão premium + `levelTiers` (allowlist da rule, sem autoria).
-    expect(Object.keys(payload).length).toBe(32);
+    // 21 campos da v1 + 10 da versão premium + `levelTiers` + `appRoute` (allowlist da rule, sem autoria).
+    expect(Object.keys(payload).length).toBe(33);
     expect(payload.link).toBe('https://fast.example');
     expect(payload.couponCode).toBe('NEXAGO10');
     expect(create).not.toHaveBeenCalled();

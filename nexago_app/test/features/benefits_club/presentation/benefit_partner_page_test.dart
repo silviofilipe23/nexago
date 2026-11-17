@@ -408,4 +408,39 @@ void main() {
     );
     expect(find.text('Benefício indisponível'), findsOneWidget);
   });
+
+  testWidgets('tela do app: o botão copia o cupom e abre a reserva da arena '
+      'no app, sem abrir o site', (tester) async {
+    final service = FakeBenefitsClubService();
+    final platform = _mockPlatform(tester);
+    const vegeton = Partner(
+      id: 'vegeton-beach-club',
+      name: 'Vegeton Beach Club',
+      ctaLabel: 'Reservar com R\$ 10 off',
+      link: 'https://atleta.nexago.com.br/reservar/TtYSz7IaOHB7Hf7CXdIr',
+      appRoute: '/arena/TtYSz7IaOHB7Hf7CXdIr',
+      couponMode: PartnerCouponMode.fixed,
+      couponCode: 'NEXAGO10',
+      active: true,
+    );
+
+    await _pumpPartner(
+      tester,
+      service: service,
+      partners: const [vegeton],
+      location: '/athlete/clube/vegeton-beach-club',
+    );
+    expect(
+      find.text('Copia o cupom e abre a Vegeton Beach Club no app'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('benefits-partner-cta')));
+    await tester.pumpAndSettle();
+
+    expect(platform.copied, 'NEXAGO10');
+    expect(platform.launched, isNull);
+    expect(find.text('arena TtYSz7IaOHB7Hf7CXdIr'), findsOneWidget);
+    expect(service.of(BenefitEventType.ctaClick), hasLength(1));
+  });
 }

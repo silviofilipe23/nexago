@@ -91,6 +91,8 @@ export const PARTNER_ID_PATTERN = /^[a-z0-9-]{1,60}$/;
 export const NEW_PARTNER_ROUTE_ID = 'novo';
 
 const HTTPS_PATTERN = /^https:\/\/.+/;
+/** Caminho interno do app: uma barra só no começo, sem esquema nem host (mesma regra das rules). */
+export const APP_ROUTE_PATTERN = /^\/(?!\/)[A-Za-z0-9._~%/?=&-]{0,199}$/;
 const COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
 export const DEFAULT_BRAND_COLOR = '#FF6A1A';
 
@@ -120,6 +122,8 @@ export interface Partner {
   ctaType: CtaType;
   ctaLabel: string;
   link: string | null;
+  /** Tela do app que o botão abre no lugar do link (`/arena/{id}`); o portal segue no link. */
+  appRoute: string | null;
   couponMode: CouponMode;
   couponCode: string | null;
   brandColor: string;
@@ -164,6 +168,8 @@ export interface PartnerPayload {
   ctaType: CtaType;
   ctaLabel: string;
   link: string | null;
+  /** Tela do app que o botão abre no lugar do link (`/arena/{id}`); o portal segue no link. */
+  appRoute: string | null;
   couponMode: CouponMode;
   couponCode: string | null;
   brandColor: string;
@@ -215,6 +221,7 @@ export interface PartnerForm {
   ctaType: CtaType;
   ctaLabel: string;
   link: string;
+  appRoute: string;
   couponMode: CouponMode;
   couponCode: string;
   leadConsentText: string;
@@ -301,6 +308,7 @@ export function partnerFromDoc(id: string, data: Record<string, unknown>): Partn
     ctaType: pick(data['ctaType'], CTA_TYPES, 'link'),
     ctaLabel: text(data['ctaLabel']),
     link: textOrNull(data['link']),
+    appRoute: APP_ROUTE_PATTERN.test(text(data['appRoute'])) ? text(data['appRoute']) : null,
     couponMode: pick(data['couponMode'], COUPON_MODES, 'none'),
     couponCode: textOrNull(data['couponCode']),
     brandColor: COLOR_PATTERN.test(color) ? color : DEFAULT_BRAND_COLOR,
@@ -351,6 +359,7 @@ export function emptyPartnerForm(): PartnerForm {
     ctaType: 'link',
     ctaLabel: '',
     link: '',
+    appRoute: '',
     couponMode: 'none',
     couponCode: '',
     leadConsentText: '',
@@ -396,6 +405,7 @@ export function formFromPartner(p: Partner, privateCoupon: string | null = null,
     ctaType: p.ctaType,
     ctaLabel: p.ctaLabel,
     link: p.link ?? '',
+    appRoute: p.appRoute ?? '',
     couponMode: p.couponMode,
     couponCode: (req.type === 'none' ? p.couponCode : (privateCoupon ?? p.couponCode)) ?? '',
     leadConsentText: p.leadConsentText ?? '',
@@ -499,7 +509,11 @@ export function validatePartnerForm(form: PartnerForm): PartnerFormErrors {
 
   if (form.ctaType === 'link') {
     const link = form.link.trim();
-    if (link === '' && form.active) errors.link = 'Informe o link (https://) para ativar o parceiro.';
+    const appRoute = form.appRoute.trim();
+    if (appRoute !== '' && !APP_ROUTE_PATTERN.test(appRoute)) {
+      errors.appRoute = 'Use o caminho da tela, começando com /, como /arena/{id da arena}.';
+    }
+    if (link === '' && appRoute === '' && form.active) errors.link = 'Informe o link (https://) para ativar o parceiro.';
     else if (link !== '' && !HTTPS_PATTERN.test(link)) errors.link = 'O link precisa começar com https://';
     else if (link.length > URL_MAX) errors.link = tooLong(link, URL_MAX);
   } else {
@@ -573,6 +587,7 @@ export function partnerPayload(form: PartnerForm): PartnerPayload {
     ctaType: form.ctaType,
     ctaLabel: form.ctaLabel.trim(),
     link: isLink ? form.link.trim() || null : null,
+    appRoute: isLink ? form.appRoute.trim() || null : null,
     couponMode: form.couponMode,
     couponCode: requirement.type === 'none' ? fixedCode : null,
     brandColor: normalizeColor(form.brandColor),

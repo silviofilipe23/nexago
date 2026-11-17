@@ -281,6 +281,12 @@ function snapshotOf(form: PartnerForm): string {
                             <span class="err">{{ e }}</span>
                           }
                         </bo-field>
+                        <bo-field label="Tela do app (opcional)" hint="No app o botão abre esta tela, e no portal segue o link. Reserva de arena: /arena/{id da arena}.">
+                          <input class="bo-input mono" placeholder="/arena/…" maxlength="200" [class.invalid]="err('appRoute')" [value]="form().appRoute" (input)="patch({ appRoute: text($event) })" (blur)="touch('appRoute')" />
+                          @if (err('appRoute'); as e) {
+                            <span class="err">{{ e }}</span>
+                          }
+                        </bo-field>
                       }
                     </div>
 

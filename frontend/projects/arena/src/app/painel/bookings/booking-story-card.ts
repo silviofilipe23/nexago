@@ -3,6 +3,7 @@ import {
   bookingStoryCrewNames,
   bookingStoryHeadline,
   bookingStoryPill,
+  bookingStoryThemeHasImage,
   type BookingStory,
   type BookingStoryOptions,
   type BookingStoryPerson,
@@ -174,23 +175,26 @@ function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: numb
 
 /** Fundo sempre opaco: começa chapado e só depois vêm brilho/foto (PNG transparente some no
  *  Instagram — armadilha vista no app). */
-function drawBackground(ctx: CanvasRenderingContext2D, options: BookingStoryOptions, cover: HTMLImageElement | null): void {
+function drawBackground(ctx: CanvasRenderingContext2D, options: BookingStoryOptions, backdrop: HTMLImageElement | null): void {
   ctx.fillStyle = CANVAS;
   ctx.fillRect(0, 0, STORY_WIDTH, STORY_HEIGHT);
+  if (bookingStoryThemeHasImage(options.theme)) {
+    if (backdrop) drawCover(ctx, backdrop, 0, 0, STORY_WIDTH, STORY_HEIGHT);
+    // Escurece topo e base para o texto ler sobre qualquer foto. O bloco de texto começa por
+    // volta de 39% da altura: com foto clara (céu, areia), o escurecimento precisa já estar
+    // forte ali, senão o título branco e a modalidade laranja somem.
+    const scrim = ctx.createLinearGradient(0, 0, 0, STORY_HEIGHT);
+    scrim.addColorStop(0, 'rgba(5, 5, 5, 0.55)');
+    scrim.addColorStop(0.2, 'rgba(5, 5, 5, 0)');
+    scrim.addColorStop(0.28, 'rgba(5, 5, 5, 0.05)');
+    scrim.addColorStop(0.42, 'rgba(5, 5, 5, 0.62)');
+    scrim.addColorStop(0.6, 'rgba(5, 5, 5, 0.85)');
+    scrim.addColorStop(1, 'rgba(5, 5, 5, 0.94)');
+    ctx.fillStyle = scrim;
+    ctx.fillRect(0, 0, STORY_WIDTH, STORY_HEIGHT);
+    return;
+  }
   switch (options.theme) {
-    case 'cover': {
-      if (cover) drawCover(ctx, cover, 0, 0, STORY_WIDTH, STORY_HEIGHT);
-      // Escurece topo e base para o texto ler sobre qualquer foto.
-      const scrim = ctx.createLinearGradient(0, 0, 0, STORY_HEIGHT);
-      scrim.addColorStop(0, 'rgba(5, 5, 5, 0.55)');
-      scrim.addColorStop(0.22, 'rgba(5, 5, 5, 0)');
-      scrim.addColorStop(0.4, 'rgba(5, 5, 5, 0)');
-      scrim.addColorStop(0.8, 'rgba(5, 5, 5, 0.92)');
-      scrim.addColorStop(1, 'rgba(5, 5, 5, 0.92)');
-      ctx.fillStyle = scrim;
-      ctx.fillRect(0, 0, STORY_WIDTH, STORY_HEIGHT);
-      return;
-    }
     case 'ember': {
       const glow = ctx.createRadialGradient(864, 192, 0, 864, 192, STORY_WIDTH * 1.4);
       glow.addColorStop(0, BRAND);
@@ -483,13 +487,14 @@ export function drawBookingStory(
   story: BookingStory,
   options: BookingStoryOptions,
   assets: BookingStoryAssets,
-  images: { cover: HTMLImageElement | null; photos: BookingStoryImages },
+  /** `backdrop`: a imagem do fundo `cover`/`photo` (ignorada nos fundos sem imagem). */
+  images: { backdrop: HTMLImageElement | null; photos: BookingStoryImages },
 ): void {
   const p = paletteOf(options);
   ctx.save();
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
-  drawBackground(ctx, options, images.cover);
+  drawBackground(ctx, options, images.backdrop);
   drawHeader(ctx, story, p, assets);
 
   const blocks: Block[] = [];

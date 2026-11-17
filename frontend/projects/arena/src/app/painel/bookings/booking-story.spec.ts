@@ -8,8 +8,11 @@ import {
   bookingStoryHeadline,
   bookingStoryInitials,
   bookingStoryMoment,
+  bookingStoryPhotoError,
   bookingStoryPill,
   bookingStoryShareable,
+  bookingStoryThemeHasImage,
+  STORY_PHOTO_MAX_BYTES,
   bookingStoryTimeRange,
   type BookingStoryPerson,
 } from './booking-story';
@@ -126,5 +129,21 @@ describe('booking-story', () => {
   it('nomeia o PNG com data e hora da reserva', () => {
     expect(bookingStoryFileName({ dateKey: '2026-05-22', startTime: '09:00' })).toBe('story-reserva-2026-05-22-0900.png');
     expect(bookingStoryFileName({ dateKey: '2026-05-22', startTime: '' })).toBe('story-reserva-2026-05-22.png');
+  });
+
+  describe('foto própria no fundo', () => {
+    it('aceita imagem até o teto e recusa outro tipo ou arquivo grande demais', () => {
+      expect(bookingStoryPhotoError({ type: 'image/jpeg', size: 3_000_000 })).toBeNull();
+      expect(bookingStoryPhotoError({ type: 'image/png', size: STORY_PHOTO_MAX_BYTES - 1 })).toBeNull();
+      expect(bookingStoryPhotoError({ type: 'application/pdf', size: 1000 })).toContain('arquivo de imagem');
+      expect(bookingStoryPhotoError({ type: '', size: 1000 })).toContain('arquivo de imagem');
+      expect(bookingStoryPhotoError({ type: 'image/jpeg', size: STORY_PHOTO_MAX_BYTES })).toContain('25 MB');
+    });
+
+    it('só capa e foto própria são fundos com imagem', () => {
+      expect(bookingStoryThemeHasImage('photo')).toBeTrue();
+      expect(bookingStoryThemeHasImage('cover')).toBeTrue();
+      expect(bookingStoryThemeHasImage('night')).toBeFalse();
+    });
   });
 });

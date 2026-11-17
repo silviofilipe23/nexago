@@ -2,12 +2,14 @@ import { ChangeDetectionStrategy, Component, input, output, signal } from '@angu
 import { IconComponent } from '../../../ui/icon.component';
 import { PanelCardComponent } from '../../../ui/panel-card.component';
 import { ToggleComponent } from '../../../ui/toggle.component';
+import { CODE_SCOPE_OPTIONS } from '../../data/code-scope';
 import type { KitSkuOption } from '../data/squad-rules.repository';
 import {
   SQUAD_TIERS,
   TIER_LABELS,
   brl,
   toCents,
+  type FollowerDiscountKind,
   type KitSku,
   type RegistrationType,
   type RulesIssues,
@@ -44,7 +46,10 @@ const HIDDEN_FIELDS = ['events', 'kitSku', 'campaignFeeCapCents', 'tournamentOri
 
 const skuKeyOf = (s: KitSku) => `${s.productId}/${s.skuId}`;
 
-/** Card "Pacote por nível": um bloco por nível com comissão, desconto, inscrições e kit. */
+/**
+ * Card "Pacote por nível": um bloco por nível com comissão, desconto, inscrições, kit e onde o código
+ * dos embaixadores do nível vale.
+ */
 @Component({
   selector: 'bo-tier-packages-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -146,6 +151,28 @@ const skuKeyOf = (s: KitSku) => `${s.productId}/${s.skuId}`;
             @for (m of gridMessages(key); track m) {
               <p class="err" role="alert">{{ m }}</p>
             }
+
+            <div class="scope" role="group" [attr.aria-label]="'Onde o código do ' + labels[key] + ' vale'">
+              <span class="lbl">Código vale em</span>
+              <div class="kinds">
+                @for (o of scopeOptions; track o.kind) {
+                  <div class="kind">
+                    <bo-toggle
+                      [checked]="t.codeScope[o.kind]"
+                      [disabled]="readonly()"
+                      [ariaLabel]="o.label + ' no ' + labels[key]"
+                      (checkedChange)="setScope(key, o.kind, $event)"
+                    />
+                    <span>{{ o.label }}</span>
+                  </div>
+                }
+              </div>
+              @if (issue(key, 'codeScope'); as m) {
+                <span class="err" role="alert">{{ m }}</span>
+              } @else {
+                <span class="hint">Fora daqui o código não aparece no checkout, não dá desconto nem gera comissão.</span>
+              }
+            </div>
 
             <button type="button" class="more-btn" [attr.aria-expanded]="isOpen(key)" (click)="toggle(key)">
               Mais benefícios
@@ -275,6 +302,9 @@ const skuKeyOf = (s: KitSku) => `${s.productId}/${s.skuId}`;
     .err { margin: 8px 0 0; font-size: 12px; color: var(--nx-live); }
     .cell .err { margin: 0; }
     .hint { font-size: 11.5px; color: var(--nx-text-dim); }
+    .scope { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .kinds { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+    .kind { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--nx-text); }
     .more-btn { margin-top: 12px; padding: 0; border: none; background: none; display: inline-flex; align-items: center; gap: 5px; font-family: var(--nx-font-display); font-weight: 600; font-size: 12px; color: var(--nx-text-mute); cursor: pointer; }
     .more-btn:hover { color: var(--nx-text); }
     .up { display: inline-flex; transform: rotate(180deg); }
@@ -309,6 +339,7 @@ export class TierPackagesCardComponent {
   protected readonly tierKeys = SQUAD_TIERS;
   protected readonly labels = TIER_LABELS;
   protected readonly registrationOptions = REGISTRATION_OPTIONS;
+  protected readonly scopeOptions = CODE_SCOPE_OPTIONS;
   protected readonly skuKey = skuKeyOf;
   private readonly open = signal<ReadonlySet<SquadTier>>(new Set());
 
@@ -343,6 +374,10 @@ export class TierPackagesCardComponent {
 
   protected patch(tier: SquadTier, patch: Partial<TierPackage>): void {
     this.tierChange.emit({ tier, patch });
+  }
+
+  protected setScope(tier: SquadTier, kind: FollowerDiscountKind, on: boolean): void {
+    this.patch(tier, { codeScope: { ...this.tiers()[tier].codeScope, [kind]: on } });
   }
 
   protected setRegistrationType(tier: SquadTier, event: Event): void {

@@ -100,6 +100,12 @@ export interface TierPackage {
   campaignFeeCapCents?: number;
   /** Só Captain. */
   tournamentOriginBonusCents?: number;
+  /**
+   * Onde o código dos embaixadores deste nível existe (inscrição, reserva, clubinho). Ausente = em
+   * tudo. Como o resto do pacote, vale pela versão congelada no contrato; soma-se ao `codeScope` do
+   * contrato (os dois precisam deixar). Fora dele não há atribuição: nem prévia, desconto ou comissão.
+   */
+  codeScope?: FollowerDiscountScope;
 }
 
 export interface SquadRules {
@@ -268,6 +274,21 @@ export function followerDiscountScopeOf(raw: unknown): FollowerDiscountScope {
   };
 }
 
+/** Vale só onde todos deixam: `{registration: a.registration && b.registration, …}`. */
+export function intersectScopes(...scopes: FollowerDiscountScope[]): FollowerDiscountScope {
+  return {
+    registration: scopes.every((s) => s.registration),
+    booking: scopes.every((s) => s.booking),
+    club: scopes.every((s) => s.club),
+  };
+}
+
+/** Escopo gravável: os três tipos booleanos e ao menos um ligado. */
+function codeScopeOk(raw: unknown): boolean {
+  return isObj(raw) && FOLLOWER_DISCOUNT_KINDS.every((k) => typeof raw[k] === "boolean") &&
+    FOLLOWER_DISCOUNT_KINDS.some((k) => raw[k] === true);
+}
+
 export function commissionFloor(c: unknown): number {
   if (Array.isArray(c)) return typeof c[0] === "number" ? c[0] : NaN;
   return typeof c === "number" ? c : NaN;
@@ -319,6 +340,7 @@ function tierErrors(tier: SquadTier, t: unknown): string[] {
   if (tier === "cap" && !int(t["tournamentOriginBonusCents"], 0, MAX_TOURNAMENT_BONUS_CENTS)) {
     fields.push(at("tournamentOriginBonusCents"));
   }
+  if (t["codeScope"] !== undefined && !codeScopeOk(t["codeScope"])) fields.push(at("codeScope"));
   return fields;
 }
 
@@ -453,6 +475,9 @@ export function normalizeSquadRules(r: SquadRules): SquadRules {
     };
     if (key === "pro") out.campaignFeeCapCents = t.campaignFeeCapCents;
     if (key === "cap") out.tournamentOriginBonusCents = t.tournamentOriginBonusCents;
+    // Tudo ligado = campo ausente: pacotes antigos (sem o campo) não aparecem como alterados.
+    const scope = followerDiscountScopeOf(t.codeScope);
+    if (FOLLOWER_DISCOUNT_KINDS.some((k) => !scope[k])) out.codeScope = scope;
     return out;
   };
   const list = (items: string[]) => items.map((s) => s.trim());
@@ -554,6 +579,29 @@ export async function tierRegistrationsPerk(
     if (fromVersion !== null) return fromVersion;
   }
   return perkOf((await rulesRef.get()).data()) ?? {...DEFAULT_SQUAD_RULES.tiers[tier].registrations};
+}
+
+/**
+ * Onde o código do nível vale, na versão das regras congelada no contrato. A versão existe e tem o
+ * nível = ela manda (sem o campo, vale em tudo); sem retrato da versão, as regras vigentes.
+ */
+export async function tierCodeScope(
+  db: Firestore,
+  tier: SquadTier | null,
+  rulesVersion: number | null,
+): Promise<FollowerDiscountScope> {
+  if (!tier) return followerDiscountScopeOf(undefined);
+  const tierOf = (data: Raw | undefined): Raw | null => {
+    const tiers = isObj(data?.["rules"]) ? (data!["rules"] as Raw)["tiers"] : undefined;
+    const t = isObj(tiers) ? tiers[tier] : undefined;
+    return isObj(t) ? t : null;
+  };
+  const rulesRef = db.collection(SQUAD_CONFIG).doc(SQUAD_RULES_DOC);
+  if (rulesVersion !== null) {
+    const fromVersion = tierOf((await rulesRef.collection(SQUAD_RULES_VERSIONS).doc(String(rulesVersion)).get()).data());
+    if (fromVersion) return followerDiscountScopeOf(fromVersion["codeScope"]);
+  }
+  return followerDiscountScopeOf(tierOf((await rulesRef.get()).data())?.["codeScope"]);
 }
 
 // ── diff entre versões ──────────────────────────────────────────────────────

@@ -29,7 +29,7 @@ import {
 } from '../../comissoes/data/commission';
 import { END_REASON_LABELS, contractFromDoc, type Contract, type EndReason } from '../../data/squad-program.repository';
 import { contractDays } from '../../data/squad-program';
-import { codeScopeLabel, codeScopeOf } from '../../data/code-scope';
+import { FULL_CODE_SCOPE, codeScopeLabel, codeScopeOf, intersectScopes } from '../../data/code-scope';
 import { roiLabel, type AmbassadorRow } from '../../embaixadores/data/ambassador';
 import type { Application } from '../../candidaturas/data/application';
 import { multiplier, plural } from '../../data/squad-metrics';
@@ -316,7 +316,11 @@ function endReasonLabel(reason: string | null): string | null {
   return reason ? END_REASON_LABELS[reason as EndReason] ?? reason : null;
 }
 
-export function contractLines(c: ProfileContract, now: Date): ContractLine[] {
+/**
+ * Linhas do contrato. `pkg` = o pacote do nível congelado no contrato: o "Código vale em" soma o
+ * escopo do contrato e o do nível.
+ */
+export function contractLines(c: ProfileContract, now: Date, pkg?: TierPackage | null): ContractLine[] {
   const lines: ContractLine[] = [];
   if (c.start) {
     const end = c.end ? `${dayMonth(c.end)} ${year(c.end)}` : 'sem fim definido';
@@ -325,7 +329,7 @@ export function contractLines(c: ProfileContract, now: Date): ContractLine[] {
   }
   lines.push({ label: 'Comissão', value: c.commissionPct !== null ? `${c.commissionPct}% da receita líquida` : '—' });
   if (c.followerDiscountPct !== null) lines.push({ label: 'Desconto do seguidor', value: `${c.followerDiscountPct}%` });
-  const scope = codeScopeLabel(c.codeScope);
+  const scope = codeScopeLabel(intersectScopes(c.codeScope ?? FULL_CODE_SCOPE, pkg?.codeScope ?? FULL_CODE_SCOPE));
   if (scope) lines.push({ label: 'Código vale em', value: scope });
   if (c.rulesVersion !== null) lines.push({ label: 'Regras', value: `v${c.rulesVersion}.0 · congeladas no aceite` });
   if (c.state === 'paused') {

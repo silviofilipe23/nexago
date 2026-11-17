@@ -9,11 +9,12 @@
  * inscrição é o próprio embaixador) é recusada com mensagem quando o código foi digitado e
  * ignorada em silêncio quando veio de link. Só servidor grava aqui; as rules negam o cliente.
  *
- * Escopo do código (`codeScope` no contrato): em que compras o código do embaixador existe —
- * inscrição, reserva, clubinho. Fora dele não há atribuição nenhuma (nem prévia, nem desconto,
- * nem comissão): o digitado é recusado com mensagem, o link é ignorado em silêncio. Contrato sem o
- * campo vale em tudo. O escopo global das regras (`followerDiscountScope`) é outra coisa: só liga
- * ou desliga o DESCONTO dentro de uma atribuição válida.
+ * Escopo do código: em que compras o código do embaixador existe — inscrição, reserva, clubinho.
+ * Vale onde o contrato (`codeScope`) E o nível dele na versão do contrato (`tiers.*.codeScope`)
+ * deixam; sem o campo, em tudo. Fora dele não há atribuição nenhuma (nem prévia, nem desconto,
+ * nem comissão): o digitado é recusado com mensagem, o link é ignorado em silêncio. O escopo
+ * global das regras (`followerDiscountScope`) é outra coisa: só liga ou desliga o DESCONTO dentro
+ * de uma atribuição válida.
  */
 import * as logger from "firebase-functions/logger";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
@@ -28,7 +29,9 @@ import {SQUAD_PUBLIC} from "./squad-public";
 import {
   FOLLOWER_DISCOUNT_KINDS,
   followerDiscountScopeOf,
+  intersectScopes,
   loadAttributionRules,
+  tierCodeScope,
   type FollowerDiscountKind,
   type FollowerDiscountScope,
   type SquadTier,
@@ -107,6 +110,11 @@ export function outOfScopeMessage(code: string, scope: FollowerDiscountScope): s
   return `O código ${code} vale só para ${list}.`;
 }
 
+/** Onde o código existe: o contrato e o pacote do nível (versão do contrato) precisam deixar. */
+export async function codeScopeFor(db: Firestore, ambassador: AmbassadorContract): Promise<FollowerDiscountScope> {
+  return intersectScopes(ambassador.codeScope, await tierCodeScope(db, ambassador.tier, ambassador.rulesVersion));
+}
+
 export async function findAmbassadorByCode(db: Firestore, code: string): Promise<AmbassadorContract | null> {
   const snap = await db.collection(SQUAD_AMBASSADORS).where("code", "==", code).where("status", "==", "active").get();
   const doc = snap.docs[0];
@@ -178,10 +186,9 @@ export async function resolveRegistrationAttribution(
       throw new HttpsError("invalid-argument", paused ? PAUSED_CODE_MESSAGE : UNKNOWN_CODE_MESSAGE, {field: "squadCode"});
     }
     if (isSelf(ambassador)) throw new HttpsError("failed-precondition", SELF_REFERRAL_MESSAGE, {field: "squadCode"});
-    if (!ambassador.codeScope[input.purpose]) {
-      throw new HttpsError(
-        "failed-precondition", outOfScopeMessage(ambassador.code, ambassador.codeScope), {field: "squadCode"},
-      );
+    const scope = await codeScopeFor(db, ambassador);
+    if (!scope[input.purpose]) {
+      throw new HttpsError("failed-precondition", outOfScopeMessage(ambassador.code, scope), {field: "squadCode"});
     }
     return {ambassador, origin: "code"};
   }
@@ -191,7 +198,7 @@ export async function resolveRegistrationAttribution(
   const at = dateOf(d?.["at"]);
   if (!d || !at || now.getTime() - at.getTime() > rules.windowDays * DAY_MS) return null;
   const ambassador = await findAmbassador(db, String(d["ambassadorId"] ?? ""));
-  if (!ambassador || isSelf(ambassador) || !ambassador.codeScope[input.purpose]) return null;
+  if (!ambassador || isSelf(ambassador) || !(await codeScopeFor(db, ambassador))[input.purpose]) return null;
   return {ambassador, origin: d["origin"] === "qr" ? "qr" : "link"};
 }
 
@@ -361,7 +368,7 @@ export interface SquadReferralView {
   /** Até quanto o seguidor ganha; o teto na taxa corta no checkout. 0 = o nível não dá desconto. */
   discountPct: number;
   firstOnly: boolean;
-  /** Onde o código dá desconto: o escopo do contrato E o das regras. */
+  /** Onde o código dá desconto: o escopo do contrato, o do nível e o das regras. */
   scope: FollowerDiscountScope;
 }
 
@@ -378,10 +385,11 @@ export async function squadReferralCore(db: Firestore, code: unknown): Promise<S
   const normalized = normalizeSquadCode(code);
   const contract = normalized ? await findAmbassadorByCode(db, normalized) : null;
   if (!contract) return null;
-  const [mirror, rules, discountPct] = await Promise.all([
+  const [mirror, rules, discountPct, codeScope] = await Promise.all([
     db.collection(SQUAD_PUBLIC).doc(contract.uid).get(),
     loadAttributionRules(db),
     followerPctOf(db, contract),
+    codeScopeFor(db, contract),
   ]);
   const m = mirror.data();
   const name = strOrNull(m?.["name"]) ?? strOrNull(contract.displayName);
@@ -399,12 +407,8 @@ export async function squadReferralCore(db: Firestore, code: unknown): Promise<S
     },
     discountPct,
     firstOnly: rules.followerDiscountFirstOnly,
-    // Onde o atleta ganha desconto com este código: o contrato e as regras precisam deixar.
-    scope: {
-      registration: contract.codeScope.registration && rules.followerDiscountScope.registration,
-      booking: contract.codeScope.booking && rules.followerDiscountScope.booking,
-      club: contract.codeScope.club && rules.followerDiscountScope.club,
-    },
+    // Onde o atleta ganha desconto com este código: contrato, nível e regras precisam deixar.
+    scope: intersectScopes(codeScope, rules.followerDiscountScope),
   };
 }
 

@@ -9,6 +9,7 @@ import {
   rulesChanges,
   saveSquadRulesCore,
   squadRulesErrors,
+  tierCodeScope,
   type SquadRules,
 } from "./squad-rules";
 
@@ -145,6 +146,47 @@ describe("normalizeSquadRules", () => {
     assert.deepEqual(normalizeSquadRules(old).attribution.followerDiscountScope, {registration: true, booking: true, club: true});
     const onlyBooking = rules((r) => (r.attribution.followerDiscountScope = {registration: false, booking: true, club: false}));
     assert.deepEqual(normalizeSquadRules(onlyBooking).attribution.followerDiscountScope, {registration: false, booking: true, club: false});
+  });
+});
+
+describe("escopo do código por nível (tiers.*.codeScope)", () => {
+  const ONLY_REGISTRATION = {registration: true, booking: false, club: false};
+
+  it("é opcional; quando vem, precisa dos três tipos booleanos e ao menos um ligado", () => {
+    assert.deepEqual(squadRulesErrors(rules()), []);
+    assert.deepEqual(squadRulesErrors(rules((r) => (r.tiers.ath.codeScope = ONLY_REGISTRATION))), []);
+    assert.deepEqual(
+      squadRulesErrors(rules((r) => (r.tiers.ath.codeScope = {registration: false, booking: false, club: false}))),
+      ["tiers.ath.codeScope"],
+    );
+    assert.deepEqual(
+      squadRulesErrors(rules((r) => (r.tiers.pro.codeScope = {registration: true} as never))),
+      ["tiers.pro.codeScope"],
+    );
+  });
+
+  it("normaliza: tudo ligado não grava o campo (sem diferença falsa no pacote); restrito grava", () => {
+    const allOn = normalizeSquadRules(rules((r) => (r.tiers.amb.codeScope = {registration: true, booking: true, club: true})));
+    assert.equal("codeScope" in allOn.tiers.amb, false);
+    assert.deepEqual(rulesChanges(DEFAULT_SQUAD_RULES, allOn), []);
+    const scoped = normalizeSquadRules(rules((r) => (r.tiers.ath.codeScope = ONLY_REGISTRATION)));
+    assert.deepEqual(scoped.tiers.ath.codeScope, ONLY_REGISTRATION);
+    assert.deepEqual(rulesChanges(DEFAULT_SQUAD_RULES, scoped), ["Pacote · Athlete"]);
+    assert.equal(affectsContracts(DEFAULT_SQUAD_RULES, scoped), true);
+  });
+
+  it("lê o escopo do nível na versão do contrato; versão sem o campo vale em tudo", async () => {
+    const {fake, db} = makeDb();
+    const all = {registration: true, booking: true, club: true};
+    assert.deepEqual(await tierCodeScope(db, "ath", null), all, "sem regras: padrão");
+    fake.seedDoc("squadConfig/rules", {version: 3, rules: {tiers: {ath: {codeScope: ONLY_REGISTRATION}}}});
+    fake.seedDoc("squadConfig/rules/versions/2", {rules: {tiers: {ath: {commissionPct: 5}}}});
+    fake.seedDoc("squadConfig/rules/versions/3", {rules: {tiers: {ath: {codeScope: ONLY_REGISTRATION}}}});
+    assert.deepEqual(await tierCodeScope(db, "ath", 2), all, "versão do contrato manda, mesmo sem o campo");
+    assert.deepEqual(await tierCodeScope(db, "ath", 3), ONLY_REGISTRATION);
+    assert.deepEqual(await tierCodeScope(db, "ath", 9), ONLY_REGISTRATION, "versão sem retrato: as vigentes");
+    assert.deepEqual(await tierCodeScope(db, "amb", 3), all);
+    assert.deepEqual(await tierCodeScope(db, null, 3), all);
   });
 });
 

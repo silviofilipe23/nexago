@@ -90,7 +90,10 @@ const MODELS: ReadonlyArray<{ id: AttributionModel; label: string }> = [
           @if (noScope()) {
             <span class="warn">Nenhum marcado: quem usa o código não ganha desconto. A comissão das inscrições continua.</span>
           } @else {
-            <span>Desligado num tipo, o código ainda é aceito e atribuído, só sem desconto</span>
+            <span>
+              Desligado num tipo, o código ainda é aceito e atribuído, só sem desconto. Para o código nem valer numa
+              área, use "Código vale em" no pacote do nível ou no contrato do embaixador.
+            </span>
           }
         </div>
         <ul class="kinds">

@@ -1,5 +1,6 @@
 import { brl } from '../comissoes/data/commission';
 import type { TierPackage } from '../niveis-regras/data/squad-rules';
+import { codeScopeLabel } from './code-scope';
 
 /** Resumo do pacote de um nível (comissão · desconto · inscrições · kit), como o modal de convite mostra. */
 export function packageSummary(pkg: TierPackage): Array<{ label: string; value: string }> {
@@ -11,10 +12,12 @@ export function packageSummary(pkg: TierPackage): Array<{ label: string; value: 
       : r.type === 'freePerMonth'
         ? `${r.value} grátis por mês`
         : `Ilimitadas (teto ${r.value}/mês)`;
+  const scope = codeScopeLabel(pkg.codeScope);
   return [
     { label: 'Comissão', value: pct },
     { label: 'Desconto do seguidor', value: `${pkg.followerDiscountPct}%` },
     { label: 'Inscrições', value: registrations },
     { label: 'Kit', value: pkg.kit ? `${pkg.kit} · ${brl(pkg.kitCostCents, false)}` : '—' },
+    ...(scope ? [{ label: 'Código vale em', value: scope }] : []),
   ];
 }

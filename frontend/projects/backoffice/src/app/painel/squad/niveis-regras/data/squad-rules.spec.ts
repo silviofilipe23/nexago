@@ -134,4 +134,25 @@ describe('squad-rules', () => {
     const partial = rulesFromDoc({ rules: { attribution: { followerDiscountScope: { booking: false } } } });
     expect(partial.attribution.followerDiscountScope).toEqual({ registration: true, booking: false, club: true });
   });
+
+  describe('escopo do código por nível (tiers.*.codeScope)', () => {
+    const ALL = { registration: true, booking: true, club: true };
+
+    it('pacote sem o campo vale em tudo; escopo salvo é lido e completa o que faltar', () => {
+      expect(rulesFromDoc(undefined).tiers.ath.codeScope).toEqual(ALL);
+      const old = rulesFromDoc({ rules: { tiers: { ath: { kitCostCents: 99_00 } } } });
+      expect(old.tiers.ath.codeScope).toEqual(ALL);
+      const scoped = rulesFromDoc({ rules: { tiers: { amb: { codeScope: { booking: false, club: false } } } } });
+      expect(scoped.tiers.amb.codeScope).toEqual({ registration: true, booking: false, club: false });
+      expect(scoped.tiers.ath.codeScope).toEqual(ALL);
+    });
+
+    it('nenhuma área marcada é erro do nível; mudar o escopo afeta contratos (é do pacote)', () => {
+      const none = rules((r) => (r.tiers.pro.codeScope = { registration: false, booking: false, club: false }));
+      expect(validateRules(none)['tiers.pro.codeScope']).toBe('Marque ao menos uma área');
+      const scoped = rules((r) => (r.tiers.ath.codeScope = { registration: true, booking: false, club: false }));
+      expect(validateRules(scoped)['tiers.ath.codeScope']).toBeUndefined();
+      expect(affectsContracts(DEFAULT_SQUAD_RULES, scoped)).toBeTrue();
+    });
+  });
 });

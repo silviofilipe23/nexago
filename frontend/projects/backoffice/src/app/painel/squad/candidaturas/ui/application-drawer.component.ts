@@ -35,7 +35,7 @@ type Mode = 'view' | 'reject' | 'waitlist';
     <div class="backdrop" (click)="closed.emit()"></div>
     <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="application-title">
       <header>
-        <bo-ambassador-avatar [id]="a.athleteId || a.id" [name]="a.name" [size]="44" />
+        <bo-ambassador-avatar [id]="a.athleteId || a.id" [name]="a.name" [size]="44" [photoUrl]="a.snapshot.photoUrl" />
         <div class="who">
           <h2 id="application-title">{{ a.name }}</h2>
           <span class="meta">

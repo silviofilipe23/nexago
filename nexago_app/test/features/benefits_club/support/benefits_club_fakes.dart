@@ -268,6 +268,12 @@ GoRouter benefitsTestRouter(String initialLocation) => GoRouter(
         source: _source(state),
       ),
     ),
+    // Destino de parceiro com `appRoute` (reserva da arena no app).
+    GoRoute(
+      path: AppRoutes.arenaDetail,
+      builder: (_, state) =>
+          Scaffold(body: Text('arena ${state.pathParameters['arenaId']}')),
+    ),
   ],
 );
 

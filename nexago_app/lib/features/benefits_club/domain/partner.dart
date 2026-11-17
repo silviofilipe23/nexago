@@ -95,6 +95,7 @@ class Partner {
     this.ctaType = PartnerCtaType.link,
     this.ctaLabel = '',
     this.link,
+    this.appRoute,
     this.couponMode = PartnerCouponMode.none,
     this.couponCode,
     this.brandColor,
@@ -137,6 +138,7 @@ class Partner {
       ctaType: PartnerCtaType.fromKey(d['ctaType']),
       ctaLabel: _text(d['ctaLabel']),
       link: _textOrNull(d['link']),
+      appRoute: partnerAppRouteOrNull(d['appRoute']),
       couponMode: PartnerCouponMode.fromKey(d['couponMode']),
       couponCode: _textOrNull(d['couponCode']),
       brandColor: _textOrNull(d['brandColor']),
@@ -187,6 +189,10 @@ class Partner {
   final PartnerCtaType ctaType;
   final String ctaLabel;
   final String? link;
+
+  /// Tela do app que o botão abre no lugar de [link] (`/arena/{id}`). O
+  /// portal segue no link, e o app antigo, que não lê o campo, também.
+  final String? appRoute;
   final PartnerCouponMode couponMode;
   final String? couponCode;
 
@@ -259,6 +265,7 @@ class Partner {
     ctaType: ctaType,
     ctaLabel: ctaLabel,
     link: link,
+    appRoute: appRoute,
     couponMode: couponMode,
     couponCode: couponCode,
     brandColor: brandColor,
@@ -283,6 +290,16 @@ class Partner {
     levelTiers: levelTiers,
     levelLadder: levelLadder,
   );
+}
+
+final _appRoutePattern = RegExp(r'^/(?!/)[A-Za-z0-9._~%/?=&-]{0,199}$');
+
+/// Caminho interno do app gravado pelo backoffice, ou `null`: só vale o que
+/// começa com uma barra só, sem esquema nem host (mesma regra das rules), para
+/// o botão nunca levar a um destino fora do app.
+String? partnerAppRouteOrNull(Object? value) {
+  final text = _text(value);
+  return _appRoutePattern.hasMatch(text) ? text : null;
 }
 
 String _text(Object? value) => value is String ? value.trim() : '';

@@ -306,6 +306,22 @@ test('desconto por elo: faixas no parceiro (só com cupom fixo) e cupons das fai
   await assertFails(getDoc(doc(athlete, 'partnerPrivate', 'tiers-ok')));
 });
 
+test('tela do app: caminho interno opcional no botão; URL, barra dupla e espaço não passam', async () => {
+  const admin = adminCtx().firestore();
+  await assertSucceeds(setDoc(doc(admin, 'partners', 'rota-ok'), partner({ appRoute: '/arena/TtYSz7IaOHB7Hf7CXdIr' })));
+  await assertSucceeds(setDoc(doc(admin, 'partners', 'rota-nula'), partner({ appRoute: null })));
+  for (const [id, appRoute] of [
+    ['rota-url', 'https://atleta.nexago.com.br/reservar/x'],
+    ['rota-dupla', '//evil.example/x'],
+    ['rota-sem-barra', 'arena/x'],
+    ['rota-espaco', '/arena x'],
+    ['rota-longa', '/' + 'a'.repeat(200)],
+    ['rota-numero', 42],
+  ]) {
+    await assertFails(setDoc(doc(admin, 'partners', id), partner({ appRoute })));
+  }
+});
+
 test('v2: users/{uid}/benefits — dono lê e só mexe em saved/savedAt', async () => {
   const athlete = athleteCtx().firestore();
   await assertSucceeds(getDoc(doc(athlete, 'users', ATHLETE_UID, 'benefits', 'used')));

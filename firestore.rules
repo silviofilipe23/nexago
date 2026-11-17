@@ -1234,7 +1234,7 @@ service cloud.firestore {
           'leadConsentText', 'leadSuccessMessage', 'createdAt', 'createdByName', 'updatedAt',
           'updatedBy', 'updatedByName', 'coverUrl', 'startsAt', 'validUntil', 'featured',
           'placements', 'couponUrlParam', 'termsTags', 'locations', 'requirement',
-          'requirementLabel', 'levelTiers']) &&
+          'requirementLabel', 'levelTiers', 'appRoute']) &&
         partnerV2Valid(d) &&
         d.name is string && d.name.size() > 0 && d.name.size() <= 80 &&
         (d.get('logoUrl', null) == null ||
@@ -1249,6 +1249,11 @@ service cloud.firestore {
         d.ctaLabel is string && d.ctaLabel.size() > 0 && d.ctaLabel.size() <= 32 &&
         (d.get('link', null) == null ||
           (d.link is string && d.link.matches('^https://.+') && d.link.size() <= 2000)) &&
+        // Tela do app que o botão abre no lugar do link (o portal segue no link). Caminho interno
+        // do app, como `/arena/{id}`: começa com uma barra só, sem esquema nem host.
+        (d.get('appRoute', null) == null ||
+          (d.appRoute is string && d.appRoute.matches('^/[A-Za-z0-9._~%/?=&-]{0,199}$') &&
+            !d.appRoute.matches('^//.*'))) &&
         d.couponMode in ['none', 'fixed', 'athlete'] &&
         (d.get('couponCode', null) == null || (d.couponCode is string && d.couponCode.size() <= 24)) &&
         d.brandColor is string && d.brandColor.matches('^#[0-9A-Fa-f]{6}$') &&

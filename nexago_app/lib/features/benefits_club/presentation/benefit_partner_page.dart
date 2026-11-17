@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -306,8 +308,20 @@ class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
   }
 
   Widget _linkBar(Partner partner, String uid) {
-    final url = trackedPartnerUrl(partner.link, athleteCode(uid));
     final copies = partner.couponMode != PartnerCouponMode.none;
+    if (partner.appRoute != null) {
+      return BenefitCtaBar(
+        buttonKey: const Key('benefits-partner-cta'),
+        label: partner.ctaLabel,
+        icon: Icons.arrow_forward_rounded,
+        busy: _redeeming,
+        hint: copies
+            ? 'Copia o cupom e abre a ${partner.name} no app'
+            : 'Abre a ${partner.name} no app',
+        onPressed: () => _redeem(partner, uid),
+      );
+    }
+    final url = trackedPartnerUrl(partner.link, athleteCode(uid));
     return BenefitCtaBar(
       buttonKey: const Key('benefits-partner-cta'),
       label: partner.ctaLabel,
@@ -426,7 +440,8 @@ class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
   }
 
   /// Resgate em um toque: copia o cupom (avisando), registra `code_copy` e
-  /// `cta_click` e abre o site já com o cupom quando o parceiro aceita.
+  /// `cta_click` e abre a tela do app ([Partner.appRoute]) ou o site, já com o
+  /// cupom quando o parceiro aceita.
   Future<void> _redeem(Partner partner, String uid) async {
     if (_redeeming) return;
     setState(() => _redeeming = true);
@@ -452,6 +467,11 @@ class _BenefitPartnerPageState extends ConsumerState<BenefitPartnerPage> {
         }
       }
       _track(BenefitEventType.ctaClick);
+      final appRoute = partner.appRoute;
+      if (appRoute != null) {
+        if (mounted) unawaited(context.push(appRoute));
+        return;
+      }
       final url = trackedPartnerUrl(
         partner.link,
         athleteCode(uid),

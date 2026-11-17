@@ -275,6 +275,27 @@ describe("saveBookingResultCore", () => {
     }
   });
 
+  it("atleta que a dona adicionou na tela (sem convite) lança depois que ela envia", async () => {
+    const fake = new FakeFirestore();
+    seed(fake);
+    const comZe = payload({
+      teams: [
+        {id: 0, players: [{id: "maria"}, {id: "enzo"}]},
+        {id: 1, players: [{id: "rafael"}, {id: "zé"}]},
+      ],
+    });
+    // Antes de a dona enviar, nada liga o Zé à reserva.
+    await rejects(saveBookingResultCore(db(fake), "zé", comZe, NOW), "permission-denied");
+
+    await saveBookingResultCore(db(fake), "maria", comZe, NOW);
+    assert.ok((fake.store.get("arenaBookings/bk1")!["resultPlayerUids"] as string[]).includes("zé"));
+
+    const {result} = await saveBookingResultCore(db(fake), "zé", comZe, new Date(NOW.getTime() + 60_000));
+    assert.equal(result.version, 2);
+    assert.equal(stored(fake)["editedBy"], "zé");
+    assert.equal(stored(fake)["createdBy"], "maria");
+  });
+
   it("convidado também esbarra no status, no horário e na liberação", async () => {
     const guest = {participantUids: ["enzo"]};
     for (const [booking, code] of [

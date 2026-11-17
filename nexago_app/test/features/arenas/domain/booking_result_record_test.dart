@@ -133,13 +133,21 @@ void main() {
       );
     });
 
-    test('quem edita é o dono da reserva, confirmado também', () {
+    test('quem lançou e quem está no placar editam, confirmado também', () {
       expect(savedResult().canEdit('u1'), isTrue);
       expect(
         savedResult(status: BookingResultStatus.confirmed).canEdit('u1'),
         isTrue,
       );
-      expect(savedResult().canEdit('u3'), isFalse);
+      // Adicionado na tela de lançamento: está no placar, o servidor aceita.
+      expect(savedResult().canEdit('u3'), isTrue);
+      expect(savedResult().canEdit('u9'), isFalse);
+      expect(savedResult().canEdit(''), isFalse);
+    });
+
+    test('só quem lançou abre a reserva a partir da pelada', () {
+      expect(savedResult().isCreator('u1'), isTrue);
+      expect(savedResult().isCreator('u3'), isFalse);
     });
   });
 

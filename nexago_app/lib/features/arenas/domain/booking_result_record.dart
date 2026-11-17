@@ -79,7 +79,7 @@ class SavedBookingResult {
   final String startTime;
   final String endTime;
 
-  /// Dono da reserva: quem lança e edita.
+  /// Quem lançou a primeira versão (dono ou alguém da lista de jogadores).
   final String createdBy;
   final String createdByName;
 
@@ -249,8 +249,15 @@ class SavedBookingResult {
 
   bool involves(String uid) => confirmations.containsKey(uid);
 
-  /// O dono da reserva edita — confirmado também (volta a pendente).
-  bool canEdit(String uid) => uid.isNotEmpty && uid == createdBy;
+  /// Quem lançou e qualquer atleta do placar editam — confirmado também (volta
+  /// a pendente). Quem está no placar está na lista de jogadores da reserva
+  /// (`resultPlayerUids`), que o servidor aceita: inclusive quem a dona
+  /// adicionou na tela de lançamento, sem convite.
+  bool canEdit(String uid) =>
+      uid.isNotEmpty && (uid == createdBy || involves(uid));
+
+  /// Quem lançou a primeira versão: abre a reserva a partir da pelada.
+  bool isCreator(String uid) => uid.isNotEmpty && uid == createdBy;
 
   /// [uid] ainda precisa confirmar ou contestar esta versão.
   bool awaitsResponseFrom(String uid) =>

@@ -101,9 +101,27 @@ void main() {
     expect(find.text('2 – 1'), findsOneWidget);
     expect(find.text('Você ficou em 2º'), findsOneWidget);
     expect(find.text('SEUS JOGOS'), findsNothing);
-    // Participante sem ação: só compartilhar.
+    // Quem está no placar também edita (e compartilha).
     expect(find.byKey(const Key('pelada-share')), findsOneWidget);
-    expect(find.byKey(const Key('pelada-edit')), findsNothing);
+    expect(find.byKey(const Key('pelada-edit')), findsOneWidget);
+  });
+
+  testWidgets(
+      'atleta adicionado no lançamento (sem convite) edita a pelada; a '
+      'reserva só abre para quem lançou', (tester) async {
+    await abrir(
+      tester,
+      uid: 'u4',
+      salvos: [savedResult(status: BookingResultStatus.confirmed)],
+    );
+
+    // O link da reserva aparece como informação, mas só quem lançou o abre.
+    final link =
+        tester.widget<InkWell>(find.byKey(const Key('pelada-booking-link')));
+    expect(link.onTap, isNull);
+    await tester.tap(find.byKey(const Key('pelada-edit')));
+    await tester.pumpAndSettle();
+    expect(find.byType(LancarPlacarPage), findsOneWidget);
   });
 
   testWidgets('pendente para mim: confirmar manda a versão que eu vi', (

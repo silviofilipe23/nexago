@@ -218,7 +218,7 @@ class _PeladaDetailPageState extends ConsumerState<PeladaDetailPage> {
             saved: saved,
             uid: uid,
             onOpenBooking:
-                saved.canEdit(uid) ? () => _openBooking(saved) : null,
+                saved.isCreator(uid) ? () => _openBooking(saved) : null,
           ),
       },
     );

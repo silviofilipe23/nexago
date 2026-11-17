@@ -10,6 +10,7 @@ import {
   SCORE_COMPONENTS,
   SCORE_LABELS,
   TIER_LABELS,
+  type FollowerDiscountScope,
   type ScoreComponent,
   type SquadRules,
   type SquadTier,
@@ -28,6 +29,7 @@ import {
 } from '../../comissoes/data/commission';
 import { END_REASON_LABELS, contractFromDoc, type Contract, type EndReason } from '../../data/squad-program.repository';
 import { contractDays } from '../../data/squad-program';
+import { codeScopeLabel, codeScopeOf } from '../../data/code-scope';
 import { roiLabel, type AmbassadorRow } from '../../embaixadores/data/ambassador';
 import type { Application } from '../../candidaturas/data/application';
 import { multiplier, plural } from '../../data/squad-metrics';
@@ -54,6 +56,8 @@ export interface Amendment {
 
 export interface ProfileContract extends Contract {
   followerDiscountPct: number | null;
+  /** Onde o código vale; `null` = em tudo (contrato sem o campo). */
+  codeScope: FollowerDiscountScope | null;
   slug: string;
   pauseReason: string | null;
   endReason: string | null;
@@ -78,6 +82,7 @@ export function profileContractFromDoc(uid: string, d: Raw): ProfileContract {
   return {
     ...contractFromDoc(uid, d),
     followerDiscountPct: numOrNull(d['followerDiscountPct']),
+    codeScope: codeScopeOf(d['codeScope']),
     slug: str(d['slug']),
     pauseReason: str(d['pauseReason']) || null,
     endReason: str(d['endReason']) || null,
@@ -320,6 +325,8 @@ export function contractLines(c: ProfileContract, now: Date): ContractLine[] {
   }
   lines.push({ label: 'Comissão', value: c.commissionPct !== null ? `${c.commissionPct}% da receita líquida` : '—' });
   if (c.followerDiscountPct !== null) lines.push({ label: 'Desconto do seguidor', value: `${c.followerDiscountPct}%` });
+  const scope = codeScopeLabel(c.codeScope);
+  if (scope) lines.push({ label: 'Código vale em', value: scope });
   if (c.rulesVersion !== null) lines.push({ label: 'Regras', value: `v${c.rulesVersion}.0 · congeladas no aceite` });
   if (c.state === 'paused') {
     const until = c.pausedUntil ? `até ${dayMonthOfKey(c.pausedUntil)}` : 'sem data de volta';

@@ -432,7 +432,7 @@ async function prepareRegistrationCharge(
   try {
     const attribution = await resolveRegistrationAttribution(
       db,
-      {payerUid: callerUid, athleteUids, typedCode: data.squadCode},
+      {payerUid: callerUid, athleteUids, typedCode: data.squadCode, purpose: "registration"},
       new Date(),
     );
     if (attribution) {

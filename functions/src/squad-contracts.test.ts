@@ -49,6 +49,17 @@ describe("mudar nível", () => {
     assert.equal(pendingAmendment(c), null);
   });
 
+  it("aditivo aceito mantém o escopo do código (codeScope) do contrato", async () => {
+    const {fake, db, notify} = setup();
+    const scope = {registration: true, booking: false, club: false};
+    fake.seedDoc("squadAmbassadors/jv", {...fake.store.get("squadAmbassadors/jv")!, codeScope: scope});
+    await updateContractCore(db, {uid: "jv", action: "changeTier", tier: "amb", reason: "Subiu"}, ACTOR, NOW, notify);
+    await acceptAmendmentCore(db, {uid: "jv"}, NOW);
+    const c = fake.store.get("squadAmbassadors/jv")!;
+    assert.equal(c["tier"], "amb");
+    assert.deepEqual(c["codeScope"], scope);
+  });
+
   it("recusa o mesmo nível e Pro fora da faixa", async () => {
     const {db, notify} = setup();
     await assert.rejects(updateContractCore(db, {uid: "jv", action: "changeTier", tier: "ath", reason: "Igual"}, ACTOR, NOW, notify), /já está/);
@@ -65,7 +76,7 @@ describe("pausar e encerrar", () => {
     await updateContractCore(db, {uid: "jv", action: "pause", reason: "Lesão", until: "2026-10-20"}, ACTOR, NOW, notify);
     assert.equal(fake.store.get("squadAmbassadors/jv")!["status"], "paused");
     await assert.rejects(
-      resolveRegistrationAttribution(db, {payerUid: "x", athleteUids: ["x"], typedCode: "JOAO10"}, NOW),
+      resolveRegistrationAttribution(db, {payerUid: "x", athleteUids: ["x"], typedCode: "JOAO10", purpose: "registration"}, NOW),
       new RegExp(PAUSED_CODE_MESSAGE),
     );
     await sweepContractsCore(db, new Date("2026-10-19T15:00:00Z"));

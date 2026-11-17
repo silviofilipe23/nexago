@@ -8,6 +8,12 @@
  * No checkout, o código digitado **sempre vence** o link. Autoindicação (pagador ou alguém da
  * inscrição é o próprio embaixador) é recusada com mensagem quando o código foi digitado e
  * ignorada em silêncio quando veio de link. Só servidor grava aqui; as rules negam o cliente.
+ *
+ * Escopo do código (`codeScope` no contrato): em que compras o código do embaixador existe —
+ * inscrição, reserva, clubinho. Fora dele não há atribuição nenhuma (nem prévia, nem desconto,
+ * nem comissão): o digitado é recusado com mensagem, o link é ignorado em silêncio. Contrato sem o
+ * campo vale em tudo. O escopo global das regras (`followerDiscountScope`) é outra coisa: só liga
+ * ou desliga o DESCONTO dentro de uma atribuição válida.
  */
 import * as logger from "firebase-functions/logger";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
@@ -19,7 +25,14 @@ import {FEE_FLOOR_REAIS} from "./platform-fees";
 import {feeRuleForRegistration} from "./squad-fee-cap";
 import {SQUAD_AMBASSADORS} from "./squad-commissions";
 import {SQUAD_PUBLIC} from "./squad-public";
-import {loadAttributionRules, type FollowerDiscountScope, type SquadTier} from "./squad-rules";
+import {
+  FOLLOWER_DISCOUNT_KINDS,
+  followerDiscountScopeOf,
+  loadAttributionRules,
+  type FollowerDiscountKind,
+  type FollowerDiscountScope,
+  type SquadTier,
+} from "./squad-rules";
 import {ownPerkView, resolveOwnPerk, type OwnPerkView} from "./squad-own-perk";
 
 export const SQUAD_ATTRIBUTIONS = "squadAttributions";
@@ -44,6 +57,8 @@ export interface AmbassadorContract {
   /** Desconto do seguidor congelado no contrato; `null` = vem das regras da versão do contrato. */
   followerDiscountPct: number | null;
   rulesVersion: number | null;
+  /** Onde o código vale (`codeScope` do contrato); ausente ou inválido = em tudo. */
+  codeScope: FollowerDiscountScope;
 }
 
 export interface ResolvedAttribution {
@@ -74,7 +89,22 @@ function contractOf(uid: string, d: Raw | undefined): AmbassadorContract | null 
     followerDiscountPct: typeof d["followerDiscountPct"] === "number" &&
       d["followerDiscountPct"] >= 0 && d["followerDiscountPct"] <= 30 ? d["followerDiscountPct"] : null,
     rulesVersion: typeof d["rulesVersion"] === "number" ? d["rulesVersion"] : null,
+    codeScope: followerDiscountScopeOf(d["codeScope"]),
   };
+}
+
+const SCOPE_LABELS: Record<FollowerDiscountKind, string> = {
+  registration: "inscrições em torneios",
+  booking: "reservas de quadra",
+  club: "clubinho",
+};
+
+/** "O código X vale só para inscrições em torneios." — o que o atleta lê ao digitar fora do escopo. */
+export function outOfScopeMessage(code: string, scope: FollowerDiscountScope): string {
+  const where = FOLLOWER_DISCOUNT_KINDS.filter((k) => scope[k]).map((k) => SCOPE_LABELS[k]);
+  if (where.length === 0) return `O código ${code} não está valendo em nenhuma compra.`;
+  const list = where.length === 1 ? where[0] : `${where.slice(0, -1).join(", ")} e ${where[where.length - 1]}`;
+  return `O código ${code} vale só para ${list}.`;
 }
 
 export async function findAmbassadorByCode(db: Firestore, code: string): Promise<AmbassadorContract | null> {
@@ -124,12 +154,13 @@ export async function recordAttributionCore(
 }
 
 /**
- * Quem leva a inscrição: o código digitado (erro claro se não existe ou é autoindicação) ou, sem
- * código, a atribuição de link/QR dentro da janela. `null` = inscrição sem embaixador.
+ * Quem leva a compra (`purpose`): o código digitado (erro claro se não existe, é autoindicação ou
+ * não vale nesta compra) ou, sem código, a atribuição de link/QR dentro da janela, se o contrato
+ * cobre a compra. `null` = compra sem embaixador.
  */
 export async function resolveRegistrationAttribution(
   db: Firestore,
-  input: {payerUid: string; athleteUids: string[]; typedCode: unknown},
+  input: {payerUid: string; athleteUids: string[]; typedCode: unknown; purpose: SquadCheckPurpose},
   now: Date,
 ): Promise<ResolvedAttribution | null> {
   const rules = await loadAttributionRules(db);
@@ -147,6 +178,11 @@ export async function resolveRegistrationAttribution(
       throw new HttpsError("invalid-argument", paused ? PAUSED_CODE_MESSAGE : UNKNOWN_CODE_MESSAGE, {field: "squadCode"});
     }
     if (isSelf(ambassador)) throw new HttpsError("failed-precondition", SELF_REFERRAL_MESSAGE, {field: "squadCode"});
+    if (!ambassador.codeScope[input.purpose]) {
+      throw new HttpsError(
+        "failed-precondition", outOfScopeMessage(ambassador.code, ambassador.codeScope), {field: "squadCode"},
+      );
+    }
     return {ambassador, origin: "code"};
   }
 
@@ -155,7 +191,7 @@ export async function resolveRegistrationAttribution(
   const at = dateOf(d?.["at"]);
   if (!d || !at || now.getTime() - at.getTime() > rules.windowDays * DAY_MS) return null;
   const ambassador = await findAmbassador(db, String(d["ambassadorId"] ?? ""));
-  if (!ambassador || isSelf(ambassador)) return null;
+  if (!ambassador || isSelf(ambassador) || !ambassador.codeScope[input.purpose]) return null;
   return {ambassador, origin: d["origin"] === "qr" ? "qr" : "link"};
 }
 
@@ -209,14 +245,14 @@ export async function checkSquadCodeCore(
   },
   now: Date,
 ): Promise<SquadCodeCheck> {
+  const purpose = input.purpose ?? "registration";
   const resolved = await resolveRegistrationAttribution(
     db,
-    {payerUid: input.payerUid, athleteUids: input.athleteUids, typedCode: input.code},
+    {payerUid: input.payerUid, athleteUids: input.athleteUids, typedCode: input.code, purpose},
     now,
   );
   const feePercent = input.feePercent ?? null;
   const feeFloorReais = input.feeFloorReais ?? FEE_FLOOR_REAIS;
-  const purpose = input.purpose ?? "registration";
   let ownPerk: OwnPerkView | null = null;
   if (purpose === "registration") {
     try {
@@ -325,6 +361,7 @@ export interface SquadReferralView {
   /** Até quanto o seguidor ganha; o teto na taxa corta no checkout. 0 = o nível não dá desconto. */
   discountPct: number;
   firstOnly: boolean;
+  /** Onde o código dá desconto: o escopo do contrato E o das regras. */
   scope: FollowerDiscountScope;
 }
 
@@ -362,7 +399,12 @@ export async function squadReferralCore(db: Firestore, code: unknown): Promise<S
     },
     discountPct,
     firstOnly: rules.followerDiscountFirstOnly,
-    scope: rules.followerDiscountScope,
+    // Onde o atleta ganha desconto com este código: o contrato e as regras precisam deixar.
+    scope: {
+      registration: contract.codeScope.registration && rules.followerDiscountScope.registration,
+      booking: contract.codeScope.booking && rules.followerDiscountScope.booking,
+      club: contract.codeScope.club && rules.followerDiscountScope.club,
+    },
   };
 }
 

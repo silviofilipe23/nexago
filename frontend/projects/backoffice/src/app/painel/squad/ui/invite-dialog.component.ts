@@ -14,7 +14,16 @@ import { callableErrorMessage } from '../../data/callable-error';
 import { ConfirmDialogComponent } from '../../ui/confirm-dialog.component';
 import { IconComponent } from '../../ui/icon.component';
 import { dateLabel } from '../embaixadores/data/ambassador';
-import { SQUAD_TIERS, TIER_LABELS, versionLabel, type SquadRules, type SquadTier } from '../niveis-regras/data/squad-rules';
+import {
+  SQUAD_TIERS,
+  TIER_LABELS,
+  versionLabel,
+  type FollowerDiscountKind,
+  type FollowerDiscountScope,
+  type SquadRules,
+  type SquadTier,
+} from '../niveis-regras/data/squad-rules';
+import { CODE_SCOPE_OPTIONS, FULL_CODE_SCOPE, codeScopePayload } from '../data/code-scope';
 import { packageSummary } from '../data/package-summary';
 import { CODE_MAX, isValidCode, nextCycleStart, normalizeCode, suggestedCodeFor, type Cycle } from '../data/squad-program';
 import {
@@ -35,7 +44,8 @@ export interface PresetAthlete {
 
 /**
  * Modal "Convidar atleta": conta NexaGO existente, nível com o resumo do pacote vigente, comissão
- * (só Pro), código sugerido, período e mensagem. Com o piloto cheio vira "Agendar convite".
+ * (só Pro), código sugerido, onde o código vale, período e mensagem. Com o piloto cheio vira
+ * "Agendar convite".
  */
 @Component({
   selector: 'bo-invite-dialog',
@@ -124,6 +134,21 @@ export interface PresetAthlete {
         <span class="muted" [class.err]="code() !== '' && !codeOk()">A–Z e 0–9, de 4 a 12 caracteres. O atleta pode editar no aceite.</span>
       </label>
 
+      <fieldset class="field scope">
+        <legend>Onde o código vale</legend>
+        <div class="checks">
+          @for (o of scopeOptions; track o.kind) {
+            <label class="check">
+              <input type="checkbox" [checked]="scope()[o.kind]" (change)="toggleScope(o.kind, $event)" />
+              {{ o.label }}
+            </label>
+          }
+        </div>
+        <span class="muted" [class.err]="!scopeOk()">
+          {{ scopeOk() ? 'Fora daqui o código não aparece no checkout, não dá desconto nem gera comissão.' : 'Marque ao menos um.' }}
+        </span>
+      </fieldset>
+
       <div class="grid">
         <label class="field">
           <span>Início</span>
@@ -150,6 +175,10 @@ export interface PresetAthlete {
     input[type='date'] { color-scheme: dark; }
     .mono { font-family: var(--nx-font-mono); }
     .code { letter-spacing: 0.08em; font-weight: 600; }
+    .scope { margin: 0 0 12px; padding: 0; border: none; }
+    .scope legend { padding: 0; margin-bottom: 6px; }
+    .checks { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+    .check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--nx-text); cursor: pointer; }
     .muted { font-size: 11.5px; color: var(--nx-text-dim); }
     .err { font-size: 12px; color: var(--nx-live); }
     .full { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px 12px; border-radius: var(--nx-r-2); border: 1px solid rgba(244, 197, 67, 0.4); background: rgba(244, 197, 67, 0.08); color: var(--nx-pending); font-size: 12.5px; }
@@ -189,6 +218,7 @@ export class InviteDialogComponent {
   protected readonly tiers = SQUAD_TIERS;
   protected readonly tierLabels = TIER_LABELS;
   protected readonly codeMax = CODE_MAX;
+  protected readonly scopeOptions = CODE_SCOPE_OPTIONS;
 
   protected readonly term = signal('');
   protected readonly results = signal<AthleteOption[]>([]);
@@ -201,6 +231,7 @@ export class InviteDialogComponent {
   protected readonly start = signal('');
   protected readonly end = signal('');
   protected readonly message = signal('');
+  protected readonly scope = signal<FollowerDiscountScope>(FULL_CODE_SCOPE);
   private debounce: ReturnType<typeof setTimeout> | undefined;
   private searchSeq = 0;
 
@@ -213,6 +244,7 @@ export class InviteDialogComponent {
     return this.tier() === 'pro' && Array.isArray(c) ? c : null;
   });
   protected readonly codeOk = computed(() => isValidCode(this.code()));
+  protected readonly scopeOk = computed(() => codeScopePayload(this.scope()) !== 'invalid');
 
   /** "{nome} já é {nível} até {data}". */
   protected readonly blocked = computed(() => {
@@ -231,6 +263,7 @@ export class InviteDialogComponent {
       !!this.athlete() &&
       !this.blocked() &&
       this.codeOk() &&
+      this.scopeOk() &&
       (!range || (pct !== null && pct >= range[0] && pct <= range[1])) &&
       (!this.start() || this.start() >= this.today()) &&
       (!this.end() || this.end() > (this.start() || this.today()))
@@ -258,6 +291,7 @@ export class InviteDialogComponent {
     this.start.set('');
     this.end.set(this.cycle().end);
     this.message.set('');
+    this.scope.set(FULL_CODE_SCOPE);
   }
 
   protected onSearch(event: Event): void {
@@ -294,9 +328,15 @@ export class InviteDialogComponent {
     this.athlete.set(null);
   }
 
+  protected toggleScope(kind: FollowerDiscountKind, event: Event): void {
+    const on = (event.target as HTMLInputElement).checked;
+    this.scope.update((s) => ({ ...s, [kind]: on }));
+  }
+
   protected submit(): void {
     const a = this.athlete();
-    if (!a || !this.valid()) return;
+    const codeScope = codeScopePayload(this.scope());
+    if (!a || !this.valid() || codeScope === 'invalid') return;
     this.submitted.emit({
       athleteId: a.uid,
       applicationId: this.preset()?.applicationId ?? null,
@@ -306,6 +346,7 @@ export class InviteDialogComponent {
       periodStart: this.start() || null,
       periodEnd: this.end() || null,
       message: this.message().trim() || null,
+      codeScope,
     });
   }
 

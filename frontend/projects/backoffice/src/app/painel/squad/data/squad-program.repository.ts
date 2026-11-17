@@ -5,7 +5,7 @@ import { backofficeDb, backofficeFunctions } from '../../data/firebase';
 import { AthletesRepository } from '../../atletas/data/athletes.repository';
 import { dateOf } from '../comissoes/data/commission';
 import { SquadRulesRepository } from '../niveis-regras/data/squad-rules.repository';
-import type { SquadRules, SquadTier } from '../niveis-regras/data/squad-rules';
+import type { FollowerDiscountScope, SquadRules, SquadTier } from '../niveis-regras/data/squad-rules';
 import { DEFAULT_CYCLE, type Cycle, type InviteStatus } from './squad-program';
 
 type Raw = Record<string, unknown>;
@@ -90,6 +90,8 @@ export interface SendInviteInput {
   periodStart?: string | null;
   periodEnd?: string | null;
   message?: string | null;
+  /** Onde o código vai valer; `null`/ausente = em tudo. Vai congelado para o contrato no aceite. */
+  codeScope?: FollowerDiscountScope | null;
 }
 
 export interface SendInviteResult {

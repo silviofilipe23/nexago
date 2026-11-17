@@ -58,7 +58,7 @@ export async function resolveArenaSquadDiscount(
   try {
     attribution = await resolveRegistrationAttribution(
       db,
-      {payerUid: input.payerUid, athleteUids: [input.payerUid], typedCode: input.typedCode},
+      {payerUid: input.payerUid, athleteUids: [input.payerUid], typedCode: input.typedCode, purpose: input.kind},
       now,
     );
   } catch (e) {

@@ -15,6 +15,11 @@
  *   node scripts/set-squad-ambassador.js --project <id> --uid <uid> --tier amb --code JOAO10           # dry-run
  *   node scripts/set-squad-ambassador.js --project <id> --uid <uid> --tier pro --code RAYSSA --pct 12 --discount 15 --yes
  *   node scripts/set-squad-ambassador.js --project <id> --uid <uid> --end --yes                        # encerra
+ *   node scripts/set-squad-ambassador.js --project <id> --uid <uid> --scope registration --yes         # escopo
+ *
+ * `--scope` só troca onde o código vale (`codeScope` do contrato): lista com `registration`, `booking`
+ * e/ou `club` separados por vírgula; `all` apaga o campo (o código volta a valer em tudo). Fora do
+ * escopo, o código não aparece no checkout, não dá desconto nem gera comissão.
  */
 const admin = require("firebase-admin");
 
@@ -25,6 +30,8 @@ function argValue(flag) {
 
 const APPLY = process.argv.includes("--yes");
 const END = process.argv.includes("--end");
+const SCOPE_ARG = argValue("--scope");
+const SCOPE_KINDS = ["registration", "booking", "club"];
 const projectId = argValue("--project") || process.env.GCLOUD_PROJECT;
 const uid = argValue("--uid");
 const tier = argValue("--tier");
@@ -34,10 +41,24 @@ if (!projectId || !uid) {
   console.error("Informe --project <id> e --uid <uid>.");
   process.exit(1);
 }
-if (!END && (!["ath", "amb", "pro", "cap"].includes(tier) || !/^[A-Z0-9]{3,20}$/.test(code))) {
+if (!END && SCOPE_ARG === undefined && (!["ath", "amb", "pro", "cap"].includes(tier) || !/^[A-Z0-9]{3,20}$/.test(code))) {
   console.error("Informe --tier ath|amb|pro|cap e --code (3 a 20 letras/números).");
   process.exit(1);
 }
+
+/** "registration,club" → {registration: true, booking: false, club: true}; "all" → null (apaga o campo). */
+function parseScope(raw) {
+  if (raw === "all") return null;
+  const kinds = String(raw).split(",").map((k) => k.trim()).filter(Boolean);
+  if (kinds.length === 0 || kinds.some((k) => !SCOPE_KINDS.includes(k))) {
+    console.error(`--scope: use ${SCOPE_KINDS.join(", ")} (separados por vírgula) ou all.`);
+    process.exit(1);
+  }
+  return Object.fromEntries(SCOPE_KINDS.map((k) => [k, kinds.includes(k)]));
+}
+
+// Escopo inválido para antes de qualquer leitura.
+const SCOPE = SCOPE_ARG === undefined ? undefined : parseScope(SCOPE_ARG);
 
 admin.initializeApp({projectId});
 const db = admin.firestore();
@@ -48,6 +69,18 @@ async function main() {
   const ref = db.collection("squadAmbassadors").doc(uid);
   const current = (await ref.get()).data() ?? null;
   console.log(`\nsquadAmbassadors/${uid} em ${projectId}:`, current ? JSON.stringify(current) : "(não existe)");
+
+  if (SCOPE_ARG !== undefined) {
+    if (!current || current.status === "ended") return console.log("Sem contrato vivo: nada a mudar.");
+    const scope = SCOPE;
+    console.log("\nGravaria codeScope:", scope === null ? "(apaga: vale em tudo)" : JSON.stringify(scope));
+    if (!APPLY) return console.log("\nDRY-RUN — use --yes para gravar.");
+    await ref.update({
+      codeScope: scope === null ? admin.firestore.FieldValue.delete() : scope,
+      updatedAt: new Date(),
+    });
+    return console.log("\nGravado.");
+  }
 
   if (END) {
     if (!current) return console.log("Nada a encerrar.");

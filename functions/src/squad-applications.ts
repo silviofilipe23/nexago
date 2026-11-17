@@ -48,12 +48,15 @@ import {
 } from "./squad-program";
 import {
   DEFAULT_SQUAD_RULES,
+  FOLLOWER_DISCOUNT_KINDS,
   SQUAD_CONFIG,
   SQUAD_RULES_DOC,
   SQUAD_TIERS,
   TIER_LABELS,
   commissionFloor,
+  followerDiscountScopeOf,
   type Actor,
+  type FollowerDiscountScope,
   type SquadRules,
   type SquadTier,
 } from "./squad-rules";
@@ -438,6 +441,19 @@ export interface SendInviteInput {
   periodStart?: string | null;
   periodEnd?: string | null;
   message?: string | null;
+  /**
+   * Onde o código vai valer (inscrição, reserva, clubinho); vai congelado para o contrato no aceite.
+   * Ausente = em tudo.
+   */
+  codeScope?: FollowerDiscountScope | null;
+}
+
+/** Escopo do convite: ausente → `null` (vale em tudo); os três tipos booleanos e ao menos um ligado. */
+function inviteCodeScope(raw: unknown): FollowerDiscountScope | null | "invalid" {
+  if (raw == null) return null;
+  if (!isObj(raw) || FOLLOWER_DISCOUNT_KINDS.some((k) => typeof raw[k] !== "boolean")) return "invalid";
+  const scope = {registration: raw["registration"] === true, booking: raw["booking"] === true, club: raw["club"] === true};
+  return FOLLOWER_DISCOUNT_KINDS.some((k) => scope[k]) ? scope : "invalid";
 }
 
 function inviteBody(tier: SquadTier): string {
@@ -464,7 +480,10 @@ export async function sendInviteCore(
   if (periodEnd !== null && (!DATE_RE.test(periodEnd) || periodEnd <= (periodStart ?? todayKey))) fields.push("periodEnd");
   const message = input.message == null || input.message === "" ? null : input.message;
   if (message !== null && !text(message, 1, MESSAGE_MAX)) fields.push("message");
-  if (fields.length > 0) throw invalid(fields);
+  const codeScope = inviteCodeScope(input.codeScope);
+  if (codeScope === "invalid") fields.push("codeScope");
+  // A segunda checagem só estreita o tipo de `codeScope` para o TypeScript.
+  if (fields.length > 0 || codeScope === "invalid") throw invalid(fields);
 
   const [{rules}, cycle] = await Promise.all([loadCurrentRules(db), loadCycle(db)]);
   const pkg = rules.tiers[input.tier];
@@ -546,6 +565,7 @@ export async function sendInviteCore(
       periodStart,
       periodEnd: periodEnd ?? cycle.end,
       message: message?.trim() ?? null,
+      codeScope,
       scheduledFor,
       sentAt: full ? null : now,
       openedAt: null,
@@ -731,6 +751,8 @@ export async function acceptInviteCore(
       endNote: null,
       endedAt: null,
       amendments: [],
+      // Escopo combinado no convite; sem ele, o contrato nasce sem o campo (vale em tudo).
+      ...(isObj(d["codeScope"]) ? {codeScope: followerDiscountScopeOf(d["codeScope"])} : {}),
       inviteId: invite.id,
       cycleId: str(d["cycleId"]) || cycle.id,
       createdAt: prev?.["createdAt"] ?? now,

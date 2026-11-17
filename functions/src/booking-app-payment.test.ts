@@ -47,6 +47,37 @@ describe("bookingSocialUnlock (sobre a regra única de arena-booking-app-payment
   });
 });
 
+describe("liberação manual (socialUnlockGrantedAt)", () => {
+  const grant = {socialUnlockGrantedAt: new Date("2026-11-17T19:00:00Z")};
+
+  it("libera reserva paga no balcão sem mexer no valor pago pelo app", () => {
+    assert.deepEqual(bookingSocialUnlock(booking({status: "active", ...grant})), {
+      appPaidReais: 0, totalReais: 120, appPaidShare: 0, socialUnlocked: true,
+    });
+  });
+
+  it("reserva cancelada ou estornada continua bloqueada mesmo liberada", () => {
+    for (const over of [{status: "cancelled"}, {paymentStatus: "refunded"}]) {
+      assert.equal(bookingSocialUnlock(booking({...grant, ...over})).socialUnlocked, false, JSON.stringify(over));
+    }
+  });
+
+  it("gravar a liberação dispara o gatilho, que grava socialUnlocked", async () => {
+    const b = booking({status: "active"});
+    assert.equal(bookingSocialInputsChanged(b, {...b, ...grant}), true);
+    const fake = new FakeFirestore();
+    fake.seedDoc("arenaBookings/bk1", {...b, ...grant});
+    await syncBookingSocialUnlock(db(fake), "bk1");
+    assert.equal(fake.store.get("arenaBookings/bk1")!["socialUnlocked"], true);
+  });
+
+  it("reserva de plano liberada passa mesmo com a mensalidade paga à mão", async () => {
+    const fake = new FakeFirestore();
+    const planBooking = booking({status: "active", scheduleSubscriptionId: "sub1", date: "2026-11-17", ...grant});
+    assert.equal((await resolveBookingSocialUnlock(db(fake), planBooking)).socialUnlocked, true);
+  });
+});
+
 describe("bookingSocialUnlockPatch e gatilho", () => {
   it("reserva sem nada pago e sem campo não ganha escrita", () => {
     assert.equal(bookingSocialUnlockPatch(booking(), bookingSocialUnlock(booking())), null);

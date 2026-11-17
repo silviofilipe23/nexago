@@ -77,6 +77,20 @@ abstract final class StoreCheckoutCopy {
   static String subtotal(int units) =>
       'Subtotal (${StoreCheckoutCopy.units(units)})';
   static String couponRow(String code) => 'Cupom $code';
+
+  // Código de embaixador (um desconto só por pedido: ele ou o cupom).
+  static const squadToggle = 'Tem código de embaixador?';
+  static const squadHint = 'Código de embaixador';
+  static const squadApply = 'Aplicar';
+  static const squadRemove = 'Remover';
+  static const squadOther = 'Tenho outro código';
+  static const squadBlocker =
+      'Remova ou troque o código de embaixador pra seguir.';
+  static String squadRow(String code) => 'Indicação $code';
+  static String squadFrom(String? name) =>
+      'Indicação de ${name ?? 'um embaixador'}';
+  static String squadTyped(String code, String? name) =>
+      '$code · ${squadFrom(name)}';
   static const pixDiscount = 'Desconto Pix';
   static const pickupRow = 'Retirada na arena';
   static String shippingRow(String mode) => 'Frete · $mode';

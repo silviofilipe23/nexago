@@ -691,21 +691,28 @@ class SquadDiscountScope {
     required this.registration,
     required this.booking,
     required this.club,
+    this.store = false,
   });
 
+  /// Backend antigo: as três áreas de antes (a Loja nunca vem ligada à toa).
   const SquadDiscountScope.all()
     : registration = true,
       booking = true,
-      club = true;
+      club = true,
+      store = false;
 
   factory SquadDiscountScope.fromMap(Map<String, Object?> m) =>
       SquadDiscountScope(
         registration: m['registration'] != false,
         booking: m['booking'] != false,
         club: m['club'] != false,
+        store: m['store'] == true,
       );
 
   final bool registration;
   final bool booking;
   final bool club;
+
+  /// Compra na Loja: nasce desligada; só vale quando o servidor manda ligada.
+  final bool store;
 }

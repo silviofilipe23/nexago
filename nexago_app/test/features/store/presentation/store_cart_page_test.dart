@@ -623,4 +623,136 @@ void main() {
       expect(_payEnabled(tester), isFalse);
     });
   });
+
+  group('código de embaixador', () {
+    const squad = {
+      'code': 'JOAO10',
+      'ambassadorName': 'João Victor',
+      'origin': 'link',
+      'pct': 10,
+      'discountCents': 1899,
+      'applied': true,
+      'reason': null,
+      'message': null,
+    };
+
+    testWidgets('indicação por link: aplicada, no resumo e sem travar', (
+      tester,
+    ) async {
+      final h = CheckoutHarness();
+      h.service.quoteImpl = (req) =>
+          quoteFor(req, over: {'squad': squad, 'squadDiscountCents': 1899});
+      await h.pump(tester);
+      await CheckoutHarness.settleQuote(tester);
+
+      expect(h.service.quotes.last.squadCode, isNull);
+      expect(find.text('Indicação de João Victor'), findsOneWidget);
+      expect(find.text('Indicação JOAO10'), findsOneWidget);
+      expect(_payEnabled(tester), isTrue);
+    });
+
+    testWidgets('digitar o código cota com ele; remover volta ao link', (
+      tester,
+    ) async {
+      final h = CheckoutHarness();
+      h.service.quoteImpl = (req) => quoteFor(req, over: {
+            'squad': req.squadCode == null
+                ? null
+                : {
+                    ...squad,
+                    'code': req.squadCode,
+                    'origin': 'code',
+                    'ambassadorName': 'Rayssa',
+                  },
+            'squadDiscountCents': req.squadCode == null ? 0 : 1899,
+          });
+      await h.pump(tester);
+      await CheckoutHarness.settleQuote(tester);
+
+      await tester.tap(find.byKey(const ValueKey('store-cart-squad-toggle')));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(const ValueKey('store-cart-squad-field')),
+        'ray10',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('store-cart-squad-apply')));
+      await CheckoutHarness.settleQuote(tester);
+
+      expect(h.service.quotes.last.squadCode, 'RAY10');
+      expect(find.text('RAY10 · Indicação de Rayssa'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('store-cart-squad-remove')));
+      await CheckoutHarness.settleQuote(tester);
+      expect(h.service.quotes.last.squadCode, isNull);
+    });
+
+    testWidgets('código que não vale: mostra o motivo e trava', (tester) async {
+      final h = CheckoutHarness();
+      h.service.quoteImpl = (req) => quoteFor(req, over: {
+            'squad': req.squadCode == null
+                ? null
+                : {
+                    'code': req.squadCode,
+                    'origin': 'code',
+                    'applied': false,
+                    'reason': 'invalido',
+                    'message': 'Código de embaixador não encontrado.',
+                  },
+          });
+      await h.pump(tester);
+      await CheckoutHarness.settleQuote(tester);
+
+      await tester.tap(find.byKey(const ValueKey('store-cart-squad-toggle')));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(const ValueKey('store-cart-squad-field')),
+        'nada99',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('store-cart-squad-apply')));
+      await CheckoutHarness.settleQuote(tester);
+
+      expect(find.text('Código de embaixador não encontrado.'), findsOneWidget);
+      expect(_payEnabled(tester), isFalse);
+      expect(_hint(tester), StoreCheckoutCopy.squadBlocker);
+    });
+
+    testWidgets('cupom que perdeu para a indicação avisa sem travar', (
+      tester,
+    ) async {
+      final h = CheckoutHarness();
+      h.service.quoteImpl = (req) => quoteFor(req, over: {
+            'squad': squad,
+            'squadDiscountCents': 1899,
+            'coupon': req.couponCode == null
+                ? null
+                : {
+                    'code': req.couponCode,
+                    'discountCents': 950,
+                    'problem': 'nao_acumula',
+                    'message': 'O desconto da indicação de João Victor é '
+                        'maior que este cupom',
+                  },
+          });
+      await h.pump(tester);
+      await CheckoutHarness.settleQuote(tester);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('store-cart-coupon-field')),
+        'areia',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('store-cart-coupon-apply')));
+      await CheckoutHarness.settleQuote(tester);
+
+      expect(
+        find.text(
+          'O desconto da indicação de João Victor é maior que este cupom',
+        ),
+        findsOneWidget,
+      );
+      expect(_payEnabled(tester), isTrue);
+    });
+  });
 }

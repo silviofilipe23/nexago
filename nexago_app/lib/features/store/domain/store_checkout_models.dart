@@ -71,6 +71,7 @@ class StoreCheckoutRequest {
     this.delivery,
     this.couponCode,
     this.paymentMethod = StorePaymentMethod.pix,
+    this.squadCode,
   });
 
   final String channel;
@@ -80,15 +81,20 @@ class StoreCheckoutRequest {
   final String? couponCode;
   final StorePaymentMethod paymentMethod;
 
+  /// Código de embaixador digitado; `null` = vale a indicação por link, se
+  /// houver (o servidor resolve).
+  final String? squadCode;
+
   Map<String, Object?> toMap() => {
         'channel': channel,
         'delivery': delivery?.toMap(),
         'couponCode': couponCode,
         'paymentMethod': paymentMethod.id,
+        if (squadCode != null) 'squadCode': squadCode,
       };
 
-  String get key =>
-      '$channel|${delivery?.key ?? '-'}|${couponCode ?? '-'}|${paymentMethod.id}';
+  String get key => '$channel|${delivery?.key ?? '-'}|${couponCode ?? '-'}|'
+      '${paymentMethod.id}|${squadCode ?? '-'}';
 
   @override
   bool operator ==(Object other) =>
@@ -197,6 +203,33 @@ class StoreQuoteCoupon {
   final String? message;
 }
 
+/// Indicação de embaixador na compra (o servidor decide). [applied] = entra no
+/// pedido; [reason] `cupom_maior` = o cupom da Loja deu mais; `invalido` = o
+/// código digitado não vale aqui.
+class StoreQuoteSquad {
+  const StoreQuoteSquad({
+    required this.code,
+    this.ambassadorName,
+    this.origin = 'code',
+    this.pct = 0,
+    this.discountCents = 0,
+    this.applied = false,
+    this.reason,
+    this.message,
+  });
+
+  final String code;
+  final String? ambassadorName;
+
+  /// `code`, `link` ou `qr`.
+  final String origin;
+  final int pct;
+  final int discountCents;
+  final bool applied;
+  final String? reason;
+  final String? message;
+}
+
 class StoreCheckoutQuote {
   const StoreCheckoutQuote({
     this.paymentMethod = StorePaymentMethod.pix,
@@ -204,6 +237,8 @@ class StoreCheckoutQuote {
     this.units = 0,
     this.subtotalCents = 0,
     this.coupon,
+    this.squad,
+    this.squadDiscountCents = 0,
     this.pixDiscountPct = 0,
     this.pixDiscountCents = 0,
     this.shippingCents = 0,
@@ -221,6 +256,12 @@ class StoreCheckoutQuote {
   final int units;
   final int subtotalCents;
   final StoreQuoteCoupon? coupon;
+
+  /// `null` = sem indicação (ou servidor anterior ao código na Loja).
+  final StoreQuoteSquad? squad;
+
+  /// Desconto da indicação aplicado neste total.
+  final int squadDiscountCents;
   final int pixDiscountPct;
   final int pixDiscountCents;
   final int shippingCents;
@@ -260,6 +301,8 @@ class StoreCheckoutQuote {
       subtotalCents: subtotalCents,
       coupon:
           identical(coupon, _keep) ? this.coupon : coupon as StoreQuoteCoupon?,
+      squad: squad,
+      squadDiscountCents: squadDiscountCents,
       pixDiscountPct: pixDiscountPct,
       pixDiscountCents: pixDiscountCents,
       shippingCents: shippingCents,

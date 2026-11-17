@@ -26,7 +26,7 @@ import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_booking_class_block_card.dart';
 import 'widgets/arena_dashboard_tokens.dart';
-import 'widgets/arena_manual_booking_sheet.dart';
+import 'arena_manual_booking_page.dart';
 import 'widgets/arena_schedule_block_sheet.dart';
 
 /// Detalhe de um horário da agenda do gestor.
@@ -467,7 +467,7 @@ class _QuickActionsGrid extends ConsumerWidget {
                 subtitle: 'walk-in ou nome',
                 enabled: slot.isAvailable,
                 onTap: () async {
-                  final ok = await ArenaManualBookingSheet.show(
+                  final ok = await ArenaManualBookingPage.open(
                     context,
                     slot: slot,
                     courtName: courtName,

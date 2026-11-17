@@ -4,29 +4,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/errors/friendly_error_message.dart';
-import '../../../../core/profiles/app_user_profile.dart';
-import '../../../../core/profiles/users_repository.dart';
-import '../../../../core/search/search_keywords.dart';
-import '../../../../core/theme/app_colors.dart';
+import '../../../core/errors/friendly_error_message.dart';
+import '../../../core/profiles/app_user_profile.dart';
+import '../../../core/profiles/users_repository.dart';
+import '../../../core/search/search_keywords.dart';
+import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../../../core/ui/app_snackbar.dart';
-import '../../../arenas/domain/arena_slot.dart';
-import '../../domain/arena_manual_booking.dart';
-import '../../domain/arena_schedule_providers.dart';
-import '../../domain/arena_shell_providers.dart';
-import '../../domain/manual_booking_slot_chain.dart';
+import '../../../core/ui/app_snackbar.dart';
+import '../../arenas/domain/arena_slot.dart';
+import '../domain/arena_manual_booking.dart';
+import '../domain/arena_schedule_providers.dart';
+import '../domain/manual_booking_slot_chain.dart';
 
-/// Bottom sheet "Criar reserva" do detalhe do horário: reserva de balcão para
-/// um atleta cadastrado (com banco de horas, se for mensalista) ou para um
-/// cliente sem conta, só pelo nome. Grava pela callable
+/// Tela "Criar reserva" (aberta do detalhe do horário e da reserva cancelada):
+/// reserva de balcão para um atleta cadastrado (com banco de horas, se for
+/// mensalista) ou para um cliente sem conta, só pelo nome. Grava pela callable
 /// `createArenaManualBooking` — a mesma do portal da arena.
+///
+/// Era uma bottom sheet; com o select de horário e o teclado, ela subia até a
+/// área do relógio/notch. Tela cheia no navegador raiz respeita a área segura
+/// e cobre o shell (sem barra de abas por baixo).
 ///
 /// Quando os horários seguintes da mesma quadra estão livres, o gestor junta
 /// vários numa reserva só (ex.: 18h–21h): vira um único intervalo
 /// `startTime → endTime`, que o servidor trava hora a hora.
-class ArenaManualBookingSheet extends ConsumerStatefulWidget {
-  const ArenaManualBookingSheet({
+class ArenaManualBookingPage extends ConsumerStatefulWidget {
+  const ArenaManualBookingPage({
     super.key,
     required this.slot,
     required this.courtName,
@@ -35,23 +38,28 @@ class ArenaManualBookingSheet extends ConsumerStatefulWidget {
   final ArenaSlot slot;
   final String courtName;
 
-  /// `true` quando a reserva foi criada.
-  static Future<bool> show(
+  /// Abre a tela; `true` quando a reserva foi criada.
+  static Future<bool> open(
     BuildContext context, {
     required ArenaSlot slot,
     required String courtName,
   }) async {
-    final result = await showArenaShellModalBottomSheet<bool>(
-      context: context,
-      builder: (ctx) =>
-          ArenaManualBookingSheet(slot: slot, courtName: courtName),
+    final result = await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<bool>(
+        fullscreenDialog: true,
+        // Messenger próprio, acima da tela: os avisos dela (valor inválido,
+        // recusa do servidor) aparecem nela, não na página de baixo.
+        builder: (_) => ScaffoldMessenger(
+          child: ArenaManualBookingPage(slot: slot, courtName: courtName),
+        ),
+      ),
     );
     return result == true;
   }
 
   @override
-  ConsumerState<ArenaManualBookingSheet> createState() =>
-      _ArenaManualBookingSheetState();
+  ConsumerState<ArenaManualBookingPage> createState() =>
+      _ArenaManualBookingPageState();
 }
 
 /// Nome de exibição do atleta: apelido, senão nome completo.
@@ -64,8 +72,8 @@ String manualBookingAthleteName(AppUserProfile user) {
   return full.isNotEmpty ? full : 'Atleta';
 }
 
-class _ArenaManualBookingSheetState
-    extends ConsumerState<ArenaManualBookingSheet> {
+class _ArenaManualBookingPageState
+    extends ConsumerState<ArenaManualBookingPage> {
   static const _maxResults = 5;
 
   final _searchController = TextEditingController();
@@ -216,6 +224,7 @@ class _ArenaManualBookingSheetState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colors = context.themeColors;
     final dateLabel = DateFormat(
       'EEE, d \'de\' MMMM',
       'pt_BR',
@@ -227,144 +236,143 @@ class _ArenaManualBookingSheetState
     final endTime = _endTimeOf(chain);
     final timeRange = '${widget.slot.startTime} — $endTime';
 
-    // Toque fora dos campos fecha o teclado (os campos ganham o toque deles).
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 12,
-          bottom: 20 + MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: SingleChildScrollView(
+    return Scaffold(
+      backgroundColor: colors.canvas,
+      body: SafeArea(
+        // Toque fora dos campos fecha o teclado (os campos ganham o toque).
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => FocusScope.of(context).unfocus(),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: context.themeColors.onSurfaceMuted.withValues(
-                      alpha: 0.35,
-                    ),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+              _ManualBookingHeader(
+                eyebrow: '$dateLabel · ${widget.courtName.toUpperCase()}',
+                onClose: _busy ? null : _cancel,
               ),
-              const SizedBox(height: 16),
-              Text(
-                '$dateLabel · ${widget.courtName.toUpperCase()}',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: context.themeColors.onSurfaceMuted,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.4,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                timeRange,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: context.themeColors.onSurface,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Criar reserva',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: context.themeColors.onSurface,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Reserva de balcão: o horário sai da agenda pública e o '
-                'pagamento é acertado direto com a arena.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: context.themeColors.onSurfaceMuted,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 20),
-              _buildEndTimeSelect(context, chain),
-              const SizedBox(height: 20),
-              ..._buildCustomer(context),
-              const SizedBox(height: 20),
-              _label(context, 'VALOR (R\$)'),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _amountController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                onChanged: (_) => setState(() => _amountEdited = true),
-                style: TextStyle(color: context.themeColors.onSurface),
-                decoration: _decoration(context, hint: 'Ex: 120,00'),
-              ),
-              if (_memberHours != null) ...[
-                const SizedBox(height: 12),
-                _buildMemberHours(context, _memberHours!, endTime),
-              ],
-              const SizedBox(height: 20),
-              _label(context, 'NOTA (OPCIONAL)'),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _noteController,
-                maxLines: 2,
-                style: TextStyle(color: context.themeColors.onSurface),
-                decoration: _decoration(context, hint: 'Ex: paga no balcão'),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed:
-                          _busy ? null : () => Navigator.pop(context, false),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: context.themeColors.onSurface,
-                        side: BorderSide(
-                          color: context.themeColors.onSurfaceMuted.withValues(
-                            alpha: 0.35,
-                          ),
+              Expanded(
+                // Formulário curto: tudo construído de uma vez (ListView
+                // descartaria campos fora da tela e o foco junto).
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        timeRange,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: colors.onSurface,
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
-                      child: const Text('Cancelar'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _busy ? null : _confirm,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.brand,
-                        foregroundColor: AppColors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Reserva de balcão: o horário sai da agenda pública e o '
+                        'pagamento é acertado direto com a arena.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colors.onSurfaceMuted,
+                          height: 1.4,
+                        ),
                       ),
-                      child: _busy
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text(
-                              'Criar reserva',
-                              style: TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                    ),
+                      const SizedBox(height: 20),
+                      _buildEndTimeSelect(context, chain),
+                      const SizedBox(height: 20),
+                      ..._buildCustomer(context),
+                      const SizedBox(height: 20),
+                      _label(context, 'VALOR (R\$)'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _amountController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        onChanged: (_) => setState(() => _amountEdited = true),
+                        style: TextStyle(color: colors.onSurface),
+                        decoration: _decoration(context, hint: 'Ex: 120,00'),
+                      ),
+                      if (_memberHours != null) ...[
+                        const SizedBox(height: 12),
+                        _buildMemberHours(context, _memberHours!, endTime),
+                      ],
+                      const SizedBox(height: 20),
+                      _label(context, 'NOTA (OPCIONAL)'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _noteController,
+                        maxLines: 2,
+                        style: TextStyle(color: colors.onSurface),
+                        decoration: _decoration(
+                          context,
+                          hint: 'Ex: paga no balcão',
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
+              _buildActions(context),
             ],
           ),
         ),
       ),
     );
   }
+
+  /// Cancelar + Criar reserva fixos no rodapé (sobem junto com o teclado).
+  Widget _buildActions(BuildContext context) {
+    final colors = context.themeColors;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      decoration: BoxDecoration(
+        color: colors.canvas,
+        border: Border(
+          top: BorderSide(
+            color: colors.onSurfaceMuted.withValues(alpha: 0.15),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _busy ? null : _cancel,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: colors.onSurface,
+                side: BorderSide(
+                  color: colors.onSurfaceMuted.withValues(alpha: 0.35),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text('Cancelar'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FilledButton(
+              onPressed: _busy ? null : _confirm,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.black,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: _busy
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Criar reserva',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _cancel() => Navigator.pop(context, false);
 
   List<Widget> _buildCustomer(BuildContext context) {
     final colors = context.themeColors;
@@ -709,6 +717,58 @@ class _AthleteAvatar extends StatelessWidget {
               ),
             )
           : null,
+    );
+  }
+}
+
+/// Topo da tela: fechar + data/quadra + título.
+class _ManualBookingHeader extends StatelessWidget {
+  const _ManualBookingHeader({required this.eyebrow, required this.onClose});
+
+  final String eyebrow;
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = context.themeColors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 20, 8),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Fechar',
+            onPressed: onClose,
+            icon: Icon(Icons.close_rounded, color: colors.onSurface),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  eyebrow,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceMuted,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Criar reserva',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: colors.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

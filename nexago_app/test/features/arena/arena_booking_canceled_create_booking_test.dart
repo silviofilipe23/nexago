@@ -9,10 +9,10 @@ import 'package:nexago_app/features/arena/domain/arena_booking_canceled_args.dar
 import 'package:nexago_app/features/arena/domain/arena_manual_booking.dart';
 import 'package:nexago_app/features/arena/domain/arena_schedule_providers.dart';
 import 'package:nexago_app/features/arena/presentation/arena_booking_canceled_page.dart';
-import 'package:nexago_app/features/arena/presentation/widgets/arena_manual_booking_sheet.dart';
+import 'package:nexago_app/features/arena/presentation/arena_manual_booking_page.dart';
 
 /// "Criar reserva" da tela pós-cancelamento era um "em breve". Agora abre a
-/// folha de balcão no horário que o cancelamento liberou.
+/// tela de balcão no horário que o cancelamento liberou.
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('pt_BR');
@@ -80,7 +80,7 @@ void main() {
     await tester.tap(createButton);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byType(ArenaManualBookingSheet), findsOneWidget);
+    expect(find.byType(ArenaManualBookingPage), findsOneWidget);
     expect(find.textContaining('QUADRA 1'), findsOneWidget);
 
     await tester.enterText(
@@ -88,7 +88,7 @@ void main() {
       'João',
     );
     final submit = find.descendant(
-      of: find.byType(ArenaManualBookingSheet),
+      of: find.byType(ArenaManualBookingPage),
       matching: createButton,
     );
     await tester.ensureVisible(submit);

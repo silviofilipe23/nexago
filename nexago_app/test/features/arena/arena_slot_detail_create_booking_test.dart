@@ -14,11 +14,11 @@ import 'package:nexago_app/features/arena/domain/arena_schedule_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_slot_detail_args.dart';
 import 'package:nexago_app/features/arena/domain/arena_staff_role.dart';
 import 'package:nexago_app/features/arena/presentation/arena_slot_detail_page.dart';
-import 'package:nexago_app/features/arena/presentation/widgets/arena_manual_booking_sheet.dart';
+import 'package:nexago_app/features/arena/presentation/arena_manual_booking_page.dart';
 import 'package:nexago_app/features/arenas/domain/arena_slot.dart';
 
 /// "Criar reserva" no detalhe do horário era um "em breve": o gestor não tinha
-/// como reservar um horário pelo app. Agora abre a folha de balcão e grava
+/// como reservar um horário pelo app. Agora abre a tela de balcão e grava
 /// pela callable `createArenaManualBooking`.
 void main() {
   setUpAll(() async {
@@ -108,7 +108,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   }
 
-  Future<void> openSheet(WidgetTester tester) async {
+  Future<void> openPage(WidgetTester tester) async {
     await tester.tap(find.text('Criar reserva'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
@@ -121,8 +121,8 @@ void main() {
     final service = _FakeManualBookingService(quoteAmount: 90);
     await pumpPage(tester, service);
 
-    await openSheet(tester);
-    expect(find.byType(ArenaManualBookingSheet), findsOneWidget);
+    await openPage(tester);
+    expect(find.byType(ArenaManualBookingPage), findsOneWidget);
     // Cotação do servidor substitui o preço do slot.
     expect(find.text('90.00'), findsOneWidget);
 
@@ -185,7 +185,7 @@ void main() {
       final service = _FakeManualBookingService();
       await pumpPage(tester, service, day: day);
 
-      await openSheet(tester);
+      await openPage(tester);
       expect(find.text('ATÉ QUE HORAS'), findsOneWidget);
       expect(find.text('20:00 · 1h'), findsOneWidget);
 
@@ -205,7 +205,7 @@ void main() {
       final service = _FakeManualBookingService();
       await pumpPage(tester, service, day: day);
 
-      await openSheet(tester);
+      await openPage(tester);
       await pickEnd(tester, '00:00 · 5h');
 
       expect(find.text('19:00 — 00:00'), findsOneWidget);
@@ -241,7 +241,7 @@ void main() {
         ],
       );
 
-      await openSheet(tester);
+      await openPage(tester);
       await tester.tap(endSelect);
       await tester.pumpAndSettle();
       expect(find.text('21:00 · 2h'), findsWidgets);
@@ -253,7 +253,7 @@ void main() {
       final service = _FakeManualBookingService(quoteAmount: 200);
       await pumpPage(tester, service, day: day);
 
-      await openSheet(tester);
+      await openPage(tester);
       await pickEnd(tester, '21:00 · 2h');
 
       expect(service.quotedEndTimes.last, '21:00');
@@ -269,7 +269,7 @@ void main() {
         day: [slot, daySlot('20:00', '21:00', status: 'blocked')],
       );
 
-      await openSheet(tester);
+      await openPage(tester);
       expect(find.text('20:00 · 1h'), findsOneWidget);
       expect(
         find.text('Sem horário livre logo em seguida nesta quadra.'),
@@ -281,17 +281,17 @@ void main() {
       expect(field.onChanged, isNull);
     });
 
-    testWidgets('horário escolhido ocupado com a folha aberta: não envia',
+    testWidgets('horário escolhido ocupado com a tela aberta: não envia',
         (tester) async {
       final service = _FakeManualBookingService();
       await pumpPage(tester, service, day: day);
 
-      await openSheet(tester);
+      await openPage(tester);
       await pickEnd(tester, '22:00 · 3h');
 
-      // Outra reserva pega as 20h enquanto a folha está aberta.
+      // Outra reserva pega as 20h enquanto a tela está aberta.
       final container = ProviderScope.containerOf(
-        tester.element(find.byType(ArenaManualBookingSheet)),
+        tester.element(find.byType(ArenaManualBookingPage)),
       );
       container.read(daySlots.notifier).state = [
         slot,
@@ -313,43 +313,80 @@ void main() {
     });
   });
 
-  testWidgets('Cancelar fecha a folha sem criar reserva', (tester) async {
+  testWidgets('Cancelar fecha a tela sem criar reserva', (tester) async {
     final service = _FakeManualBookingService();
     await pumpPage(tester, service);
 
-    await openSheet(tester);
+    await openPage(tester);
     final cancel = find.widgetWithText(OutlinedButton, 'Cancelar');
     await tester.ensureVisible(cancel);
     await tester.tap(cancel);
     await tester.pumpAndSettle();
 
-    expect(find.byType(ArenaManualBookingSheet), findsNothing);
+    expect(find.byType(ArenaManualBookingPage), findsNothing);
     expect(service.created, isEmpty);
     expect(find.text('Reserva criada.'), findsNothing);
+  });
+
+  testWidgets('X do topo fecha a tela sem criar reserva', (tester) async {
+    final service = _FakeManualBookingService();
+    await pumpPage(tester, service);
+
+    await openPage(tester);
+    await tester.tap(find.byTooltip('Fechar'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ArenaManualBookingPage), findsNothing);
+    expect(service.created, isEmpty);
+  });
+
+  // A bottom sheet subia até o relógio/notch. A tela respeita a área segura.
+  testWidgets('topo da tela fica abaixo da área segura (notch)',
+      (tester) async {
+    const notch = 47.0;
+    tester.view.padding = FakeViewPadding(
+      top: notch * tester.view.devicePixelRatio,
+    );
+    addTearDown(tester.view.resetPadding);
+    final service = _FakeManualBookingService();
+    await pumpPage(tester, service);
+
+    await openPage(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ArenaManualBookingPage), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byTooltip('Fechar')).dy,
+      greaterThanOrEqualTo(notch),
+    );
+    expect(
+      tester.getTopLeft(find.textContaining('QUADRA 1')).dy,
+      greaterThanOrEqualTo(notch),
+    );
   });
 
   testWidgets('tocar fora dos campos fecha o teclado', (tester) async {
     final service = _FakeManualBookingService();
     await pumpPage(tester, service);
 
-    await openSheet(tester);
+    await openPage(tester);
     final nameField = find.widgetWithText(TextField, 'Nome de quem vai jogar');
     await tester.tap(nameField);
     await tester.pump();
     expect(tester.testTextInput.isVisible, isTrue);
 
-    // Toque num texto da folha (fora de qualquer campo).
+    // Toque num texto da tela (fora de qualquer campo).
     await tester.tap(find.text('ATÉ QUE HORAS'));
     await tester.pump();
     expect(tester.testTextInput.isVisible, isFalse);
-    expect(find.byType(ArenaManualBookingSheet), findsOneWidget);
+    expect(find.byType(ArenaManualBookingPage), findsOneWidget);
   });
 
   testWidgets('sem nome não chama o servidor', (tester) async {
     final service = _FakeManualBookingService();
     await pumpPage(tester, service);
 
-    await openSheet(tester);
+    await openPage(tester);
     await tester.ensureVisible(submitButton);
     await tester.tap(submitButton);
     await tester.pump();
@@ -361,14 +398,14 @@ void main() {
     );
   });
 
-  testWidgets('recusa do servidor aparece e a folha continua aberta',
+  testWidgets('recusa do servidor aparece e a tela continua aberta',
       (tester) async {
     final service = _FakeManualBookingService(
       createError: StateError('Esse horário já está ocupado.'),
     );
     await pumpPage(tester, service);
 
-    await openSheet(tester);
+    await openPage(tester);
     await tester.enterText(
       find.widgetWithText(TextField, 'Nome de quem vai jogar'),
       'João',
@@ -384,7 +421,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.byType(ArenaManualBookingSheet), findsOneWidget);
+    expect(find.byType(ArenaManualBookingPage), findsOneWidget);
   });
 
   testWidgets('atleta mensalista: desconta do banco de horas', (tester) async {
@@ -403,7 +440,7 @@ void main() {
     ]);
     await pumpPage(tester, service, users: users);
 
-    await openSheet(tester);
+    await openPage(tester);
     await tester.enterText(
       find.widgetWithText(TextField, 'Buscar por nome ou apelido'),
       'mar',
@@ -453,7 +490,7 @@ void main() {
     ]);
     await pumpPage(tester, service, users: users);
 
-    await openSheet(tester);
+    await openPage(tester);
     await tester.enterText(
       find.widgetWithText(TextField, 'Buscar por nome ou apelido'),
       'mar',
@@ -494,7 +531,7 @@ void main() {
     ]);
     await pumpPage(tester, service, users: users);
 
-    await openSheet(tester);
+    await openPage(tester);
     await tester.enterText(
       find.widgetWithText(TextField, 'Buscar por nome ou apelido'),
       'mar',
@@ -523,7 +560,7 @@ void main() {
     ]);
     await pumpPage(tester, service, users: users);
 
-    await openSheet(tester);
+    await openPage(tester);
     await tester.enterText(
       find.widgetWithText(TextField, 'Buscar por nome ou apelido'),
       'mar',
@@ -543,7 +580,7 @@ void main() {
     );
   });
 
-  testWidgets('horário ocupado não abre a folha', (tester) async {
+  testWidgets('horário ocupado não abre a tela', (tester) async {
     final booked = ArenaSlot(
       id: 's1',
       arenaId: 'a1',
@@ -561,7 +598,7 @@ void main() {
     await tester.tap(find.text('Criar reserva'), warnIfMissed: false);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byType(ArenaManualBookingSheet), findsNothing);
+    expect(find.byType(ArenaManualBookingPage), findsNothing);
   });
 }
 

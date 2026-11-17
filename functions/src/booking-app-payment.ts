@@ -7,6 +7,8 @@
  * - o gatilho que grava `appPaidReais`/`appPaidShare`/`socialUnlocked` na reserva sozinho;
  * - o estorno (`PAYMENT_REFUNDED`), que desconta o valor de `amountPaidOnlineReais` para a regra
  *   única refletir o dinheiro que voltou;
+ * - a liberação manual (`socialUnlockGrantedAt`), cortesia do suporte para reserva paga no balcão:
+ *   só o servidor grava (fora das allow-lists das rules) e não vale para reserva cancelada/estornada;
  * - a reserva de PLANO DE HORÁRIO (`scheduleSubscriptionId`), que nasce com 0 pago porque quem paga
  *   é a mensalidade: vale a fração da mensalidade do mês paga pelo app (`paidVia: "asaas"`, sem
  *   estorno), somando os pagadores do rateio. Mensalidade baixada à mão pela arena não conta.
@@ -57,15 +59,23 @@ function money(v: number): number {
   return Math.round(v * 100) / 100;
 }
 
-/** Libera ou não, a partir da regra única. */
+/**
+ * Liberação manual: o suporte grava `socialUnlockGrantedAt` (script, Admin SDK) numa reserva paga
+ * fora do app. Não mexe no valor pago pelo app; só abre placar, story e arte.
+ */
+export function hasManualSocialUnlock(booking: Data): boolean {
+  return booking["socialUnlockGrantedAt"] != null && !isArenaBookingInactive(booking);
+}
+
+/** Libera ou não, a partir da regra única (ou da liberação manual). */
 export function bookingSocialUnlock(booking: Data): BookingSocialUnlock {
   const {confirmedReais, totalReais, share} = arenaBookingAppPayment(booking);
   return {
     appPaidReais: confirmedReais,
     totalReais,
     appPaidShare: Math.round(share * 10_000) / 10_000,
-    socialUnlocked: totalReais > 0 && confirmedReais > 0 &&
-      confirmedReais + AMOUNT_TOLERANCE_REAIS >= totalReais * SOCIAL_UNLOCK_MIN_APP_PAID_SHARE,
+    socialUnlocked: hasManualSocialUnlock(booking) || (totalReais > 0 && confirmedReais > 0 &&
+      confirmedReais + AMOUNT_TOLERANCE_REAIS >= totalReais * SOCIAL_UNLOCK_MIN_APP_PAID_SHARE),
   };
 }
 
@@ -103,7 +113,7 @@ export function bookingSocialUnlockFromPlan(booking: Data, planShare: number): B
     appPaidReais: money(totalReais * share),
     totalReais,
     appPaidShare,
-    socialUnlocked: share > 0 && appPaidShare >= SOCIAL_UNLOCK_MIN_APP_PAID_SHARE,
+    socialUnlocked: hasManualSocialUnlock(booking) || (share > 0 && appPaidShare >= SOCIAL_UNLOCK_MIN_APP_PAID_SHARE),
   };
 }
 
@@ -147,7 +157,9 @@ export function bookingSocialUnlockPatch(booking: Data, computed: BookingSocialU
 }
 
 /** Campos que a regra única lê: só eles disparam a releitura. */
-const INPUT_FIELDS = ["status", "paymentStatus", "refundedAt", "amountPaidOnlineReais", "amountReais"] as const;
+const INPUT_FIELDS = [
+  "status", "paymentStatus", "refundedAt", "amountPaidOnlineReais", "amountReais", "socialUnlockGrantedAt",
+] as const;
 
 export function bookingSocialInputsChanged(before: Data | undefined, after: Data): boolean {
   if (!before) return true;

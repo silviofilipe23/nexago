@@ -76,7 +76,7 @@ describe("resolveRegistrationAttribution", () => {
   it("código digitado vence o link", async () => {
     const {fake, db} = makeDb();
     fake.seedDoc("squadAttributions/atl", {ambassadorId: "jv", code: "JOAO10", origin: "link", at: NOW});
-    const r = await resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: ["atl"], typedCode: "rayssa"}, NOW);
+    const r = await resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: ["atl"], typedCode: "rayssa", purpose: "registration"}, NOW);
     assert.equal(r!.ambassador.uid, "rb");
     assert.equal(r!.origin, "code");
     assert.equal(r!.ambassador.rulesVersion, 2);
@@ -85,31 +85,31 @@ describe("resolveRegistrationAttribution", () => {
   it("sem código, usa o link dentro da janela e ignora o vencido", async () => {
     const {fake, db} = makeDb();
     fake.seedDoc("squadAttributions/atl", {ambassadorId: "jv", code: "JOAO10", origin: "qr", at: new Date(NOW.getTime() - 10 * DAY)});
-    const r = await resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: [], typedCode: ""}, NOW);
+    const r = await resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: [], typedCode: "", purpose: "registration"}, NOW);
     assert.equal(r!.origin, "qr");
-    const late = await resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: [], typedCode: null}, new Date(NOW.getTime() + 25 * DAY));
+    const late = await resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: [], typedCode: null, purpose: "registration"}, new Date(NOW.getTime() + 25 * DAY));
     assert.equal(late, null);
   });
 
   it("código errado ou autoindicação digitada: erro claro; por link, ignora", async () => {
     const {fake, db} = makeDb();
     await assert.rejects(
-      resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: [], typedCode: "NADA99"}, NOW),
+      resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: [], typedCode: "NADA99", purpose: "registration"}, NOW),
       (err: {message?: string}) => err.message === UNKNOWN_CODE_MESSAGE,
     );
     // O embaixador é o parceiro de dupla do pagador.
     await assert.rejects(
-      resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: ["atl", "jv"], typedCode: "JOAO10"}, NOW),
+      resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: ["atl", "jv"], typedCode: "JOAO10", purpose: "registration"}, NOW),
       (err: {message?: string}) => err.message === SELF_REFERRAL_MESSAGE,
     );
     fake.seedDoc("squadAttributions/jv", {ambassadorId: "jv", code: "JOAO10", origin: "link", at: NOW});
-    assert.equal(await resolveRegistrationAttribution(db, {payerUid: "jv", athleteUids: ["jv"], typedCode: ""}, NOW), null);
+    assert.equal(await resolveRegistrationAttribution(db, {payerUid: "jv", athleteUids: ["jv"], typedCode: "", purpose: "registration"}, NOW), null);
   });
 
   it("com autoindicação liberada nas regras, o próprio código vale", async () => {
     const {fake, db} = makeDb();
     fake.seedDoc("squadConfig/rules", {version: 2, rules: {attribution: {blockSelfReferral: false}}});
-    const r = await resolveRegistrationAttribution(db, {payerUid: "jv", athleteUids: ["jv"], typedCode: "JOAO10"}, NOW);
+    const r = await resolveRegistrationAttribution(db, {payerUid: "jv", athleteUids: ["jv"], typedCode: "JOAO10", purpose: "registration"}, NOW);
     assert.equal(r!.ambassador.uid, "jv");
   });
 });
@@ -240,5 +240,92 @@ describe("squadReferralCore", () => {
     assert.equal(await squadReferralCore(db, "NAOEXISTE"), null);
     assert.equal(await squadReferralCore(db, "jo"), null);
     assert.equal(await squadReferralCore(db, undefined), null);
+  });
+});
+
+describe("escopo do código no contrato (codeScope)", () => {
+  const ONLY_REGISTRATION = {registration: true, booking: false, club: false};
+
+  function withScopedAmbassador(): {fake: FakeFirestore; db: Firestore} {
+    const env = makeDb();
+    env.fake.seedDoc("squadAmbassadors/lm", {
+      displayName: "Luana Melo", tier: "ath", code: "LUANA10", commissionPct: 4, followerDiscountPct: 8,
+      rulesVersion: 2, status: "active", codeScope: ONLY_REGISTRATION,
+    });
+    return env;
+  }
+
+  const resolve = (db: Firestore, purpose: "registration" | "booking" | "club", typedCode: unknown = "") =>
+    resolveRegistrationAttribution(db, {payerUid: "atl", athleteUids: ["atl"], typedCode, purpose}, NOW);
+
+  it("contrato sem codeScope vale em inscrição, reserva e clubinho (contratos antigos não mudam)", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("squadAttributions/atl", {ambassadorId: "jv", code: "JOAO10", origin: "link", at: NOW});
+    for (const purpose of ["registration", "booking", "club"] as const) {
+      assert.equal((await resolve(db, purpose))?.ambassador.uid, "jv", purpose);
+    }
+  });
+
+  it("link de contrato só de inscrição: resolve na inscrição e some na reserva e no clubinho", async () => {
+    const {fake, db} = withScopedAmbassador();
+    fake.seedDoc("squadAttributions/atl", {ambassadorId: "lm", code: "LUANA10", origin: "link", at: NOW});
+    assert.equal((await resolve(db, "registration"))?.ambassador.uid, "lm");
+    assert.equal(await resolve(db, "booking"), null);
+    assert.equal(await resolve(db, "club"), null);
+    // A indicação continua guardada: só não vale nesta compra.
+    assert.equal(fake.store.get("squadAttributions/atl")!["ambassadorId"], "lm");
+  });
+
+  it("código digitado fora do escopo: erro no campo dizendo onde ele vale", async () => {
+    const {db} = withScopedAmbassador();
+    assert.equal((await resolve(db, "registration", "luana10"))?.origin, "code");
+    for (const purpose of ["booking", "club"] as const) {
+      await assert.rejects(
+        resolve(db, purpose, "luana10"),
+        (err: {code?: string; message?: string; details?: {field?: string}}) =>
+          err.code === "failed-precondition" &&
+          err.details?.field === "squadCode" &&
+          err.message === "O código LUANA10 vale só para inscrições em torneios.",
+      );
+    }
+  });
+
+  it("campo inválido no contrato conta como liberado; tipo ausente também", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("squadAmbassadors/jv", {
+      displayName: "João Victor", tier: "amb", code: "JOAO10", commissionPct: 10, rulesVersion: 2, status: "active",
+      codeScope: {registration: true, booking: "não"},
+    });
+    fake.seedDoc("squadAttributions/atl", {ambassadorId: "jv", code: "JOAO10", origin: "link", at: NOW});
+    assert.equal((await resolve(db, "booking"))?.ambassador.uid, "jv");
+    assert.equal((await resolve(db, "club"))?.ambassador.uid, "jv");
+  });
+
+  it("prévia do checkout: fora do escopo não mostra a indicação por link", async () => {
+    const {fake, db} = withScopedAmbassador();
+    fake.seedDoc("squadAttributions/atl", {ambassadorId: "lm", code: "LUANA10", origin: "link", at: NOW});
+    const check = (purpose: "registration" | "booking" | "club") =>
+      checkSquadCodeCore(db, {payerUid: "atl", athleteUids: ["atl"], code: "", registrationId: "reg1", purpose}, NOW);
+    const booking = await check("booking");
+    assert.deepEqual(
+      {origin: booking.origin, name: booking.ambassadorName, code: booking.code, pct: booking.discountPct},
+      {origin: null, name: null, code: null, pct: 0},
+    );
+    assert.equal((await check("club")).origin, null);
+    const registration = await check("registration");
+    assert.equal(registration.origin, "link");
+    assert.equal(registration.discountPct, 8);
+  });
+
+  it("página do link mostra onde o código vale: contrato e regras juntos", async () => {
+    const {fake, db} = withScopedAmbassador();
+    assert.deepEqual((await squadReferralCore(db, "LUANA10"))?.scope, ONLY_REGISTRATION);
+    fake.seedDoc("squadConfig/rules", {version: 3, rules: {attribution: {
+      followerDiscountScope: {registration: false, booking: true, club: true},
+    }}});
+    assert.deepEqual(
+      (await squadReferralCore(db, "LUANA10"))?.scope,
+      {registration: false, booking: false, club: false},
+    );
   });
 });

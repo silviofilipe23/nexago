@@ -195,6 +195,33 @@ describe("convite", () => {
     assert.equal(app["archivedReason"], "accepted");
   });
 
+  it("escopo do código: o convite leva para o contrato; sem escopo, o contrato vale em tudo", async () => {
+    const {fake, db, notify} = setup();
+    const scope = {registration: true, booking: false, club: false};
+    const {inviteId} = await sendInviteCore(db, {...base, codeScope: scope}, ACTOR, NOW, notify);
+    assert.deepEqual(fake.store.get(`squadInvites/${inviteId}`)!["codeScope"], scope);
+    await acceptInviteCore(db, {uid: "felipe", inviteId, code: "fel10"}, NOW);
+    assert.deepEqual(fake.store.get("squadAmbassadors/felipe")!["codeScope"], scope);
+
+    fake.seedDoc("users/maria", {fullName: "Maria Lima", city: "Goiânia", state: "GO", createdAt: new Date("2025-03-01")});
+    const plain = await sendInviteCore(db, {...base, athleteId: "maria", suggestedCode: "maria10"}, ACTOR, NOW, notify);
+    assert.equal(fake.store.get(`squadInvites/${plain.inviteId}`)!["codeScope"], null);
+    await acceptInviteCore(db, {uid: "maria", inviteId: plain.inviteId, code: "maria10"}, NOW);
+    assert.equal("codeScope" in fake.store.get("squadAmbassadors/maria")!, false);
+  });
+
+  it("escopo do código inválido ou sem nenhum tipo é recusado", async () => {
+    const {db, notify} = setup();
+    await assert.rejects(
+      sendInviteCore(db, {...base, codeScope: {registration: false, booking: false, club: false}}, ACTOR, NOW, notify),
+      (err: {details?: {fields?: string[]}}) => err.details?.fields?.includes("codeScope") === true,
+    );
+    await assert.rejects(
+      sendInviteCore(db, {...base, codeScope: {registration: "sim"} as never}, ACTOR, NOW, notify),
+      (err: {details?: {fields?: string[]}}) => err.details?.fields?.includes("codeScope") === true,
+    );
+  });
+
   it("cancelar arquiva; reenviar expirado recomeça o prazo e volta para Convidados", async () => {
     const {fake, db, notify} = setup();
     const {inviteId, applicationId} = await sendInviteCore(db, base, ACTOR, NOW, notify);

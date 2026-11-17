@@ -101,6 +101,20 @@ describe("resolveArenaSquadDiscount", () => {
     assert.equal((await resolveArenaSquadDiscount(db, club(15), NOW))!.cents, 75);
   });
 
+  it("contrato só de inscrição: sem desconto nem atribuição na reserva e no clubinho", async () => {
+    const {fake, db} = makeDb();
+    fake.seedDoc("squadAmbassadors/jv", {
+      ...fake.store.get("squadAmbassadors/jv")!, codeScope: {registration: true, booking: false, club: false},
+    });
+    fake.seedDoc("squadAttributions/atl", {ambassadorId: "jv", code: "JOAO10", origin: "link", at: NOW});
+    assert.equal(await resolveArenaSquadDiscount(db, booking(120, ""), NOW), null);
+    assert.equal(await resolveArenaSquadDiscount(db, club(15, ""), NOW), null);
+    await assert.rejects(
+      resolveArenaSquadDiscount(db, booking(120), NOW),
+      (err: {details?: {field?: string}}) => err.details?.field === "squadCode",
+    );
+  });
+
   it("sufixo da idempotência só com desconto", () => {
     assert.equal(squadIdempotencySuffix(960), "-sq960");
     assert.equal(squadIdempotencySuffix(0), "");

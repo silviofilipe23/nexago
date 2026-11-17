@@ -228,6 +228,21 @@ describe('contrato', () => {
     ]);
   });
 
+  it('escopo do código: linha só quando o contrato restringe', () => {
+    const scoped = profileContractFromDoc('joao', {
+      tier: 'ath',
+      status: 'active',
+      codeScope: { registration: true, booking: false, club: false },
+    });
+    expect(scoped.codeScope).toEqual({ registration: true, booking: false, club: false });
+    expect(contractLines({ ...contract(), codeScope: scoped.codeScope }, NOW)).toContain({
+      label: 'Código vale em',
+      value: 'Inscrições em torneios',
+    });
+    expect(contract().codeScope).toBeNull();
+    expect(contractLines(contract(), NOW).some((l) => l.label === 'Código vale em')).toBeFalse();
+  });
+
   it('pausa sem data de volta e encerrado', () => {
     const paused = contractLines(contract({ state: 'paused', pauseReason: 'Lesão' }), NOW);
     expect(paused.find((l) => l.label === 'Pausa')!.value).toBe('sem data de volta · Lesão');

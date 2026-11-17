@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { Unsubscribe } from 'firebase/firestore';
 import { isoWeekdayOf, todayKeyLocal, type ArenaClass } from '../aulas/class.model';
@@ -217,7 +217,8 @@ export class PanelPhGridComponent {
   protected readonly groupDays = DAY_GROUP_DAYS;
 
   private readonly series = signal<ArenaRecurringBooking[]>([]);
-  /** Nome e foto do atleta do horário fixo fora de plano — a série só grava o `athleteId`. */
+  /** Nome e foto do atleta do horário fixo fora de plano (a série só grava o `athleteId`) e foto
+   *  atual do titular de plano (`holderAthleteId`). */
   private readonly athleteProfiles = injectAthleteProfiles();
   private readonly classes = signal<ArenaClass[]>([]);
   private readonly clubs = signal<ArenaClub[]>([]);
@@ -244,7 +245,8 @@ export class PanelPhGridComponent {
         out.push({
           kind: 'fixed', weekday: slot.weekday, startTime: slot.startTime, endTime: slot.endTime, courtIds: [slot.courtId],
           title: sub.holderName, detail: `${sub.planName} · ${CYCLE_LABEL[sub.cycle].toLowerCase()}${status}`,
-          person: { name: sub.holderName, photoUrl: sub.holderPhotoUrl },
+          // Nome segue o da assinatura; foto atual do perfil, com a gravada de reserva.
+          person: { name: sub.holderName, photoUrl: this.athleteProfiles.photoOf(sub.holderAthleteId) ?? sub.holderPhotoUrl },
         });
       }
     }
@@ -315,6 +317,12 @@ export class PanelPhGridComponent {
       void fetchClubs(db, arenaId).then((c) => this.clubs.set(c)).catch(() => this.clubs.set([]));
     });
     inject(DestroyRef).onDestroy(() => unsub?.());
+
+    // Titulares dos planos: mesma leitura de perfil da tela de Assinantes.
+    effect(() => {
+      const holders = this.store.subscriptions().map((sub) => ({ athleteId: sub.holderAthleteId }));
+      untracked(() => void this.athleteProfiles.load(holders));
+    });
   }
 
   protected cellAt(d: number, h: number) {

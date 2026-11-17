@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/arenas/data/lancar_placar_draft_store.dart';
 import 'package:nexago_app/features/arenas/data/pelada_live_draft_store.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result.dart';
 import 'package:nexago_app/features/arenas/domain/booking_story_providers.dart';
@@ -16,6 +17,7 @@ import 'package:nexago_app/features/arenas/presentation/booking_story_page.dart'
 import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_models.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_timeline_widgets.dart';
+import '../../arenas/fake_lancar_placar_draft_store.dart';
 
 AthleteAgendaTimelineRow aluguel({
   required String status,
@@ -86,6 +88,8 @@ Future<void> abrirAgenda(
         athleteProfileProvider.overrideWith((ref) => Stream.value(null)),
         bookingStorySourceProvider('b1').overrideWith((ref) => null),
         peladaLiveDraftStoreProvider.overrideWithValue(_Drafts(draft)),
+        lancarPlacarDraftStoreProvider
+            .overrideWithValue(MemoryLancarPlacarDraftStore()),
       ],
       child: MaterialApp(
         theme: AppTheme.dark,

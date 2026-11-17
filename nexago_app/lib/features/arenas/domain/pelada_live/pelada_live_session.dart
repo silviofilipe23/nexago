@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../booking_result.dart';
+import '../booking_result_json.dart';
 import 'pelada_live_match.dart';
 import 'pelada_live_rules.dart';
 
@@ -251,21 +252,7 @@ class PeladaLiveSession {
 
   Map<String, Object?> toJson() => {
         'v': 1,
-        'teams': [
-          for (final t in base.teams)
-            {
-              'id': t.id,
-              'customName': t.customName,
-              'players': [
-                for (final p in t.players)
-                  {'id': p.id, 'name': p.name, 'avatarUrl': p.avatarUrl},
-              ],
-            },
-        ],
-        'games': [
-          for (final g in base.games)
-            {'a': g.teamA, 'b': g.teamB, 'sa': g.scoreA, 'sb': g.scoreB},
-        ],
+        ...bookingResultToJson(base),
         'teamA': teamA,
         'teamB': teamB,
         'match': match.toJson(),
@@ -278,72 +265,17 @@ class PeladaLiveSession {
     final match = PeladaLiveMatch.fromJson(raw['match']);
     if (match == null) return null;
     int? id(Object? v) => v is int ? v : null;
-    final teams = <ResultTeam>[];
-    final rawTeams = raw['teams'];
-    if (rawTeams is List) {
-      for (final t in rawTeams) {
-        if (t is! Map || id(t['id']) == null) continue;
-        final players = <ResultPlayer>[];
-        final rawPlayers = t['players'];
-        if (rawPlayers is List) {
-          for (final p in rawPlayers) {
-            if (p is! Map) continue;
-            final pid = p['id'];
-            final name = p['name'];
-            if (pid is! String || name is! String) continue;
-            final avatar = p['avatarUrl'];
-            players.add(
-              ResultPlayer(
-                id: pid,
-                name: name,
-                avatarUrl: avatar is String ? avatar : null,
-              ),
-            );
-          }
-        }
-        final custom = t['customName'];
-        teams.add(
-          ResultTeam(
-            id: id(t['id'])!,
-            players: players,
-            customName: custom is String ? custom : null,
-          ),
-        );
-      }
-    }
+    final base = bookingResultFromJson(raw);
     final teamA = id(raw['teamA']);
     final teamB = id(raw['teamB']);
-    final known = {for (final t in teams) t.id};
-    if (teams.length < 2 ||
+    final known = {for (final t in base.teams) t.id};
+    if (base.teams.length < 2 ||
         teamA == null ||
         teamB == null ||
         teamA == teamB ||
         !known.contains(teamA) ||
         !known.contains(teamB)) {
       return null;
-    }
-    final games = <ResultGame>[];
-    final rawGames = raw['games'];
-    if (rawGames is List) {
-      for (final g in rawGames) {
-        if (g is! Map) continue;
-        final a = id(g['a']);
-        final b = id(g['b']);
-        if (a == null ||
-            b == null ||
-            !known.contains(a) ||
-            !known.contains(b)) {
-          continue;
-        }
-        games.add(
-          ResultGame(
-            teamA: a,
-            teamB: b,
-            scoreA: id(g['sa']) ?? 0,
-            scoreB: id(g['sb']) ?? 0,
-          ),
-        );
-      }
     }
     final history = <PeladaLiveMatch>[];
     final rawHistory = raw['history'];
@@ -355,7 +287,7 @@ class PeladaLiveSession {
     }
     final started = raw['startedAt'];
     return PeladaLiveSession(
-      base: BookingResult(teams: teams, games: games),
+      base: base,
       teamA: teamA,
       teamB: teamB,
       match: match,

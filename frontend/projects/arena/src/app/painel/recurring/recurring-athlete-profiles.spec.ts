@@ -4,6 +4,11 @@ import { RecurringAthleteProfiles } from './recurring-athlete-profiles';
 const ANA: AthleteProfileSummary = { name: 'Ana Souza', photoUrl: 'https://foto/ana.jpg' };
 const BETO: AthleteProfileSummary = { name: 'Beto Lima', photoUrl: null };
 
+/** Série como a tela passa: `athleteId` + `customerName` (avulso e turma de professor têm nome). */
+function series(athleteId: string | null, customerName: string | null = null) {
+  return { athleteId, customerName };
+}
+
 function fakeResolver(profiles: Record<string, AthleteProfileSummary>) {
   const calls: string[] = [];
   const resolve = async (id: string): Promise<AthleteProfileSummary> => {
@@ -20,7 +25,7 @@ describe('RecurringAthleteProfiles — nome e foto do atleta do horário fixo', 
     const { resolve } = fakeResolver({ ana: ANA });
     const profiles = new RecurringAthleteProfiles(resolve);
 
-    await profiles.load([{ athleteId: 'ana', customerName: null }]);
+    await profiles.load([series('ana')]);
 
     expect(profiles.names().get('ana')).toBe('Ana Souza');
     expect(profiles.photoOf('ana')).toBe('https://foto/ana.jpg');
@@ -30,7 +35,7 @@ describe('RecurringAthleteProfiles — nome e foto do atleta do horário fixo', 
     const { resolve, calls } = fakeResolver({});
     const profiles = new RecurringAthleteProfiles(resolve);
 
-    await profiles.load([{ athleteId: null, customerName: 'João' }]);
+    await profiles.load([series(null, 'João')]);
 
     expect(calls).toEqual([]);
     expect(profiles.photoOf(null)).toBeNull();
@@ -55,7 +60,7 @@ describe('RecurringAthleteProfiles — nome e foto do atleta do horário fixo', 
     const { resolve } = fakeResolver({ ana: ANA });
     const profiles = new RecurringAthleteProfiles(resolve);
 
-    await profiles.load([{ athleteId: 'ana', customerName: 'Professor · Turma' }]);
+    await profiles.load([series('ana', 'Professor · Turma')]);
 
     expect(profiles.photoOf('ana')).toBe('https://foto/ana.jpg');
   });

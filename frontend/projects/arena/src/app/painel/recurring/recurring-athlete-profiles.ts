@@ -1,15 +1,27 @@
-import { computed, signal } from '@angular/core';
-import type { AthleteProfileSummary } from '../bookings/bookings-repository';
-import type { ArenaRecurringBooking } from './arena-recurring-booking.model';
+import { InjectionToken, computed, inject, signal } from '@angular/core';
+import { resolveAthleteProfile, type AthleteProfileSummary } from '../bookings/bookings-repository';
+import { arenaFirestore } from '../data/firestore';
 
 export type AthleteProfileResolver = (athleteId: string) => Promise<AthleteProfileSummary>;
 
+/** Leitor de perfil das telas: `public_profiles` via `resolveAthleteProfile` (com cache). O
+ *  teste de tela troca por um fake e não toca no Firestore. */
+export const ATHLETE_PROFILE_RESOLVER = new InjectionToken<AthleteProfileResolver>('ATHLETE_PROFILE_RESOLVER', {
+  providedIn: 'root',
+  factory: () => (athleteId) => resolveAthleteProfile(arenaFirestore(), athleteId),
+});
+
+/** Uma instância por tela, com o leitor injetado. Chamar no contexto de injeção (campo da classe). */
+export function injectAthleteProfiles(): RecurringAthleteProfiles {
+  return new RecurringAthleteProfiles(inject(ATHLETE_PROFILE_RESOLVER));
+}
+
 type ProfileEntry = readonly [string, AthleteProfileSummary];
 
-/** Nome e foto dos atletas vinculados a horários fixos. A série grava só o `athleteId`; quem
- *  mostra a série resolve aqui, uma leitura por atleta (na tela, `resolveAthleteProfile` em
- *  `public_profiles`: cobre cliente da arena e atleta achado na busca em todo o nexaGO).
- *  Usado pela lista de Horários fixos e pela grade de Planos de horário. */
+/** Nome e foto dos atletas vinculados a horários fixos e planos. A série (e a assinatura) grava o
+ *  `athleteId`; quem mostra resolve aqui, uma leitura por atleta (na tela, `resolveAthleteProfile`
+ *  em `public_profiles`: cobre cliente da arena e atleta achado na busca em todo o nexaGO).
+ *  Usado por Horários fixos, pela grade e pelos Assinantes de Planos de horário. */
 export class RecurringAthleteProfiles {
   private readonly profiles = signal<ReadonlyMap<string, AthleteProfileSummary>>(new Map());
   private readonly pending = new Set<string>();
@@ -26,9 +38,9 @@ export class RecurringAthleteProfiles {
   }
 
   /** Resolve quem ainda não tem perfil. Leitura que falha fica de fora e volta no próximo snapshot. */
-  async load(series: readonly Pick<ArenaRecurringBooking, 'athleteId' | 'customerName'>[]): Promise<void> {
+  async load(linked: readonly { athleteId: string | null }[]): Promise<void> {
     const known = this.profiles();
-    const missing = [...new Set(series.map((s) => s.athleteId))].filter(
+    const missing = [...new Set(linked.map((s) => s.athleteId))].filter(
       (id): id is string => !!id && !known.has(id) && !this.pending.has(id),
     );
     if (missing.length === 0) return;

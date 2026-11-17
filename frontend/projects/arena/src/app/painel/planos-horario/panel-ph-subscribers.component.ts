@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Injector, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { shortDate } from '../aulas/class.model';
 import { ArenaAccessService } from '../data/arena-access.service';
 import { ArenaContextService } from '../data/arena-context.service';
+import { injectAthleteProfiles } from '../recurring/recurring-athlete-profiles';
 import { AvatarComponent } from '../ui/avatar.component';
 import { IconComponent } from '../ui/icon.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -68,10 +69,15 @@ const FILTERS: ReadonlyArray<{ id: SubscriberFilter; label: string; param: strin
                   <span>Titular</span><span>Plano</span><span>Horário fixo</span><span>Ciclo</span><span>Cobrança</span><span>Repos.</span><span>Status</span>
                 </div>
                 @for (r of filtered(); track r.sub.id) {
-                  <button type="button" class="tr" [class.sel]="selectedId() === r.sub.id" (click)="selectSub(r.sub.id)">
+                  <!-- A linha seleciona no clique e o nome é o botão (teclado/leitor de tela): o avatar
+                       fica fora de <button> para abrir a foto ampliada (\`zoomable\` vira botão). -->
+                  <div class="tr" [class.sel]="selectedId() === r.sub.id" (click)="selectSub(r.sub.id)">
                     <span class="who">
-                      <ar-avatar [name]="r.sub.holderName" [photoUrl]="r.sub.holderPhotoUrl" [size]="28" />
-                      <span class="who-text"><b>{{ r.sub.holderName }}</b><small>{{ players(r.sub.members.length) }}</small></span>
+                      <ar-avatar [name]="r.sub.holderName" [photoUrl]="holderPhoto(r.sub)" [size]="28" zoomable />
+                      <span class="who-text">
+                        <button type="button" class="who-name" [attr.aria-pressed]="selectedId() === r.sub.id">{{ r.sub.holderName }}</button>
+                        <small>{{ players(r.sub.members.length) }}</small>
+                      </span>
                     </span>
                     <span class="ell mute">{{ r.sub.planName }}</span>
                     <span class="mono">{{ slots(r.sub) }} <i>{{ courts(r.sub) }}</i></span>
@@ -79,7 +85,7 @@ const FILTERS: ReadonlyArray<{ id: SubscriberFilter; label: string; param: strin
                     <span class="mono" [class.late]="r.state.kind === 'late' || r.state.kind === 'suspended'">{{ r.nextDue ? shortDate(r.nextDue) : '—' }}</span>
                     <span class="mono" [class.dim]="r.sub.makeupBalance === 0">{{ r.sub.makeupBalance }}</span>
                     <span><ar-pill [tone]="r.state.tone">{{ r.state.label }}</ar-pill></span>
-                  </button>
+                  </div>
                 } @empty {
                   <p class="state pad">{{ store.subscriptions().length === 0 ? 'Nenhum assinante ainda. Quando um atleta assinar pelo app ou você adicionar, ele aparece aqui.' : 'Ninguém nessa situação.' }}</p>
                 }
@@ -89,7 +95,7 @@ const FILTERS: ReadonlyArray<{ id: SubscriberFilter; label: string; param: strin
 
           <div #detail class="side">
             @if (selected(); as r) {
-              <ar-ph-subscriber-detail [sub]="r.sub" [state]="r.state" [plan]="store.planById().get(r.sub.planId) ?? null" [readOnly]="readOnly()" />
+              <ar-ph-subscriber-detail [sub]="r.sub" [photoUrl]="holderPhoto(r.sub)" [state]="r.state" [plan]="store.planById().get(r.sub.planId) ?? null" [readOnly]="readOnly()" />
             } @else {
               <ar-panel-card>
                 <p class="state">Escolha um assinante para ver o horário, as mensalidades e as ações.</p>
@@ -124,7 +130,12 @@ const FILTERS: ReadonlyArray<{ id: SubscriberFilter; label: string; param: strin
     .tr.sel { background: rgba(255, 106, 26, 0.06); box-shadow: inset 2px 0 0 var(--nx-orange-500); }
     .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .who-text { display: flex; flex-direction: column; min-width: 0; }
-    .who-text b { font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; color: var(--nx-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .who-name {
+      max-width: 100%; padding: 0; margin: 0; border: none; background: none; text-align: left; cursor: pointer;
+      font-family: var(--nx-font-display); font-weight: 600; font-size: 13px; color: var(--nx-text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .who-name:focus-visible { outline: 2px solid var(--nx-orange-500); outline-offset: 2px; border-radius: 4px; }
     .who-text small { font-size: 11px; color: var(--nx-text-dim); }
     .ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .mute { font-size: 12.5px; color: var(--nx-text-mute); }
@@ -164,6 +175,22 @@ export class PanelPhSubscribersComponent {
     revealDetailAfterRender(this.injector, () => this.detail());
   }
   protected readonly adding = signal(false);
+
+  /** Foto atual do titular em \`public_profiles\` (cobre quem veio da busca em todo o nexaGO). */
+  private readonly athleteProfiles = injectAthleteProfiles();
+
+  constructor() {
+    effect(() => {
+      const holders = this.store.subscriptions().map((sub) => ({ athleteId: sub.holderAthleteId }));
+      untracked(() => void this.athleteProfiles.load(holders));
+    });
+  }
+
+  /** Foto do perfil quando há atleta vinculado; a gravada na assinatura enquanto carrega ou se a
+   *  leitura falhar; sem nenhuma, o avatar mostra as iniciais (avulso). */
+  protected holderPhoto(sub: ScheduleSubscription): string | null {
+    return this.athleteProfiles.photoOf(sub.holderAthleteId) ?? sub.holderPhotoUrl;
+  }
 
   protected readonly rows = computed<Row[]>(() => {
     const states = this.store.states();

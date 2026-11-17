@@ -67,7 +67,7 @@ const OCC_LABEL: Record<OccKind, string> = { done: 'Jogou', today: 'Hoje', next:
     @let s = sub();
     <ar-panel-card>
       <div class="head">
-        <ar-avatar [name]="s.holderName" [photoUrl]="s.holderPhotoUrl" [size]="42" zoomable />
+        <ar-avatar [name]="s.holderName" [photoUrl]="photoUrl() ?? s.holderPhotoUrl" [size]="42" zoomable />
         <div class="who">
           <div class="name">{{ s.holderName }}</div>
           <div class="meta">{{ s.planName }} · desde {{ monthYear(s.startDate) }}</div>
@@ -330,6 +330,8 @@ export class PhSubscriberDetailComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly sub = input.required<ScheduleSubscription>();
+  /** Foto atual do titular (perfil); sem ela, a gravada na assinatura. */
+  readonly photoUrl = input<string | null>(null);
   readonly state = input.required<SubscriberState>();
   readonly plan = input<SchedulePlan | null>(null);
   readonly readOnly = input(false);

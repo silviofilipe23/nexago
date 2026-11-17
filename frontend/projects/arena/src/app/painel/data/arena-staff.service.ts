@@ -48,6 +48,13 @@ export class ArenaStaffService {
     return (await call({ arenaId, email, role })).data;
   }
 
+  /** Adiciona uma conta do nexaGO escolhida na busca de atletas — sem e-mail,
+   *  o vínculo nasce ativo (assento e plano validados no servidor). */
+  async addAthlete(arenaId: string, userId: string, role: ArenaStaffRole): Promise<void> {
+    const call = httpsCallable(arenaFunctions(), 'addArenaStaffMember');
+    await call({ arenaId, userId, role });
+  }
+
   async updateRole(arenaId: string, staffUserId: string, role: ArenaStaffRole): Promise<void> {
     const call = httpsCallable(arenaFunctions(), 'updateArenaStaffRole');
     await call({ arenaId, staffUserId, role });

@@ -35,6 +35,29 @@ export function assertSeatAvailable(seats: number, used: number): void {
   }
 }
 
+/** Motivo para recusar o vínculo direto (sem convite) de `targetUid` — ou
+ *  `null` quando pode seguir. Pura para ser testável; vale para o convite por
+ *  e-mail de quem já tem conta e para "adicionar atleta" do painel.
+ *
+ *  O dono vem antes do vínculo: mesmo com um `staff/{dono}` esquecido, a
+ *  mensagem certa é "você já é o dono". */
+export function directAddRejection(
+  ownerUid: string,
+  targetUid: string,
+  alreadyStaff: boolean,
+): {code: "invalid-argument" | "already-exists"; message: string} | null {
+  if (targetUid === ownerUid) {
+    return {
+      code: "invalid-argument",
+      message: "Você já é o dono desta arena; não precisa se convidar.",
+    };
+  }
+  if (alreadyStaff) {
+    return {code: "already-exists", message: "Esta pessoa já está na equipe."};
+  }
+  return null;
+}
+
 /**
  * Por que o convite não pode ser reivindicado — e não só *se* não pode.
  *
@@ -209,6 +232,54 @@ async function createStaffDoc(
   await ensureArenaRole(uid);
 }
 
+interface DirectAddTarget {
+  uid: string;
+  /** Normalizado (minúsculas); vazio quando a conta não tem e-mail (ex.: só
+   *  telefone) — aí não há convite pendente a encerrar nem a descontar. */
+  emailLower: string;
+  displayName?: string;
+  photoURL?: string;
+}
+
+/** Vínculo ativo na hora para quem já tem conta. Identidade (dono, já na
+ *  equipe) vem ANTES do assento: senão, readicionar alguém numa arena lotada
+ *  mostraria "limite atingido" em vez do motivo real. */
+async function addExistingUserToStaff(
+  arenaId: string,
+  arenaData: Record<string, unknown>,
+  ownerUid: string,
+  target: DirectAddTarget,
+  role: ArenaStaffRole,
+): Promise<void> {
+  const db = getFirestore();
+  const already = await db.doc(`arenas/${arenaId}/staff/${target.uid}`).get();
+  const rejection = directAddRejection(ownerUid, target.uid, already.exists);
+  if (rejection) throw new HttpsError(rejection.code, rejection.message);
+
+  const emailLower = target.emailLower || undefined;
+  // Exclui o e-mail da pessoa da contagem: o convite antigo dela (se houver)
+  // está prestes a ser encerrado abaixo e não pode travar a própria vaga
+  // (ver Fix round 2 da revisão).
+  const seats = maxArenaStaffSeats(arenaData, Date.now());
+  assertSeatAvailable(seats, await countUsedSeats(arenaId, emailLower));
+
+  // Sem isto, um convite antigo pendente para este e-mail continuaria
+  // reivindicável (reescrevendo o cargo pelo link antigo) e ocupando
+  // assento — ver Finding 1 da revisão.
+  if (emailLower) await settlePendingInvitesForEmail(arenaId, emailLower, target.uid);
+
+  const fallbackName = emailLower ? emailLower.split("@")[0] : "Membro";
+  await createStaffDoc(
+    arenaId,
+    target.uid,
+    role,
+    ownerUid,
+    target.emailLower,
+    target.displayName || fallbackName,
+    target.photoURL ?? null,
+  );
+}
+
 export const inviteArenaStaff = onCall({
   region: CLIENT_FACING_REGIONS,
 }, async (request) => {
@@ -247,37 +318,7 @@ export const inviteArenaStaff = onCall({
   }
 
   if (existing) {
-    if (existing.uid === uid) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Você já é o dono desta arena; não precisa se convidar.",
-      );
-    }
-    const already = await db.doc(`arenas/${arenaId}/staff/${existing.uid}`).get();
-    if (already.exists) {
-      throw new HttpsError("already-exists", "Esta pessoa já está na equipe.");
-    }
-
-    // Exclui o e-mail sendo convidado da contagem: o convite antigo dele
-    // mesmo (se houver) está prestes a ser encerrado abaixo e não pode
-    // travar a própria vaga (ver Fix round 2 da revisão).
-    const seats = maxArenaStaffSeats(arenaData, Date.now());
-    assertSeatAvailable(seats, await countUsedSeats(arenaId, email));
-
-    // Sem isto, um convite antigo pendente para este e-mail continuaria
-    // reivindicável (reescrevendo o cargo pelo link antigo) e ocupando
-    // assento — ver Finding 1 da revisão.
-    await settlePendingInvitesForEmail(arenaId, email, existing.uid);
-
-    await createStaffDoc(
-      arenaId,
-      existing.uid,
-      role,
-      uid,
-      email,
-      existing.displayName || email.split("@")[0],
-      existing.photoURL ?? null,
-    );
+    await addExistingUserToStaff(arenaId, arenaData, uid, {...existing, emailLower: email}, role);
     logger.info("arenaStaff: vinculo criado direto", {arenaId, staffUid: existing.uid, role});
     return {inviteId: null, status: "active" as const};
   }
@@ -310,6 +351,48 @@ export const inviteArenaStaff = onCall({
   });
   logger.info("arenaStaff: convite pendente criado", {arenaId, inviteId: ref.id, role});
   return {inviteId: ref.id, status: "pending" as const};
+});
+
+/** "Adicionar atleta" do painel: o dono escolhe uma conta do nexaGO pela
+ *  busca de atletas (sem precisar do e-mail dela) e o vínculo nasce ativo —
+ *  mesmo efeito do convite por e-mail para quem já tem conta. */
+export const addArenaStaffMember = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Usuário não autenticado.");
+
+  const arenaId = String(request.data?.arenaId ?? "").trim();
+  const userId = String(request.data?.userId ?? "").trim();
+  const role = request.data?.role;
+  if (!arenaId || !userId) {
+    throw new HttpsError("invalid-argument", "arenaId e userId são obrigatórios.");
+  }
+  if (!isArenaStaffRole(role)) {
+    throw new HttpsError("invalid-argument", "Cargo inválido.");
+  }
+
+  const arenaSnap = await loadOwnedArena(arenaId, uid);
+
+  let target: DirectAddTarget;
+  try {
+    const found = await getAuth().getUser(userId);
+    target = {
+      uid: found.uid,
+      emailLower: normalizeInviteEmail(found.email),
+      displayName: found.displayName,
+      photoURL: found.photoURL,
+    };
+  } catch (err: unknown) {
+    if ((err as {code?: string})?.code === "auth/user-not-found") {
+      throw new HttpsError("not-found", "Atleta não encontrado. A conta pode ter sido excluída.");
+    }
+    throw err;
+  }
+
+  await addExistingUserToStaff(arenaId, arenaSnap.data() ?? {}, uid, target, role);
+  logger.info("arenaStaff: atleta adicionado direto", {arenaId, staffUid: userId, role});
+  return {status: "active" as const};
 });
 
 export const acceptArenaStaffInvite = onCall({

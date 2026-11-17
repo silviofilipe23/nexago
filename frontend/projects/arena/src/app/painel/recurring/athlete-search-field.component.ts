@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, booleanAttribute, computed, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, booleanAttribute, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { fetchArenaAthleteIdsOnce, resolveAthleteProfile } from '../bookings/bookings-repository';
 import { arenaFirestore } from '../data/firestore';
 import { AvatarComponent } from '../ui/avatar.component';
@@ -185,6 +185,9 @@ export class AthleteSearchFieldComponent {
   readonly arenaId = input.required<string>();
   /** Liga a busca em todo o nexaGO além dos clientes da arena (ex.: reserva de balcão). */
   readonly searchPlatform = input(false, { transform: booleanAttribute });
+  /** Nome do atleta já vinculado (ex.: ao editar um horário fixo): preenche o campo e
+   *  acompanha quando o nome chega depois. O que o gestor digita sobrescreve. */
+  readonly selectedName = input('');
   readonly selected = output<AthleteCandidate>();
 
   private readonly host = inject(ElementRef<HTMLElement>);
@@ -192,7 +195,7 @@ export class AthleteSearchFieldComponent {
   private candidates: AthleteCandidate[] | null = null;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
-  protected readonly queryText = signal('');
+  protected readonly queryText = linkedSignal(() => this.selectedName());
   protected readonly loading = signal(false);
   protected readonly loadError = signal(false);
   protected readonly results = signal<AthleteCandidate[]>([]);

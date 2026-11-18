@@ -3,10 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_bookings_day_providers.dart';
+import '../../domain/arena_staff_role.dart';
 import 'arena_bookings_filter_sheet.dart';
+import 'arena_new_booking_button.dart';
 
-/// Topo da aba Reservas: título, busca e filtro.
+/// Topo da aba Reservas: título, busca, filtro e "Nova reserva" (para quem
+/// escreve na agenda; abre a agenda no dia aberto aqui).
 ///
 /// O eyebrow "GESTOR · ARENA" e a linha de resumo saíram: o resumo do dia
 /// virou a faixa de ocupação/em quadra/a receber dentro da lista.
@@ -18,18 +22,26 @@ class ArenaBookingsHeader extends ConsumerWidget {
     final theme = Theme.of(context);
     final searching = ref.watch(arenaBookingsSearchProvider) != null;
     final activeFilters = ref.watch(arenaBookingsFilterProvider).activeGroups;
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
 
     return Row(
       children: [
         Expanded(
-          child: Text(
-            'Reservas',
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-              color: context.themeColors.onSurface,
-              fontSize: 26,
-              height: 1.05,
+          // Em tela estreita o título encolhe um pouco para caber a
+          // "Nova reserva" ao lado da busca e do filtro.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Reservas',
+              maxLines: 1,
+              style: theme.textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+                color: context.themeColors.onSurface,
+                fontSize: 26,
+                height: 1.05,
+              ),
             ),
           ),
         ),
@@ -54,6 +66,13 @@ class ArenaBookingsHeader extends ConsumerWidget {
             onPressed: () => showArenaBookingsFilterSheet(context),
           ),
         ),
+        if (canWrite) ...[
+          const SizedBox(width: 8),
+          ArenaNewBookingButton(
+            key: const Key('arena-bookings-new'),
+            day: ref.watch(arenaBookingsSelectedDayProvider),
+          ),
+        ],
       ],
     );
   }

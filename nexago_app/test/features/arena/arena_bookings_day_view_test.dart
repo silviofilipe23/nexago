@@ -234,9 +234,17 @@ void main() {
   });
 
   group('Nova reserva', () {
-    testWidgets('aparece para quem escreve na agenda', (tester) async {
+    testWidgets('aparece no header para quem escreve na agenda',
+        (tester) async {
       await _pumpPage(tester, ArenaStaffRole.recepcao);
-      expect(find.byKey(const Key('arena-bookings-new')), findsOneWidget);
+      final button = find.byKey(const Key('arena-bookings-new'));
+      expect(button, findsOneWidget);
+      // No header, na linha do título (não é mais botão flutuante).
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(
+        tester.getCenter(button).dy,
+        closeTo(tester.getCenter(find.text('Reservas')).dy, 4),
+      );
     });
 
     testWidgets('some para quem só lê', (tester) async {

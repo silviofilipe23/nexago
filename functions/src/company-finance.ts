@@ -6,7 +6,8 @@
  * Receita = o que a plataforma fica de cada fonte, pela data em que o dinheiro entrou (São Paulo):
  * - torneios, quadras, aulas, planos de horário e clubinho: `platformFeeReais` (+ `serviceFeeReais`
  *   no torneio) das linhas `credit` dos extratos dos caixas;
- * - planos das arenas: cobranças pagas da assinatura no Asaas (com a adesão);
+ * - planos das arenas: cobranças pagas ao cliente da arena no Asaas (assinatura atual, as antigas e a
+ *   adesão) e as receitas avulsas (`companyRevenues`: mensalidade paga fora do Asaas, lançada à mão);
  * - tarifas de saque de arena (`feeReais`); loja (venda própria: total pago menos o devolvido;
  *   pedido e troca de demonstração, `seed: true`, ficam de fora da receita, do cashback e das provisões);
  * - professores e centros de treino: 5% do split, estimado (a taxa não fica gravada);
@@ -219,6 +220,32 @@ function addSharedLedgerCosts(book: FinanceBook, date: Date | null, raw: Raw): v
   book.feeRecovered(date, reaisToCents(raw["gatewayFeeReais"]) + reaisToCents(raw["cardFeeReais"]));
 }
 
+/**
+ * Onde ler as cobranças do plano de cada arena (`arenas/{id}/billing/subscription`). Pelo cliente,
+ * porque a arena que troca de plano ganha assinatura nova e as cobranças da antiga (a primeira leva
+ * a adesão junto) somem de `/subscriptions/{atual}/payments`. O cliente da arena só recebe cobrança
+ * de plano. Sem cliente, cai na assinatura.
+ */
+export function arenaPlanPaymentPaths(billings: readonly Raw[]): string[] {
+  const paths = billings.map((b) => {
+    const customer = text(b["asaasCustomerId"]);
+    if (customer) return `/v3/payments?customer=${encodeURIComponent(customer)}`;
+    const sub = text(b["asaasSubscriptionId"]);
+    return sub ? `/v3/subscriptions/${encodeURIComponent(sub)}/payments` : null;
+  });
+  return [...new Set(paths.filter((p): p is string => !!p))];
+}
+
+/** Junta listas do Asaas sem repetir o mesmo `id` (e descarta o que vem sem id). */
+export function uniqueById(lists: readonly (readonly Raw[])[]): Raw[] {
+  const seen = new Map<string, Raw>();
+  for (const item of lists.flat()) {
+    const id = text(item["id"]);
+    if (id && !seen.has(id)) seen.set(id, item);
+  }
+  return [...seen.values()];
+}
+
 /** Pagamento da assinatura de plano da arena (cobrança do Asaas). */
 export function addArenaSubscriptionPayment(book: FinanceBook, payment: Raw): void {
   const status = text(payment["status"]);
@@ -322,6 +349,17 @@ export function addCompanyTransfer(book: FinanceBook, raw: Raw): void {
   const date = dateOf(raw["date"]);
   if (raw["kind"] === "expense") book.oneOffCost(date, cents);
   else if (raw["kind"] === "withdrawal") book.ownerWithdrawal(date, cents);
+}
+
+/**
+ * Receita avulsa (`companyRevenues`): dinheiro que entrou fora do Asaas, lançado à mão no
+ * backoffice. Entra na fonte gravada, no dia do recebimento; a anulada (`voidedAt`) não entra.
+ */
+export function addCompanyRevenue(book: FinanceBook, raw: Raw): void {
+  if (raw["voidedAt"]) return;
+  const source = raw["source"];
+  if (!(REVENUE_SOURCES as readonly unknown[]).includes(source)) return;
+  book.revenue(source as RevenueSource, dateOf(raw["receivedOn"]), Math.max(0, intCents(raw["amountCents"])));
 }
 
 // ── totais do mês ──────────────────────────────────────────────────────────

@@ -60,6 +60,7 @@ function cell(cents: number | null): string {
       <p class="legend">
         ≈ Professores e centros de treino: 5% estimado sobre o valor (o Asaas faz o split e a parte da plataforma não fica gravada).
         Tarifas Asaas vêm do extrato de cada mês; as recuperadas são as repassadas a organizadores e arenas e as pagas pelo atleta por cima.
+        Planos das arenas soma as cobranças do plano no Asaas (assinatura e adesão) e as mensalidades pagas por fora, registradas em Receitas avulsas.
         Custos operacionais são os cadastrados em Custos e assinaturas, aplicados a cada mês.
         Despesas avulsas e retiradas são as transferências feitas no painel do Asaas e classificadas no Extrato; retirada não é custo, por isso fica fora do resultado.
       </p>

@@ -5,8 +5,10 @@
  * aula e de plano de horário, cobranças de professor, faturas de centro, pagamentos processados) e
  * consulta o Asaas: saldo da conta (`/v3/finance/balance`), extrato (`/v3/financialTransactions`,
  * para as tarifas), transferências (`/v3/transfers`, para achar as feitas à mão no painel e ainda
- * sem classificação) e as cobranças das assinaturas de plano das arenas (o Firestore não guarda o
- * valor pago). Regras do cálculo em `company-finance.ts`; das transferências, em `company-transfers.ts`.
+ * sem classificação) e as cobranças de plano das arenas, pelo cliente de cada arena (o Firestore não
+ * guarda o valor pago). Receitas avulsas (`companyRevenues`) entram na fonte delas. Regras do cálculo
+ * em `company-finance.ts`; das transferências, em `company-transfers.ts`; das receitas avulsas, em
+ * `company-revenues.ts`.
  *
  * Falha do Asaas não derruba a tela: o saldo vira `null`, as tarifas viram "—" e o aviso vai em
  * `warnings`.
@@ -21,12 +23,14 @@ import {
   FinanceBook,
   addArenaLedgerLine,
   addArenaSubscriptionPayment,
+  addCompanyRevenue,
   addArenaWithdrawal,
   addAsaasStatementEntry,
   addCenterInvoice,
   addCompanyTransfer,
   addHolding,
   addPlanContract,
+  arenaPlanPaymentPaths,
   addProfessorCharge,
   addSquadCommission,
   addStockEntry,
@@ -42,9 +46,11 @@ import {
   pendingReturnSettlementCents,
   pendingStoreRefundCents,
   reaisToCents,
+  uniqueById,
   windowDates,
   type Holding,
 } from "./company-finance";
+import {COMPANY_REVENUES, cashTwinWarnings, manualRevenueRows} from "./company-revenues";
 import {COMPANY_TRANSFERS, transferTags, type TransferTag} from "./company-transfers";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
@@ -140,7 +146,7 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
   const [
     costs, tWallets, aWallets, oWallets, pWallets, sWallets, athleteWallets, commissions,
     arenaWithdrawals, orgWithdrawals, profWithdrawals, orders, returns, stock, profCharges,
-    invoices, receiving, contracts, billing, classified,
+    invoices, receiving, contracts, billing, classified, revenues, arenas,
   ] = await Promise.all([
     db.collection("platformCosts").get(),
     db.collection("tournamentWallets").get(),
@@ -162,6 +168,8 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
     db.collection("tournamentPlanContracts").get(),
     db.collectionGroup("billing").get(),
     db.collection(COMPANY_TRANSFERS).get(),
+    db.collection(COMPANY_REVENUES).get(),
+    db.collection("arenas").select("name", "planTier").get(),
   ]);
 
   const operatingCents = costs.docs.reduce((s, d) => s + Math.max(0, intCents(d.data()["amountCents"])), 0);
@@ -197,6 +205,7 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
   profCharges.docs.forEach((d) => addProfessorCharge(book, d.data()));
   contracts.docs.forEach((d) => addPlanContract(book, d.data()));
   classified.docs.forEach((d) => addCompanyTransfer(book, d.data()));
+  revenues.docs.forEach((d) => addCompanyRevenue(book, d.data()));
   const centerPct = new Map(receiving.docs.map((d) => {
     const pct = d.data()["feePercent"];
     return [d.id, typeof pct === "number" ? pct : null];
@@ -232,16 +241,19 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
   const provisionsCents = cashbackAvailableCents + cashbackPendingCents + squadToPayCents + provisions.storeRefundsCents;
 
   // ── Asaas: saldo, extrato e assinaturas das arenas ──
-  const subscriptionIds = billing.docs
-    .filter((d) => d.id === "subscription" && d.ref.parent.parent?.parent.id === "arenas")
-    .map((d) => str(d.data()["asaasSubscriptionId"]))
-    .filter((id): id is string => !!id);
+  const planBillings = billing.docs
+    .filter((d) => d.id === "subscription" && d.ref.parent.parent?.parent.id === "arenas");
+  const planPaymentPaths = arenaPlanPaymentPaths(planBillings.map((d) => d.data()));
+  const arenaOfCustomer = new Map(planBillings
+    .map((d) => [str(d.data()["asaasCustomerId"]) ?? "", d.ref.parent.parent?.id ?? ""] as const)
+    .filter(([customer, arenaId]) => customer && arenaId));
   const {start, finish} = windowDates(keys);
 
   const [balanceRes, statementRes, subscriptionsRes, transfersRes] = await Promise.allSettled([
     asaas.get<{balance?: unknown}>("/v3/finance/balance"),
     asaasPages<DocumentData>(asaas, `/v3/financialTransactions?startDate=${start}&finishDate=${finish}&order=desc`, STATEMENT_MAX_PAGES),
-    Promise.all(subscriptionIds.map((id) => asaasPages<DocumentData>(asaas, `/v3/subscriptions/${encodeURIComponent(id)}/payments`, 5))),
+    // Uma arena com id velho no Asaas não derruba as outras: cada caminho falha sozinho.
+    Promise.allSettled(planPaymentPaths.map((path) => asaasPages<DocumentData>(asaas, path, 5))),
     asaasPages<DocumentData>(asaas, `/v3/transfers?dateCreated%5Bge%5D=${start}&dateCreated%5Ble%5D=${finish}`, STATEMENT_MAX_PAGES),
   ]);
 
@@ -290,8 +302,16 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
     warnings.push("Extrato do Asaas indisponível: as tarifas aparecem como “—”.");
   }
 
+  const manualRevenues = manualRevenueRows(revenues.docs.map((d) => ({id: d.id, data: d.data()})), keys);
   if (subscriptionsRes.status === "fulfilled") {
-    subscriptionsRes.value.flat().forEach((p) => addArenaSubscriptionPayment(book, p));
+    const failed = subscriptionsRes.value.filter((r) => r.status === "rejected");
+    failed.forEach((r) => logger.error("getCompanyFinance: cobranças de plano de uma arena indisponíveis", r.reason));
+    if (failed.length) {
+      warnings.push(`Cobranças do plano de ${failed.length} arena(s) não responderam no Asaas: “Planos das arenas” pode estar incompleto.`);
+    }
+    const payments = uniqueById(subscriptionsRes.value.flatMap((r) => r.status === "fulfilled" ? [r.value] : []));
+    payments.forEach((p) => addArenaSubscriptionPayment(book, p));
+    warnings.push(...cashTwinWarnings(manualRevenues, payments, arenaOfCustomer));
   } else {
     logger.error("getCompanyFinance: cobranças das assinaturas indisponíveis", subscriptionsRes.reason);
     warnings.push("Cobranças das assinaturas das arenas indisponíveis: “Planos das arenas” pode estar incompleto.");
@@ -366,6 +386,10 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
     statement: {available: statementRes.status === "fulfilled", entries: statement},
     transfers: {available: transfersAvailable, unclassified},
     payoutTargets,
+    manualRevenues,
+    revenueArenas: arenas.docs
+      .map((d) => ({arenaId: d.id, name: str(d.data()["name"]), planTier: str(d.data()["planTier"])}))
+      .sort((a, b) => (a.name ?? "~").localeCompare(b.name ?? "~", "pt-BR")),
     warnings,
   };
 }

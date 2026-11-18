@@ -511,7 +511,9 @@ void main() {
       expect(find.text('Filtrar reservas'), findsOneWidget);
       await tester.tap(find.text('Falta receber'));
       await tester.pump();
-      await tester.tap(find.text('Ver reservas'));
+      // Dia vazio: com o filtro, o botão do rodapé vira "Fechar" (só fecha).
+      expect(find.text('Fechar'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('arena-bookings-filter-done')));
       await tester.pumpAndSettle();
 
       expect(

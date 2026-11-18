@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, input, output, signal } fro
 import { callableErrorMessage } from '../../data/callable-error';
 import { IconComponent } from '../../ui/icon.component';
 import { CompanyFinanceRepository } from '../data/company-finance.repository';
-import { currentMonthKey, monthLabel, monthOptions, type CompanyFinance } from '../data/company-finance';
+import { currentMonthKey, money, monthLabel, monthOptions, monthShort, type CompanyFinance, type UnclassifiedTransfers } from '../data/company-finance';
 import { CompanyOverviewComponent } from './company-overview.component';
 import { CompanyResultComponent } from './company-result.component';
 import { CompanyStatementComponent } from './company-statement.component';
@@ -49,11 +49,20 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', h
       @for (w of d.warnings; track w) {
         <div class="warn" role="status"><bo-icon name="alert" [size]="15" /> {{ w }}</div>
       }
+      @if (d.transfers.unclassified; as u) {
+        @if (u.count > 0) {
+          <div class="warn todo" role="status">
+            <bo-icon name="alert" [size]="15" />
+            <span>{{ unclassifiedText(u) }}</span>
+            <button type="button" class="bo-mini-btn push" (click)="goClassify(u)">Classificar</button>
+          </div>
+        }
+      }
       <div [class.stale]="loading()">
         @switch (view()) {
           @case ('result') { <bo-company-result [months]="d.months" /> }
           @case ('thirdParty') { <bo-company-third-party [data]="d" (openWithdrawals)="openWithdrawals.emit()" /> }
-          @case ('statement') { <bo-company-statement [statement]="d.statement" [month]="d.month" /> }
+          @case ('statement') { <bo-company-statement [statement]="d.statement" [month]="d.month" [payoutTargets]="d.payoutTargets" (classified)="load()" /> }
           @default { <bo-company-overview [data]="d" (openView)="openView.emit($event)" (openWithdrawals)="openWithdrawals.emit()" /> }
         }
       </div>
@@ -68,6 +77,8 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', h
     .push { margin-left: auto; flex: none; }
     .warn { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: var(--nx-r-3); background: rgba(244, 197, 67, 0.07); border: 1px solid rgba(244, 197, 67, 0.28); font-size: 12.5px; }
     .warn bo-icon { color: var(--nx-pending); flex: none; }
+    .warn.todo { background: rgba(255, 106, 26, 0.07); border-color: rgba(255, 106, 26, 0.3); }
+    .warn.todo bo-icon { color: var(--nx-orange-400); }
     .stale { opacity: 0.55; pointer-events: none; transition: opacity 140ms; }
     .skel-grid { display: flex; flex-direction: column; gap: 16px; }
     .skel { height: 110px; border-radius: var(--nx-r-4); background: var(--nx-surface-0); border: 1px solid var(--nx-line); }
@@ -112,6 +123,22 @@ export class CompanyFinanceComponent {
   protected pick(event: Event): void {
     this.month.set((event.target as HTMLSelectElement).value);
     void this.load();
+  }
+
+  protected unclassifiedText(u: UnclassifiedTransfers): string {
+    const what = u.count === 1 ? '1 transferência feita no Asaas está sem classificação' : `${u.count} transferências feitas no Asaas estão sem classificação`;
+    const months = u.months.map(monthShort).join(', ');
+    return `${what} (${money(u.cents)}${months ? ` · ${months}` : ''}). Classifique como retirada, despesa ou repasse.`;
+  }
+
+  /** Vai para o Extrato no mês mais recente com transferência a classificar. */
+  protected goClassify(u: UnclassifiedTransfers): void {
+    const target = u.months.find((m) => this.months.includes(m));
+    if (target && target !== this.month()) {
+      this.month.set(target);
+      void this.load();
+    }
+    this.openView.emit('statement');
   }
 
   protected time(d: Date): string {

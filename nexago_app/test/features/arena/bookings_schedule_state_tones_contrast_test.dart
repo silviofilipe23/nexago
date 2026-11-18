@@ -1,6 +1,6 @@
 // Texto, ícone e marca em verde, vermelho e âmbar nas telas de reservas,
 // agenda e quadras do gestor da arena (card da reserva, detalhe: cabeçalho,
-// pagamento, atletas, ações, linha do tempo, histórico; cancelar; horário da
+// anel, etapas, conta da quadra, atletas, ações, histórico; cancelar; horário da
 // agenda; linha da quadra na agenda; horário fixo; quadras), conferidos
 // contra o fundo real nos dois temas. No claro os crus do AppColors reprovam:
 // são ~1,6–3,5:1 no branco.
@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/features/arena/domain/arena_booking_journey.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_court_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_manager_booking.dart';
@@ -31,8 +32,9 @@ import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_det
 import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_detail_athletes.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_detail_header.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_detail_history_full_page.dart';
-import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_detail_payment.dart';
-import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_detail_timeline.dart';
+import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_court_bill.dart';
+import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_journey_steps.dart';
+import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_live_hero.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_schedule_court_row.dart';
 import 'package:nexago_app/features/arenas/domain/arena_court.dart';
 import 'package:nexago_app/features/arenas/domain/arena_slot.dart';
@@ -117,14 +119,38 @@ final _canceledBooking = _booking(const {
   'amountReais': 120,
 }, id: 'b2');
 
-ArenaBookingDetailPayment _payment(Map<String, dynamic> data) =>
-    ArenaBookingDetailPayment(
-      bookingData: data,
-      amountStr: formatBRL(120),
-      startTime: '18:00',
-      endTime: '19:00',
-      amountReais: 120,
+// Jornada ao vivo: quarta 18/11 às 17:42, reserva das 17:00 às 18:00.
+final _journeyNow = DateTime(2026, 11, 18, 17, 42);
+
+ArenaManagerBooking _journeyBooking(Map<String, dynamic> data) =>
+    ArenaManagerBooking(
+      id: 'b9',
+      athleteId: 'ath1',
+      courtId: 'c1',
+      courtName: 'Quadra 1',
+      dateKey: '2026-11-18',
+      startTime: '17:00',
+      endTime: '18:00',
+      data: {
+        'status': 'active',
+        'paymentChannel': 'onsite',
+        'amountReais': 120,
+        ...data,
+      },
     );
+
+ArenaBookingJourney _journey(Map<String, dynamic> data) =>
+    buildArenaBookingJourney(_journeyBooking(data), now: _journeyNow);
+
+ArenaBookingCourtBill _bill(Map<String, dynamic> data) {
+  final booking = _journeyBooking(data);
+  return ArenaBookingCourtBill(
+    bill: arenaBookingBill(booking),
+    bookingData: booking.data,
+    timeRange: '17:00–18:00',
+    onAddConsumption: () {},
+  );
+}
 
 ArenaRecurringBooking _series(String status) => ArenaRecurringBooking(
       id: 'series1',
@@ -335,69 +361,80 @@ final List<ToneScreen> arenaBookingsToneScreens = [
     ['ATIVA', 'marca'],
   ),
   ToneScreen(
-    'Detalhe da reserva: PIX pago integral',
+    'Detalhe da reserva: anel de reserva cancelada',
     (tester, theme) => _pumpWidePiece(
       tester,
       theme,
-      _payment(const {
-        'paymentChannel': 'pix',
-        'paymentStatus': 'paid',
-        'amountPaidOnlineReais': 120,
-        'amountReais': 120,
-      }),
+      ArenaBookingLiveHero(
+        booking: _journeyBooking(const {'status': 'canceled'}),
+        journey: _journey(const {'status': 'canceled'}),
+        whoLabel: 'Rafael Cunha',
+      ),
     ),
-    find.byType(ArenaBookingDetailPayment),
-    [
-      'PAGO INTEGRAL',
-      Icons.check_circle_rounded,
-      formatBRL(120),
-      'Recebido via PIX: ${formatBRL(120)}',
-    ],
+    find.byType(ArenaBookingLiveHero),
+    ['Cancelada', Icons.close_rounded],
   ),
   ToneScreen(
-    'Detalhe da reserva: sinal pago, restante na chegada',
+    'Detalhe da reserva: etapas com check-in atrasado e pagamento pendente',
     (tester, theme) => _pumpWidePiece(
       tester,
       theme,
-      _payment(const {
-        'paymentChannel': 'pix',
-        'paymentStatus': 'partial',
-        'amountPaidOnlineReais': 40,
-        'amountDueOnsiteReais': 80,
-        'amountReais': 120,
-      }),
+      ArenaBookingJourneySteps(
+        journey: _journey(const {}),
+        onCheckIn: () {},
+        onReceive: () {},
+      ),
     ),
-    find.byType(ArenaBookingDetailPayment),
-    [Icons.storefront_rounded, formatBRL(80)],
+    find.byType(ArenaBookingJourneySteps),
+    ['Atrasado · 42 min', 'Falta ${formatBRL(120)}'],
   ),
   ToneScreen(
-    'Detalhe da reserva: PIX aguardando e não pago',
+    'Detalhe da reserva: etapas com falta e check-in feito',
     (tester, theme) => _pumpWidePiece(
       tester,
       theme,
       Column(
         children: [
-          _payment(const {
-            'paymentChannel': 'pix',
-            'paymentStatus': 'pending',
-            'amountReais': 120,
-          }),
+          ArenaBookingJourneySteps(
+            journey: _journey(const {'attendanceStatus': 'no_show'}),
+          ),
           const SizedBox(height: 12),
-          _payment(const {
-            'paymentChannel': 'pix',
-            'paymentStatus': 'rejected',
-            'amountReais': 120,
-          }),
+          ArenaBookingJourneySteps(
+            journey: _journey(const {
+              'attendanceStatus': 'checked_in',
+              'paymentChannel': 'pix',
+              'paymentStatus': 'paid',
+            }),
+          ),
         ],
       ),
     ),
     tonePiece,
-    [
-      'AGUARDANDO PIX',
-      Icons.schedule_rounded,
-      'PIX NÃO PAGO',
-      Icons.error_outline_rounded,
-    ],
+    ['Não compareceu', Icons.priority_high_rounded, Icons.check_rounded],
+  ),
+  ToneScreen(
+    'Detalhe da reserva: conta da quadra a receber',
+    (tester, theme) => _pumpWidePiece(
+      tester,
+      theme,
+      _bill(const {
+        'paymentChannel': 'pix',
+        'paymentStatus': 'partial',
+        'amountPaidOnlineReais': 40,
+      }),
+    ),
+    find.byType(ArenaBookingCourtBill),
+    ['Falta receber', 'Pago online (PIX)'],
+  ),
+  ToneScreen(
+    'Detalhe da reserva: conta da quadra paga',
+    (tester, theme) => _pumpWidePiece(
+      tester,
+      theme,
+      _bill(const {'paymentChannel': 'pix', 'paymentStatus': 'paid'}),
+    ),
+    find.byType(ArenaBookingCourtBill),
+    ['Tudo pago'],
   ),
   ToneScreen(
     'Detalhe da reserva: atleta convidado',
@@ -448,34 +485,6 @@ final List<ToneScreen> arenaBookingsToneScreens = [
     ),
     find.byType(ArenaBookingDetailActions),
     [Icons.lock_open_rounded],
-  ),
-  ToneScreen(
-    'Detalhe da reserva: linha do tempo com check-in pendente',
-    (tester, theme) => pumpTonePiece(
-      tester,
-      theme,
-      const ArenaBookingDetailTimeline(
-        events: [
-          ArenaBookingTimelineEvent(
-            title: 'Reserva criada pelo atleta (app)',
-            subtitle: '10 jan · 09:00',
-          ),
-          ArenaBookingTimelineEvent(
-            title: 'Check-in pendente',
-            subtitle: 'Hoje · em andamento',
-            isPending: true,
-            isComplete: false,
-          ),
-          ArenaBookingTimelineEvent(
-            title: 'Partida encerrada',
-            subtitle: '—',
-            isComplete: false,
-          ),
-        ],
-      ),
-    ),
-    find.byType(ArenaBookingDetailTimeline),
-    ['marca', 'marca', 'Hoje · em andamento'],
   ),
   _historyScreen,
   _cancelSheetScreen,

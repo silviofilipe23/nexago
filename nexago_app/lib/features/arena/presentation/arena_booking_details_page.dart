@@ -7,7 +7,6 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
-import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../arenas/domain/booking_providers.dart';
@@ -28,13 +27,11 @@ import 'widgets/arena_async_state.dart';
 import 'widgets/arena_booking_cancel_sheet.dart';
 import 'widgets/arena_booking_class_block_card.dart';
 import 'widgets/arena_booking_detail_athletes.dart';
-import 'widgets/arena_booking_detail_checkin.dart';
 import 'widgets/arena_athlete_contact.dart';
 import 'widgets/arena_booking_detail_actions.dart';
 import 'widgets/arena_booking_detail_header.dart';
 import 'widgets/arena_booking_detail_history.dart';
-import 'widgets/arena_booking_detail_payment.dart';
-import 'widgets/arena_booking_detail_timeline.dart';
+import 'widgets/arena_booking_journey_section.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 
 /// Detalhe de uma reserva para o gestor da arena (painel).
@@ -107,9 +104,10 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
       );
     }
     final courts = ref.watch(arenaManagedCourtsProvider).valueOrNull;
-    final ArenaManagerBooking resolvedBooking = courts != null && courts.isNotEmpty
-        ? booking.enrichCourtName({for (final c in courts) c.id: c.name})
-        : booking;
+    final ArenaManagerBooking resolvedBooking =
+        courts != null && courts.isNotEmpty
+            ? booking.enrichCourtName({for (final c in courts) c.id: c.name})
+            : booking;
 
     final data = merged ?? resolvedBooking.data;
 
@@ -144,12 +142,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
     final athleteId = resolvedBooking.athleteId.trim();
     final nameAsync = ref.watch(athleteDisplayLabelProvider(athleteId));
 
-    final statusLabel = arenaBookingBusinessStatusLabel(data);
-    final amount = _amountReaisFromData(data);
-    final amountStr = amount != null ? formatBRL(amount) : '—';
-
-    final participants =
-        (data['confirmedParticipants'] as num?)?.toInt() ?? 1;
+    final participants = (data['confirmedParticipants'] as num?)?.toInt() ?? 1;
 
     final statusLower = (data['status'] as String?)?.toLowerCase().trim() ?? '';
     final canCancel = statusLower != 'cancelled' &&
@@ -177,9 +170,11 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
         ? ref.watch(arenaAthleteBlockProvider(historyArgs))
         : const AsyncData(ArenaAthleteBlockInfo(isBlocked: false));
 
-    final timelineEvents =
-        ArenaBookingDetailTimeline.fromBooking(resolvedBooking, data);
     final athleteName = nameAsync.valueOrNull ?? 'Atleta';
+    // Reserva de balcão sem conta no app só tem o nome digitado.
+    final whoLabel = athleteId.isNotEmpty
+        ? athleteName
+        : resolvedBooking.customerName ?? 'Sem atleta vinculado';
 
     return _pageShell(
       context,
@@ -187,12 +182,9 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ArenaBookingDetailHeader(
+          ArenaBookingJourneySection(
             booking: resolvedBooking,
-            bookingId: id,
-            courtName: resolvedBooking.courtName,
-            statusLabel: statusLabel,
-            athleteName: athleteName,
+            whoLabel: whoLabel,
           ),
           SizedBox(height: 14),
           ArenaBookingDetailAthletes(
@@ -201,24 +193,6 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
             participants: participants,
             bookingData: data,
           ),
-          SizedBox(height: 14),
-          ArenaBookingDetailPayment(
-            bookingData: data,
-            amountStr: amountStr,
-            startTime: resolvedBooking.startTime,
-            endTime: resolvedBooking.endTime,
-            amountReais: amount,
-          ),
-          SizedBox(height: 14),
-          ArenaBookingDetailTimeline(events: timelineEvents),
-          if (canWrite) ...[
-            SizedBox(height: 14),
-            ArenaBookingDetailCheckin(
-              bookingId: id,
-              athleteId: athleteId,
-              bookingData: data,
-            ),
-          ],
           SizedBox(height: 14),
           ArenaBookingDetailHistory(
             historyAsync: historyAsync,
@@ -364,16 +338,15 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
       String id, Map<String, dynamic> merged) {
     final aid = merged['athleteId'];
     final athleteId = aid is String && aid.trim().isNotEmpty ? aid.trim() : '';
-    final courtId = merged['courtId'] is String
-        ? (merged['courtId'] as String).trim()
-        : '';
+    final courtId =
+        merged['courtId'] is String ? (merged['courtId'] as String).trim() : '';
     final labelRaw = merged['courtName'] ?? merged['court'];
     final labelFromDoc =
         labelRaw is String && labelRaw.trim().isNotEmpty ? labelRaw.trim() : '';
-    final courtName = labelFromDoc.isNotEmpty &&
-            (courtId.isEmpty || labelFromDoc != courtId)
-        ? labelFromDoc
-        : 'Quadra';
+    final courtName =
+        labelFromDoc.isNotEmpty && (courtId.isEmpty || labelFromDoc != courtId)
+            ? labelFromDoc
+            : 'Quadra';
     final dateKey = arenaDateKeyFromDynamic(merged['date']);
     if (dateKey.length < 10) return null;
 
@@ -396,12 +369,6 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
       endTime: timeStr(merged['endTime']),
       data: merged,
     );
-  }
-
-  static double? _amountReaisFromData(Map<String, dynamic>? d) {
-    if (d == null) return null;
-    return (d['amountReais'] as num?)?.toDouble() ??
-        (d['priceReais'] as num?)?.toDouble();
   }
 
   static Future<void> _reschedule(

@@ -132,6 +132,21 @@ List<ArenaTimelineEntry> buildArenaDayTimeline({
   return List.unmodifiable(out);
 }
 
+/// Momento de uma reserva só (fase, progresso e minutos até o fim), com a
+/// mesma regra da linha do dia — o detalhe da reserva usa para o anel.
+ArenaTimelineBookingEntry arenaBookingMomentAt(
+  ArenaManagerBooking b,
+  DateTime now,
+) {
+  final todayKey = arenaDateKey(arenaDateOnly(now));
+  return _entryFor(
+    b,
+    isToday: b.dateKey == todayKey,
+    isPast: b.dateKey.compareTo(todayKey) < 0,
+    nowMin: now.hour * 60 + now.minute,
+  );
+}
+
 ArenaTimelineBookingEntry _entryFor(
   ArenaManagerBooking b, {
   required bool isToday,

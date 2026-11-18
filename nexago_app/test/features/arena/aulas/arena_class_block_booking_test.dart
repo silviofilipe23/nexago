@@ -13,6 +13,8 @@ import 'package:nexago_app/features/arena/domain/arena_bookings_grouping.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_court_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_manager_booking.dart';
+import 'package:nexago_app/features/arena/domain/arena_now_providers.dart';
+import 'package:nexago_app/features/arena/domain/comandas/arena_comanda_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_slot_detail_args.dart';
 import 'package:nexago_app/features/arena/domain/arena_slot_detail_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_staff_role.dart';
@@ -174,6 +176,13 @@ void main() {
             (ref) =>
                 Stream.value(const ArenaAthleteBlockInfo(isBlocked: false)),
           ),
+          arenaComandaByBookingIdStreamProvider.overrideWith(
+            (ref, _) => Stream.value(null),
+          ),
+          // Na hora da reserva comum: o check-in está aberto.
+          arenaNowClockProvider.overrideWith(
+            (ref) => Stream.value(DateTime(2026, 10, 19, 8, 10)),
+          ),
         ],
         child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
       ),
@@ -216,7 +225,7 @@ void main() {
       await pumpDetails(tester, booking: _regular);
 
       expect(find.text('Abrir aula'), findsNothing);
-      expect(find.text('Check-in'), findsOneWidget);
+      expect(find.text('Fazer check-in'), findsOneWidget);
       final actions = tester.widget<ArenaBookingDetailActions>(
         find.byType(ArenaBookingDetailActions),
       );

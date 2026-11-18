@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 
+import '../arena_booking_card_pills.dart';
+import '../arena_booking_labels.dart';
 import '../arena_date_utils.dart';
 import '../arena_manager_booking.dart';
 import '../products/arena_product_category.dart';
@@ -121,8 +123,18 @@ String formatComandaOpenedAt(DateTime openedAt) {
   return formatter.format(openedAt);
 }
 
+/// Hora da quadra que entra na comanda: o que falta pagar no local.
+///
+/// Com pagamento online (sinal ou integral, PIX/cartão/Mercado Pago), segue a
+/// mesma regra da tela da reserva (`arenaBookingDueReais`): só o restante, ou
+/// 0 quando já foi tudo pago. Sem pagamento online, a hora cheia.
 int rentalCentsFromBooking(ArenaManagerBooking booking) {
   final data = booking.data;
+  final settlement = arenaBookingPaymentInfo(data).settlement;
+  if (_onlineSettlements.contains(settlement)) {
+    final due = arenaBookingDueReais(booking) ?? 0;
+    return (due * 100).round();
+  }
   final amountReais =
       data['amountReais'] ?? data['priceReais'] ?? data['price'];
   if (amountReais is num && amountReais > 0) {
@@ -134,6 +146,13 @@ int rentalCentsFromBooking(ArenaManagerBooking booking) {
   }
   return 0;
 }
+
+/// Reservas com dinheiro já recebido online (sinal ou integral).
+const _onlineSettlements = {
+  ArenaBookingPaymentSettlement.paidFullPix,
+  ArenaBookingPaymentSettlement.paidDepositPix,
+  ArenaBookingPaymentSettlement.paidMp,
+};
 
 String bookingAthletesLabel(ArenaManagerBooking booking) {
   final data = booking.data;

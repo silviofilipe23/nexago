@@ -178,6 +178,102 @@ void main() {
       );
       expect(cents, 4550);
     });
+
+    ArenaManagerBooking bookingWith(Map<String, dynamic> data) =>
+        ArenaManagerBooking(
+          id: 'b1',
+          athleteId: 'a1',
+          courtId: 'court1',
+          courtName: 'Quadra 2',
+          dateKey: '2026-06-13',
+          startTime: '11:00',
+          endTime: '12:00',
+          data: data,
+        );
+
+    test('charges only the remainder when the deposit was paid via PIX', () {
+      final cents = rentalCentsFromBooking(
+        bookingWith(const {
+          'amountReais': 104,
+          'paymentChannel': 'pix',
+          'paymentStatus': 'partial',
+          'amountPaidOnlineReais': 40,
+          'amountDueOnsiteReais': 64,
+        }),
+      );
+      expect(cents, 6400);
+    });
+
+    test('derives the remainder from total minus deposit when due is absent',
+        () {
+      final cents = rentalCentsFromBooking(
+        bookingWith(const {
+          'amountReais': 104,
+          'paymentChannel': 'pix',
+          'paymentStatus': 'partial',
+          'amountPaidOnlineReais': 40,
+        }),
+      );
+      expect(cents, 6400);
+    });
+
+    test('charges only the remainder when the deposit was paid by card', () {
+      final cents = rentalCentsFromBooking(
+        bookingWith(const {
+          'amountReais': 120,
+          'paymentChannel': 'card',
+          'paymentStatus': 'partial',
+          'amountPaidOnlineReais': 60,
+          'amountDueOnsiteReais': 60,
+        }),
+      );
+      expect(cents, 6000);
+    });
+
+    test('charges nothing for the hour when PIX was paid in full', () {
+      final cents = rentalCentsFromBooking(
+        bookingWith(const {
+          'amountReais': 104,
+          'paymentChannel': 'pix',
+          'paymentStatus': 'paid',
+          'amountPaidOnlineReais': 104,
+        }),
+      );
+      expect(cents, 0);
+    });
+
+    test('charges nothing for the hour when Mercado Pago was paid', () {
+      final cents = rentalCentsFromBooking(
+        bookingWith(const {
+          'amountReais': 80,
+          'paymentId': 'mp-123',
+          'paymentStatus': 'approved',
+        }),
+      );
+      expect(cents, 0);
+    });
+
+    test('keeps the full hour when payment is on site', () {
+      final cents = rentalCentsFromBooking(
+        bookingWith(const {
+          'amountReais': 104,
+          'paymentChannel': 'onsite',
+          'amountDueOnsiteReais': 104,
+        }),
+      );
+      expect(cents, 10400);
+    });
+
+    test('keeps the full hour while the online PIX is still pending', () {
+      final cents = rentalCentsFromBooking(
+        bookingWith(const {
+          'amountReais': 104,
+          'paymentChannel': 'pix',
+          'paymentStatus': 'pending',
+        }),
+      );
+      expect(cents, 10400);
+    });
   });
 
   group('isValidComandaDraftForCreate', () {

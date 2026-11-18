@@ -61,6 +61,7 @@ function cell(cents: number | null): string {
         ≈ Professores e centros de treino: 5% estimado sobre o valor (o Asaas faz o split e a parte da plataforma não fica gravada).
         Tarifas Asaas vêm do extrato de cada mês; as recuperadas são as repassadas a organizadores e arenas e as pagas pelo atleta por cima.
         Custos operacionais são os cadastrados em Custos e assinaturas, aplicados a cada mês.
+        Despesas avulsas e retiradas são as transferências feitas no painel do Asaas e classificadas no Extrato; retirada não é custo, por isso fica fora do resultado.
       </p>
     </bo-panel-card>
   `,
@@ -112,8 +113,11 @@ export class CompanyResultComponent {
       line('Tarifas recuperadas', 'cost', (m) => m.feesRecovered),
       line('Compras de estoque', 'cost', (m) => -m.stockPurchases),
       line('Custos operacionais', 'cost', (m) => -m.operatingCosts),
+      line('Despesas avulsas (Asaas)', 'cost', (m) => -m.oneOffCosts),
       line('Resultado', 'result', monthResult),
       { label: 'Margem', kind: 'margin', cells: cols.map((m) => pctLabel(margin(m))), negative: cols.map((m) => (margin(m) ?? 0) < 0) },
+      section('Fora do resultado'),
+      line('Retiradas da Nexa no mês', 'cost', (m) => -m.ownerWithdrawals),
     ];
   });
 

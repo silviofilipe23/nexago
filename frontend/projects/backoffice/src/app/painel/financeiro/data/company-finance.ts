@@ -45,6 +45,10 @@ export interface MonthResult {
   feesRecovered: number;
   stockPurchases: number;
   operatingCosts: number;
+  /** Despesas avulsas: transferências do Asaas classificadas como despesa. */
+  oneOffCosts: number;
+  /** Retiradas da NexaGO no mês; fora do resultado. */
+  ownerWithdrawals: number;
 }
 
 export interface Holding {
@@ -84,6 +88,20 @@ export interface StuckWithdrawal {
   approvedAt: Date | null;
 }
 
+export const TRANSFER_KINDS = ['withdrawal', 'expense', 'organizerPayout'] as const;
+export type TransferKind = (typeof TRANSFER_KINDS)[number];
+
+export const TRANSFER_KIND_LABEL: Record<TransferKind, string> = {
+  withdrawal: 'Retirada',
+  expense: 'Despesa',
+  organizerPayout: 'Repasse',
+};
+
+/** Etiqueta da transferência feita à mão no painel do Asaas. */
+export type TransferTag =
+  | { state: 'unclassified' }
+  | { state: 'classified'; kind: TransferKind; tournamentName: string | null; note: string };
+
 export interface StatementEntry {
   id: string;
   date: string;
@@ -91,6 +109,22 @@ export interface StatementEntry {
   description: string;
   valueCents: number;
   balanceCents: number | null;
+  transferId: string | null;
+  transfer: TransferTag | null;
+}
+
+/** Caixa de torneio com saldo, destino possível de um repasse. */
+export interface PayoutTarget {
+  tournamentId: string;
+  name: string | null;
+  availableCents: number;
+}
+
+export interface UnclassifiedTransfers {
+  count: number;
+  cents: number;
+  /** `YYYY-MM`, do mais novo para o mais antigo. */
+  months: string[];
 }
 
 export interface CompanyFinance {
@@ -118,6 +152,9 @@ export interface CompanyFinance {
   stuckWithdrawals: StuckWithdrawal[];
   months: MonthResult[];
   statement: { available: boolean; entries: StatementEntry[] };
+  /** `unclassified: null` = lista de transferências do Asaas indisponível agora. */
+  transfers: { available: boolean; unclassified: UnclassifiedTransfers | null };
+  payoutTargets: PayoutTarget[];
   warnings: string[];
 }
 
@@ -168,6 +205,26 @@ function monthFrom(v: unknown): MonthResult {
     feesRecovered: int(m['feesRecovered']),
     stockPurchases: int(m['stockPurchases']),
     operatingCosts: int(m['operatingCosts']),
+    oneOffCosts: int(m['oneOffCosts']),
+    ownerWithdrawals: int(m['ownerWithdrawals']),
+  };
+}
+
+function transferTagFrom(v: unknown): TransferTag | null {
+  const t = obj(v);
+  if (t['state'] === 'unclassified') return { state: 'unclassified' };
+  if (t['state'] !== 'classified' || !(TRANSFER_KINDS as readonly unknown[]).includes(t['kind'])) return null;
+  const tournamentName = str(t['tournamentName']).trim();
+  return { state: 'classified', kind: t['kind'] as TransferKind, tournamentName: tournamentName || null, note: str(t['note']) };
+}
+
+function unclassifiedFrom(v: unknown): UnclassifiedTransfers | null {
+  if (v === null || typeof v !== 'object') return null;
+  const u = obj(v);
+  return {
+    count: int(u['count']),
+    cents: int(u['cents']),
+    months: Array.isArray(u['months']) ? u['months'].filter((m): m is string => typeof m === 'string') : [],
   };
 }
 
@@ -180,6 +237,7 @@ export function companyFinanceFrom(raw: unknown): CompanyFinance {
   const p = obj(r['provisions']);
   const pw = obj(r['pendingWithdrawals']);
   const st = obj(r['statement']);
+  const tr = obj(r['transfers']);
   const pending = (k: string) => ({ count: int(obj(pw[k])['count']), cents: int(obj(pw[k])['cents']) });
   return {
     month: str(r['month']),
@@ -228,8 +286,18 @@ export function companyFinanceFrom(raw: unknown): CompanyFinance {
         description: str(e['description']),
         valueCents: int(e['valueCents']),
         balanceCents: intOrNull(e['balanceCents']),
+        transferId: str(e['transferId']) || null,
+        transfer: transferTagFrom(e['transfer']),
       })),
     },
+    transfers: { available: tr['available'] === true, unclassified: unclassifiedFrom(tr['unclassified']) },
+    payoutTargets: list(r['payoutTargets'])
+      .filter((t) => str(t['tournamentId']))
+      .map((t) => ({
+        tournamentId: str(t['tournamentId']),
+        name: str(t['name']).trim() || null,
+        availableCents: int(t['availableCents']),
+      })),
     warnings: Array.isArray(r['warnings']) ? r['warnings'].filter((w): w is string => typeof w === 'string') : [],
   };
 }
@@ -250,7 +318,7 @@ export function asaasNetCost(m: MonthResult): number {
 }
 
 export function costsTotal(m: MonthResult): number {
-  return asaasNetCost(m) + m.stockPurchases + m.operatingCosts;
+  return asaasNetCost(m) + m.stockPurchases + m.operatingCosts + m.oneOffCosts;
 }
 
 export function monthResult(m: MonthResult): number {
@@ -273,6 +341,8 @@ export function sumMonths(months: readonly MonthResult[], key: string): MonthRes
     feesRecovered: months.reduce((t, m) => t + m.feesRecovered, 0),
     stockPurchases: months.reduce((t, m) => t + m.stockPurchases, 0),
     operatingCosts: months.reduce((t, m) => t + m.operatingCosts, 0),
+    oneOffCosts: months.reduce((t, m) => t + m.oneOffCosts, 0),
+    ownerWithdrawals: months.reduce((t, m) => t + m.ownerWithdrawals, 0),
   };
 }
 
@@ -379,6 +449,13 @@ export function statementTypeLabel(type: string): string {
   return STATEMENT_TYPE[type] ?? (type.includes('FEE') ? `Tarifa (${type})` : type || '—');
 }
 
+/** "Retirada", "Despesa", "Repasse · Copa X"; a classificar = "A classificar". */
+export function transferTagLabel(tag: TransferTag): string {
+  if (tag.state === 'unclassified') return 'A classificar';
+  if (tag.kind !== 'organizerPayout') return TRANSFER_KIND_LABEL[tag.kind];
+  return tag.tournamentName ? `Repasse · ${tag.tournamentName}` : 'Repasse';
+}
+
 export function isFeeEntry(e: StatementEntry): boolean {
   return e.type.includes('FEE') && e.valueCents < 0;
 }
@@ -403,7 +480,9 @@ export function resultCsv(months: readonly MonthResult[]): string {
     row('Tarifas recuperadas', (m) => m.feesRecovered),
     row('Compras de estoque', (m) => -m.stockPurchases),
     row('Custos operacionais', (m) => -m.operatingCosts),
+    row('Despesas avulsas (Asaas)', (m) => -m.oneOffCosts),
     row('Resultado', monthResult),
+    row('Retiradas da Nexa (fora do resultado)', (m) => -m.ownerWithdrawals),
   ];
   return rows.map((r) => r.join(';')).join('\n');
 }

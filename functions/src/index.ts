@@ -949,6 +949,7 @@ export {
   deletePlatformCost,
 } from "./backoffice-finance";
 export {getCompanyFinance} from "./backoffice-company-finance";
+export {classifyCompanyTransfer} from "./backoffice-company-transfers";
 // Backoffice — modelo comercial das arenas (2027): faixas de mínimo de reservas, mensalidade e comissão.
 export {getArenaBillingOverview, saveArenaBillingModel} from "./backoffice-arena-billing";
 // Taxas da arena: padrão por plano + clubinho e exceção por arena/produto (a cobrança lê em `loadArenaFeePercent`).

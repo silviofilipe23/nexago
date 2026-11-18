@@ -2,122 +2,86 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:nexago_app/core/errors/friendly_error_message.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/ui/nexa_skeleton.dart';
+import '../../data/arena_dashboard_insights.dart';
 import '../../domain/arena_access_providers.dart';
+import '../../domain/arena_bookings_providers.dart';
+import '../../domain/arena_business_providers.dart';
 import '../../domain/arena_dashboard_providers.dart';
 import '../../domain/arena_staff_role.dart';
-import '../arena_dashboard_formatters.dart';
+import 'arena_cockpit_hero.dart';
+import 'arena_cockpit_kpi_strip.dart';
 import 'arena_dashboard_insights_section.dart';
-import 'arena_dashboard_kpi_grid.dart';
 import 'arena_dashboard_period_chips.dart';
-import 'arena_dashboard_revenue_chart_card.dart';
 import 'arena_idle_map_card.dart';
-import 'arena_month_goal_card.dart';
 import 'arena_now_tab.dart';
 
-/// Aba "Negócio": meta do mês, período, indicadores, gráfico, horários
-/// vazios da semana e leituras do dia.
+/// Aba "Negócio" no modelo cockpit: o período vale para a tela inteira; um
+/// destaque com o número principal, a curva e a meta do mês; três
+/// indicadores com variação; onde sobra horário na semana; leituras do dia.
 class ArenaBusinessTab extends ConsumerWidget {
   const ArenaBusinessTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final summaryAsync = ref.watch(arenaDashboardSummaryProvider);
-    final metricsAsync = ref.watch(arenaDashboardPeriodMetricsProvider);
+    final cockpitAsync = ref.watch(arenaCockpitProvider);
     final seesMoney = ref.watch(arenaCanReadProvider(ArenaArea.financeiro));
+    final summary = ref.watch(arenaDashboardSummaryProvider).valueOrNull;
+    final hasIdleHole =
+        ref.watch(arenaIdleMapProvider).valueOrNull?.hole != null;
 
-    final error = summaryAsync.error ?? metricsAsync.error;
-    final summary = summaryAsync.valueOrNull;
-    final metrics = metricsAsync.valueOrNull;
-
-    final Widget body;
-    if (error != null) {
-      body = ArenaSectionError(
+    final Widget numbers = cockpitAsync.when(
+      data: (cockpit) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ArenaCockpitHero(cockpit: cockpit),
+          const SizedBox(height: 12),
+          ArenaCockpitKpiStrip(cockpit: cockpit, seesMoney: seesMoney),
+        ],
+      ),
+      loading: () => const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          NexaSkeleton(
+            height: 210,
+            radius: BorderRadius.all(Radius.circular(22)),
+          ),
+          SizedBox(height: 12),
+          NexaSkeleton(
+            height: 84,
+            radius: BorderRadius.all(Radius.circular(16)),
+          ),
+        ],
+      ),
+      error: (e, _) => ArenaSectionError(
         message: friendlyErrorMessage(
-          error,
+          e,
           action: 'Não foi possível carregar os números',
           logReason: 'arena_painel:negocio',
         ),
-        onRetry: () => ref.invalidate(arenaDashboardSummaryProvider),
-      );
-    } else if (summary == null || metrics == null) {
-      body = const Padding(
-        padding: EdgeInsets.symmetric(vertical: 48),
-        child: Center(child: CircularProgressIndicator(strokeWidth: 2.4)),
-      );
-    } else {
-      body = Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ArenaDashboardKpiGrid(
-            items: [
-              if (seesMoney)
-                ArenaDashboardKpiItem(
-                  label: 'Faturamento',
-                  value: formatDashboardCurrency(metrics.revenue),
-                  icon: Icons.payments_rounded,
-                  badge: metrics.revenueBadge,
-                ),
-              ArenaDashboardKpiItem(
-                label: 'Ocupação',
-                value: formatDashboardOccupancyPercent(
-                  metrics.occupancyRatePercent,
-                ),
-                icon: Icons.stacked_bar_chart_rounded,
-                badge: metrics.occupancyBadge,
-              ),
-              ArenaDashboardKpiItem(
-                label: 'Reservas',
-                value: '${metrics.bookingsCount}',
-                icon: Icons.event_available_rounded,
-              ),
-              ArenaDashboardKpiItem(
-                label: 'Horário de pico',
-                value: formatDashboardPeakHour(metrics.peakHour),
-                icon: Icons.local_fire_department_rounded,
-              ),
-            ],
-          ),
-          if (seesMoney && metrics.comparisonLabel != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Faturamento ${metrics.comparisonLabel}.',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-              ),
-            ),
-          ],
-          if (seesMoney) ...[
-            const SizedBox(height: 20),
-            ArenaDashboardRevenueChartCard(
-              values: summary.revenueLast7Days,
-              labels: summary.chartDayLabels,
-              metrics: metrics,
-            ),
-          ],
-          const SizedBox(height: 20),
-          const ArenaIdleMapCard(),
-          const SizedBox(height: 20),
-          ArenaDashboardInsightsSection(
-            summary: summary,
-            includeMoney: seesMoney,
-          ),
-        ],
-      );
-    }
+        onRetry: () => ref.invalidate(arenaManagerBookingsStreamProvider),
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // A meta é do mês corrente: fica acima do seletor de período, que
-        // não a afeta.
-        if (seesMoney) ...[
-          const ArenaMonthGoalCard(),
-          const SizedBox(height: 20),
-        ],
         const ArenaDashboardPeriodChips(),
         const SizedBox(height: 16),
-        body,
+        numbers,
+        const SizedBox(height: 20),
+        const ArenaIdleMapCard(),
+        if (summary != null) ...[
+          const SizedBox(height: 20),
+          ArenaDashboardInsightsSection(
+            summary: summary,
+            includeMoney: seesMoney,
+            // O mapa já sugere a promoção do horário vazio: não repetir.
+            exclude: hasIdleHole
+                ? const {ArenaDashboardInsightKind.lowOccupancy}
+                : const {},
+          ),
+        ],
       ],
     );
   }

@@ -5,12 +5,15 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arena/domain/arena_access_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_business_providers.dart';
+import 'package:nexago_app/features/arena/domain/arena_cockpit.dart';
+import 'package:nexago_app/features/arena/domain/arena_dashboard_period.dart';
 import 'package:nexago_app/features/arena/domain/arena_idle_map.dart';
 import 'package:nexago_app/features/arena/domain/arena_month_goal.dart';
 import 'package:nexago_app/features/arena/domain/arena_staff_role.dart';
 import 'package:nexago_app/features/arena/presentation/arena_month_goal_page.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_idle_map_card.dart';
-import 'package:nexago_app/features/arena/presentation/widgets/arena_month_goal_card.dart';
+import 'package:nexago_app/features/arena/presentation/widgets/arena_cockpit_hero.dart';
+import 'package:nexago_app/features/arena/presentation/widgets/arena_cockpit_kpi_strip.dart';
 
 List<Override> _role(ArenaStaffRole? role, {bool owner = false}) {
   final m = ArenaMembership(
@@ -39,6 +42,23 @@ ArenaMonthGoalProgress _progress({double? goal = 38000}) =>
       dayOfMonth: 18,
       daysInMonth: 30,
     );
+
+final _cockpit = ArenaCockpit(
+  period: ArenaDashboardPeriod.month,
+  revenue: 27480,
+  revenuePrev: 25200,
+  bookings: 412,
+  bookingsPrev: 381,
+  occupancy: 58,
+  occupancyPrev: 50,
+  ticket: 66,
+  ticketPrev: 66,
+  peakHour: 19,
+  seriesDays: [for (var d = 1; d <= 18; d++) DateTime(2026, 11, d)],
+  revenueSeries: [for (var d = 1; d <= 18; d++) d * 1526.0],
+  bookingsSeries: [for (var d = 1; d <= 18; d++) d * 23],
+  comparisonLabel: 'vs. outubro até o dia 18',
+);
 
 final _map = ArenaIdleMap(
   hours: const [14, 15, 16],
@@ -82,54 +102,83 @@ Future<void> _pump(
 void main() {
   setUpAll(() => initializeDateFormatting('pt_BR'));
 
-  group('card da meta', () {
-    testWidgets('com meta: progresso, projeção e edição só para o dono', (
+  group('destaque do cockpit', () {
+    Future<void> pumpHero(
+      WidgetTester tester,
+      List<Override> role, {
+      double? goal = 38000,
+    }) => _pump(tester, ArenaCockpitHero(cockpit: _cockpit), [
+      ...role,
+      arenaMonthGoalProgressProvider.overrideWith(
+        (ref) => AsyncValue.data(_progress(goal: goal)),
+      ),
+    ]);
+
+    testWidgets('dono: faturamento do mês, variação, anel da meta e projeção', (
       tester,
     ) async {
-      await _pump(tester, const ArenaMonthGoalCard(), [
-        ..._role(null, owner: true),
-        arenaMonthGoalProgressProvider.overrideWith(
-          (ref) => AsyncValue.data(_progress()),
-        ),
-      ]);
-      expect(find.text('META DE NOVEMBRO'), findsOneWidget);
+      await pumpHero(tester, _role(null, owner: true));
+      expect(find.text('FATURAMENTO · NOVEMBRO'), findsOneWidget);
+      expect(find.textContaining('vs. outubro até o dia 18'), findsOneWidget);
       expect(find.text('72%'), findsOneWidget);
-      expect(find.textContaining('bate a meta'), findsOneWidget);
       expect(find.byTooltip('Editar meta'), findsOneWidget);
+      expect(find.textContaining('Bate a meta'), findsOneWidget);
     });
 
     testWidgets('gestor vê a meta mas não edita', (tester) async {
-      await _pump(tester, const ArenaMonthGoalCard(), [
-        ..._role(ArenaStaffRole.gestor),
-        arenaMonthGoalProgressProvider.overrideWith(
-          (ref) => AsyncValue.data(_progress()),
-        ),
-      ]);
-      expect(find.text('META DE NOVEMBRO'), findsOneWidget);
+      await pumpHero(tester, _role(ArenaStaffRole.gestor));
+      expect(find.text('72%'), findsOneWidget);
       expect(find.byTooltip('Editar meta'), findsNothing);
     });
 
     testWidgets('sem meta: dono é convidado a definir', (tester) async {
-      await _pump(tester, const ArenaMonthGoalCard(), [
-        ..._role(null, owner: true),
-        arenaMonthGoalProgressProvider.overrideWith(
-          (ref) => AsyncValue.data(_progress(goal: null)),
-        ),
-      ]);
-      expect(find.text('Definir meta do mês'), findsOneWidget);
+      await pumpHero(tester, _role(null, owner: true), goal: null);
+      expect(find.text('Definir meta'), findsOneWidget);
+      expect(find.textContaining('novembro fecha em'), findsOneWidget);
     });
 
-    testWidgets('sem meta: financeiro lê que o dono ainda não definiu', (
+    testWidgets('sem meta: financeiro não vê o convite', (tester) async {
+      await pumpHero(tester, _role(ArenaStaffRole.financeiro), goal: null);
+      expect(find.text('Definir meta'), findsNothing);
+    });
+
+    testWidgets('recepção vê reservas no destaque, sem R\$ nem meta', (
       tester,
     ) async {
-      await _pump(tester, const ArenaMonthGoalCard(), [
-        ..._role(ArenaStaffRole.financeiro),
-        arenaMonthGoalProgressProvider.overrideWith(
-          (ref) => AsyncValue.data(_progress(goal: null)),
-        ),
-      ]);
-      expect(find.text('Definir meta do mês'), findsNothing);
-      expect(find.textContaining('ainda não definiu'), findsOneWidget);
+      await pumpHero(tester, _role(ArenaStaffRole.recepcao));
+      expect(find.text('RESERVAS · NOVEMBRO'), findsOneWidget);
+      expect(find.textContaining('R\$'), findsNothing);
+      expect(find.textContaining('meta'), findsNothing);
+    });
+  });
+
+  group('faixa de indicadores', () {
+    testWidgets('quem vê o financeiro: ocupação, reservas e ticket', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        ArenaCockpitKpiStrip(cockpit: _cockpit, seesMoney: true),
+        const [],
+      );
+      expect(find.text('OCUPAÇÃO'), findsOneWidget);
+      expect(find.text('RESERVAS'), findsOneWidget);
+      expect(find.text('TICKET MÉDIO'), findsOneWidget);
+      expect(find.text('▲ 8 p.p.'), findsOneWidget);
+      expect(find.text('▲ 31'), findsOneWidget);
+    });
+
+    testWidgets('quem não vê: ocupação e horário de pico, sem R\$', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        ArenaCockpitKpiStrip(cockpit: _cockpit, seesMoney: false),
+        const [],
+      );
+      expect(find.text('HORÁRIO DE PICO'), findsOneWidget);
+      expect(find.text('TICKET MÉDIO'), findsNothing);
+      expect(find.textContaining('R\$'), findsNothing);
     });
   });
 

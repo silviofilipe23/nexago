@@ -21,6 +21,7 @@ class ArenaDashboardInsightsSection extends ConsumerWidget {
     required this.includeMoney,
     this.showTitle = true,
     this.maxLines,
+    this.exclude = const {},
   });
 
   final ArenaDashboardSummary summary;
@@ -35,12 +36,16 @@ class ArenaDashboardInsightsSection extends ConsumerWidget {
   /// Limita quantas linhas aparecem (a aba Agora mostra só a primeira).
   final int? maxLines;
 
+  /// Linhas a esconder (ex.: ocupação baixa quando o mapa de horários vazios
+  /// já oferece a promoção).
+  final Set<ArenaDashboardInsightKind> exclude;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final all = ArenaDashboardInsights.lines(
       summary,
       includeMoney: includeMoney,
-    );
+    ).where((l) => !exclude.contains(l.kind)).toList();
     final lines = maxLines == null ? all : all.take(maxLines!).toList();
     if (lines.isEmpty) return const SizedBox.shrink();
 

@@ -7,7 +7,8 @@ import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arena/data/review_reply_service.dart';
 import 'package:nexago_app/features/arena/domain/arena_access_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_dashboard_period.dart';
-import 'package:nexago_app/features/arena/domain/arena_dashboard_period_metrics.dart';
+import 'package:nexago_app/features/arena/domain/arena_business_providers.dart';
+import 'package:nexago_app/features/arena/domain/arena_cockpit.dart';
 import 'package:nexago_app/features/arena/domain/arena_dashboard_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_dashboard_summary.dart';
 import 'package:nexago_app/features/arena/domain/arena_manager_booking.dart';
@@ -69,20 +70,22 @@ final _summary = ArenaDashboardSummary(
   bestWeekdayRevenue: 400,
 );
 
-const _metrics = ArenaDashboardPeriodMetrics(
-  period: ArenaDashboardPeriod.today,
+const _cockpit = ArenaCockpit(
+  period: ArenaDashboardPeriod.month,
   revenue: 250,
-  bookingsCount: 3,
-  occupancyRatePercent: 50,
+  revenuePrev: 200,
+  bookings: 3,
+  bookingsPrev: 2,
+  occupancy: 50,
+  occupancyPrev: 40,
+  ticket: 83,
+  ticketPrev: 100,
   peakHour: 19,
-  revenueBadge: null,
-  occupancyBadge: null,
-  bookingsBadge: null,
-  peakBadge: null,
-  chartTotal7Days: 250,
-  chartTrendPercent: null,
+  seriesDays: [],
+  revenueSeries: [],
+  bookingsSeries: [],
+  comparisonLabel: 'vs. outubro até o dia 18',
 );
-
 const _inPlay = ArenaManagerBooking(
   id: 'b1',
   athleteId: '',
@@ -150,10 +153,8 @@ void main() {
           arenaDashboardSummaryProvider.overrideWith(
             (ref) => Stream.value(_summary),
           ),
-          arenaDashboardPeriodMetricsProvider.overrideWith(
-            (ref) => const AsyncValue<ArenaDashboardPeriodMetrics>.data(
-              _metrics,
-            ),
+          arenaCockpitProvider.overrideWith(
+            (ref) => const AsyncValue<ArenaCockpit>.data(_cockpit),
           ),
           reviewReplyServiceProvider.overrideWith(
             (ref) => ReviewReplyService(_FakeFirestore()),

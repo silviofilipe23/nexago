@@ -28,17 +28,16 @@ void main() {
     });
   });
 
-  group('formatDashboardChartAxis', () {
-    test('valores abaixo de 1000 mostram o inteiro sem sufixo', () {
-      expect(formatDashboardChartAxis(850), '850');
+  group('formatDashboardCompactCurrency', () {
+    test('abaixo de 10 mil mostra o valor inteiro', () {
+      expect(formatDashboardCompactCurrency(9870), contains('9.870'));
     });
 
-    test('valores a partir de 1000 usam sufixo "k" compacto', () {
-      expect(formatDashboardChartAxis(1200), '1,2k');
-    });
-
-    test('valor fracionário abaixo de 1000 arredonda sem casas decimais', () {
-      expect(formatDashboardChartAxis(849.6), '850');
+    test('milhares e milhões viram "mil" e "mi" com uma casa', () {
+      // Espaço que não quebra (\u00a0): o valor não parte entre linhas.
+      expect(formatDashboardCompactCurrency(38200), 'R\$\u00a038,2\u00a0mil');
+      expect(formatDashboardCompactCurrency(38000), 'R\$\u00a038\u00a0mil');
+      expect(formatDashboardCompactCurrency(1250000), 'R\$\u00a01,3\u00a0mi');
     });
   });
 }

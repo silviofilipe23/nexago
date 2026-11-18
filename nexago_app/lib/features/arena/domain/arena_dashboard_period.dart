@@ -11,10 +11,4 @@ extension ArenaDashboardPeriodX on ArenaDashboardPeriod {
         ArenaDashboardPeriod.week => 'Semana',
         ArenaDashboardPeriod.month => 'Mês',
       };
-
-  int get days => switch (this) {
-        ArenaDashboardPeriod.today => 1,
-        ArenaDashboardPeriod.week => 7,
-        ArenaDashboardPeriod.month => 30,
-      };
 }

@@ -7,7 +7,8 @@
  * - torneios, quadras, aulas, planos de horário e clubinho: `platformFeeReais` (+ `serviceFeeReais`
  *   no torneio) das linhas `credit` dos extratos dos caixas;
  * - planos das arenas: cobranças pagas da assinatura no Asaas (com a adesão);
- * - tarifas de saque de arena (`feeReais`); loja (venda própria: total pago menos o devolvido);
+ * - tarifas de saque de arena (`feeReais`); loja (venda própria: total pago menos o devolvido;
+ *   pedido e troca de demonstração, `seed: true`, ficam de fora da receita, do cashback e das provisões);
  * - professores e centros de treino: 5% do split, estimado (a taxa não fica gravada);
  * - planos NexaGO: sinal e saldo marcados à mão no contrato.
  * Deduções = o que a NexaGO banca dentro das vendas: cashback usado, desconto e comissão do Squad.
@@ -216,8 +217,14 @@ export function addArenaWithdrawal(book: FinanceBook, raw: Raw): void {
   book.revenue("saques", date, reaisToCents(raw["feeReais"]));
 }
 
+/** Dado de demonstração (`seed: true`, gravado pelos scripts `seed-store-*`): não é venda real. */
+export function isSeedRecord(raw: Raw): boolean {
+  return raw["seed"] === true;
+}
+
 /** Pedido da loja (venda própria): total pago menos o devolvido; o cashback usado é dedução. */
 export function addStoreOrder(book: FinanceBook, raw: Raw): void {
+  if (isSeedRecord(raw)) return;
   const date = dateOf(raw["paidAt"]);
   if (!date) return;
   book.revenue("loja", date, Math.max(0, intCents(raw["totalCents"]) - intCents(raw["refundedCents"])));
@@ -338,6 +345,7 @@ export function inAccountCents(h: Holding): number {
 
 /** Devolução da loja ainda não feita: `refunds[]` e `settlement` com `status: pendente`. */
 export function pendingStoreRefundCents(order: Raw): number {
+  if (isSeedRecord(order)) return 0;
   const refunds = Array.isArray(order["refunds"]) ? (order["refunds"] as Raw[]) : [];
   return refunds
     .filter((r) => r?.["status"] === "pendente" && r?.["destination"] !== "saldo")
@@ -345,6 +353,7 @@ export function pendingStoreRefundCents(order: Raw): number {
 }
 
 export function pendingReturnSettlementCents(ret: Raw): number {
+  if (isSeedRecord(ret)) return 0;
   const s = (ret["settlement"] ?? null) as Raw | null;
   if (!s || s["status"] !== "pendente" || s["type"] !== "reembolso") return 0;
   return Math.max(0, intCents(s["amountCents"]));

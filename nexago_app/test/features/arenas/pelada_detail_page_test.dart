@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/core/time/nexago_event_timezone.dart';
+import 'package:nexago_app/features/arenas/data/lancar_placar_draft_store.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record_providers.dart';
 import 'package:nexago_app/features/arenas/domain/booking_social_unlock.dart';
@@ -14,6 +15,7 @@ import 'package:nexago_app/features/arenas/presentation/pelada_detail_page.dart'
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 
 import 'fake_booking_result_repository.dart';
+import 'fake_lancar_placar_draft_store.dart';
 
 Finder rich(String text) => find.textContaining(text, findRichText: true);
 
@@ -39,6 +41,8 @@ Future<FakeBookingResultRepository> abrir(
         athleteProfileProvider.overrideWith((ref) => Stream.value(null)),
         bookingStorySourceProvider('b1').overrideWith((ref) => null),
         bookingSocialUnlockProvider('b1').overrideWith((ref) => unlock),
+        lancarPlacarDraftStoreProvider
+            .overrideWithValue(MemoryLancarPlacarDraftStore()),
       ],
       child: MaterialApp(
         theme: AppTheme.dark,

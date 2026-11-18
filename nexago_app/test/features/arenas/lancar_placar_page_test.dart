@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'package:nexago_app/core/profiles/users_repository.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/arenas/data/lancar_placar_draft_store.dart';
 import 'package:nexago_app/features/arenas/data/pelada_live_draft_store.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result.dart';
 import 'package:nexago_app/features/arenas/domain/booking_result_record.dart';
@@ -24,6 +25,7 @@ import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 
 import 'fake_booking_result_repository.dart';
+import 'fake_lancar_placar_draft_store.dart';
 
 /// Caso de teste CT-PLACAR-AOVIVO-01 (fluxo proposto, fase 1): marcar ao
 /// vivo durante a reserva e enviar no apito final, sem passar pelo editor.
@@ -65,6 +67,7 @@ Future<(FakeBookingResultRepository, _MemoryStore)> _abrir(
   bool ownerInConfirmed = true,
   DateTime Function() clock = _depoisDoJogo,
   bool searchResults = false,
+  MemoryLancarPlacarDraftStore? typedStore,
 }) async {
   repo ??= FakeBookingResultRepository();
   final drafts = store ?? _MemoryStore();
@@ -120,6 +123,8 @@ Future<(FakeBookingResultRepository, _MemoryStore)> _abrir(
         bookingResultRepositoryProvider.overrideWithValue(repo),
         bookingResultUidProvider.overrideWithValue(uid),
         peladaLiveDraftStoreProvider.overrideWithValue(drafts),
+        lancarPlacarDraftStoreProvider
+            .overrideWithValue(typedStore ?? MemoryLancarPlacarDraftStore()),
         appUserPublicProfileProvider.overrideWith(
           (ref, id) async => id == 'u1'
               ? const AppUserProfile(uid: 'u1', fullName: 'Maria Alves')
@@ -443,5 +448,118 @@ void main() {
             reason: 'rolou $dy, digitou "$q"');
       }
     }
+  });
+
+  group('placar digitado fica guardado ao sair da tela', () {
+    /// Passo 2: digita [a]–[b] no jogo [i] pelo teclado do placar.
+    Future<void> digitar(WidgetTester tester, int i, int a, int b) async {
+      await tester.tap(find.byKey(Key('placar-box-$i-a')));
+      await tester.pumpAndSettle();
+      for (final d in '$a'.split('')) {
+        await tester.tap(find.byKey(Key('placar-keypad-$d')));
+        await tester.pump();
+      }
+      await tester.tap(find.byKey(const Key('placar-keypad-ok')));
+      await tester.pumpAndSettle();
+      for (final d in '$b'.split('')) {
+        await tester.tap(find.byKey(Key('placar-keypad-$d')));
+        await tester.pump();
+      }
+      await tester.tap(find.byKey(const Key('placar-keypad-ok')));
+      await tester.pumpAndSettle();
+    }
+
+    /// Fecha a tela inteira (a rota some) antes de abrir de novo.
+    Future<void> sair(WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('sair e voltar: os jogos digitados continuam, já no placar', (
+      tester,
+    ) async {
+      final typed = MemoryLancarPlacarDraftStore();
+      await _abrir(tester, mode: LancarPlacarMode.typed, typedStore: typed);
+      await tester.tap(find.byKey(const Key('lancar-placar-next')));
+      await tester.pumpAndSettle();
+      await digitar(tester, 0, 21, 18);
+      await tester.tap(find.byKey(const Key('placar-add-game')));
+      await tester.pumpAndSettle();
+      await digitar(tester, 1, 15, 21);
+      expect(typed.drafts['b1']?.result.games.length, 2);
+
+      await sair(tester);
+      final (repo, _) = await _abrir(
+        tester,
+        mode: LancarPlacarMode.typed,
+        typedStore: typed,
+      );
+
+      // Volta direto no passo 2, com os dois jogos.
+      expect(find.byType(PlacarDigitadoPage), findsOneWidget);
+      String box(String k) => tester
+          .widget<Text>(find.descendant(
+            of: find.byKey(Key('placar-box-$k')),
+            matching: find.byType(Text),
+          ))
+          .data!;
+      expect([box('0-a'), box('0-b'), box('1-a'), box('1-b')],
+          ['21', '18', '15', '21']);
+
+      // Enviado: o rascunho some.
+      await tester.tap(find.byKey(const Key('placar-add-game')));
+      await tester.pumpAndSettle();
+      await digitar(tester, 2, 15, 10);
+      await tester.tap(find.byKey(const Key('placar-submit')));
+      await tester.pumpAndSettle();
+      expect(repo.saves.single.$2.games.length, 3);
+      expect(typed.drafts, isEmpty);
+    });
+
+    testWidgets('trocar times no passo 1 também fica guardado', (tester) async {
+      final typed = MemoryLancarPlacarDraftStore();
+      await _abrir(tester, mode: LancarPlacarMode.typed, typedStore: typed);
+      await tester.tap(find.byKey(const Key('lancar-assign-u2-1')));
+      await tester.pump();
+      await sair(tester);
+      await _abrir(tester, mode: LancarPlacarMode.typed, typedStore: typed);
+
+      // Sem placar ainda: abre no passo 1, com Enzo no B.
+      expect(find.byType(PlacarDigitadoPage), findsNothing);
+      expect(_teamCount(tester, 0), '1');
+      expect(_teamCount(tester, 1), '3');
+    });
+
+    testWidgets('outro celular enviou depois do rascunho: vale o enviado', (
+      tester,
+    ) async {
+      final typed = MemoryLancarPlacarDraftStore()
+        ..drafts['b1'] = const LancarPlacarDraft(
+          baseVersion: 0,
+          result: BookingResult(
+            teams: [
+              ResultTeam(id: 0, players: [
+                ResultPlayer(id: 'u1', name: 'Maria Alves'),
+              ]),
+              ResultTeam(id: 1, players: [
+                ResultPlayer(id: 'u3', name: 'Rafael Souza'),
+              ]),
+            ],
+            games: [ResultGame(teamA: 0, teamB: 1, scoreA: 9, scoreB: 7)],
+          ),
+        );
+      await _abrir(
+        tester,
+        mode: LancarPlacarMode.typed,
+        typedStore: typed,
+        repo: FakeBookingResultRepository([savedResult(version: 1)]),
+      );
+
+      expect(find.byType(PlacarDigitadoPage), findsNothing);
+      expect(_teamCount(tester, 0), '2');
+      await tester.tap(find.byKey(const Key('lancar-placar-next')));
+      await tester.pumpAndSettle();
+      expect(find.text('9'), findsNothing);
+    });
   });
 }

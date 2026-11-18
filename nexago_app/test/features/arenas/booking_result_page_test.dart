@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/data/booking_arena_art.dart';
+import 'package:nexago_app/features/arenas/data/lancar_placar_draft_store.dart';
 import 'package:nexago_app/features/arenas/data/pelada_live_draft_store.dart';
 import 'package:nexago_app/features/arenas/domain/pelada_live/pelada_live_rules.dart';
 import 'package:nexago_app/features/arenas/domain/pelada_live/pelada_live_session.dart';
@@ -26,6 +27,7 @@ import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 
 import 'fake_booking_result_repository.dart';
+import 'fake_lancar_placar_draft_store.dart';
 
 /// PNG 1×1: capa e logo de mentira da arena.
 final pixel = base64Decode(
@@ -122,6 +124,8 @@ Future<FakeBookingResultRepository> abrir(
           bookingArenaArtProvider('a1').overrideWith((ref) async => arena),
         bookingSocialUnlockProvider('b1').overrideWith((ref) => unlock),
         peladaLiveDraftStoreProvider.overrideWithValue(_SemRascunho()),
+        lancarPlacarDraftStoreProvider
+            .overrideWithValue(MemoryLancarPlacarDraftStore()),
         bookingResultPlayerSearchProvider.overrideWith(
           (ref, query) async => busca,
         ),

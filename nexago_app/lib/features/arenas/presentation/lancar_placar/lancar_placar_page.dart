@@ -19,6 +19,7 @@ import '../../../../core/ui/app_snackbar.dart';
 import '../../../athlete/domain/athlete_display_name.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
 import '../../../tournaments/data/partner_search_service.dart';
+import '../../data/lancar_placar_draft_store.dart';
 import '../../data/pelada_live_draft_store.dart';
 import '../../domain/booking_result.dart';
 import '../../domain/booking_result_record.dart';
@@ -116,6 +117,9 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
   String _search = '';
   bool _resumeChecked = false;
 
+  /// Versão do placar salvo quando a tela abriu (vai junto do rascunho).
+  int _baseVersion = 0;
+
   /// Primeiro nome de quem mandou o placar que abriu preenchido.
   String? _suggestedBy;
 
@@ -129,6 +133,30 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
         now: widget.clock(),
       );
   String get _draftKey => peladaLiveDraftKey(widget.args.bookingId);
+
+  /// Troca o placar e guarda no aparelho: sair da tela não perde os jogos.
+  void _setResult(BookingResult next, {bool rebuild = true}) {
+    if (rebuild) {
+      setState(() => _r = next);
+    } else {
+      _r = next;
+    }
+    if (_bookingId.isEmpty) return;
+    unawaited(
+      ref.read(lancarPlacarDraftStoreProvider).save(
+            _bookingId,
+            LancarPlacarDraft(result: next, baseVersion: _baseVersion),
+          ),
+    );
+  }
+
+  /// Placar enviado: os dois rascunhos (ao vivo e digitado) somem.
+  Future<void> _clearDrafts() async {
+    await ref.read(peladaLiveDraftStoreProvider).clear(_draftKey);
+    await ref.read(lancarPlacarDraftStoreProvider).clear(_bookingId);
+    ref.invalidate(peladaLiveDraftProvider(widget.args.bookingId));
+    ref.invalidate(lancarPlacarDraftProvider(widget.args.bookingId));
+  }
 
   @override
   void dispose() {
@@ -205,10 +233,8 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
       _query.clear();
       FocusManager.instance.primaryFocus?.unfocus();
     }
-    setState(() {
-      _r = next;
-      if (clearSearch) _search = '';
-    });
+    if (clearSearch) _search = '';
+    _setResult(next);
   }
 
   /// Quem já foi liberado (ou está sendo) nesta tela: uma chamada por atleta.
@@ -247,8 +273,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
       ),
     );
     if (name == null || !mounted || _r == null) return;
-    setState(
-        () => _r = _r!.replaceTeam(team.copyWith(customName: name.trim())));
+    _setResult(_r!.replaceTeam(team.copyWith(customName: name.trim())));
   }
 
   /// Pergunta antes de regravar um placar já salvo (todos confirmam de novo).
@@ -281,8 +306,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
   /// Convidado: manda para quem reservou conferir e enviar (fase 2).
   Future<void> _suggest(BookingResult r) async {
     await ref.read(bookingResultRepositoryProvider).suggest(_bookingId, r);
-    await ref.read(peladaLiveDraftStoreProvider).clear(_draftKey);
-    ref.invalidate(peladaLiveDraftProvider(widget.args.bookingId));
+    await _clearDrafts();
   }
 
   /// "Convidar quem não tem conta": o link de convite da reserva (cadastro e
@@ -316,8 +340,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
   Future<void> _save(BookingResult r) async {
     if (!await _confirmResave()) throw const PeladaLiveSendCancelled();
     await ref.read(bookingResultRepositoryProvider).save(_bookingId, r);
-    await ref.read(peladaLiveDraftStoreProvider).clear(_draftKey);
-    ref.invalidate(peladaLiveDraftProvider(widget.args.bookingId));
+    await _clearDrafts();
   }
 
   // Os builders das rotas abaixo rodam de novo a cada reconstrução (tema,
@@ -393,7 +416,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
       case PeladaLiveSent(:final result):
         _done(result, toOwner: !canSave);
       case PeladaLiveReview(:final result):
-        setState(() => _r = result);
+        _setResult(result);
         await _runTyped(result);
     }
   }
@@ -413,7 +436,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
           canSend: canSave,
           guestNote: canSave ? null : lancarGuestSendNote(hostName),
           submitLabel: submitLabel,
-          onChanged: (next) => _r = next,
+          onChanged: (next) => _setResult(next, rebuild: false),
           onSubmit: (result) async {
             try {
               await (canSave ? _save(result) : _suggest(result));
@@ -517,6 +540,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
     final draft = _mode == LancarPlacarMode.live
         ? ref.watch(peladaLiveDraftProvider(args.bookingId))
         : const AsyncValue<PeladaLiveSession?>.data(null);
+    final typedDraft = ref.watch(lancarPlacarDraftProvider(args.bookingId));
 
     if (unlock != null && !unlock.unlocked) {
       return BookingSocialLockedView(
@@ -531,6 +555,7 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
         profileAsync.hasValue &&
         (_r != null ||
             (!draft.isLoading &&
+                !typedDraft.isLoading &&
                 !suggestionAsync.isLoading &&
                 !hostAsync.isLoading));
     if (!ready) {
@@ -544,11 +569,25 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
 
     // Uma vez: o placar salvo ou a galera da reserva dividida em dois times.
     if (_r == null) {
-      final suggestion = suggestionAsync.valueOrNull;
+      _baseVersion = saved?.version ?? 0;
+      // O que este celular já tinha lançado e não enviou vem primeiro.
+      final kept = lancarDraftToResume(
+        typedDraft.valueOrNull,
+        savedVersion: _baseVersion,
+      );
+      final suggestion = kept == null ? suggestionAsync.valueOrNull : null;
       _suggestedBy = suggestion?.suggestedByFirstName;
-      _r = suggestion?.result ??
+      _r = kept ??
+          suggestion?.result ??
           saved?.result ??
           initialBookingResult(_candidates());
+      // Saiu no meio do placar digitado: volta direto nele.
+      if (kept != null && kept.hasScore && _mode != LancarPlacarMode.live) {
+        _resumeChecked = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _runTyped(kept);
+        });
+      }
     }
     final r = _r!;
 
@@ -657,15 +696,15 @@ class _LancarPlacarPageState extends ConsumerState<LancarPlacarPage> {
               result: r,
               upcoming: upcoming,
               onRename: _rename,
-              onDrop: (id) => setState(() => _r = r.dropTeam(id)),
-              onMove: (from, to) => setState(() => _r = r.moveTeam(from, to)),
+              onDrop: (id) => _setResult(r.dropTeam(id)),
+              onMove: (from, to) => _setResult(r.moveTeam(from, to)),
             ),
             if (r.teams.length < kLancarMaxTeams)
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
                   key: const Key('lancar-placar-add-team'),
-                  onPressed: () => setState(() => _r = r.addEmptyTeam()),
+                  onPressed: () => _setResult(r.addEmptyTeam()),
                   icon: const Icon(Icons.add_rounded, size: 18),
                   label: Text(
                     r.isRotation

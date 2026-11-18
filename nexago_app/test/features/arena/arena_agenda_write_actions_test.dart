@@ -12,6 +12,8 @@ import 'package:nexago_app/features/arena/domain/arena_access_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_booking_day_timeline.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_day_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_providers.dart';
+import 'package:nexago_app/features/arena/domain/arena_free_windows.dart';
+import 'package:nexago_app/features/arenas/domain/arena_court.dart';
 import 'package:nexago_app/features/arena/domain/arena_club.dart';
 import 'package:nexago_app/features/arena/domain/arena_club_admin_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_court_providers.dart';
@@ -194,10 +196,19 @@ void main() {
             ),
           ),
           // Linha do dia (Hoje): sem Firestore nem relógio.
-          arenaBookingsTodayTimelineProvider.overrideWith(
+          arenaBookingsDayTimelineProvider.overrideWith(
             (ref) => const AsyncValue<List<ArenaTimelineEntry>>.data([]),
           ),
-          arenaBookingsTodaySummaryProvider.overrideWith((ref) => null),
+          arenaBookingsDaySummaryProvider.overrideWith((ref) => null),
+          arenaBookingsStripSlotsProvider.overrideWith(
+            (ref) => Stream.value(const <ArenaSlot>[]),
+          ),
+          arenaBookingsDayFreeWindowsProvider.overrideWith(
+            (ref) => const <ArenaFreeWindow>[],
+          ),
+          arenaManagedCourtsProvider.overrideWith(
+            (ref) => Stream.value(const <ArenaCourt>[]),
+          ),
           arenaManagerBookingsStreamProvider.overrideWith(
             (ref) => Stream.value(const <ArenaManagerBooking>[]),
           ),

@@ -10,6 +10,7 @@ import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arena/domain/arena_access_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_booking_day_timeline.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_day_providers.dart';
+import 'package:nexago_app/features/arena/domain/arena_bookings_filter.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_club.dart';
 import 'package:nexago_app/features/arena/domain/arena_club_admin_providers.dart';
@@ -23,6 +24,10 @@ import 'package:nexago_app/features/arena/domain/aulas/arena_class.dart';
 import 'package:nexago_app/features/arena/domain/aulas/arena_class_providers.dart';
 import 'package:nexago_app/features/arena/domain/aulas/arena_class_session.dart';
 import 'package:nexago_app/features/arena/presentation/arena_bookings_page.dart';
+import 'package:nexago_app/features/arena/domain/arena_court_providers.dart';
+import 'package:nexago_app/features/arenas/domain/arena_court.dart';
+import 'package:nexago_app/features/arenas/domain/arena_slot.dart';
+import 'package:nexago_app/features/arena/domain/arena_free_windows.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_card.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
 
@@ -78,12 +83,15 @@ ArenaManagerBooking _booking(
     );
 
 List<Override> _athlete() => [
-      athleteDisplayLabelProvider('ath1').overrideWith(
-        (ref) async => 'Lucas Andrade',
-      ),
-      athleteProfileByIdProvider('ath1').overrideWith(
-        (ref) => Stream.value(null),
-      ),
+      for (final (id, name) in [
+        ('ath1', 'Lucas Andrade'),
+        ('ath2', 'Bia Souza'),
+      ]) ...[
+        athleteDisplayLabelProvider(id).overrideWith((ref) async => name),
+        athleteProfileByIdProvider(id).overrideWith(
+          (ref) => Stream.value(null),
+        ),
+      ],
     ];
 
 Future<void> _pumpPage(
@@ -91,6 +99,7 @@ Future<void> _pumpPage(
   ArenaStaffRole role, {
   List<ArenaTimelineEntry> timeline = const [],
   List<ArenaRecurringBooking> series = const [],
+  List<ArenaManagerBooking> bookings = const [],
 }) async {
   tester.view.physicalSize = const Size(402, 1600);
   tester.view.devicePixelRatio = 1;
@@ -101,13 +110,22 @@ Future<void> _pumpPage(
         ..._role(role),
         ..._athlete(),
         managedArenaDetailProvider.overrideWith((ref) => Stream.value(null)),
-        arenaBookingsTodayTimelineProvider.overrideWith(
+        arenaBookingsDayTimelineProvider.overrideWith(
           (ref) => AsyncValue.data(timeline),
         ),
-        arenaBookingsTodaySummaryProvider.overrideWith((ref) => null),
+        arenaBookingsDaySummaryProvider.overrideWith((ref) => null),
+        arenaBookingsStripSlotsProvider.overrideWith(
+          (ref) => Stream.value(const <ArenaSlot>[]),
+        ),
+        arenaBookingsDayFreeWindowsProvider.overrideWith(
+          (ref) => const <ArenaFreeWindow>[],
+        ),
+        arenaManagedCourtsProvider.overrideWith(
+          (ref) => Stream.value(const <ArenaCourt>[]),
+        ),
         arenaBookingsTodayInsightProvider.overrideWith((ref) => null),
         arenaManagerBookingsStreamProvider.overrideWith(
-          (ref) => Stream.value(const <ArenaManagerBooking>[]),
+          (ref) => Stream.value(bookings),
         ),
         arenaActiveRecurringSeriesProvider.overrideWith(
           (ref) => Stream.value(series),
@@ -373,6 +391,129 @@ void main() {
       await tester.tap(find.text('Turma iniciante'));
       await tester.pumpAndSettle();
       expect(find.text('tela de aulas'), findsOneWidget);
+    });
+  });
+
+  group('faixa de dias, livres, busca e filtros', () {
+    ProviderContainer container(WidgetTester tester) =>
+        ProviderScope.containerOf(
+          tester.element(find.byType(ArenaBookingsPage)),
+        );
+
+    testWidgets('faixa tem 7 dias e o calendário; tocar troca o dia',
+        (tester) async {
+      await _pumpPage(tester, ArenaStaffRole.recepcao);
+      final days = find.byWidgetPredicate(
+        (w) =>
+            w.key is ValueKey<String> &&
+            (w.key! as ValueKey<String>)
+                .value
+                .startsWith('arena-bookings-day-'),
+      );
+      expect(days, findsNWidgets(7));
+      expect(find.byKey(const Key('arena-bookings-calendar')), findsOneWidget);
+      expect(find.text('HOJE'), findsOneWidget);
+
+      await tester.tap(days.at(2));
+      await tester.pump();
+      final today = DateTime.now();
+      expect(
+        container(tester).read(arenaBookingsSelectedDayProvider),
+        DateTime(today.year, today.month, today.day + 2),
+      );
+    });
+
+    testWidgets('horário livre aparece com Divulgar', (tester) async {
+      await _pumpPage(
+        tester,
+        ArenaStaffRole.recepcao,
+        timeline: [
+          ArenaTimelineNowEntry(_now),
+          const ArenaTimelineFreeEntry(
+            ArenaFreeWindow(
+              startTime: '19:00',
+              endTime: '21:00',
+              courtIds: ['q1', 'q4'],
+              courtNames: ['Quadra 1', 'Quadra 4'],
+            ),
+          ),
+        ],
+      );
+      expect(find.textContaining('Livre 19h–21h'), findsOneWidget);
+      expect(
+        find.byKey(const Key('arena-bookings-share-free-19:00')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('busca acha pelo nome em qualquer dia carregado',
+        (tester) async {
+      await _pumpPage(
+        tester,
+        ArenaStaffRole.recepcao,
+        bookings: [
+          _booking('b1', '19:00', '20:00'),
+          ArenaManagerBooking(
+            id: 'outro',
+            athleteId: 'ath2',
+            courtId: 'q1',
+            courtName: 'Quadra 1',
+            dateKey: '2026-11-20',
+            startTime: '08:00',
+            endTime: '09:00',
+            data: const {'status': 'active', 'athleteId': 'ath2'},
+          ),
+        ],
+      );
+      await tester.tap(find.byKey(const Key('arena-bookings-search-toggle')));
+      await tester.pump();
+      expect(
+          find.byKey(const Key('arena-bookings-search-field')), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('arena-bookings-search-field')),
+        'lúcas',
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const Key('arena-booking-card-b1')), findsOneWidget);
+      expect(find.byKey(const Key('arena-booking-card-outro')), findsNothing);
+      // Com resultado na tela, a faixa de dias sai.
+      expect(find.byKey(const Key('arena-bookings-calendar')), findsNothing);
+
+      await tester.enterText(
+        find.byKey(const Key('arena-bookings-search-field')),
+        'ninguem',
+      );
+      await tester.pump();
+      expect(find.text('Nenhuma reserva encontrada'), findsOneWidget);
+      // Deixa a entrada dos cards (FadeSlideIn) terminar.
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('filtro mostra o selo e, sem resultado, oferece limpar',
+        (tester) async {
+      await _pumpPage(tester, ArenaStaffRole.recepcao);
+      await tester.tap(find.byKey(const Key('arena-bookings-filter')));
+      await tester.pumpAndSettle();
+      expect(find.text('Filtrar reservas'), findsOneWidget);
+      await tester.tap(find.text('Falta receber'));
+      await tester.pump();
+      await tester.tap(find.text('Ver reservas'));
+      await tester.pumpAndSettle();
+
+      expect(
+        container(tester).read(arenaBookingsFilterProvider).payments,
+        {ArenaPaymentFilter.due},
+      );
+      expect(find.text('1'), findsWidgets);
+      expect(find.text('Nenhuma reserva com esses filtros'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('arena-bookings-clear-filters')));
+      await tester.pump();
+      expect(
+          container(tester).read(arenaBookingsFilterProvider).isEmpty, isTrue);
+      await tester.pump(const Duration(seconds: 1));
     });
   });
 }

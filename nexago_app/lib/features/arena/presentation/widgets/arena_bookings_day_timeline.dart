@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/formatting/app_currency_format.dart';
 import '../../../../core/router/routes.dart';
@@ -7,8 +9,13 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/fade_slide_in.dart';
+import '../../../../core/ui/nexa_share.dart';
 import '../../domain/arena_booking_card_pills.dart';
 import '../../domain/arena_booking_day_timeline.dart';
+import '../../domain/arena_bookings_day_providers.dart';
+import '../../domain/arena_date_utils.dart';
+import '../../domain/arena_free_windows.dart';
+import '../../domain/arena_schedule_providers.dart';
 import '../../domain/arena_manager_booking.dart';
 import 'arena_booking_card.dart';
 import 'arena_now_booking_label.dart';
@@ -43,6 +50,8 @@ class ArenaBookingsDayTimelineSliver extends StatelessWidget {
           final isLast = index == entries.length - 1;
           return switch (entry) {
             ArenaTimelineNowEntry(:final now) => _NowMarker(now: now),
+            ArenaTimelineFreeEntry(:final window) =>
+              _FreeRow(window: window, isLast: isLast),
             ArenaTimelineBookingEntry() => FadeSlideIn(
                 // Entrada curta e sem cascata longa: trocar de dia não
                 // pode esperar meio segundo pelo último card.
@@ -132,6 +141,131 @@ class _BookingRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Horário livre no meio da linha: toque abre a agenda no dia; "Divulgar"
+/// compartilha o horário com o link de reserva da arena.
+class _FreeRow extends ConsumerWidget {
+  const _FreeRow({required this.window, required this.isLast});
+
+  final ArenaFreeWindow window;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.themeColors;
+    final day = ref.watch(arenaBookingsSelectedDayProvider);
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: _railColumn,
+            child: Column(
+              children: [
+                const SizedBox(height: 18),
+                Icon(
+                  Icons.add_circle_outline_rounded,
+                  size: 12,
+                  color: colors.onSurfaceMuted,
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 1.5,
+                      color: colors.onSurfaceMuted.withValues(alpha: 0.2),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  key: Key('arena-bookings-free-${window.startTime}'),
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    openArenaScheduleOn(ref, day);
+                    context.go(AppRoutes.arenaSchedule);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: colors.onSurfaceMuted.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: 'Livre ${window.rangeLabel}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: colors.onSurface,
+                                  ),
+                                ),
+                                TextSpan(text: ' · ${window.courtsLabel}'),
+                              ],
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.onSurfaceMuted,
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          key: Key(
+                            'arena-bookings-share-free-${window.startTime}',
+                          ),
+                          onPressed: () => _share(context, ref, day),
+                          style: TextButton.styleFrom(
+                            foregroundColor: colors.brandText,
+                            textStyle: const TextStyle(
+                              fontFamily: AppTypography.fontFamily,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 12,
+                            ),
+                          ),
+                          icon: const Icon(Icons.campaign_rounded, size: 18),
+                          label: const Text('Divulgar'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _share(BuildContext context, WidgetRef ref, DateTime day) {
+    final arenaId = ref.read(managedArenaIdProvider).valueOrNull ?? '';
+    final arenaName =
+        ref.read(managedArenaDetailProvider).valueOrNull?.name ?? '';
+    return nexaShareText(
+      context,
+      arenaFreeWindowShareText(
+        window: window,
+        dayLabel: arenaShareDayLabel(day, arenaTodayDateOnly()),
+        arenaName: arenaName,
+        arenaId: arenaId,
       ),
     );
   }
@@ -292,10 +426,15 @@ class ArenaBookingsDayStats extends StatelessWidget {
     super.key,
     required this.summary,
     required this.seesMoney,
+    this.isToday = true,
   });
 
   final ArenaBookingsDaySummary summary;
   final bool seesMoney;
+
+  /// "Em quadra" só faz sentido hoje; nos outros dias a casa vira o número
+  /// de reservas.
+  final bool isToday;
 
   @override
   Widget build(BuildContext context) {
@@ -303,14 +442,21 @@ class ArenaBookingsDayStats extends StatelessWidget {
     final occupancy = summary.occupancyPercent;
     final cells = <(String, String, Color?)>[
       (occupancy == null ? '—' : '$occupancy%', 'ocupado', null),
-      ('${summary.live}', 'em quadra', null),
+      if (isToday)
+        ('${summary.live}', 'em quadra', null)
+      else
+        (
+          '${summary.bookings}',
+          summary.bookings == 1 ? 'reserva' : 'reservas',
+          null,
+        ),
       if (seesMoney)
         (
           formatBRL(summary.dueReais),
           'a receber',
           summary.dueReais > 0 ? colors.pending : null,
         )
-      else
+      else if (isToday)
         (
           '${summary.bookings}',
           summary.bookings == 1 ? 'reserva' : 'reservas',
@@ -363,4 +509,14 @@ class ArenaBookingsDayStats extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "hoje", "amanhã" ou "quinta (20/11)" para o texto do "Divulgar".
+String arenaShareDayLabel(DateTime day, DateTime today) {
+  final d = arenaDateOnly(day);
+  final t = arenaDateOnly(today);
+  if (d == t) return 'hoje';
+  if (d == DateTime(t.year, t.month, t.day + 1)) return 'amanhã';
+  final weekday = DateFormat('EEEE', 'pt_BR').format(d).split('-').first;
+  return '$weekday (${DateFormat('dd/MM').format(d)})';
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'arena_date_utils.dart';
+import 'arena_free_windows.dart';
 import 'arena_manager_booking.dart';
 import 'arena_now.dart';
 
@@ -43,14 +44,23 @@ final class ArenaTimelineNowEntry extends ArenaTimelineEntry {
   final DateTime now;
 }
 
+/// Horário livre entre as reservas (com "Divulgar").
+final class ArenaTimelineFreeEntry extends ArenaTimelineEntry {
+  const ArenaTimelineFreeEntry(this.window);
+
+  final ArenaFreeWindow window;
+}
+
 /// Linha do dia [dateKey]: reservas ativas em ordem de horário (e de quadra),
-/// com o marcador "agora" antes da primeira que ainda vai começar. Dia
+/// os horários livres ([freeWindows]) no meio, na hora em que começam, e o
+/// marcador "agora" antes do primeiro item que ainda vai começar. Dia
 /// passado é todo concluído; dia futuro, todo por vir. Função pura: o
 /// relógio entra por [now].
 List<ArenaTimelineEntry> buildArenaDayTimeline({
   required List<ArenaManagerBooking> bookings,
   required String dateKey,
   required DateTime now,
+  List<ArenaFreeWindow> freeWindows = const [],
 }) {
   final todayKey = arenaDateKey(arenaDateOnly(now));
   final isToday = dateKey == todayKey;
@@ -62,12 +72,35 @@ List<ArenaTimelineEntry> buildArenaDayTimeline({
       .toList()
     ..sort(arenaBookingChronologicalOrder);
 
+  // (início em minutos, ordem no empate, item): reserva antes do livre.
+  final items = <(int, int, ArenaTimelineEntry)>[
+    for (final b in day)
+      (
+        arenaNowMinutes(b.startTime) ?? 0,
+        0,
+        _entryFor(b, isToday: isToday, isPast: isPast, nowMin: nowMin),
+      ),
+    for (final w in freeWindows) (w.startMinutes, 1, ArenaTimelineFreeEntry(w)),
+  ];
+  // Ordenação estável: a ordem das reservas entre si já está certa.
+  final indexed = [for (var i = 0; i < items.length; i++) (i, items[i])]
+    ..sort((a, b) {
+      final byStart = a.$2.$1.compareTo(b.$2.$1);
+      if (byStart != 0) return byStart;
+      final byKind = a.$2.$2.compareTo(b.$2.$2);
+      return byKind != 0 ? byKind : a.$1.compareTo(b.$1);
+    });
+
   final out = <ArenaTimelineEntry>[];
   var nowPlaced = false;
-  for (final b in day) {
-    final entry =
-        _entryFor(b, isToday: isToday, isPast: isPast, nowMin: nowMin);
-    if (isToday && !nowPlaced && entry.phase == ArenaTimelinePhase.upcoming) {
+  for (final (_, (_, _, entry)) in indexed) {
+    final upcoming = switch (entry) {
+      ArenaTimelineBookingEntry(:final phase) =>
+        phase == ArenaTimelinePhase.upcoming,
+      ArenaTimelineFreeEntry() => true,
+      ArenaTimelineNowEntry() => false,
+    };
+    if (isToday && !nowPlaced && upcoming) {
       out.add(ArenaTimelineNowEntry(now));
       nowPlaced = true;
     }
@@ -133,4 +166,17 @@ int arenaBookingChronologicalOrder(
   final byCourt = a.courtName.compareTo(b.courtName);
   if (byCourt != 0) return byCourt;
   return a.id.compareTo(b.id);
+}
+
+/// Dias da faixa de 7 dias da aba Reservas.
+const int arenaBookingsStripDays = 7;
+
+/// Primeiro dia da faixa: hoje enquanto o dia escolhido cabe nos próximos 7
+/// dias; senão, a faixa centraliza o dia escolhido (3 antes, 3 depois).
+DateTime arenaBookingsStripStart(DateTime selected, DateTime today) {
+  final s = arenaDateOnly(selected);
+  final t = arenaDateOnly(today);
+  final diff = s.difference(t).inDays;
+  if (diff >= 0 && diff < arenaBookingsStripDays) return t;
+  return DateTime(s.year, s.month, s.day - arenaBookingsStripDays ~/ 2);
 }

@@ -240,17 +240,44 @@ ArenaBookingsDaySummary buildArenaBookingsDaySummary({
     if (e.phase == ArenaTimelinePhase.done) continue;
     due += arenaBookingDueReais(e.booking) ?? 0;
   }
-  final slots = ArenaScheduleGrouping.applyBookingsOverlay(
-    slots: daySlots.where((s) => s.dateKey == dateKey).toList(),
-    bookings: dayBookings,
-    dateKey: dateKey,
-  );
-  final grid = slots.where((s) => !s.isBlocked).length;
-  final booked = slots.where((s) => s.isBooked).length;
   return ArenaBookingsDaySummary(
     bookings: items.where((e) => !e.booking.isClassBlock).length,
     live: items.where((e) => e.phase == ArenaTimelinePhase.live).length,
     dueReais: due,
-    occupancyPercent: grid == 0 ? null : (booked / grid * 100).round(),
+    occupancyPercent: arenaDayOccupancyPercent(
+      slots: daySlots,
+      bookings: dayBookings,
+      dateKey: dateKey,
+    ),
   );
+}
+
+/// Grade do dia [dateKey] com as reservas aplicadas (horário reservado
+/// vira ocupado mesmo quando o slot ainda não foi gravado).
+List<ArenaSlot> arenaDaySlotsWithBookings({
+  required List<ArenaSlot> slots,
+  required List<ArenaManagerBooking> bookings,
+  required String dateKey,
+}) =>
+    ArenaScheduleGrouping.applyBookingsOverlay(
+      slots: slots.where((s) => s.dateKey == dateKey).toList(),
+      bookings: bookings,
+      dateKey: dateKey,
+    );
+
+/// Horários vendidos sobre os não bloqueados (0 a 100); `null` sem grade.
+int? arenaDayOccupancyPercent({
+  required List<ArenaSlot> slots,
+  required List<ArenaManagerBooking> bookings,
+  required String dateKey,
+}) {
+  final day = arenaDaySlotsWithBookings(
+    slots: slots,
+    bookings: bookings,
+    dateKey: dateKey,
+  );
+  final grid = day.where((s) => !s.isBlocked).length;
+  if (grid == 0) return null;
+  final booked = day.where((s) => s.isBooked).length;
+  return (booked / grid * 100).round();
 }

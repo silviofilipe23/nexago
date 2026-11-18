@@ -30,6 +30,7 @@ List<String> _ids(List<ArenaTimelineEntry> entries) => [
       for (final e in entries)
         switch (e) {
           ArenaTimelineNowEntry() => 'agora',
+          ArenaTimelineFreeEntry() => 'livre',
           ArenaTimelineBookingEntry(:final booking) => booking.id,
         },
     ];

@@ -21,6 +21,11 @@ import 'package:nexago_app/features/arena/domain/aulas/arena_class.dart';
 import 'package:nexago_app/features/arena/domain/aulas/arena_class_providers.dart';
 import 'package:nexago_app/features/arena/domain/aulas/arena_class_session.dart';
 import 'package:nexago_app/features/arena/presentation/arena_bookings_page.dart';
+import 'package:nexago_app/features/arena/domain/arena_bookings_day_providers.dart';
+import 'package:nexago_app/features/arena/domain/arena_court_providers.dart';
+import 'package:nexago_app/features/arenas/domain/arena_court.dart';
+import 'package:nexago_app/features/arenas/domain/arena_slot.dart';
+import 'package:nexago_app/features/arena/domain/arena_free_windows.dart';
 import 'package:nexago_app/features/arena/domain/arena_manager_booking.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_booking_card.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_bookings_insight_card.dart';
@@ -258,6 +263,15 @@ void main() {
             ),
           ),
           arenaBookingsTodayInsightProvider.overrideWith((ref) => null),
+          arenaBookingsStripSlotsProvider.overrideWith(
+            (ref) => Stream.value(const <ArenaSlot>[]),
+          ),
+          arenaBookingsDayFreeWindowsProvider.overrideWith(
+            (ref) => const <ArenaFreeWindow>[],
+          ),
+          arenaManagedCourtsProvider.overrideWith(
+            (ref) => Stream.value(const <ArenaCourt>[]),
+          ),
           managedArenaClassesProvider.overrideWith(
             (ref) => Stream.value(const <ArenaClass>[]),
           ),

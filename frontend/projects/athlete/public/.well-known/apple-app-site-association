@@ -17,6 +17,10 @@
           {
             "/": "/convite/*",
             "comment": "Convite para jogar numa reserva de quadra (direto ou link): abre o app nexaGO quando instalado."
+          },
+          {
+            "/": "/reservar/?*",
+            "comment": "Página de reserva da arena (/reservar/:arenaId e subcaminhos): abre o app nexaGO quando instalado. /reservar sozinho fica no portal."
           }
         ]
       }

@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../../core/links/nexago_links.dart';
+import '../../../core/deep_link/app_domains.dart';
 import '../../arenas/domain/arena_slot.dart';
 import 'arena_date_utils.dart';
 import 'arena_now.dart';
@@ -147,7 +147,7 @@ List<ArenaFreeWindow> buildArenaFreeWindows({
 /// Link público para reservar na arena (portal do atleta; quem tem o app
 /// cai nele).
 String arenaPublicBookingUrl(String arenaId) =>
-    '$kAthletePortalBaseUrl/reservar/${Uri.encodeComponent(arenaId)}';
+    AppShareLinks.arenaBooking(arenaId);
 
 /// Texto do "Divulgar" de um horário livre.
 String arenaFreeWindowShareText({

@@ -9,14 +9,16 @@ HTTPS — enquanto continuarem assim, nenhum link para eles abre o app.
 
 ## O que o app reivindica
 
-Só prefixos de convite — reivindicar o host inteiro faria toda a web do portal
-do atleta abrir no app.
+Só prefixos específicos — reivindicar o host inteiro faria toda a web do
+portal do atleta abrir no app.
 
 | Prefixo | Para quê |
 | --- | --- |
 | `/convite-dupla/:id` | Convite para parceiro **sem conta**: leva ao cadastro e, no fim dele, ao convite. |
 | `/torneios-convite/:id` | Convite **já criado**, compartilhado para cutucar quem ainda não respondeu. |
 | `/convite/:id` | Convite para jogar numa **reserva de quadra**: `{bookingId}_{uid}` (direto) ou `link_{bookingId}` (link multiuso, até lotar). O Android já reivindicava desde o 1.0.1; o iOS passou a reivindicar em 19/10/2026. |
+| `/reservar/:arenaId` | **Página de reserva da arena** (link gerado por `AppShareLinks.arenaBooking`: "Divulgar" horário livre, convite de professor). Abre o detalhe da arena (`/arena/:arenaId`, query preservada). Subcaminhos do fluxo do portal (`/agendar`, `/pagamento`) recomeçam pela arena; `/clubinho/:sessionId` abre a sessão (`/clubinho/:sessionId`). `/reservar` sozinho (a lista) fica no portal. Também por `nexago://reservar/:arenaId`. Desde 18/11/2026: só builds a partir daí abrem o app; os anteriores seguem no portal. |
+| `/torneios/**` | **Só Android** (manifest com `pathPrefix="/torneios"`); o AASA não reivindica, então no iPhone abre o portal. Ver a armadilha de link novo do portal caindo no app antigo. |
 
 O `:id` do `/convite-dupla` é o **token** do convite externo — o id de um doc
 em `tournamentExternalPartnerInvites`, aleatório e não adivinhável. Uso único e
@@ -39,6 +41,7 @@ prefixos têm rota no portal do atleta (`frontend/projects/athlete/src/app/convi
   anúncio automático, com termo LGPD e confirmação de nível) por cima do estado
   do convite.
 - `/convite/:id` — aceite/recusa do convite de reserva.
+- `/reservar/:arenaId` — página da arena com a grade de horários (já existia).
 
 Até 27/10/2026 os dois primeiros caíam no `**` da SPA (painel/login) e o convite
 se perdia.
@@ -48,6 +51,7 @@ se perdia.
 | iOS | `nexago_app/ios/Runner/Runner.entitlements` e `RunnerDebug.entitlements` (`applinks:atleta.nexago.com.br`) |
 | Android | `nexago_app/android/app/src/main/AndroidManifest.xml` (intent-filter `autoVerify`, `pathPrefix="/convite-dupla"`) |
 | Dart | `nexago_app/lib/core/deep_link/app_deep_link_logic.dart` (`kAppDeepLinkHosts` + `resolveAppDeepLinkPath`) |
+| Link gerado | `nexago_app/lib/core/deep_link/app_domains.dart` (`AppShareLinks`) — nunca montar a URL à mão |
 
 ## Arquivos de associação
 

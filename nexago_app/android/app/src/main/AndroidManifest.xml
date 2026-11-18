@@ -80,6 +80,18 @@
                     android:host="atleta.nexago.com.br"
                     android:pathPrefix="/torneios-convite"/>
             </intent-filter>
+            <!-- App Links: página de reserva da arena (AppShareLinks.arenaBooking).
+                 Com a barra no fim: `/reservar` sozinho (lista do portal) e
+                 qualquer `/reservar-xyz` seguem no navegador. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="atleta.nexago.com.br"
+                    android:pathPrefix="/reservar/"/>
+            </intent-filter>
             <!-- Deep link custom scheme (dev / fallback) -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
@@ -92,6 +104,13 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="nexago" android:host="torneios"/>
+            </intent-filter>
+            <!-- Reservar na arena: nexago://reservar/:arenaId (dev / fallback). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="nexago" android:host="reservar"/>
             </intent-filter>
             <!-- Loja · vitrine: nexago://loja (o https /loja é do portal). -->
             <intent-filter>

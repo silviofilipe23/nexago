@@ -5,9 +5,9 @@ import 'app_domains.dart';
 /// Só vale host que sirva de fato `/.well-known/apple-app-site-association` e
 /// `assetlinks.json` — sem esses arquivos o sistema operacional nunca entrega
 /// o link pro app. Hoje isso é o portal do atleta, que também é quem serve o
-/// convite de dupla por link (prefixo `/convite-dupla` — ver
-/// [resolveAppDeepLinkPath] e o `AndroidManifest`; o resto do portal continua
-/// abrindo no navegador).
+/// convite de dupla por link (prefixo `/convite-dupla`) e a página de reserva
+/// da arena (`/reservar/:arenaId`) — ver [resolveAppDeepLinkPath] e o
+/// `AndroidManifest`; o resto do portal continua abrindo no navegador.
 const kAppDeepLinkHosts = {AppDomains.athletePortalHost};
 
 /// Resolve uma URI externa para um path interno do GoRouter.
@@ -36,6 +36,10 @@ String? resolveAppDeepLinkPath(Uri uri) {
     return _withQuery('/${segments.join('/')}', uri);
   }
 
+  if (segments.first == 'reservar' && segments.length >= 2) {
+    return _arenaBookingPath(segments, uri);
+  }
+
   // Loja: só pelo esquema do app (`nexago://loja`). O `/loja` HTTPS é do
   // portal e segue abrindo no navegador. Produto: `produto/:id` ou `p/:id`
   // (o caminho curto do link do portal); `pedidos` e `pedidos/:id` (Meus
@@ -60,11 +64,27 @@ String? resolveAppDeepLinkPath(Uri uri) {
   return null;
 }
 
+/// Página de reserva da arena no portal (`/reservar/:arenaId/**`, ver
+/// `AppShareLinks.arenaBooking`) → detalhe da arena no app.
+///
+/// As etapas do fluxo do portal (`agendar`, `pagamento`) dependem de estado
+/// que o link não carrega (horário escolhido, Pix), então recomeçam pela
+/// arena. A sessão de Clubinho tem tela própria no app (`/clubinho/:id`).
+String _arenaBookingPath(List<String> segments, Uri uri) {
+  if (segments.length >= 4 && segments[2] == 'clubinho') {
+    return '/clubinho/${Uri.encodeComponent(segments[3])}';
+  }
+  return _withQuery('/arena/${Uri.encodeComponent(segments[1])}', uri);
+}
+
 List<String>? _deepLinkPathSegments(Uri uri) {
   if (uri.scheme == 'nexago') {
     if (uri.host == 'mercadopago') return null;
     if (uri.host == 'torneios') {
       return ['torneios', ...uri.pathSegments.where((s) => s.isNotEmpty)];
+    }
+    if (uri.host == 'reservar') {
+      return ['reservar', ...uri.pathSegments.where((s) => s.isNotEmpty)];
     }
     if (uri.host == 'convite-dupla') {
       return ['convite-dupla', ...uri.pathSegments.where((s) => s.isNotEmpty)];

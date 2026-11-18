@@ -149,7 +149,13 @@ describe('links de vaga liberada', () => {
    * categoria lotada antes de consultar o servidor — beco sem saída para quem tem a vaga.
    * Enquanto a versão publicada for essa, os links de vaga precisam morar fora daqui.
    */
-  const PREFIXOS_DO_APP = ['/torneios', '/torneios-convite', '/convite/', '/convite-dupla'];
+  const PREFIXOS_DO_APP = [
+    '/torneios',
+    '/torneios-convite',
+    '/convite/',
+    '/convite-dupla',
+    '/reservar/',
+  ];
 
   it('nenhum link de vaga cai num caminho que o app publicado sequestra', () => {
     const paths = [

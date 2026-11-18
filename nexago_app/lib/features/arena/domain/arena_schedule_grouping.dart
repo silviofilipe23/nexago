@@ -131,7 +131,12 @@ abstract final class ArenaScheduleGrouping {
       final ps = (b.data['paymentStatus'] as String?)?.toLowerCase().trim();
       var paymentShort = arenaBookingPaymentLabel(b.data);
       if (ps == 'paid' || ps == 'approved') {
-        paymentShort = 'Pix';
+        // O meio vem do documento: pago no cartão não vira "Pix".
+        paymentShort = switch (arenaBookingPaymentInfo(b.data).channel) {
+          'Cartão' => 'Cartão',
+          'Mercado Pago' => 'MP',
+          _ => 'Pix',
+        };
       } else if (paymentShort.contains('Mercado Pago')) {
         paymentShort = 'MP';
       }

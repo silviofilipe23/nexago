@@ -36,8 +36,10 @@ abstract final class ArenaBookingsGrouping {
     return null;
   }
 
+  /// Soma em R$ das reservas que valem receita: cancelada não entra (a aba
+  /// Passadas mostra as canceladas no histórico, mas não as soma).
   static double sumReais(Iterable<ArenaManagerBooking> bookings) {
-    return bookings.fold<double>(
+    return bookings.where((b) => !b.isCanceled).fold<double>(
       0,
       (acc, b) => acc + (amountReais(b.data) ?? 0),
     );
@@ -119,7 +121,7 @@ abstract final class ArenaBookingsGrouping {
   }
 
   static String sectionSubtitleRevenue(List<ArenaManagerBooking> bookings) {
-    final n = bookings.length;
+    final n = bookings.where((b) => !b.isCanceled).length;
     final reserva = n == 1 ? '1 reserva' : '$n reservas';
     final total = sumReais(bookings);
     final money = NumberFormat.currency(locale: 'pt_BR', symbol: r'R$')

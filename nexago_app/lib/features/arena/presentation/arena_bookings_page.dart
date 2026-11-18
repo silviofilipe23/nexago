@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:nexago_app/core/errors/friendly_error_message.dart';
 import 'package:nexago_app/core/layout/nexa_page_header.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/router/routes.dart';
@@ -46,7 +47,14 @@ class ArenaBookingsPage extends ConsumerWidget {
             return const _BookingsScrollBody();
           },
           loading: () => const ArenaLoadingState(label: 'Carregando arena...'),
-          error: (e, _) => ArenaErrorState(message: '$e'),
+          error: (e, _) => ArenaErrorState(
+            message: friendlyErrorMessage(
+              e,
+              action: 'Não foi possível carregar a arena',
+              logReason: 'arena_bookings:arena',
+            ),
+            onRetry: () => ref.invalidate(managedArenaIdProvider),
+          ),
         ),
       ),
     );
@@ -395,7 +403,7 @@ class _FlatList {
       error: (e, _) => [
         SliverFillRemaining(
           hasScrollBody: false,
-          child: ArenaErrorState(message: 'Erro ao carregar reservas.\n$e'),
+          child: ArenaErrorState(message: _loadErrorMessage(e)),
         ),
       ],
     );
@@ -468,7 +476,7 @@ class _GroupedList {
       error: (e, _) => [
         SliverFillRemaining(
           hasScrollBody: false,
-          child: ArenaErrorState(message: 'Erro ao carregar reservas.\n$e'),
+          child: ArenaErrorState(message: _loadErrorMessage(e)),
         ),
       ],
     );
@@ -521,3 +529,9 @@ _GroupedFlatIndex _groupedFlatIndex(
   }
   return _GroupedFlatIndex.header(0, '', null);
 }
+
+String _loadErrorMessage(Object error) => friendlyErrorMessage(
+      error,
+      action: 'Não foi possível carregar as reservas',
+      logReason: 'arena_bookings:list',
+    );

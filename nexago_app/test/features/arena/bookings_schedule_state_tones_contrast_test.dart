@@ -279,7 +279,7 @@ final _historyScreen = ToneScreen(
 
 final List<ToneScreen> arenaBookingsToneScreens = [
   ToneScreen(
-    'Reservas: card ativo (check-in pendente, +1) e cancelado',
+    'Reservas: card ativo (check-in pendente) e cancelado',
     (tester, theme) => pumpTonePiece(
       tester,
       theme,
@@ -299,7 +299,7 @@ final List<ToneScreen> arenaBookingsToneScreens = [
       'CANCELADA',
       'Pendente',
       Icons.schedule_rounded,
-      '+1',
+      // "+1" saiu do verde: o contador de jogadores é neutro (texto do tema).
       'marca',
     ],
   ),

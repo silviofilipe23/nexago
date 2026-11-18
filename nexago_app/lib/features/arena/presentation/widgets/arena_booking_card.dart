@@ -7,6 +7,7 @@ import '../../../../core/formatting/app_currency_format.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../../athlete/domain/athlete_profile.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
 import '../../domain/arena_booking_labels.dart';
@@ -29,20 +30,16 @@ class ArenaBookingCard extends ConsumerWidget {
         ? null
         : ref.watch(athleteProfileByIdProvider(athleteId));
 
+    final colors = context.themeColors;
     final statusBadge = _businessStatusBadge(booking.data);
     final statusColor = _statusBadgeColor(statusBadge);
-    final paymentLabel = _shortPaymentLabel(
-      arenaBookingPaymentLabel(booking.data),
-    );
+    final paymentLabel = arenaBookingPaymentShortLabel(booking.data);
     final sportLabel = arenaBookingSportLabel(booking.data);
     final attendanceLabel = ArenaBookingsGrouping.attendanceChipLabel(booking);
     final isAttendancePending = attendanceLabel.toLowerCase() == 'pendente';
-    final participants =
-        (booking.data['confirmedParticipants'] as num?)?.toInt() ?? 1;
+    final extraPlayers = arenaBookingExtraPlayers(booking);
     final amount = ArenaBookingsGrouping.amountReais(booking.data);
-    final amountStr = amount != null
-        ? formatBRL(amount)
-        : null;
+    final amountStr = amount != null ? formatBRL(amount) : null;
 
     return Material(
       color: Colors.transparent,
@@ -87,10 +84,10 @@ class ArenaBookingCard extends ConsumerWidget {
                                   Flexible(
                                     child: Text(
                                       '${booking.startTime} – ${booking.endTime}',
-                                      style: _monoStyle(
+                                      style: AppTypography.mono(
                                         fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.onSurface,
+                                        color: colors.onSurface,
+                                        letterSpacing: 0.2,
                                       ),
                                     ),
                                   ),
@@ -106,10 +103,10 @@ class ArenaBookingCard extends ConsumerWidget {
                               SizedBox(width: 8),
                               Text(
                                 amountStr,
-                                style: _monoStyle(
+                                style: AppTypography.mono(
                                   fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.onSurface,
+                                  color: colors.onSurface,
+                                  letterSpacing: 0.2,
                                 ),
                               ),
                             ],
@@ -122,7 +119,7 @@ class ArenaBookingCard extends ConsumerWidget {
                             _AthleteAvatarRow(
                               nameAsync: nameAsync,
                               profileAsync: profileAsync,
-                              showSecond: participants >= 2,
+                              extraPlayers: extraPlayers,
                             ),
                             SizedBox(width: 12),
                             Expanded(
@@ -136,38 +133,38 @@ class ArenaBookingCard extends ConsumerWidget {
                                         fontWeight: FontWeight.w800,
                                         fontSize: 15,
                                         height: 1.25,
-                                        color: AppColors.onSurface,
+                                        color: colors.onSurface,
                                       ),
                                     )
                                   : nameAsync.when(
-                                data: (name) => Text(
-                                  name,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 15,
-                                    height: 1.25,
-                                    color: AppColors.onSurface,
-                                  ),
-                                ),
-                                loading: () => Text(
-                                  'Carregando…',
-                                  style: TextStyle(
-                                    color: AppColors.onSurfaceMuted,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                error: (_, __) => Text(
-                                  'Atleta',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 15,
-                                    color: AppColors.onSurface,
-                                  ),
-                                ),
-                              ),
+                                      data: (name) => Text(
+                                        name,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 15,
+                                          height: 1.25,
+                                          color: colors.onSurface,
+                                        ),
+                                      ),
+                                      loading: () => Text(
+                                        'Carregando…',
+                                        style: TextStyle(
+                                          color: colors.onSurfaceMuted,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      error: (_, __) => Text(
+                                        'Atleta',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 15,
+                                          color: colors.onSurface,
+                                        ),
+                                      ),
+                                    ),
                             ),
                           ],
                         ),
@@ -214,9 +211,8 @@ class ArenaBookingCard extends ConsumerWidget {
                           _MetaChip(
                             icon: Icons.schedule_rounded,
                             label: attendanceLabel,
-                            accent: isAttendancePending
-                                ? AppColors.pending
-                                : null,
+                            accent:
+                                isAttendancePending ? AppColors.pending : null,
                           ),
                         ],
                       ],
@@ -249,35 +245,6 @@ class ArenaBookingCard extends ConsumerWidget {
       _ => AppColors.win,
     };
   }
-
-  static String _shortPaymentLabel(String label) {
-    final l = label.toLowerCase();
-    if (l.contains('pago integral')) return 'PIX · Pago integral';
-    if (l.contains('sinal pago')) return 'PIX · Sinal pago';
-    if (l.contains('aguardando')) return 'PIX · Aguardando';
-    if (l.contains('não concluído')) return 'PIX · Não pago';
-    if (l.contains('direto')) return 'Direto / sem link';
-    if (l.contains('mercado pago')) return 'Mercado Pago';
-    if (l.contains('na arena')) return 'Pagamento na arena';
-    if (l.contains('app') || l.contains('plataforma')) {
-      return 'App / plataforma';
-    }
-    return label;
-  }
-
-  static TextStyle _monoStyle({
-    required double fontSize,
-    required FontWeight fontWeight,
-    required Color color,
-  }) {
-    return TextStyle(
-      fontFamily: 'monospace',
-      fontSize: fontSize,
-      fontWeight: fontWeight,
-      color: color,
-      letterSpacing: 0.2,
-    );
-  }
 }
 
 class _StatusBadge extends StatelessWidget {
@@ -288,7 +255,11 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ink = context.themeColors.readableTone(color);
+    final colors = context.themeColors;
+    // Cinza de "concluída" vem cru do AppColors: no claro, o do tema.
+    final ink = color == AppColors.onSurfaceMuted
+        ? colors.onSurfaceMuted
+        : colors.readableTone(color);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -324,21 +295,25 @@ class _AthleteAvatarRow extends StatelessWidget {
   const _AthleteAvatarRow({
     required this.nameAsync,
     required this.profileAsync,
-    required this.showSecond,
+    required this.extraPlayers,
   });
 
   final AsyncValue<String> nameAsync;
   final AsyncValue<AthleteProfile?>? profileAsync;
-  final bool showSecond;
+
+  /// Jogadores além do dono (convidados, placar ou `confirmedParticipants`).
+  final int extraPlayers;
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.themeColors;
     final name = nameAsync.valueOrNull ?? '';
     final initials = ArenaBookingsGrouping.athleteInitials(name);
     final url = profileAsync?.valueOrNull?.avatarUrl?.trim();
+    final showExtra = extraPlayers > 0;
 
     return SizedBox(
-      width: showSecond ? 44 : 32,
+      width: showExtra ? 50 : 32,
       height: 32,
       child: Stack(
         clipBehavior: Clip.none,
@@ -349,19 +324,20 @@ class _AthleteAvatarRow extends StatelessWidget {
               imageUrl: url,
               initials: initials,
               size: 32,
-              borderColor: AppColors.surfaceCard,
+              borderColor: colors.surfaceCard,
             ),
           ),
-          if (showSecond)
+          if (showExtra)
             Positioned(
               left: 18,
               child: _BookingAvatar(
                 imageUrl: null,
-                initials: '+1',
+                initials: '+$extraPlayers',
                 size: 32,
-                borderColor: AppColors.surfaceCard,
-                backgroundColor: AppColors.win.withValues(alpha: 0.25),
-                foregroundColor: context.themeColors.win,
+                borderColor: colors.surfaceCard,
+                backgroundColor: colors.surfaceRaised,
+                foregroundColor: colors.onSurface,
+                maxInitials: 3,
               ),
             ),
         ],
@@ -378,6 +354,7 @@ class _BookingAvatar extends StatelessWidget {
     required this.borderColor,
     this.backgroundColor,
     this.foregroundColor,
+    this.maxInitials = 2,
   });
 
   final String? imageUrl;
@@ -386,14 +363,15 @@ class _BookingAvatar extends StatelessWidget {
   final Color borderColor;
   final Color? backgroundColor;
   final Color? foregroundColor;
+  final int maxInitials;
 
   @override
   Widget build(BuildContext context) {
     final radius = size / 2;
     final bg = backgroundColor ?? AppColors.brand.withValues(alpha: 0.22);
     final fg = foregroundColor ?? AppColors.brand;
-    final displayInitials = initials.length > 2
-        ? initials.substring(0, 2)
+    final displayInitials = initials.length > maxInitials
+        ? initials.substring(0, maxInitials)
         : initials;
 
     if (imageUrl != null && imageUrl!.isNotEmpty) {
@@ -472,12 +450,12 @@ class _MetaChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = context.themeColors.readableTone(
-      accent ?? AppColors.onSurfaceMuted,
-    );
+    final colors = context.themeColors;
+    final fg =
+        accent != null ? colors.readableTone(accent!) : colors.onSurfaceMuted;
     final bg = accent != null
         ? accent!.withValues(alpha: 0.14)
-        : AppColors.surfaceRaised;
+        : context.themeColors.surfaceRaised;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -496,7 +474,7 @@ class _MetaChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontFamily: 'monospace',
+              fontFamily: AppTypography.monoFontFamily,
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: fg,

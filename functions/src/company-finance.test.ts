@@ -20,6 +20,7 @@ import {
   deductionsTotal,
   holdingOf,
   inAccountCents,
+  isSeedRecord,
   monthKeyOf,
   monthResult,
   monthWindow,
@@ -108,6 +109,15 @@ describe("company-finance: fontes de receita", () => {
     const m = nov(b);
     assert.equal(m.revenue.loja, 32021);
     assert.equal(m.deductions.cashback, 1200);
+  });
+
+  it("loja: pedido de demonstração (seed) não é receita nem cashback", () => {
+    const b = book();
+    addStoreOrder(b, {paidAt: NOV, totalCents: 8140, walletCents: 4200, refundedCents: 0, seed: true});
+    addStoreOrder(b, {paidAt: NOV, totalCents: 10000, walletCents: 500, seed: false});
+    const m = nov(b);
+    assert.equal(m.revenue.loja, 10000);
+    assert.equal(m.deductions.cashback, 500);
   });
 
   it("compra de estoque usa o custo com frete; ajuste e transferência não são compra", () => {
@@ -207,5 +217,15 @@ describe("company-finance: saldo", () => {
     ]}), 25330);
     assert.equal(pendingReturnSettlementCents({settlement: {type: "reembolso", status: "pendente", amountCents: 900}}), 900);
     assert.equal(pendingReturnSettlementCents({settlement: {type: "saldo", status: "pendente", amountCents: 900}}), 0);
+  });
+
+  it("devolução pendente de pedido ou troca de demonstração (seed) não é provisão", () => {
+    assert.equal(pendingStoreRefundCents({seed: true, refunds: [
+      {status: "pendente", destination: "original", amountCents: 12340},
+    ]}), 0);
+    assert.equal(pendingReturnSettlementCents({seed: true, settlement: {type: "reembolso", status: "pendente", amountCents: 900}}), 0);
+    assert.equal(isSeedRecord({seed: true}), true);
+    assert.equal(isSeedRecord({seed: "true"}), false);
+    assert.equal(isSeedRecord({}), false);
   });
 });

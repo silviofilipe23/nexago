@@ -9,6 +9,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arena/domain/arena_access_providers.dart';
+import 'package:nexago_app/features/arena/domain/arena_booking_day_timeline.dart';
+import 'package:nexago_app/features/arena/domain/arena_bookings_day_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_club.dart';
 import 'package:nexago_app/features/arena/domain/arena_club_admin_providers.dart';
@@ -174,7 +176,7 @@ void main() {
     expect(find.text('Desbloquear'), findsOneWidget);
   });
 
-  // --- arena_bookings_page.dart: atalhos "Horários fixos" e "Clubinho" ---
+  // --- arena_bookings_page.dart: linha de atalhos "Horários fixos" e "Clubinho" ---
   // Ambos levam a telas cuja única ação é criar (não há visão "só leitura"),
   // então o atalho inteiro some para quem não escreve agenda.
 
@@ -190,6 +192,14 @@ void main() {
             (ref) => const AsyncValue<List<ArenaManagerBooking>>.data(
               <ArenaManagerBooking>[],
             ),
+          ),
+          // Linha do dia (Hoje): sem Firestore nem relógio.
+          arenaBookingsTodayTimelineProvider.overrideWith(
+            (ref) => const AsyncValue<List<ArenaTimelineEntry>>.data([]),
+          ),
+          arenaBookingsTodaySummaryProvider.overrideWith((ref) => null),
+          arenaManagerBookingsStreamProvider.overrideWith(
+            (ref) => Stream.value(const <ArenaManagerBooking>[]),
           ),
           arenaBookingsTodayInsightProvider.overrideWith((ref) => null),
           arenaActiveRecurringSeriesProvider.overrideWith(
@@ -219,25 +229,25 @@ void main() {
       'manutencao nao ve atalhos de horarios fixos nem clubinho',
       (tester) async {
     await pumpBookings(tester, overridesForRole(ArenaStaffRole.manutencao));
-    expect(find.text('Horários fixos (mensalistas)'), findsNothing);
-    expect(find.text('Clubinho (jogo aberto)'), findsNothing);
+    expect(find.text('Horários fixos'), findsNothing);
+    expect(find.text('Clubinho'), findsNothing);
   });
 
   testWidgets('recepcao ve atalhos de horarios fixos e clubinho',
       (tester) async {
     await pumpBookings(tester, overridesForRole(ArenaStaffRole.recepcao));
-    expect(find.text('Horários fixos (mensalistas)'), findsOneWidget);
-    expect(find.text('Clubinho (jogo aberto)'), findsOneWidget);
+    expect(find.text('Horários fixos'), findsOneWidget);
+    expect(find.text('Clubinho'), findsOneWidget);
   });
 
   // Aulas têm visão só leitura (manutenção acompanha o dia sem fazer
   // chamada), então o atalho aparece para quem LÊ a agenda.
   testWidgets('manutencao e recepcao veem o atalho de Aulas', (tester) async {
     await pumpBookings(tester, overridesForRole(ArenaStaffRole.manutencao));
-    expect(find.text('Aulas (turmas e chamada)'), findsOneWidget);
+    expect(find.text('Aulas'), findsOneWidget);
 
     await pumpBookings(tester, overridesForRole(ArenaStaffRole.recepcao));
-    expect(find.text('Aulas (turmas e chamada)'), findsOneWidget);
+    expect(find.text('Aulas'), findsOneWidget);
   });
 
   // --- arena_recurring_list_page.dart: botão "Novo" ---

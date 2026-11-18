@@ -30,6 +30,7 @@ class ArenaDashboardPeriodMetrics {
     required this.peakBadge,
     required this.chartTotal7Days,
     required this.chartTrendPercent,
+    this.comparisonLabel,
   });
 
   final ArenaDashboardPeriod period;
@@ -46,6 +47,10 @@ class ArenaDashboardPeriodMetrics {
   /// Soma dos últimos 7 dias (gráfico).
   final double chartTotal7Days;
 
-  /// Variação % do último dia vs média dos 6 anteriores (gráfico).
+  /// Variação % dos últimos 7 dias vs os 7 anteriores (gráfico).
   final double? chartTrendPercent;
+
+  /// Base da variação do Faturamento ("vs. o mesmo dia da semana passada");
+  /// `null` quando não há variação a mostrar.
+  final String? comparisonLabel;
 }

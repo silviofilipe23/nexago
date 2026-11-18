@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../../../core/ui/app_snackbar.dart';
 import '../../../athlete/domain/favorites_providers.dart';
 import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_staff_role.dart';
@@ -74,10 +73,6 @@ class _FollowersBody extends ConsumerWidget {
   final ArenaFollowersInsights insights;
   final String? arenaId;
 
-  void _comingSoon(BuildContext context, String label) {
-    showAppSnackBar(context, '$label em breve.');
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -131,44 +126,28 @@ class _FollowersBody extends ConsumerWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
-        SizedBox(height: 18),
-        Row(
-          children: [
-            if (canPromocoes) ...[
-              Expanded(
-                child: FilledButton(
-                  onPressed: arenaId == null || arenaId!.isEmpty
-                      ? () => _comingSoon(context, 'Promoções')
-                      : () => ArenaPromotionsSheet.show(
-                            context,
-                            arenaId: arenaId!,
-                          ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                  child: Text('Promoções'),
-                ),
+        // "Criar torneio" saiu: levava a "em breve". Promoções fica sozinho,
+        // e só para quem escreve a área.
+        if (canPromocoes) ...[
+          SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: arenaId == null || arenaId!.isEmpty
+                  ? null
+                  : () => ArenaPromotionsSheet.show(
+                        context,
+                        arenaId: arenaId!,
+                      ),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.black,
+                padding: const EdgeInsets.symmetric(vertical: 14),
               ),
-              SizedBox(width: 10),
-            ],
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => _comingSoon(context, 'Criar torneio'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: context.themeColors.onSurface,
-                  side: BorderSide(
-                    color: context.themeColors.onSurfaceMuted
-                        .withValues(alpha: 0.4),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: Text('Criar torneio'),
-              ),
+              child: Text('Promoções'),
             ),
-          ],
-        ),
+          ),
+        ],
       ],
     );
   }

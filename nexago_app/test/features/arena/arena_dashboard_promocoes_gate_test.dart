@@ -71,8 +71,8 @@ void main() {
     await pumpFollowersCard(
         tester, overridesForRole(ArenaStaffRole.manutencao));
     expect(find.text('Promoções'), findsNothing);
-    // "Criar torneio" nao depende de `promocoes`; continua visivel.
-    expect(find.text('Criar torneio'), findsOneWidget);
+    // "Criar torneio" saiu do card (levava a "em breve").
+    expect(find.text('Criar torneio'), findsNothing);
   });
 
   testWidgets('recepcao nao ve o botao de Promocoes', (tester) async {

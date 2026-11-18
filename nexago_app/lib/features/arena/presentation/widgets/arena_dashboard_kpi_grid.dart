@@ -108,15 +108,19 @@ class _KpiTile extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: 6),
-                Text(
-                  item.value,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.6,
-                    height: 1.05,
-                    color: context.themeColors.onSurface,
+                // Valor em uma linha só: "R\$ 1.240,00" quebrava no meio.
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    item.value,
+                    maxLines: 1,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                      height: 1.05,
+                      color: context.themeColors.onSurface,
+                    ),
                   ),
                 ),
               ],

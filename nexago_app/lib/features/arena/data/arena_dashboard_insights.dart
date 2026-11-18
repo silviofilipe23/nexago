@@ -2,11 +2,15 @@ import '../domain/arena_dashboard_summary.dart';
 
 enum ArenaDashboardInsightTone { warning, success, highlight }
 
+/// Qual regra gerou a linha — decide a ação que o card oferece.
+enum ArenaDashboardInsightKind { lowOccupancy, strongDay, bestWeekday }
+
 class ArenaDashboardInsightLine {
   const ArenaDashboardInsightLine({
     required this.message,
     required this.tone,
     required this.iconName,
+    this.kind = ArenaDashboardInsightKind.bestWeekday,
   });
 
   final String message;
@@ -14,6 +18,8 @@ class ArenaDashboardInsightLine {
 
   /// Material icon key: warning, check, crown
   final String iconName;
+
+  final ArenaDashboardInsightKind kind;
 }
 
 /// Textos automáticos para o painel (regras de negócio leves, sem I/O).
@@ -35,9 +41,10 @@ abstract final class ArenaDashboardInsights {
       out.add(
         ArenaDashboardInsightLine(
           message:
-              'Baixa ocupação hoje. Alguns horários ainda estão livres — uma promoção rápida pode ajudar a encher.',
+              'Baixa ocupação hoje. Ainda há horários livres, e uma promoção rápida pode ajudar a encher.',
           tone: ArenaDashboardInsightTone.warning,
           iconName: 'warning',
+          kind: ArenaDashboardInsightKind.lowOccupancy,
         ),
       );
     }
@@ -49,6 +56,7 @@ abstract final class ArenaDashboardInsights {
               'Ótimo desempenho hoje. Suas quadras estão com boa movimentação no período.',
           tone: ArenaDashboardInsightTone.success,
           iconName: 'check',
+          kind: ArenaDashboardInsightKind.strongDay,
         ),
       );
     }
@@ -64,6 +72,7 @@ abstract final class ArenaDashboardInsights {
               'Soma ${_shortMoney(s.bestWeekdayRevenue)} na amostra dos últimos dias.',
           tone: ArenaDashboardInsightTone.highlight,
           iconName: 'crown',
+          kind: ArenaDashboardInsightKind.bestWeekday,
         ),
       );
     }

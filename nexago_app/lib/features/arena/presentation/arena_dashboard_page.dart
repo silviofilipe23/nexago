@@ -32,7 +32,7 @@ class ArenaDashboardPage extends ConsumerWidget {
       backgroundColor: context.themeColors.canvas,
       floatingActionButton: Padding(
         padding: EdgeInsets.only(
-          bottom: ArenaDashboardTokens.shellFabBottomPadding(context) - 16,
+          bottom: ArenaDashboardTokens.shellFabLift(context),
         ),
         child: const ArenaHomeNewActionButton(),
       ),

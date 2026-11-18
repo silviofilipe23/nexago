@@ -12,7 +12,8 @@ import 'package:nexago_app/features/arena/domain/arena_access_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_club.dart';
 import 'package:nexago_app/features/arena/domain/arena_club_admin_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_dashboard_period.dart';
-import 'package:nexago_app/features/arena/domain/arena_dashboard_period_metrics.dart';
+import 'package:nexago_app/features/arena/domain/arena_cockpit.dart';
+import 'package:nexago_app/features/arena/domain/arena_dashboard_kpi_badge.dart';
 import 'package:nexago_app/features/arena/domain/arena_financial_logic.dart';
 import 'package:nexago_app/features/arena/domain/arena_plan.dart';
 import 'package:nexago_app/features/arena/domain/arena_plan_providers.dart';
@@ -41,7 +42,7 @@ import 'package:nexago_app/features/arena/presentation/professionals/widgets/are
 import 'package:nexago_app/features/arena/presentation/widgets/arena_dashboard_followers_card.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_dashboard_kpi_grid.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_dashboard_reputation_section.dart';
-import 'package:nexago_app/features/arena/presentation/widgets/arena_dashboard_revenue_chart_card.dart';
+import 'package:nexago_app/features/arena/presentation/widgets/arena_cockpit_kpi_strip.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_financial_widgets.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_mercadopago_connect_card.dart';
 import 'package:nexago_app/features/arena/presentation/widgets/arena_platform_pix_card.dart';
@@ -229,23 +230,24 @@ List<Override> _sessionOverrides(ArenaClubSession session) => [
 
 // ── Painel e financeiro ────────────────────────────────────────────────────
 
-ArenaDashboardPeriodMetrics _metrics(double trend) =>
-    ArenaDashboardPeriodMetrics(
-      period: ArenaDashboardPeriod.today,
-      revenue: 250,
-      bookingsCount: 3,
-      occupancyRatePercent: 50,
-      peakHour: 19,
-      revenueBadge: null,
-      occupancyBadge: null,
-      bookingsBadge: null,
-      peakBadge: null,
-      chartTotal7Days: 1800,
-      chartTrendPercent: trend,
-    );
-
-const _chartValues = <double>[200, 240, 180, 260, 300, 320, 300];
-const _chartLabels = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+/// Cockpit com uma variação de cada sinal: ocupação em alta, reservas em
+/// queda, ticket em alta.
+const _cockpit = ArenaCockpit(
+  period: ArenaDashboardPeriod.week,
+  revenue: 1800,
+  revenuePrev: 1600,
+  bookings: 18,
+  bookingsPrev: 20,
+  occupancy: 62,
+  occupancyPrev: 50,
+  ticket: 100,
+  ticketPrev: 80,
+  peakHour: 19,
+  seriesDays: [],
+  revenueSeries: [],
+  bookingsSeries: [],
+  comparisonLabel: 'vs. os 7 dias anteriores',
+);
 
 ArenaReviewReputationMetrics _reputation(double repliedPercent) =>
     ArenaReviewReputationMetrics(
@@ -617,28 +619,14 @@ final List<ToneScreen> arenaGestorToneScreens = [
     ['+12%', '−8%'],
   ),
   ToneScreen(
-    'Painel: faturamento em alta e em queda',
+    'Painel: indicadores do cockpit em alta e em queda',
     (tester, theme) => pumpTonePiece(
       tester,
       theme,
-      Column(
-        children: [
-          ArenaDashboardRevenueChartCard(
-            values: _chartValues,
-            labels: _chartLabels,
-            metrics: _metrics(15),
-          ),
-          const SizedBox(height: 12),
-          ArenaDashboardRevenueChartCard(
-            values: _chartValues,
-            labels: _chartLabels,
-            metrics: _metrics(-9),
-          ),
-        ],
-      ),
+      const ArenaCockpitKpiStrip(cockpit: _cockpit, seesMoney: true),
     ),
     tonePiece,
-    ['▲ 15%', '▼ 9%'],
+    ['▲ 12 p.p.', '▼ 2', '▲ 25%'],
   ),
   ToneScreen(
     'Painel: reputação com taxa de resposta alta',

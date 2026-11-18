@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../domain/arena_dashboard_period_metrics.dart';
+import '../../domain/arena_dashboard_kpi_badge.dart';
 import 'arena_dashboard_tokens.dart';
 
 /// KPIs em grade 2×N (dark NexaGO).

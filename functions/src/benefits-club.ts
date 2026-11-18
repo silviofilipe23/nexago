@@ -68,6 +68,8 @@ export const EVENT_SOURCES = [
   "search",
   "map",
   "my_benefits",
+  // Botão de novidade, guia da Central de ajuda ou banner da Home (destino `clube`).
+  "app_news",
   "unknown",
 ] as const;
 export type EventSource = (typeof EVENT_SOURCES)[number];

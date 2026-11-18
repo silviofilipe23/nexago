@@ -29,6 +29,9 @@
  * - Os stories aparecem UMA vez por versão, só para quem já tinha conta antes
  *   da `date`, com as funcionalidades que o atleta ainda não usou.
  *
+ * CONTEÚDO 1.0.26: o Clube de Vantagens (clube, carteirinha, Meus benefícios), com o destino novo
+ * `clube` — builds anteriores ao 124 escondem as três. Só gravar depois de ligar o clube para todos
+ * e de subir as artes (scripts/upload-club-art.js).
  * CONTEÚDO 1.0.20: o Blog do nexaGO, com o destino novo `blog` e o ícone `blog` — builds
  * anteriores não conhecem o destino e escondem a funcionalidade (o blog só existe a partir do 118).
  * CONTEÚDO 1.0.18: a chuva (previsão em toda reserva, Modo chuva/pedido com
@@ -48,8 +51,8 @@
  *
  * Uso (na pasta functions/):
  *   node scripts/seed-app-news.js --project <projectId> --show
- *   node scripts/seed-app-news.js --project <projectId> --version 1.0.20 --build 118
- *   node scripts/seed-app-news.js --project <projectId> --version 1.0.20 --build 118 --yes
+ *   node scripts/seed-app-news.js --project <projectId> --version 1.0.26 --build 124
+ *   node scripts/seed-app-news.js --project <projectId> --version 1.0.26 --build 124 --yes
  *
  * Sem --yes é DRY-RUN: mostra o estado atual e o que seria gravado.
  *
@@ -115,14 +118,91 @@ const IMAGES = {
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.18-credito-chuva.webp?alt=media&token=d4edaffe-1652-4fce-9f89-0deb8c5fd39b",
   "blog":
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.20-blog.webp?alt=media&token=5488765a-b76f-40f6-bc1b-21863ccf9c2f",
+  // Clube de Vantagens: sobem com scripts/upload-club-art.js (mesmo token), antes do seed.
+  "clube-vantagens":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.26-clube-vantagens.webp?alt=media&token=e9b56d84-573d-4231-9adb-d329c03361f8",
+  "clube-carteirinha":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.26-clube-carteirinha.webp?alt=media&token=2099a16e-e859-4e26-9bcd-34a4508dc35e",
+  "clube-meus-beneficios":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.26-clube-meus-beneficios.webp?alt=media&token=b7205d00-a6ea-4c2d-8097-8df812573591",
 };
 
-// 1.0.20 (build 118): o Blog. A chave `blog` só existe a partir deste build.
+// 1.0.26 (build 124): o Clube de Vantagens. A chave `clube` só existe a partir deste build — os
+// anteriores escondem as três funcionalidades. Publicar só depois de ligar o clube para todos
+// (`appConfig/benefitsClub.enabled`), senão o botão abre um clube que a pessoa não acha no Hub.
 function currentRelease(build) {
   return {
     version,
     build,
     date,
+    stories: true,
+    features: [
+      {
+        id: "clube-vantagens",
+        title: "Clube de Vantagens",
+        summary: "Desconto nos parceiros da Nexa pra quem joga.",
+        description:
+          "Parceiros da Nexa com desconto para atletas: comida, arena, loja e serviços. Escolha o parceiro e toque no botão: o cupom já vai copiado. Você não paga nada a mais e não precisa juntar pontos.",
+        steps: [
+          "No Hub, toque em Clube de Vantagens Nexa",
+          "Escolha um parceiro e veja o desconto",
+          "Toque no botão: o cupom já vai copiado",
+          "Cole o cupom no fechamento do pedido",
+        ],
+        where: "Hub › Clube de Vantagens Nexa",
+        ctaLabel: "Ver o clube",
+        destination: "clube",
+        imageUrl: IMAGES["clube-vantagens"],
+      },
+      {
+        id: "clube-carteirinha",
+        title: "Carteirinha de membro",
+        summary: "Na loja do parceiro, mostre o QR no balcão.",
+        description:
+          "No clube fica a sua carteirinha, com um código só seu. Na loja do parceiro, toque em Mostrar QR e mostre no balcão. A economia que os parceiros confirmam aparece na carteirinha.",
+        steps: [
+          "No Hub, abra o Clube de Vantagens Nexa",
+          "Na carteirinha, toque em Mostrar QR",
+          "Mostre o QR no balcão do parceiro",
+        ],
+        where: "Hub › Clube de Vantagens Nexa",
+        ctaLabel: "Ver carteirinha",
+        destination: "clube",
+        imageUrl: IMAGES["clube-carteirinha"],
+      },
+      {
+        id: "clube-meus-beneficios",
+        title: "Meus benefícios",
+        summary: "Salve parceiros e veja os descontos que já usou.",
+        description:
+          "Toque no coração de um parceiro para guardar: a gente avisa antes da oferta acabar. Em Meus benefícios ficam os salvos e os descontos que você usou. Depois de usar, o app pergunta se deu certo.",
+        steps: [
+          "Na página do parceiro, toque no coração",
+          "No clube, toque no ícone de cupom, no topo",
+          "Veja os Usados e os Salvos",
+        ],
+        where: "Hub › Clube de Vantagens Nexa › Meus benefícios",
+        ctaLabel: "Ver o clube",
+        destination: "clube",
+        imageUrl: IMAGES["clube-meus-beneficios"],
+      },
+    ],
+    // PRs com mudança no app para o atleta depois do corte da 1.0.25 (17/11): #1279–#1288.
+    improvements: [
+      "Qualquer jogador da reserva pode lançar o placar da pelada",
+      "Quem é adicionado no lançamento do placar também edita a pelada",
+      "O placar digitado fica guardado se você sair da tela",
+      "Código de embaixador do Squad também vale na Loja",
+    ],
+  };
+}
+
+// 1.0.20 completa (Blog): para quem ainda está no build 118 a 123 ela é a atual. A chave `blog`
+// só existe a partir do 118.
+const RELEASE_1_0_20 = {
+    version: "1.0.20",
+    build: 118,
+    date: "2026-11-06",
     stories: true,
     features: [
       {
@@ -151,8 +231,7 @@ function currentRelease(build) {
       "Personalização da Loja aceita imagem ou texto na área de impressão",
       "Concluir o cadastro não volta mais para o formulário",
     ],
-  };
-}
+};
 
 // 1.0.18 completa (chuva): para quem ainda está no build 116 ou 117 ela é a atual. As chaves
 // `minhas-reservas` e `creditos-chuva` só existem a partir do 116.
@@ -425,7 +504,7 @@ async function run() {
   }
   const releases = [
     currentRelease(build),
-    ...[RELEASE_1_0_18, RELEASE_1_0_17, ...PREVIOUS].filter((r) => r.build < build),
+    ...[RELEASE_1_0_20, RELEASE_1_0_18, RELEASE_1_0_17, ...PREVIOUS].filter((r) => r.build < build),
   ];
   console.log("\nSeria gravado:");
   printCurrent({releases});

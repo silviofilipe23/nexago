@@ -36,6 +36,9 @@ enum HomeBannerDestination {
   minhasReservas('minhas-reservas'),
   creditosChuva('creditos-chuva'),
   blog('blog'),
+
+  /// Clube de Vantagens (build 124+).
+  clube('clube'),
   url('url');
 
   const HomeBannerDestination(this.key);

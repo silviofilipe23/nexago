@@ -6,6 +6,8 @@ import '../../../core/links/open_external_url.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../athlete/domain/athlete_shell_providers.dart';
+import '../../benefits_club/domain/benefit_event.dart';
+import '../../benefits_club/presentation/benefits_club_navigation.dart';
 import '../domain/home_banner.dart';
 
 /// Ícone do destino: no compacto e no card sem imagem.
@@ -26,6 +28,7 @@ IconData homeBannerIcon(HomeBannerDestination destination) =>
       HomeBannerDestination.creditosChuva =>
         Icons.account_balance_wallet_outlined,
       HomeBannerDestination.blog => Icons.article_outlined,
+      HomeBannerDestination.clube => Icons.loyalty_outlined,
       HomeBannerDestination.url => Icons.open_in_new_rounded,
     };
 
@@ -66,6 +69,7 @@ Future<void> openAppDestination(
     HomeBannerDestination.missoes => AppRouteNames.athleteQuest,
     HomeBannerDestination.creditosChuva => AppRouteNames.athleteWeatherCredits,
     HomeBannerDestination.blog => AppRouteNames.blog,
+    HomeBannerDestination.clube ||
     HomeBannerDestination.minhasReservas ||
     HomeBannerDestination.reservar ||
     HomeBannerDestination.loja ||
@@ -77,6 +81,8 @@ Future<void> openAppDestination(
     return;
   }
   switch (destination) {
+    case HomeBannerDestination.clube:
+      openBenefitsClub(context, BenefitSource.appNews);
     case HomeBannerDestination.minhasReservas:
       goToTab(athleteShellAgendaTabIndex);
     case HomeBannerDestination.reservar:

@@ -16,10 +16,12 @@
  *
  * - Cada guia tem o formato da funcionalidade das Novidades (`appConfig/appNews`).
  * - `destination`: as mesmas chaves do banner da Home (reservar, bora-jogar, peladas, torneios,
- *   ranking, duplas, treinos, aulas, loja, indicar, missoes, minhas-reservas, creditos-chuva, blog, url).
+ *   ranking, duplas, treinos, aulas, loja, indicar, missoes, minhas-reservas, creditos-chuva, blog,
+ *   clube, url).
  *   Chave que o build não conhece esconde o guia; guia da Loja some com a Loja desligada. Os guias
  *   de Chuva usam `minhas-reservas`/`creditos-chuva` (build 116+): no build 115, sem as telas de
- *   chuva, eles nem aparecem. Os do Blog usam `blog` (build 118+): antes dele a categoria some.
+ *   chuva, eles nem aparecem. Os do Blog usam `blog` (build 118+): antes dele a categoria some. Os do
+ *   Clube de Vantagens usam `clube` (build 124+).
  * - `icon`: map, invite, cancel, story, handshake, focus, chat, star, rain ou blog (sem ele, vale o ícone
  *   do destino; chave que o build não conhece também).
  * - Texto levantado do código das telas em 27/10/2026 (Chuva em 29/10/2026) — rótulos reais de botões e caminhos. Regra
@@ -118,7 +120,16 @@ const IMAGES = {
     "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.20-blog.webp?alt=media&token=5488765a-b76f-40f6-bc1b-21863ccf9c2f",
   // docs/app-news-art/blog-duvida.html: "Ficou dúvida" e a resposta da equipe.
   "blog-duvida":
-    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fblog-duvida.webp?alt=media&token=74352b82-a7d9-4f89-b6d8-b73e5fbdcf48",
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fblog-duvida.webp?alt=media&token=74352b82-a7d9-4f89-b6d8-b73e5fbdcf48",  // Clube de Vantagens: artes da novidade 1.0.26 + a do desconto por elo, enviadas por
+  // scripts/upload-club-art.js (mesmo token). Subir antes de rodar este seed.
+  "clube-vantagens":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.26-clube-vantagens.webp?alt=media&token=e9b56d84-573d-4231-9adb-d329c03361f8",
+  "clube-carteirinha":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.26-clube-carteirinha.webp?alt=media&token=2099a16e-e859-4e26-9bcd-34a4508dc35e",
+  "clube-meus-beneficios":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fnews%2F1.0.26-clube-meus-beneficios.webp?alt=media&token=b7205d00-a6ea-4c2d-8097-8df812573591",
+  "clube-desconto-elo":
+    "https://firebasestorage.googleapis.com/v0/b/volley-track-dev-4596c.firebasestorage.app/o/app%2Fguide%2Fclube-desconto-elo.webp?alt=media&token=8e424e18-c457-4347-b049-3f4a403814f3",
 };
 
 const CATEGORIES = [
@@ -580,6 +591,100 @@ const CATEGORIES = [
         where: "Blog › fim do post",
         ctaLabel: "Abrir o blog",
         destination: "blog",
+      },
+    ],
+  },  // Destino `clube` (build 124+): antes dele a categoria some sozinha. Só gravar com o clube ligado
+  // para todos (`appConfig/benefitsClub.enabled`). Textos conferidos nas telas de
+  // nexago_app/lib/features/benefits_club/ em 18/11/2026.
+  {
+    id: "clube",
+    title: "Clube de Vantagens",
+    topics: [
+      {
+        id: "guia-usar-beneficio",
+        imageUrl: IMAGES["clube-vantagens"],
+        title: "Usar um desconto do clube",
+        summary: "Escolha o parceiro, toque no botão e use o cupom.",
+        description:
+          "No Clube de Vantagens Nexa ficam os parceiros com desconto para atletas. Na página do parceiro estão o desconto, as regras e onde usar. O botão leva ao parceiro com o cupom já copiado: é só colar no fechamento. Usar o clube não custa nada e não tem pontos para juntar.",
+        steps: [
+          "No Hub, toque em \"Clube de Vantagens Nexa\"",
+          "Toque num parceiro para ver o desconto, as regras e onde usar",
+          "Toque no botão do parceiro: o cupom já vai copiado",
+          "Cole o cupom no fechamento do pedido ou da reserva",
+          "Se o parceiro pedir seus dados, preencha e autorize: ele fala com você pelo WhatsApp",
+        ],
+        where: "Hub › Clube de Vantagens Nexa",
+        ctaLabel: "Ver o clube",
+        destination: "clube",
+      },
+      {
+        id: "guia-carteirinha-clube",
+        imageUrl: IMAGES["clube-carteirinha"],
+        title: "Carteirinha e QR do clube",
+        summary: "Seu código de membro para mostrar no balcão do parceiro.",
+        description:
+          "A carteirinha mostra o seu código de membro, que é só seu. Na loja do parceiro, toque em \"Mostrar QR\" e mostre no balcão. A economia aparece na carteirinha quando o parceiro confirma o desconto que você usou.",
+        steps: [
+          "No Hub, abra o Clube de Vantagens Nexa",
+          "Na carteirinha, toque em \"Mostrar QR\"",
+          "Mostre o QR no balcão, ou toque em \"Copiar\" para mandar o código",
+        ],
+        where: "Hub › Clube de Vantagens Nexa",
+        ctaLabel: "Ver carteirinha",
+        destination: "clube",
+      },
+      {
+        id: "guia-meus-beneficios",
+        imageUrl: IMAGES["clube-meus-beneficios"],
+        title: "Salvos e usados",
+        summary: "Guarde parceiros e veja os descontos que você já usou.",
+        description:
+          "Toque no coração de um parceiro para salvar: a gente avisa antes da oferta acabar. Em Meus benefícios ficam os salvos e os descontos que você usou. Depois de usar, o clube pergunta se deu certo: a resposta ajuda a melhorar o clube.",
+        steps: [
+          "Na página do parceiro, toque no coração para salvar",
+          "No topo do clube, toque no ícone de cupom (Meus benefícios)",
+          "Troque entre \"Usados\" e \"Salvos\"",
+          "Quando o clube perguntar \"Conseguiu usar?\", toque em \"Sim\" ou \"Não deu certo\"",
+        ],
+        where: "Hub › Clube de Vantagens Nexa › Meus benefícios",
+        ctaLabel: "Ver o clube",
+        destination: "clube",
+      },
+      {
+        id: "guia-beneficio-bloqueado",
+        icon: "star",
+        imageUrl: IMAGES["clube-vantagens"],
+        title: "Benefício bloqueado",
+        summary: "Desconto só para inscritos, embaixadores do Squad ou a partir de um nível.",
+        description:
+          "Alguns parceiros liberam o desconto só para quem cumpre um requisito: estar inscrito num torneio participante, ser embaixador do Squad ou ter um nível mínimo. O parceiro mostra o que pede em \"Como desbloquear\". Quando você cumprir, o cupom aparece sozinho.",
+        steps: [
+          "Toque no parceiro com cadeado e veja \"Como desbloquear\"",
+          "Torneio: inscreva-se no torneio participante e conclua o pagamento",
+          "Squad: toque em \"Conhecer o Squad\" para ver como virar embaixador",
+          "Nível: ele sobe com os resultados nos torneios e ligas da NexaGO",
+        ],
+        where: "Hub › Clube de Vantagens Nexa › parceiro",
+        ctaLabel: "Ver o clube",
+        destination: "clube",
+      },
+      {
+        id: "guia-desconto-elo",
+        icon: "star",
+        imageUrl: IMAGES["clube-desconto-elo"],
+        title: "Desconto pelo seu elo",
+        summary: "Parceiro com Desconto por elo: quem joga mais ganha mais.",
+        description:
+          "Alguns parceiros dão desconto maior conforme o seu elo no SandRanking (Iniciante, Competidor, Desafiante, Elite, Mestre e Lenda). O elo sobe com o XP que você ganha no app. Na página do parceiro, \"Desconto por elo\" mostra cada faixa e marca a sua.",
+        steps: [
+          "Abra um parceiro do clube que tenha \"Desconto por elo\"",
+          "Veja o desconto de cada faixa; a sua aparece como \"Seu desconto\"",
+          "Toque no botão do parceiro: o cupom já sai com o desconto da sua faixa",
+        ],
+        where: "Hub › Clube de Vantagens Nexa › parceiro",
+        ctaLabel: "Ver o clube",
+        destination: "clube",
       },
     ],
   },

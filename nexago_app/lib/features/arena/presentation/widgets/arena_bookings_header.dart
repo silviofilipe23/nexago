@@ -19,32 +19,13 @@ class ArenaBookingsHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final searching = ref.watch(arenaBookingsSearchProvider) != null;
     final activeFilters = ref.watch(arenaBookingsFilterProvider).activeGroups;
     final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
 
     return Row(
       children: [
-        Expanded(
-          // Em tela estreita o título encolhe um pouco para caber a
-          // "Nova reserva" ao lado da busca e do filtro.
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Reservas',
-              maxLines: 1,
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-                color: context.themeColors.onSurface,
-                fontSize: 26,
-                height: 1.05,
-              ),
-            ),
-          ),
-        ),
+        const Expanded(child: ArenaBookingsTitle()),
         _HeaderButton(
           key: const Key('arena-bookings-search-toggle'),
           tooltip: searching ? 'Fechar busca' : 'Buscar reserva',
@@ -74,6 +55,32 @@ class ArenaBookingsHeader extends ConsumerWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Título "Reservas" do header. Em tela estreita encolhe um pouco para
+/// caber a "Nova reserva" ao lado da busca e do filtro. Também usado no
+/// esqueleto da aba, para o título não pular quando a arena carrega.
+class ArenaBookingsTitle extends StatelessWidget {
+  const ArenaBookingsTitle({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text(
+        'Reservas',
+        maxLines: 1,
+        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              color: context.themeColors.onSurface,
+              fontSize: 26,
+              height: 1.05,
+            ),
+      ),
     );
   }
 }

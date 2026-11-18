@@ -7,7 +7,9 @@ import {
   addArenaWithdrawal,
   addAsaasStatementEntry,
   addCenterInvoice,
+  addCompanyRevenue,
   addCompanyTransfer,
+  arenaPlanPaymentPaths,
   addHolding,
   addPlanContract,
   addProfessorCharge,
@@ -29,6 +31,7 @@ import {
   pendingStoreRefundCents,
   professorChargeFeeCents,
   revenueTotal,
+  uniqueById,
   windowDates,
 } from "./company-finance";
 
@@ -249,5 +252,36 @@ describe("company-finance: saldo", () => {
     addCompanyTransfer(b, {kind: "expense", amountCents: 100, date: "2025-01-10"});
     addCompanyTransfer(b, {kind: "expense", amountCents: 100});
     assert.equal(b.result().reduce((s, m) => s + m.oneOffCosts, 0), 0);
+  });
+});
+
+describe("company-finance: planos das arenas", () => {
+  it("lê pelo cliente da arena (pega assinatura antiga e adesão); sem cliente, pela assinatura", () => {
+    assert.deepEqual(arenaPlanPaymentPaths([
+      {asaasCustomerId: "cus_1", asaasSubscriptionId: "sub_novo"},
+      {asaasSubscriptionId: "sub_2"},
+      {asaasCustomerId: "cus_1"},
+      {},
+    ]), ["/v3/payments?customer=cus_1", "/v3/subscriptions/sub_2/payments"]);
+  });
+
+  it("pagamento repetido entre listas conta uma vez", () => {
+    const b = book();
+    const pay = {id: "pay_1", status: "RECEIVED", value: 346, paymentDate: "2026-09-23"};
+    uniqueById([[pay], [pay, {id: "pay_2", status: "CONFIRMED", value: 249, paymentDate: "2026-11-11"}], [{value: 1}]])
+      .forEach((p) => addArenaSubscriptionPayment(b, p));
+    assert.equal(b.result().find((m) => m.key === "2026-09")!.revenue.planosArena, 34600);
+    assert.equal(nov(b).revenue.planosArena, 24900);
+  });
+
+  it("receita avulsa entra na fonte, no mês do recebimento; anulada não entra", () => {
+    const b = book();
+    addCompanyRevenue(b, {source: "planosArena", amountCents: 24900, receivedOn: "2026-11-12"});
+    addCompanyRevenue(b, {source: "planosArena", amountCents: 24900, receivedOn: "2026-10-12", voidedAt: new Date()});
+    addCompanyRevenue(b, {source: "inexistente", amountCents: 100, receivedOn: "2026-11-12"});
+    addCompanyRevenue(b, {source: "planosArena", amountCents: -100, receivedOn: "2026-11-12"});
+    assert.equal(nov(b).revenue.planosArena, 24900);
+    assert.equal(b.result().find((m) => m.key === "2026-10")!.revenue.planosArena, 0);
+    assert.equal(revenueTotal(nov(b)), 24900);
   });
 });

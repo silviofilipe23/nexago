@@ -3,6 +3,7 @@ import { callableErrorMessage } from '../../data/callable-error';
 import { IconComponent } from '../../ui/icon.component';
 import { CompanyFinanceRepository } from '../data/company-finance.repository';
 import { currentMonthKey, money, monthLabel, monthOptions, monthShort, type CompanyFinance, type UnclassifiedTransfers } from '../data/company-finance';
+import { CompanyManualRevenuesComponent } from './company-manual-revenues.component';
 import { CompanyOverviewComponent } from './company-overview.component';
 import { CompanyResultComponent } from './company-result.component';
 import { CompanyStatementComponent } from './company-statement.component';
@@ -19,7 +20,7 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', h
 @Component({
   selector: 'bo-company-finance',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, CompanyOverviewComponent, CompanyResultComponent, CompanyThirdPartyComponent, CompanyStatementComponent],
+  imports: [IconComponent, CompanyOverviewComponent, CompanyResultComponent, CompanyManualRevenuesComponent, CompanyThirdPartyComponent, CompanyStatementComponent],
   template: `
     <div class="bar">
       <label class="month">Mês
@@ -60,7 +61,10 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', h
       }
       <div [class.stale]="loading()">
         @switch (view()) {
-          @case ('result') { <bo-company-result [months]="d.months" /> }
+          @case ('result') {
+            <bo-company-result [months]="d.months" />
+            <bo-company-manual-revenues class="below" [revenues]="d.manualRevenues" [arenas]="d.revenueArenas" (changed)="load()" />
+          }
           @case ('thirdParty') { <bo-company-third-party [data]="d" (openWithdrawals)="openWithdrawals.emit()" /> }
           @case ('statement') { <bo-company-statement [statement]="d.statement" [month]="d.month" [payoutTargets]="d.payoutTargets" (classified)="load()" /> }
           @default { <bo-company-overview [data]="d" (openView)="openView.emit($event)" (openWithdrawals)="openWithdrawals.emit()" /> }
@@ -79,6 +83,7 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', h
     .warn bo-icon { color: var(--nx-pending); flex: none; }
     .warn.todo { background: rgba(255, 106, 26, 0.07); border-color: rgba(255, 106, 26, 0.3); }
     .warn.todo bo-icon { color: var(--nx-orange-400); }
+    .below { margin-top: 16px; }
     .stale { opacity: 0.55; pointer-events: none; transition: opacity 140ms; }
     .skel-grid { display: flex; flex-direction: column; gap: 16px; }
     .skel { height: 110px; border-radius: var(--nx-r-4); background: var(--nx-surface-0); border: 1px solid var(--nx-line); }

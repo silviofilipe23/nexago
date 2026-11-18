@@ -9,8 +9,10 @@ import {
   monthResult,
   monthShort,
   outMoney,
+  reaisInputToCents,
   resultCsv,
   revenueTotal,
+  saoPauloDay,
   sourcesOf,
   statementTypeLabel,
   sumMonths,
@@ -169,3 +171,39 @@ describe('financeiro da empresa: rótulos', () => {
     expect(statementTypeLabel('NEW_THING')).toBe('NEW_THING');
   });
 });
+
+describe('financeiro da empresa: receitas avulsas', () => {
+  it('lê as receitas e as arenas; descarta fonte desconhecida e linha sem id', () => {
+    const f = companyFinanceFrom({
+      manualRevenues: [
+        { id: 'r1', source: 'planosArena', arenaId: 'a1', arenaName: ' Vegeton ', amountCents: 24900, receivedOn: '2026-11-12', note: 'PIX' },
+        { id: 'r2', source: 'torneios', arenaId: 'a1', amountCents: 1 },
+        { source: 'planosArena', amountCents: 1 },
+      ],
+      revenueArenas: [{ arenaId: 'a1', name: 'Vegeton', planTier: 'pro' }, { arenaId: 'a2', name: '', planTier: null }, { name: 'sem id' }],
+    });
+    expect(f.manualRevenues).toEqual([
+      { id: 'r1', source: 'planosArena', arenaId: 'a1', arenaName: 'Vegeton', amountCents: 24900, receivedOn: '2026-11-12', note: 'PIX' },
+    ]);
+    expect(f.revenueArenas).toEqual([
+      { arenaId: 'a1', name: 'Vegeton', planTier: 'pro' },
+      { arenaId: 'a2', name: null, planTier: null },
+    ]);
+    expect(companyFinanceFrom(undefined).manualRevenues).toEqual([]);
+  });
+
+  it('valor digitado em reais vira centavos', () => {
+    expect(reaisInputToCents('249')).toBe(24900);
+    expect(reaisInputToCents('249,9')).toBe(24990);
+    expect(reaisInputToCents(' R$ 1.490,00 ')).toBe(149000);
+    expect(reaisInputToCents('149.90')).toBe(14990);
+    expect(reaisInputToCents('0,005')).toBeNull();
+    for (const bad of ['', '0', '-10', 'abc', '1,2,3', '12,345']) expect(reaisInputToCents(bad)).withContext(bad).toBeNull();
+  });
+
+  it('hoje é a data civil de São Paulo', () => {
+    expect(saoPauloDay(new Date('2026-11-19T02:30:00Z'))).toBe('2026-11-18');
+    expect(saoPauloDay(new Date('2026-11-19T03:30:00Z'))).toBe('2026-11-19');
+  });
+});
+

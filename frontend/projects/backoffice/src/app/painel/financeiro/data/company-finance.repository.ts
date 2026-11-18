@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { httpsCallable } from 'firebase/functions';
 import { backofficeFunctions } from '../../data/firebase';
-import { companyFinanceFrom, type CompanyFinance, type TransferKind } from './company-finance';
+import { companyFinanceFrom, type CompanyFinance, type ManualRevenueSource, type TransferKind } from './company-finance';
 
 export interface ClassifyTransferInput {
   transferId: string;
@@ -10,6 +10,15 @@ export interface ClassifyTransferInput {
   tournamentId: string | null;
   /** Repasse cujo caixa já foi baixado antes: registra sem descontar de novo. */
   alreadySettled: boolean;
+  note: string;
+}
+
+export interface RecordRevenueInput {
+  source: ManualRevenueSource;
+  arenaId: string;
+  amountCents: number;
+  /** `YYYY-MM-DD`. */
+  receivedOn: string;
   note: string;
 }
 
@@ -27,5 +36,15 @@ export class CompanyFinanceRepository {
   /** Classifica a transferência feita à mão no Asaas; valor e data o servidor lê do Asaas. */
   async classifyTransfer(input: ClassifyTransferInput): Promise<void> {
     await httpsCallable(backofficeFunctions(), 'classifyCompanyTransfer')(input);
+  }
+
+  /** Lança receita que entrou fora do Asaas; o servidor recusa a repetida (arena, dia e valor). */
+  async recordRevenue(input: RecordRevenueInput): Promise<void> {
+    await httpsCallable(backofficeFunctions(), 'recordCompanyRevenue')(input);
+  }
+
+  /** Anula a receita avulsa (o registro fica no banco, fora do Resultado). */
+  async voidRevenue(id: string, reason: string): Promise<void> {
+    await httpsCallable(backofficeFunctions(), 'voidCompanyRevenue')({ id, reason });
   }
 }

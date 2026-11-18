@@ -120,6 +120,29 @@ export interface PayoutTarget {
   availableCents: number;
 }
 
+/** Fontes que aceitam receita avulsa (lançada à mão no backoffice). */
+export const MANUAL_REVENUE_SOURCES = ['planosArena'] as const satisfies readonly RevenueSource[];
+export type ManualRevenueSource = (typeof MANUAL_REVENUE_SOURCES)[number];
+
+/** Receita que entrou fora do Asaas (ex.: mensalidade de arena por PIX direto). */
+export interface ManualRevenue {
+  id: string;
+  source: ManualRevenueSource;
+  arenaId: string;
+  arenaName: string | null;
+  amountCents: number;
+  /** `YYYY-MM-DD`, dia em que o dinheiro entrou. */
+  receivedOn: string;
+  note: string;
+}
+
+/** Arena que pode ter pago mensalidade (todas; o plano atual só orienta a escolha). */
+export interface RevenueArena {
+  arenaId: string;
+  name: string | null;
+  planTier: string | null;
+}
+
 export interface UnclassifiedTransfers {
   count: number;
   cents: number;
@@ -155,6 +178,9 @@ export interface CompanyFinance {
   /** `unclassified: null` = lista de transferências do Asaas indisponível agora. */
   transfers: { available: boolean; unclassified: UnclassifiedTransfers | null };
   payoutTargets: PayoutTarget[];
+  /** Receitas avulsas que valem, recebidas nos meses da janela; mais recente primeiro. */
+  manualRevenues: ManualRevenue[];
+  revenueArenas: RevenueArena[];
   warnings: string[];
 }
 
@@ -298,6 +324,20 @@ export function companyFinanceFrom(raw: unknown): CompanyFinance {
         name: str(t['name']).trim() || null,
         availableCents: int(t['availableCents']),
       })),
+    manualRevenues: list(r['manualRevenues'])
+      .filter((m) => str(m['id']) && (MANUAL_REVENUE_SOURCES as readonly unknown[]).includes(m['source']))
+      .map((m) => ({
+        id: str(m['id']),
+        source: m['source'] as ManualRevenueSource,
+        arenaId: str(m['arenaId']),
+        arenaName: str(m['arenaName']).trim() || null,
+        amountCents: int(m['amountCents']),
+        receivedOn: str(m['receivedOn']),
+        note: str(m['note']),
+      })),
+    revenueArenas: list(r['revenueArenas'])
+      .filter((a) => str(a['arenaId']))
+      .map((a) => ({ arenaId: str(a['arenaId']), name: str(a['name']).trim() || null, planTier: str(a['planTier']).trim() || null })),
     warnings: Array.isArray(r['warnings']) ? r['warnings'].filter((w): w is string => typeof w === 'string') : [],
   };
 }
@@ -394,6 +434,23 @@ const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 
 export function money(cents: number): string {
   return BRL.format(cents / 100).replace(/ /g, ' ');
+}
+
+/**
+ * Valor digitado em reais ("249", "249,90", "R$ 1.490,00", "149.90") em centavos; `null` se não
+ * for um valor positivo com até 2 casas. Ponto seguido de 3 dígitos é milhar.
+ */
+export function reaisInputToCents(text: string): number | null {
+  const t = text.replace(/R\$|\s/g, '');
+  const m = /^(\d{1,3}(?:\.\d{3})+|\d+)(?:[,.](\d{1,2}))?$/.exec(t);
+  if (!m) return null;
+  const cents = Number(m[1].replace(/\./g, '')) * 100 + Number((m[2] ?? '').padEnd(2, '0'));
+  return cents > 0 ? cents : null;
+}
+
+/** Data civil de hoje em São Paulo, `YYYY-MM-DD` (o limite do campo de data). */
+export function saoPauloDay(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(now);
 }
 
 /** "− R$ 3,20" com o sinal separado. */

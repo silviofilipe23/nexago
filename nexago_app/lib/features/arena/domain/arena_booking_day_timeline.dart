@@ -44,6 +44,16 @@ final class ArenaTimelineNowEntry extends ArenaTimelineEntry {
   final DateTime now;
 }
 
+/// Reserva cancelada, recolhida no fim do dia.
+final class ArenaTimelineCanceledEntry extends ArenaTimelineEntry {
+  const ArenaTimelineCanceledEntry(this.booking, {required this.slotFreed});
+
+  final ArenaManagerBooking booking;
+
+  /// O horário ainda vai acontecer: a vaga voltou para a venda.
+  final bool slotFreed;
+}
+
 /// Horário livre entre as reservas (com "Divulgar").
 final class ArenaTimelineFreeEntry extends ArenaTimelineEntry {
   const ArenaTimelineFreeEntry(this.window);
@@ -52,8 +62,9 @@ final class ArenaTimelineFreeEntry extends ArenaTimelineEntry {
 }
 
 /// Linha do dia [dateKey]: reservas ativas em ordem de horário (e de quadra),
-/// os horários livres ([freeWindows]) no meio, na hora em que começam, e o
-/// marcador "agora" antes do primeiro item que ainda vai começar. Dia
+/// os horários livres ([freeWindows]) no meio, na hora em que começam, o
+/// marcador "agora" antes do primeiro item que ainda vai começar e as
+/// canceladas ([canceled]) recolhidas no fim. Dia
 /// passado é todo concluído; dia futuro, todo por vir. Função pura: o
 /// relógio entra por [now].
 List<ArenaTimelineEntry> buildArenaDayTimeline({
@@ -61,6 +72,7 @@ List<ArenaTimelineEntry> buildArenaDayTimeline({
   required String dateKey,
   required DateTime now,
   List<ArenaFreeWindow> freeWindows = const [],
+  List<ArenaManagerBooking> canceled = const [],
 }) {
   final todayKey = arenaDateKey(arenaDateOnly(now));
   final isToday = dateKey == todayKey;
@@ -98,7 +110,7 @@ List<ArenaTimelineEntry> buildArenaDayTimeline({
       ArenaTimelineBookingEntry(:final phase) =>
         phase == ArenaTimelinePhase.upcoming,
       ArenaTimelineFreeEntry() => true,
-      ArenaTimelineNowEntry() => false,
+      ArenaTimelineNowEntry() || ArenaTimelineCanceledEntry() => false,
     };
     if (isToday && !nowPlaced && upcoming) {
       out.add(ArenaTimelineNowEntry(now));
@@ -107,6 +119,16 @@ List<ArenaTimelineEntry> buildArenaDayTimeline({
     out.add(entry);
   }
   if (isToday && !nowPlaced) out.add(ArenaTimelineNowEntry(now));
+  for (final b in canceled) {
+    if (b.dateKey != dateKey) continue;
+    final start = arenaNowMinutes(b.startTime) ?? 0;
+    out.add(
+      ArenaTimelineCanceledEntry(
+        b,
+        slotFreed: !isPast && (!isToday || start > nowMin),
+      ),
+    );
+  }
   return List.unmodifiable(out);
 }
 

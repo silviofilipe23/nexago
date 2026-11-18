@@ -13,6 +13,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/features/arena/domain/arena_booking_labels.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_grouping.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_providers.dart';
+import 'package:nexago_app/features/arena/domain/arena_bookings_tasks.dart';
 import 'package:nexago_app/features/arena/domain/arena_access_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_date_utils.dart';
 import 'package:nexago_app/features/arena/domain/arena_schedule_providers.dart';
@@ -263,6 +264,9 @@ void main() {
             ),
           ),
           arenaBookingsTodayInsightProvider.overrideWith((ref) => null),
+          arenaBookingsTasksProvider.overrideWith(
+            (ref) => const <ArenaBookingTask>[],
+          ),
           arenaBookingsStripSlotsProvider.overrideWith(
             (ref) => Stream.value(const <ArenaSlot>[]),
           ),

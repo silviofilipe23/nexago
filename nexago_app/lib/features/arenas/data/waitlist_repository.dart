@@ -95,6 +95,28 @@ class WaitlistRepository {
     });
   }
 
+  /// Fila de espera da arena num dia (visão do gestor; a rule libera quem
+  /// lê a agenda). Só igualdades: dispensa índice composto.
+  Stream<List<ArenaBookingWaitlistEntry>> watchArenaDay({
+    required String arenaId,
+    required String dateKey,
+  }) {
+    final id = arenaId.trim();
+    if (id.isEmpty || dateKey.isEmpty) {
+      return Stream<List<ArenaBookingWaitlistEntry>>.value(const []);
+    }
+    return _firestore
+        .collection(collection)
+        .where('arenaId', isEqualTo: id)
+        .where('date', isEqualTo: dateKey)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map(ArenaBookingWaitlistEntry.fromFirestore)
+              .toList(),
+        );
+  }
+
   static String? _functionsCode(FirebaseFunctionsException e) {
     switch (e.code) {
       case 'failed-precondition':

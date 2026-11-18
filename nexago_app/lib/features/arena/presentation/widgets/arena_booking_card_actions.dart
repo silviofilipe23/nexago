@@ -137,16 +137,31 @@ class _ArenaBookingCardActionsState
 
   Future<void> _checkIn() async {
     setState(() => _busy = true);
-    try {
-      await ref.read(bookingServiceProvider).checkIn(
-            bookingId: _b.id,
-            athleteId: _b.athleteId,
-            locationVerified: true,
-          );
-      if (!mounted) return;
-      showAppSnackBar(context, 'Check-in registrado.');
-    } catch (e) {
-      if (!mounted) return;
+    await runArenaBookingCheckIn(context, ref, _b);
+    if (mounted) setState(() => _busy = false);
+  }
+
+  void _receive(BuildContext context) =>
+      openArenaBookingReceive(context, ref, _b);
+}
+
+/// Faz o check-in da reserva pelo balcão (mesmo `checkIn` do detalhe) e
+/// avisa o resultado. Devolve se deu certo.
+Future<bool> runArenaBookingCheckIn(
+  BuildContext context,
+  WidgetRef ref,
+  ArenaManagerBooking booking,
+) async {
+  try {
+    await ref.read(bookingServiceProvider).checkIn(
+          bookingId: booking.id,
+          athleteId: booking.athleteId,
+          locationVerified: true,
+        );
+    if (context.mounted) showAppSnackBar(context, 'Check-in registrado.');
+    return true;
+  } catch (e) {
+    if (context.mounted) {
       showAppSnackBar(
         context,
         friendlyErrorMessage(
@@ -156,18 +171,21 @@ class _ArenaBookingCardActionsState
         ),
         isError: true,
       );
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
+    return false;
   }
+}
 
-  /// Comanda individual já ligada à reserva: a locação entra como item e o
-  /// restante é cobrado no fechamento, como no balcão.
-  void _receive(BuildContext context) {
-    ref.read(arenaComandaDraftProvider.notifier)
-      ..reset()
-      ..setType(ArenaComandaType.individual)
-      ..selectBooking(_b);
-    context.pushNamed(AppRouteNames.arenaComandaNewCustomer);
-  }
+/// Abre a comanda individual já ligada à reserva: a locação entra como item
+/// e o restante é cobrado no fechamento, como no balcão.
+void openArenaBookingReceive(
+  BuildContext context,
+  WidgetRef ref,
+  ArenaManagerBooking booking,
+) {
+  ref.read(arenaComandaDraftProvider.notifier)
+    ..reset()
+    ..setType(ArenaComandaType.individual)
+    ..selectBooking(booking);
+  context.pushNamed(AppRouteNames.arenaComandaNewCustomer);
 }

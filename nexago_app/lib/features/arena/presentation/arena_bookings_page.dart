@@ -8,10 +8,12 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../../../core/ui/nexa_skeleton.dart';
 import '../domain/arena_access_providers.dart';
 import '../domain/arena_booking_day_timeline.dart';
 import '../domain/arena_bookings_day_providers.dart';
 import '../domain/arena_bookings_filter.dart';
+import '../domain/arena_bookings_tasks.dart';
 import '../domain/arena_providers.dart';
 import '../domain/arena_shell_providers.dart';
 import '../domain/arena_staff_role.dart';
@@ -21,8 +23,8 @@ import 'widgets/arena_bookings_day_strip.dart';
 import 'widgets/arena_bookings_day_timeline.dart';
 import 'widgets/arena_bookings_header.dart';
 import 'widgets/arena_bookings_insight_card.dart';
-import 'widgets/arena_bookings_section_header.dart';
 import 'widgets/arena_bookings_shortcuts.dart';
+import 'widgets/arena_bookings_tasks_strip.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 
 /// Aba Reservas do gestor (modelo A, "Linha do dia"): faixa de 7 dias, linha
@@ -170,10 +172,17 @@ EdgeInsets _listPadding(double bottom, {double top = 4}) => EdgeInsets.fromLTRB(
       bottom,
     );
 
+/// Esqueleto com a forma dos cards: carrega sem "pular" a tela.
 List<Widget> _loadingSlivers() => const [
-      SliverFillRemaining(
-        hasScrollBody: false,
-        child: ArenaLoadingState(label: 'Carregando reservas...'),
+      SliverToBoxAdapter(
+        child: NexaListSkeleton.cards(
+          key: Key('arena-bookings-skeleton'),
+          count: 4,
+          cardHeight: 132,
+          padding: EdgeInsets.symmetric(
+            horizontal: ArenaDashboardTokens.horizontalPadding,
+          ),
+        ),
       ),
     ];
 
@@ -200,6 +209,9 @@ class _DayTimeline {
         isToday ? ref.watch(arenaBookingsTodayInsightProvider) : null;
     final seesMoney = ref.watch(arenaCanReadProvider(ArenaArea.financeiro));
     final filter = ref.watch(arenaBookingsFilterProvider);
+    final tasks = isToday
+        ? ref.watch(arenaBookingsTasksProvider)
+        : const <ArenaBookingTask>[];
 
     return async.when(
       data: (entries) {
@@ -215,6 +227,10 @@ class _DayTimeline {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (tasks.isNotEmpty) ...[
+                    ArenaBookingsTasksStrip(tasks: tasks),
+                    const SizedBox(height: 14),
+                  ],
                   if (summary != null) ...[
                     ArenaBookingsDayStats(
                       summary: summary,
@@ -305,35 +321,85 @@ class _SearchResults {
             ),
           ];
         }
-        final rows = <Widget>[
-          for (var s = 0; s < sections.length; s++) ...[
-            Padding(
-              padding: EdgeInsets.only(top: s > 0 ? 16 : 0),
-              child: ArenaBookingsSectionHeader(title: sections[s].title),
-            ),
-            for (final b in sections[s].bookings)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: ArenaBookingCard(booking: b),
-              ),
-          ],
-        ];
         return [
-          SliverPadding(
-            padding: _listPadding(bottomPadding),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => rows[index],
-                childCount: rows.length,
-              ),
+          for (var s = 0; s < sections.length; s++)
+            SliverMainAxisGroup(
+              slivers: [
+                // Cabeçalho do dia fixo ao rolar: não se perde de que dia é.
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _DayHeaderDelegate(sections[s].title),
+                ),
+                SliverPadding(
+                  padding: _listPadding(
+                    s == sections.length - 1 ? bottomPadding : 4,
+                  ),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: ArenaBookingCard(
+                          booking: sections[s].bookings[i],
+                        ),
+                      ),
+                      childCount: sections[s].bookings.length,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
         ];
       },
       loading: _loadingSlivers,
       error: (e, _) => _errorSlivers(e),
     );
   }
+}
+
+class _DayHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _DayHeaderDelegate(this.title);
+
+  final String title;
+
+  static const double _height = 44;
+
+  @override
+  double get minExtent => _height;
+
+  @override
+  double get maxExtent => _height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return ColoredBox(
+      color: context.themeColors.canvas,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: ArenaDashboardTokens.horizontalPadding,
+        ),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(_DayHeaderDelegate oldDelegate) =>
+      oldDelegate.title != title;
 }
 
 String _loadErrorMessage(Object error) => friendlyErrorMessage(

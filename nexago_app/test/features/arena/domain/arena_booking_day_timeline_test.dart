@@ -31,6 +31,7 @@ List<String> _ids(List<ArenaTimelineEntry> entries) => [
         switch (e) {
           ArenaTimelineNowEntry() => 'agora',
           ArenaTimelineFreeEntry() => 'livre',
+          ArenaTimelineCanceledEntry() => 'cancelada',
           ArenaTimelineBookingEntry(:final booking) => booking.id,
         },
     ];

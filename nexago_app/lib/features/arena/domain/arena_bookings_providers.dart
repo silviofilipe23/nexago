@@ -315,7 +315,8 @@ ArenaBookingsTabCounts _computeTabCounts(List<ArenaManagerBooking> list) {
     final isCanceled = s == 'canceled' || s == 'cancelled';
 
     if (k.compareTo(todayKey) < 0) {
-      past++;
+      // Cancelada aparece no histórico, mas não conta como reserva.
+      if (!isCanceled) past++;
     } else if (k == todayKey && !isCanceled) {
       today++;
     } else if (k == tomorrowKey && !isCanceled) {

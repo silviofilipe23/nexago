@@ -11,6 +11,7 @@ import 'package:nexago_app/features/arena/domain/arena_booking_labels.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_court_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_manager_booking.dart';
+import 'package:nexago_app/features/arena/domain/comandas/arena_comanda_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_schedule_grouping.dart';
 import 'package:nexago_app/features/arena/domain/arena_slot_detail_args.dart';
 import 'package:nexago_app/features/arena/domain/arena_slot_detail_providers.dart';
@@ -196,6 +197,9 @@ void main() {
             (ref) =>
                 Stream.value(const ArenaAthleteBlockInfo(isBlocked: false)),
           ),
+          arenaComandaByBookingIdStreamProvider.overrideWith(
+            (ref, _) => Stream.value(null),
+          ),
         ],
         child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
       ),
@@ -279,7 +283,8 @@ void main() {
 
     test('sem nome: usa o padrão do perfil', () {
       expect(
-        arenaBookingAthletePricingLabel(const {'athletePricingTier': 'student'}),
+        arenaBookingAthletePricingLabel(
+            const {'athletePricingTier': 'student'}),
         'Preço Aluno',
       );
     });

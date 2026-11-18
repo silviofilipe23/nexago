@@ -19,6 +19,8 @@ import 'package:nexago_app/features/arena/domain/arena_club.dart';
 import 'package:nexago_app/features/arena/domain/arena_club_admin_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_court_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_manager_booking.dart';
+import 'package:nexago_app/features/arena/domain/arena_now_providers.dart';
+import 'package:nexago_app/features/arena/domain/comandas/arena_comanda_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_plan.dart';
 import 'package:nexago_app/features/arena/domain/arena_plan_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_recurring_booking.dart';
@@ -150,7 +152,8 @@ void main() {
     expect(find.text('Bloquear'), findsOneWidget);
   });
 
-  testWidgets('manutencao nao ve Desbloquear no slot bloqueado', (tester) async {
+  testWidgets('manutencao nao ve Desbloquear no slot bloqueado',
+      (tester) async {
     await pumpSlotDetail(
       tester,
       overridesForRole(ArenaStaffRole.manutencao),
@@ -240,8 +243,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   }
 
-  testWidgets(
-      'manutencao nao ve atalhos de horarios fixos nem clubinho',
+  testWidgets('manutencao nao ve atalhos de horarios fixos nem clubinho',
       (tester) async {
     await pumpBookings(tester, overridesForRole(ArenaStaffRole.manutencao));
     expect(find.text('Horários fixos'), findsNothing);
@@ -407,7 +409,14 @@ void main() {
             (ref) => Stream.value(const <ArenaManagerBooking>[]),
           ),
           arenaAthleteBlockProvider(historyArgs).overrideWith(
-            (ref) => Stream.value(const ArenaAthleteBlockInfo(isBlocked: false)),
+            (ref) =>
+                Stream.value(const ArenaAthleteBlockInfo(isBlocked: false)),
+          ),
+          arenaComandaByBookingIdStreamProvider(booking.id).overrideWith(
+            (ref) => Stream.value(null),
+          ),
+          arenaNowClockProvider.overrideWith(
+            (ref) => Stream.value(DateTime(2026, 9, 24, 8, 30)),
           ),
         ],
         child: MaterialApp.router(
@@ -420,8 +429,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   }
 
-  testWidgets(
-      'manutencao nao pode cancelar nem bloquear/desbloquear a reserva',
+  testWidgets('manutencao nao pode cancelar nem bloquear/desbloquear a reserva',
       (tester) async {
     await pumpBookingDetails(
       tester,
@@ -585,7 +593,8 @@ void main() {
       ProviderScope(
         overrides: [
           ...overrides,
-          courtsStreamProvider('a1').overrideWith((ref) => Stream.value(const [])),
+          courtsStreamProvider('a1')
+              .overrideWith((ref) => Stream.value(const [])),
         ],
         child: MaterialApp(
           theme: AppTheme.dark,
@@ -597,7 +606,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
   }
 
-  testWidgets('manutencao nao alcanca o formulario de clubinho', (tester) async {
+  testWidgets('manutencao nao alcanca o formulario de clubinho',
+      (tester) async {
     await pumpClubForm(tester, overridesForRole(ArenaStaffRole.manutencao));
     expect(find.text('Sem permissão'), findsOneWidget);
     expect(find.text('Criar clubinho'), findsNothing);
@@ -696,8 +706,10 @@ void main() {
       ProviderScope(
         overrides: [
           ...overrides,
-          courtsStreamProvider('a1').overrideWith((ref) => Stream.value(const [])),
-          managedArenaCanAddRecurringBookingProvider.overrideWith((ref) => true),
+          courtsStreamProvider('a1')
+              .overrideWith((ref) => Stream.value(const [])),
+          managedArenaCanAddRecurringBookingProvider
+              .overrideWith((ref) => true),
           managedArenaMaxRecurringBookingsProvider.overrideWith((ref) => null),
         ],
         child: MaterialApp(
@@ -771,7 +783,8 @@ void main() {
       overridesForRole(ArenaStaffRole.recepcao),
     );
     expect(find.text('Sem permissão'), findsNothing);
-    await tester.drag(find.byType(SingleChildScrollView), const Offset(0, -2000));
+    await tester.drag(
+        find.byType(SingleChildScrollView), const Offset(0, -2000));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Salvar alterações'), findsOneWidget);

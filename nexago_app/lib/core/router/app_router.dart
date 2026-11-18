@@ -100,6 +100,7 @@ import '../../features/arena/presentation/arena_availability_slots_success_page.
 import '../../features/arena/presentation/arena_settings_page.dart';
 import '../../features/arena/presentation/arena_payments_page.dart';
 import '../../features/arena/presentation/plan/arena_plan_page.dart';
+import '../../features/arena/presentation/arena_month_goal_page.dart';
 import '../../features/arena/presentation/plan/arena_plan_activated_page.dart';
 import '../../features/arena/presentation/plan/arena_subscription_pending_page.dart';
 import '../../features/arena/presentation/arena_slot_detail_page.dart';
@@ -3223,6 +3224,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.arenaPlan,
         name: AppRouteNames.arenaPlan,
         builder: (context, state) => const ArenaPlanPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaMonthGoal,
+        name: AppRouteNames.arenaMonthGoal,
+        builder: (context, state) => const ArenaMonthGoalPage(),
       ),
       GoRoute(
         path: AppRoutes.arenaSubscriptionPending,

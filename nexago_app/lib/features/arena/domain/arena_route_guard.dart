@@ -91,6 +91,7 @@ const List<MapEntry<String, ArenaArea>> _arenaAlternateAreaByPrefix = [
 
 const List<String> _arenaOwnerOnlyPrefixes = [
   AppRoutes.arenaPlan,
+  AppRoutes.arenaMonthGoal,
   AppRoutes.arenaSubscriptionPending,
 ];
 

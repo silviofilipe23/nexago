@@ -25,7 +25,22 @@ class SlotsRepository {
     required String arenaId,
     required DateTime date,
   }) {
-    final day = DateTime(date.year, date.month, date.day);
+    return watchArenaRangeSlotsMerged(arenaId: arenaId, from: date, days: 1);
+  }
+
+  /// Mesma grade de [watchArenaDaySlotsMerged] para [days] dias seguidos a
+  /// partir de [from] — com as MESMAS quatro consultas (a de `arenaSlots` já
+  /// traz a arena inteira), então ver a semana não abre leitura nova.
+  Stream<List<ArenaSlot>> watchArenaRangeSlotsMerged({
+    required String arenaId,
+    required DateTime from,
+    required int days,
+  }) {
+    final first = DateTime(from.year, from.month, from.day);
+    final dates = [
+      for (var i = 0; i < days; i++)
+        DateTime(first.year, first.month, first.day + i),
+    ];
     final slotsStream = _firestore
         .collection(collectionName)
         .where('arenaId', isEqualTo: arenaId)
@@ -64,23 +79,27 @@ class SlotsRepository {
         );
         final promotions = _parsePromotions(promoSnap);
         final merged = <ArenaSlot>[];
-        for (final courtDoc in docs) {
-          final query = SlotsQuery(
-            arenaId: arenaId,
-            courtId: courtDoc.id,
-            date: day,
-            arenaFallbackPricePerHourReais: arenaFallback,
-          );
-          final persisted = _extractPersisted(slotSnap, query, day);
-          final virtual = VirtualSlotGenerator.build(
-            query: query,
-            courtData: courtDoc.data(),
-            date: day,
-            promotions: promotions,
-          );
-          merged.addAll(VirtualSlotGenerator.merge(persisted, virtual));
+        for (final day in dates) {
+          for (final courtDoc in docs) {
+            final query = SlotsQuery(
+              arenaId: arenaId,
+              courtId: courtDoc.id,
+              date: day,
+              arenaFallbackPricePerHourReais: arenaFallback,
+            );
+            final persisted = _extractPersisted(slotSnap, query, day);
+            final virtual = VirtualSlotGenerator.build(
+              query: query,
+              courtData: courtDoc.data(),
+              date: day,
+              promotions: promotions,
+            );
+            merged.addAll(VirtualSlotGenerator.merge(persisted, virtual));
+          }
         }
         merged.sort((a, b) {
+          final byDay = a.date.compareTo(b.date);
+          if (byDay != 0) return byDay;
           final byTime = a.startTime.compareTo(b.startTime);
           if (byTime != 0) return byTime;
           return a.courtId.compareTo(b.courtId);

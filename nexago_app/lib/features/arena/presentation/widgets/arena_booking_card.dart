@@ -106,6 +106,9 @@ class ArenaBookingCard extends ConsumerWidget {
                   children: [
                     Text(
                       booking.startTime,
+                      // Leitor de tela: "Das 19:00 às 20:00", não "19:00 –".
+                      semanticsLabel:
+                          'Das ${booking.startTime} às ${booking.endTime}',
                       style: AppTypography.mono(
                         fontSize: 18,
                         color: colors.onSurface,
@@ -123,6 +126,7 @@ class ArenaBookingCard extends ConsumerWidget {
                           duration.isEmpty
                               ? '–${booking.endTime}'
                               : '–${booking.endTime} · $duration',
+                          semanticsLabel: duration,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTypography.mono(

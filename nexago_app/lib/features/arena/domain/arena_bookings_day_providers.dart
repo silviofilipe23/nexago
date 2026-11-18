@@ -1,11 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../arenas/domain/arena_booking_waitlist_entry.dart';
 import '../../arenas/domain/arena_slot.dart';
+import '../../arenas/domain/waitlist_providers.dart';
 import '../../arenas/domain/slots_providers.dart';
+import 'arena_access_providers.dart';
 import 'arena_booking_card_pills.dart';
 import 'arena_booking_day_timeline.dart';
 import 'arena_bookings_filter.dart';
+import 'arena_bookings_tasks.dart';
 import 'arena_bookings_grouping.dart';
 import 'arena_bookings_providers.dart';
 import 'arena_bookings_ui_models.dart';
@@ -16,6 +20,9 @@ import 'arena_manager_booking.dart';
 import 'arena_now_providers.dart';
 import 'arena_schedule_providers.dart';
 import 'arena_slot_detail_providers.dart';
+import 'arena_staff_role.dart';
+import 'comandas/arena_comanda.dart';
+import 'comandas/arena_comanda_providers.dart';
 
 /// Dia aberto na aba Reservas (faixa de 7 dias / calendário).
 final arenaBookingsSelectedDayProvider = StateProvider<DateTime>((ref) {
@@ -112,12 +119,14 @@ final arenaBookingsDayTimelineProvider =
   final free = filter.onlyCourts
       ? ref.watch(arenaBookingsDayFreeWindowsProvider)
       : const <ArenaFreeWindow>[];
+  final day = _filteredDay(list, dateKey, filter);
   return AsyncValue.data(
     buildArenaDayTimeline(
-      bookings: _filteredDay(list, dateKey, filter),
+      bookings: day,
       dateKey: dateKey,
       now: now,
       freeWindows: free,
+      canceled: arenaCanceledOfDay(day, dateKey),
     ),
   );
 });
@@ -231,3 +240,41 @@ void openArenaScheduleOn(WidgetRef ref, DateTime day) {
   ref.read(arenaScheduleSelectedDateProvider.notifier).state =
       arenaDateOnly(day);
 }
+
+/// Fila de espera de hoje (para a pendência "cancelado com fila").
+final arenaBookingsTodayWaitlistProvider =
+    StreamProvider.autoDispose<List<ArenaBookingWaitlistEntry>>((ref) {
+  final arenaId = ref.watch(managedArenaIdProvider).valueOrNull ?? '';
+  final now = ref.watch(arenaNowClockProvider).valueOrNull;
+  if (arenaId.isEmpty || now == null) return Stream.value(const []);
+  return ref.watch(waitlistRepositoryProvider).watchArenaDay(
+        arenaId: arenaId,
+        dateKey: arenaDateKey(arenaDateOnly(now)),
+      );
+});
+
+/// Comandas da arena, só para quem lê a área (as rules recusam os demais):
+/// `null` para quem não lê ou enquanto carregam.
+final _arenaBookingsComandasProvider =
+    Provider.autoDispose<List<ArenaComanda>?>((ref) {
+  if (!ref.watch(arenaCanReadProvider(ArenaArea.comandas))) return null;
+  final arenaId = ref.watch(managedArenaIdProvider).valueOrNull ?? '';
+  if (arenaId.isEmpty) return null;
+  return ref.watch(arenaComandasStreamProvider(arenaId)).valueOrNull;
+});
+
+/// Pendências de hoje para a faixa "Precisa de você". Lista vazia enquanto
+/// carrega ou quando a fila de espera falha (a faixa some, a tela segue).
+final arenaBookingsTasksProvider =
+    Provider.autoDispose<List<ArenaBookingTask>>((ref) {
+  final now = ref.watch(arenaNowClockProvider).valueOrNull;
+  final bookings = ref.watch(arenaManagerBookingsStreamProvider).valueOrNull;
+  if (now == null || bookings == null) return const [];
+  return buildArenaBookingsTasks(
+    bookings: bookings,
+    waitlist:
+        ref.watch(arenaBookingsTodayWaitlistProvider).valueOrNull ?? const [],
+    comandas: ref.watch(_arenaBookingsComandasProvider),
+    now: now,
+  );
+});

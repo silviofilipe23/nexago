@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -10,7 +11,10 @@ import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../core/ui/fade_slide_in.dart';
 import '../../../../core/ui/nexa_share.dart';
+import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_booking_card_pills.dart';
+import '../../domain/arena_booking_labels.dart';
+import '../../domain/arena_staff_role.dart';
 import '../../domain/arena_booking_day_timeline.dart';
 import '../../domain/arena_bookings_day_providers.dart';
 import '../../domain/arena_date_utils.dart';
@@ -18,6 +22,7 @@ import '../../domain/arena_free_windows.dart';
 import '../../domain/arena_schedule_providers.dart';
 import '../../domain/arena_manager_booking.dart';
 import 'arena_booking_card.dart';
+import 'arena_booking_card_actions.dart';
 import 'arena_now_booking_label.dart';
 
 /// Largura do selo de horário do marcador "agora".
@@ -52,6 +57,8 @@ class ArenaBookingsDayTimelineSliver extends StatelessWidget {
             ArenaTimelineNowEntry(:final now) => _NowMarker(now: now),
             ArenaTimelineFreeEntry(:final window) =>
               _FreeRow(window: window, isLast: isLast),
+            ArenaTimelineCanceledEntry(:final booking, :final slotFreed) =>
+              _CanceledRow(booking: booking, slotFreed: slotFreed),
             ArenaTimelineBookingEntry() => FadeSlideIn(
                 // Entrada curta e sem cascata longa: trocar de dia não
                 // pode esperar meio segundo pelo último card.
@@ -130,13 +137,17 @@ class _BookingRow extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 10),
               child: collapsed
                   ? _DoneLine(booking: b)
-                  : ArenaBookingCard(
+                  : ArenaBookingSwipeActions(
                       booking: b,
-                      now: now,
-                      phase: entry.phase,
-                      progress: entry.progress,
-                      minutesLeft: entry.minutesLeft,
-                      showActions: entry.isToday && !done,
+                      enabled: entry.isToday && !done,
+                      child: ArenaBookingCard(
+                        booking: b,
+                        now: now,
+                        phase: entry.phase,
+                        progress: entry.progress,
+                        minutesLeft: entry.minutesLeft,
+                        showActions: entry.isToday && !done,
+                      ),
                     ),
             ),
           ),
@@ -266,6 +277,196 @@ class _FreeRow extends ConsumerWidget {
         dayLabel: arenaShareDayLabel(day, arenaTodayDateOnly()),
         arenaName: arenaName,
         arenaId: arenaId,
+      ),
+    );
+  }
+}
+
+/// Cancelada no fim do dia: riscada e, se o horário ainda vai acontecer,
+/// "Vaga liberada".
+class _CanceledRow extends StatelessWidget {
+  const _CanceledRow({required this.booking, required this.slotFreed});
+
+  final ArenaManagerBooking booking;
+  final bool slotFreed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final struck = TextStyle(
+      fontSize: 12,
+      color: colors.onSurfaceMuted,
+      decoration: TextDecoration.lineThrough,
+      decorationColor: colors.onSurfaceMuted,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(left: _railColumn + 6, bottom: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: Key('arena-booking-canceled-${booking.id}'),
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => context.pushNamed(
+            AppRouteNames.arenaBookingDetail,
+            pathParameters: {'bookingId': booking.id},
+            extra: booking,
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: colors.onSurfaceMuted.withValues(alpha: 0.12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.cancel_rounded, size: 15, color: colors.live),
+                const SizedBox(width: 6),
+                Text(
+                  '${booking.startTime} ',
+                  style: AppTypography.mono(
+                    fontSize: 11,
+                    color: colors.onSurfaceMuted,
+                  ).copyWith(decoration: TextDecoration.lineThrough),
+                ),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        flex: 3,
+                        child:
+                            ArenaNowBookingWho(booking: booking, style: struck),
+                      ),
+                      Flexible(
+                        flex: 2,
+                        child: Text(
+                          ' · ${booking.courtName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: struck,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  slotFreed ? 'Vaga liberada' : 'Cancelada',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: slotFreed ? colors.brandText : colors.onSurfaceMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Deslizar o card de hoje: para a direita faz o check-in, para a esquerda
+/// abre o Receber. Cada lado só existe com a permissão e a ação valendo; o
+/// card volta para o lugar depois (não some da lista).
+class ArenaBookingSwipeActions extends ConsumerWidget {
+  const ArenaBookingSwipeActions({
+    super.key,
+    required this.booking,
+    required this.enabled,
+    required this.child,
+  });
+
+  final ArenaManagerBooking booking;
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!enabled || booking.isClassBlock || booking.isCanceled) return child;
+    final canCheckIn = ref.watch(arenaCanWriteProvider(ArenaArea.agenda)) &&
+        booking.athleteId.trim().isNotEmpty &&
+        arenaBookingShowsCheckInAction(booking.data);
+    final canReceive = ref.watch(arenaCanWriteProvider(ArenaArea.comandas)) &&
+        arenaBookingDueReais(booking) != null;
+    if (!canCheckIn && !canReceive) return child;
+
+    final direction = canCheckIn && canReceive
+        ? DismissDirection.horizontal
+        : canCheckIn
+            ? DismissDirection.startToEnd
+            : DismissDirection.endToStart;
+
+    return Dismissible(
+      key: Key('arena-booking-swipe-${booking.id}'),
+      direction: direction,
+      dismissThresholds: const {
+        DismissDirection.startToEnd: 0.35,
+        DismissDirection.endToStart: 0.35,
+      },
+      confirmDismiss: (dir) async {
+        HapticFeedback.mediumImpact();
+        if (dir == DismissDirection.startToEnd) {
+          await runArenaBookingCheckIn(context, ref, booking);
+        } else {
+          openArenaBookingReceive(context, ref, booking);
+        }
+        return false;
+      },
+      background: canCheckIn
+          ? const _SwipeBackground(
+              icon: Icons.how_to_reg_rounded,
+              label: 'Check-in',
+              alignLeft: true,
+            )
+          : const SizedBox.shrink(),
+      secondaryBackground: canReceive
+          ? const _SwipeBackground(
+              icon: Icons.payments_rounded,
+              label: 'Receber',
+              alignLeft: false,
+            )
+          : null,
+      child: child,
+    );
+  }
+}
+
+class _SwipeBackground extends StatelessWidget {
+  const _SwipeBackground({
+    required this.icon,
+    required this.label,
+    required this.alignLeft,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool alignLeft;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final fill = alignLeft ? AppColors.brand : colors.surfaceRaised;
+    final ink = alignLeft ? AppColors.black : colors.onSurface;
+    return Container(
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      alignment: alignLeft ? Alignment.centerLeft : Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: ink),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(fontWeight: FontWeight.w800, color: ink),
+          ),
+        ],
       ),
     );
   }

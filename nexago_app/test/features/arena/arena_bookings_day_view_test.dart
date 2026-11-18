@@ -12,6 +12,7 @@ import 'package:nexago_app/features/arena/domain/arena_booking_day_timeline.dart
 import 'package:nexago_app/features/arena/domain/arena_bookings_day_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_filter.dart';
 import 'package:nexago_app/features/arena/domain/arena_bookings_providers.dart';
+import 'package:nexago_app/features/arena/domain/arena_bookings_tasks.dart';
 import 'package:nexago_app/features/arena/domain/arena_club.dart';
 import 'package:nexago_app/features/arena/domain/arena_club_admin_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_manager_booking.dart';
@@ -100,6 +101,8 @@ Future<void> _pumpPage(
   List<ArenaTimelineEntry> timeline = const [],
   List<ArenaRecurringBooking> series = const [],
   List<ArenaManagerBooking> bookings = const [],
+  List<ArenaBookingTask> tasks = const [],
+  AsyncValue<List<ArenaTimelineEntry>>? timelineAsync,
 }) async {
   tester.view.physicalSize = const Size(402, 1600);
   tester.view.devicePixelRatio = 1;
@@ -111,8 +114,9 @@ Future<void> _pumpPage(
         ..._athlete(),
         managedArenaDetailProvider.overrideWith((ref) => Stream.value(null)),
         arenaBookingsDayTimelineProvider.overrideWith(
-          (ref) => AsyncValue.data(timeline),
+          (ref) => timelineAsync ?? AsyncValue.data(timeline),
         ),
+        arenaBookingsTasksProvider.overrideWith((ref) => tasks),
         arenaBookingsDaySummaryProvider.overrideWith((ref) => null),
         arenaBookingsStripSlotsProvider.overrideWith(
           (ref) => Stream.value(const <ArenaSlot>[]),
@@ -514,6 +518,99 @@ void main() {
       expect(
           container(tester).read(arenaBookingsFilterProvider).isEmpty, isTrue);
       await tester.pump(const Duration(seconds: 1));
+    });
+  });
+
+  group('pendências, canceladas e polimento', () {
+    final late = _booking('late', '18:30', '19:30');
+
+    testWidgets('Precisa de você com a ação de cada pendência', (tester) async {
+      await _pumpPage(
+        tester,
+        ArenaStaffRole.recepcao,
+        tasks: [ArenaLateCheckInTask(late, minutesLate: 10)],
+        timeline: [ArenaTimelineNowEntry(_now)],
+      );
+      expect(find.text('Precisa de você'), findsOneWidget);
+      expect(find.text('Check-in atrasado · 10 min'), findsOneWidget);
+      expect(find.byKey(const Key('arena-task-checkin-late')), findsOneWidget);
+    });
+
+    testWidgets('quem só lê vê a pendência, sem o botão de check-in',
+        (tester) async {
+      await _pumpPage(
+        tester,
+        ArenaStaffRole.manutencao,
+        tasks: [ArenaLateCheckInTask(late, minutesLate: 10)],
+        timeline: [ArenaTimelineNowEntry(_now)],
+      );
+      expect(find.text('Check-in atrasado · 10 min'), findsOneWidget);
+      expect(find.byKey(const Key('arena-task-checkin-late')), findsNothing);
+    });
+
+    testWidgets('sem pendência, a faixa não aparece', (tester) async {
+      await _pumpPage(tester, ArenaStaffRole.recepcao);
+      expect(find.byKey(const Key('arena-bookings-tasks')), findsNothing);
+    });
+
+    testWidgets('cancelada no fim do dia mostra Vaga liberada', (tester) async {
+      final canceled = _booking(
+        'cx',
+        '21:00',
+        '22:00',
+        data: {'status': 'cancelled'},
+      );
+      await _pumpPage(
+        tester,
+        ArenaStaffRole.recepcao,
+        timeline: [
+          ArenaTimelineNowEntry(_now),
+          ArenaTimelineCanceledEntry(canceled, slotFreed: true),
+        ],
+      );
+      expect(
+          find.byKey(const Key('arena-booking-canceled-cx')), findsOneWidget);
+      expect(find.text('Vaga liberada'), findsOneWidget);
+    });
+
+    testWidgets('deslizar só existe para quem pode agir', (tester) async {
+      final next = _booking('next', '19:00', '20:00');
+      final timeline = [
+        ArenaTimelineNowEntry(_now),
+        ArenaTimelineBookingEntry(
+          booking: next,
+          phase: ArenaTimelinePhase.upcoming,
+          isToday: true,
+        ),
+      ];
+      await _pumpPage(tester, ArenaStaffRole.recepcao, timeline: timeline);
+      expect(find.byType(Dismissible), findsOneWidget);
+    });
+
+    testWidgets('quem só lê não tem o deslizar', (tester) async {
+      final next = _booking('next', '19:00', '20:00');
+      await _pumpPage(
+        tester,
+        ArenaStaffRole.manutencao,
+        timeline: [
+          ArenaTimelineNowEntry(_now),
+          ArenaTimelineBookingEntry(
+            booking: next,
+            phase: ArenaTimelinePhase.upcoming,
+            isToday: true,
+          ),
+        ],
+      );
+      expect(find.byType(Dismissible), findsNothing);
+    });
+
+    testWidgets('carregando mostra o esqueleto dos cards', (tester) async {
+      await _pumpPage(
+        tester,
+        ArenaStaffRole.recepcao,
+        timelineAsync: const AsyncValue.loading(),
+      );
+      expect(find.byKey(const Key('arena-bookings-skeleton')), findsOneWidget);
     });
   });
 }

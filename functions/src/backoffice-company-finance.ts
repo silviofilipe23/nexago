@@ -4,8 +4,9 @@
  * Lê com o Admin SDK porque metade das fontes não é legível pelo admin no cliente (cobranças de
  * aula e de plano de horário, cobranças de professor, faturas de centro, pagamentos processados) e
  * consulta o Asaas: saldo da conta (`/v3/finance/balance`), extrato (`/v3/financialTransactions`,
- * para as tarifas) e as cobranças das assinaturas de plano das arenas (o Firestore não guarda o
- * valor pago). Regras do cálculo em `company-finance.ts`.
+ * para as tarifas), transferências (`/v3/transfers`, para achar as feitas à mão no painel e ainda
+ * sem classificação) e as cobranças das assinaturas de plano das arenas (o Firestore não guarda o
+ * valor pago). Regras do cálculo em `company-finance.ts`; das transferências, em `company-transfers.ts`.
  *
  * Falha do Asaas não derruba a tela: o saldo vira `null`, as tarifas viram "—" e o aviso vai em
  * `warnings`.
@@ -23,6 +24,7 @@ import {
   addArenaWithdrawal,
   addAsaasStatementEntry,
   addCenterInvoice,
+  addCompanyTransfer,
   addHolding,
   addPlanContract,
   addProfessorCharge,
@@ -43,6 +45,7 @@ import {
   windowDates,
   type Holding,
 } from "./company-finance";
+import {COMPANY_TRANSFERS, transferTags, type TransferTag} from "./company-transfers";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 
 const MONTHS = 6;
@@ -76,6 +79,16 @@ interface StatementEntry {
   description: string;
   valueCents: number;
   balanceCents: number | null;
+  /** Linha de transferência: id no Asaas e a etiqueta (a classificar ou classificada). */
+  transferId: string | null;
+  transfer: TransferTag | null;
+}
+
+/** Caixa de torneio: destino possível de um "repasse a organizador". */
+interface PayoutTarget {
+  tournamentId: string;
+  name: string | null;
+  availableCents: number;
 }
 
 function str(v: unknown): string | null {
@@ -127,7 +140,7 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
   const [
     costs, tWallets, aWallets, oWallets, pWallets, sWallets, athleteWallets, commissions,
     arenaWithdrawals, orgWithdrawals, profWithdrawals, orders, returns, stock, profCharges,
-    invoices, receiving, contracts, billing,
+    invoices, receiving, contracts, billing, classified,
   ] = await Promise.all([
     db.collection("platformCosts").get(),
     db.collection("tournamentWallets").get(),
@@ -148,6 +161,7 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
     db.collection("trainingCenterReceiving").get(),
     db.collection("tournamentPlanContracts").get(),
     db.collectionGroup("billing").get(),
+    db.collection(COMPANY_TRANSFERS).get(),
   ]);
 
   const operatingCents = costs.docs.reduce((s, d) => s + Math.max(0, intCents(d.data()["amountCents"])), 0);
@@ -182,6 +196,7 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
   stock.docs.forEach((d) => addStockEntry(book, d.data()));
   profCharges.docs.forEach((d) => addProfessorCharge(book, d.data()));
   contracts.docs.forEach((d) => addPlanContract(book, d.data()));
+  classified.docs.forEach((d) => addCompanyTransfer(book, d.data()));
   const centerPct = new Map(receiving.docs.map((d) => {
     const pct = d.data()["feePercent"];
     return [d.id, typeof pct === "number" ? pct : null];
@@ -223,11 +238,22 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
     .filter((id): id is string => !!id);
   const {start, finish} = windowDates(keys);
 
-  const [balanceRes, statementRes, subscriptionsRes] = await Promise.allSettled([
+  const [balanceRes, statementRes, subscriptionsRes, transfersRes] = await Promise.allSettled([
     asaas.get<{balance?: unknown}>("/v3/finance/balance"),
     asaasPages<DocumentData>(asaas, `/v3/financialTransactions?startDate=${start}&finishDate=${finish}&order=desc`, STATEMENT_MAX_PAGES),
     Promise.all(subscriptionIds.map((id) => asaasPages<DocumentData>(asaas, `/v3/subscriptions/${encodeURIComponent(id)}/payments`, 5))),
+    asaasPages<DocumentData>(asaas, `/v3/transfers?dateCreated%5Bge%5D=${start}&dateCreated%5Ble%5D=${finish}`, STATEMENT_MAX_PAGES),
   ]);
+
+  const transfersAvailable = transfersRes.status === "fulfilled";
+  if (!transfersAvailable) {
+    logger.error("getCompanyFinance: transferências do Asaas indisponíveis", transfersRes.reason);
+    warnings.push("Transferências do Asaas indisponíveis: a contagem das que faltam classificar não aparece agora.");
+  }
+  const {tags, unclassified} = transferTags(
+    transfersAvailable ? transfersRes.value : null,
+    new Map(classified.docs.map((d) => [d.id, d.data()])),
+  );
 
   let asaasCents: number | null = null;
   if (balanceRes.status === "fulfilled" && typeof balanceRes.value.balance === "number") {
@@ -243,14 +269,21 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
     statement = statementRes.value
       .filter((e) => typeof e["date"] === "string" && (e["date"] as string).startsWith(month))
       .slice(0, STATEMENT_ENTRIES_CAP)
-      .map((e) => ({
-        id: str(e["id"]) ?? "",
-        date: String(e["date"]),
-        type: str(e["type"]) ?? "",
-        description: str(e["description"]) ?? "",
-        valueCents: reaisToCents(e["value"]),
-        balanceCents: typeof e["balance"] === "number" ? reaisToCents(e["balance"]) : null,
-      }));
+      .map((e) => {
+        const transferId = str(e["transferId"]);
+        return {
+          id: str(e["id"]) ?? "",
+          date: String(e["date"]),
+          type: str(e["type"]) ?? "",
+          description: str(e["description"]) ?? "",
+          valueCents: reaisToCents(e["value"]),
+          balanceCents: typeof e["balance"] === "number" ? reaisToCents(e["balance"]) : null,
+          transferId,
+          // Só a saída da própria transferência leva a etiqueta: o estorno e a tarifa citam o mesmo id.
+          transfer: transferId && reaisToCents(e["value"]) < 0 && !(str(e["type"]) ?? "").includes("FEE") ?
+            tags.get(transferId) ?? null : null,
+        };
+      });
   } else {
     logger.error("getCompanyFinance: extrato do Asaas indisponível", statementRes.reason);
     book.markAsaasFeesUnknown();
@@ -276,11 +309,18 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
     .sort((a, b) => b.availableCents + b.pendingCents - (a.availableCents + a.pendingCents))
     .slice(0, TOP_HOLDERS);
   const byKind = (k: HolderKind) => rows.filter((r) => r.kind === k).map((r) => r.id);
-  const [tNames, aNames, uNames] = await Promise.all([
+  // Todos os caixas: o repasse com caixa já baixado antes aponta para caixa zerado.
+  const targetWallets = tWallets.docs
+    .map((d) => ({tournamentId: d.id, availableCents: Math.max(0, holdingOf(d.data()).availableCents)}));
+  const [tNames, aNames, uNames, targetNames] = await Promise.all([
     namesOf(db, "tournaments", byKind("torneio")),
     namesOf(db, "arenas", byKind("arena")),
     namesOf(db, "users", [...byKind("organizador"), ...byKind("professor")]),
+    namesOf(db, "tournaments", targetWallets.map((w) => w.tournamentId)),
   ]);
+  const payoutTargets: PayoutTarget[] = targetWallets
+    .map((w) => ({...w, name: targetNames.get(w.tournamentId) ?? null}))
+    .sort((a, b) => (a.name ?? "~").localeCompare(b.name ?? "~", "pt-BR"));
   const holders: Holder[] = rows.map((r) => ({
     ...r,
     name: (r.kind === "torneio" ? tNames : r.kind === "arena" ? aNames : uNames).get(r.id) ?? null,
@@ -324,6 +364,8 @@ export async function loadCompanyFinance(db: Firestore, month: string, asaas: As
     stuckWithdrawals,
     months: book.result(),
     statement: {available: statementRes.status === "fulfilled", entries: statement},
+    transfers: {available: transfersAvailable, unclassified},
+    payoutTargets,
     warnings,
   };
 }

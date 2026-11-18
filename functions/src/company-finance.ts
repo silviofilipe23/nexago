@@ -13,7 +13,10 @@
  * - planos NexaGO: sinal e saldo marcados à mão no contrato.
  * Deduções = o que a NexaGO banca dentro das vendas: cashback usado, desconto e comissão do Squad.
  * Custos = tarifas do extrato do Asaas (menos as repassadas a organizadores/arenas e as pagas pelo
- * atleta por cima), compras de estoque da loja e os custos cadastrados (mensais).
+ * atleta por cima), compras de estoque da loja, os custos cadastrados (mensais) e as despesas avulsas
+ * (transferências do Asaas classificadas como despesa no backoffice).
+ * Retiradas da NexaGO (transferências classificadas como retirada) ficam fora do resultado: é o dono
+ * tirando o que já é dele, não custo.
  *
  * Tudo em centavos.
  */
@@ -42,6 +45,10 @@ export interface MonthResult {
   feesRecovered: number;
   stockPurchases: number;
   operatingCosts: number;
+  /** Despesas avulsas: transferências do Asaas classificadas como despesa. */
+  oneOffCosts: number;
+  /** Retiradas da NexaGO no mês; fora do resultado. */
+  ownerWithdrawals: number;
 }
 
 export interface Holding {
@@ -126,6 +133,8 @@ export class FinanceBook {
         feesRecovered: 0,
         stockPurchases: 0,
         operatingCosts: operatingCostsCents,
+        oneOffCosts: 0,
+        ownerWithdrawals: 0,
       });
     }
   }
@@ -157,6 +166,16 @@ export class FinanceBook {
   stockPurchase(date: Date | null, cents: number): void {
     const m = this.at(date);
     if (m && cents) m.stockPurchases += cents;
+  }
+
+  oneOffCost(date: Date | null, cents: number): void {
+    const m = this.at(date);
+    if (m && cents) m.oneOffCosts += cents;
+  }
+
+  ownerWithdrawal(date: Date | null, cents: number): void {
+    const m = this.at(date);
+    if (m && cents) m.ownerWithdrawals += cents;
   }
 
   /** Extrato indisponível: a tarifa vira "—", não zero. */
@@ -294,6 +313,17 @@ export function addAsaasStatementEntry(book: FinanceBook, entry: Raw): void {
   book.asaasFee(dateOf(entry["date"]), -reaisToCents(entry["value"]));
 }
 
+/**
+ * Transferência do Asaas classificada (`companyTransfers`): despesa é custo avulso; retirada vai
+ * para "Retiradas da Nexa"; repasse a organizador não entra (o caixa do torneio já foi baixado).
+ */
+export function addCompanyTransfer(book: FinanceBook, raw: Raw): void {
+  const cents = Math.max(0, intCents(raw["amountCents"]));
+  const date = dateOf(raw["date"]);
+  if (raw["kind"] === "expense") book.oneOffCost(date, cents);
+  else if (raw["kind"] === "withdrawal") book.ownerWithdrawal(date, cents);
+}
+
 // ── totais do mês ──────────────────────────────────────────────────────────
 
 export function revenueTotal(m: MonthResult): number {
@@ -310,7 +340,7 @@ export function asaasNetCost(m: MonthResult): number {
 }
 
 export function costsTotal(m: MonthResult): number {
-  return asaasNetCost(m) + m.stockPurchases + m.operatingCosts;
+  return asaasNetCost(m) + m.stockPurchases + m.operatingCosts + m.oneOffCosts;
 }
 
 export function monthResult(m: MonthResult): number {

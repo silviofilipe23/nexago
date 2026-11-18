@@ -7,6 +7,7 @@ import {
   addArenaWithdrawal,
   addAsaasStatementEntry,
   addCenterInvoice,
+  addCompanyTransfer,
   addHolding,
   addPlanContract,
   addProfessorCharge,
@@ -227,5 +228,26 @@ describe("company-finance: saldo", () => {
     assert.equal(isSeedRecord({seed: true}), true);
     assert.equal(isSeedRecord({seed: "true"}), false);
     assert.equal(isSeedRecord({}), false);
+  });
+
+  it("transferência classificada: despesa vira custo avulso, retirada fica fora do resultado", () => {
+    const b = book(1000);
+    addCompanyTransfer(b, {kind: "expense", amountCents: 4495, date: "2026-11-10"});
+    addCompanyTransfer(b, {kind: "withdrawal", amountCents: 50000, date: "2026-11-02"});
+    addCompanyTransfer(b, {kind: "withdrawal", amountCents: 7000, date: "2026-10-26"});
+    addCompanyTransfer(b, {kind: "organizerPayout", amountCents: 9000, date: "2026-11-10"});
+    const m = nov(b);
+    assert.equal(m.oneOffCosts, 4495);
+    assert.equal(m.ownerWithdrawals, 50000);
+    assert.equal(costsTotal(m), 1000 + 4495, "retirada e repasse não são custo");
+    assert.equal(monthResult(m), -(1000 + 4495));
+    assert.equal(b.result().find((x) => x.key === "2026-10")!.ownerWithdrawals, 7000);
+  });
+
+  it("transferência classificada fora da janela ou sem data é ignorada", () => {
+    const b = book();
+    addCompanyTransfer(b, {kind: "expense", amountCents: 100, date: "2025-01-10"});
+    addCompanyTransfer(b, {kind: "expense", amountCents: 100});
+    assert.equal(b.result().reduce((s, m) => s + m.oneOffCosts, 0), 0);
   });
 });

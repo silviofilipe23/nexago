@@ -14,6 +14,7 @@ import {
   sourcesOf,
   statementTypeLabel,
   sumMonths,
+  transferTagLabel,
   type MonthResult,
 } from './company-finance';
 
@@ -49,6 +50,43 @@ describe('financeiro da empresa: leitura do callable', () => {
     expect(f.holders[0].name).toBeNull();
     expect(f.stuckWithdrawals[0].approvedAt?.toISOString()).toBe('2026-09-19T18:17:29.735Z');
     expect(f.statement.entries[0].balanceCents).toBeNull();
+  });
+});
+
+describe('financeiro da empresa: transferências do Asaas', () => {
+  it('lê etiquetas, contagem a classificar e caixas de destino', () => {
+    const f = companyFinanceFrom({
+      statement: {
+        available: true,
+        entries: [
+          { id: 'e1', type: 'TRANSFER', valueCents: -9000, transferId: 'tr1', transfer: { state: 'unclassified' } },
+          { id: 'e2', type: 'TRANSFER', valueCents: -500, transferId: 'tr2', transfer: { state: 'classified', kind: 'organizerPayout', tournamentName: 'Copa X', note: '' } },
+          { id: 'e3', type: 'TRANSFER', valueCents: -500, transferId: 'tr3', transfer: { state: 'classified', kind: 'presente' } },
+          { id: 'e4', type: 'PAYMENT_FEE', valueCents: -199 },
+        ],
+      },
+      transfers: { available: true, unclassified: { count: 3, cents: 12345, months: ['2026-11', 2] } },
+      payoutTargets: [{ tournamentId: 't1', name: ' ', availableCents: 100 }, { name: 'sem id' }],
+    });
+    const [e1, e2, e3, e4] = f.statement.entries;
+    expect(e1.transfer).toEqual({ state: 'unclassified' });
+    expect(e2.transfer && transferTagLabel(e2.transfer)).toBe('Repasse · Copa X');
+    expect(e3.transfer).toBeNull();
+    expect(e4.transferId).toBeNull();
+    expect(f.transfers.unclassified).toEqual({ count: 3, cents: 12345, months: ['2026-11'] });
+    expect(f.payoutTargets).toEqual([{ tournamentId: 't1', name: null, availableCents: 100 }]);
+  });
+
+  it('sem a lista do Asaas a contagem é null', () => {
+    expect(companyFinanceFrom({ transfers: { available: false, unclassified: null } }).transfers.unclassified).toBeNull();
+    expect(companyFinanceFrom(undefined).payoutTargets).toEqual([]);
+  });
+
+  it('rótulos das etiquetas', () => {
+    expect(transferTagLabel({ state: 'unclassified' })).toBe('A classificar');
+    expect(transferTagLabel({ state: 'classified', kind: 'withdrawal', tournamentName: null, note: '' })).toBe('Retirada');
+    expect(transferTagLabel({ state: 'classified', kind: 'expense', tournamentName: null, note: '' })).toBe('Despesa');
+    expect(transferTagLabel({ state: 'classified', kind: 'organizerPayout', tournamentName: null, note: '' })).toBe('Repasse');
   });
 });
 
@@ -92,7 +130,21 @@ describe('financeiro da empresa: resultado', () => {
     expect(lines).toContain('Torneios;123,45');
     expect(lines).toContain('Tarifas Asaas (extrato);');
     expect(lines).toContain('Custos operacionais;-451,99');
-    expect(lines[lines.length - 1]).toBe('Resultado;-328,54');
+    expect(lines).toContain('Resultado;-328,54');
+    expect(lines[lines.length - 1]).toBe('Retiradas da Nexa (fora do resultado);0,00');
+  });
+
+  it('despesa avulsa é custo; retirada fica fora do resultado e soma no período', () => {
+    const a = month('2026-10', { oneOffCosts: 4495, ownerWithdrawals: 50000 });
+    const b = month('2026-11', { ownerWithdrawals: 7000 });
+    expect(costsTotal(a)).toBe(4495);
+    expect(monthResult(a)).toBe(-4495);
+    const total = sumMonths([a, b], 'total');
+    expect(total.oneOffCosts).toBe(4495);
+    expect(total.ownerWithdrawals).toBe(57000);
+    const csv = resultCsv([a]).split('\n');
+    expect(csv).toContain('Despesas avulsas (Asaas);-44,95');
+    expect(csv).toContain('Retiradas da Nexa (fora do resultado);-500,00');
   });
 });
 

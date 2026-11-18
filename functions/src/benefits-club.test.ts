@@ -302,7 +302,7 @@ describe("partnerInWindow / athleteBenefitCode", () => {
 
 describe("parseTrackEvent (origens v2)", () => {
   it("aceita as origens novas", () => {
-    for (const source of ["post_game", "tournament_day", "featured", "search", "map", "my_benefits"]) {
+    for (const source of ["post_game", "tournament_day", "featured", "search", "map", "my_benefits", "app_news"]) {
       const parsed = parseTrackEvent({type: "club_view", source});
       assert.ok(!("error" in parsed));
       assert.equal(parsed.source, source);

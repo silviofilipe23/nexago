@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  .lad { position: absolute; left: 57px; top: 80px; width: 276px; height: 216px; border-radius: 18px; padding: 12px 12px; }
+  .r { height: 30px; border-radius: 10px; display: flex; align-items: center; padding: 0 10px; gap: 8px; font-size: 10px; font-weight: 700; color: var(--dim); margin-top: 4px; }
+  .r .off { margin-left: auto; font-family: JB; font-size: 9px; color: var(--dim); }
+  .r.on { background: #1A0E07; border: 1px solid rgba(255,106,26,.5); color: var(--fg); }
+  .r.on .off { color: var(--or); }
+  .dot { width: 8px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.18); flex-shrink: 0; }
+  .r.on .dot { background: var(--or); box-shadow: 0 0 0 3px rgba(255,106,26,.2); }
+  .tag { font-family: JB; font-size: 6.5px; letter-spacing: .12em; background: var(--or); color: #0A0A0A; border-radius: 99px; padding: 3px 6px; }
+</style></head>
+<body><div class="art">
+  <div class="lad card">
+    <div class="kicker" style="color:var(--or);">Desconto por elo</div>
+    <div class="r"><span class="dot"></span>Iniciante<span class="off">5% OFF</span></div>
+    <div class="r"><span class="dot"></span>Competidor<span class="off">8% OFF</span></div>
+    <div class="r on"><span class="dot"></span>Desafiante<span class="tag">SEU DESCONTO</span><span class="off">10% OFF</span></div>
+    <div class="r"><span class="dot"></span>Elite<span class="off">12% OFF</span></div>
+    <div class="r"><span class="dot"></span>Mestre · Lenda<span class="off">15% OFF</span></div>
+  </div>
+</div></body></html>

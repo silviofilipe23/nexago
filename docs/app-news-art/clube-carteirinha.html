@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  .member { position: absolute; left: 57px; top: 84px; width: 276px; height: 208px; border-radius: 20px; padding: 16px;
+    border: 1px solid rgba(255,106,26,.42); box-shadow: 0 18px 44px rgba(0,0,0,.6);
+    background: linear-gradient(150deg, #2A1206, #141416 62%); }
+  .name { font-size: 15px; font-weight: 800; letter-spacing: -.02em; margin-top: 8px; }
+  .lvl { font-size: 9px; color: var(--dim); margin-top: 3px; }
+  .code { font-family: JB; font-weight: 700; font-size: 15px; letter-spacing: .08em; margin-top: 4px; }
+  .qr { position: absolute; right: 16px; top: 16px; width: 86px; height: 86px; border-radius: 12px; background: #F7F7F8; padding: 7px; display: grid; grid-template-columns: repeat(21, 1fr); gap: 0; }
+  .qr b { background: #0A0A0A; }
+  .qr i { background: transparent; }
+</style></head>
+<body><div class="art">
+  <div class="member">
+    <div class="kicker" style="color:var(--or);">Nexa · Membro</div>
+    <div class="name">Você</div>
+    <div class="lvl">Atleta NexaGO</div>
+    <div id="qr" class="qr"></div>
+    <div style="position:absolute; left:16px; bottom:56px;">
+      <div class="kicker">Seu código</div>
+      <div class="code">NEXA-7K2Q</div>
+    </div>
+    <div class="btn" style="position:absolute; left:16px; right:16px; bottom:14px;"><span class="i" style="font-size:16px;">&#xf00ca;</span>Mostrar QR</div>
+  </div>
+</div>
+<script>
+  // Padrão de QR ilustrativo (não é um código lido de verdade).
+  const q = document.getElementById('qr'); let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const N = 21;
+  // Os três quadrados de leitura (7×7: borda, vão, miolo 3×3).
+  const finder = (r, c) => {
+    for (const [r0, c0] of [[0, 0], [0, N - 7], [N - 7, 0]]) {
+      const y = r - r0, x = c - c0;
+      if (y < 0 || x < 0 || y > 6 || x > 6) continue;
+      const ring = y === 0 || y === 6 || x === 0 || x === 6;
+      const core = y >= 2 && y <= 4 && x >= 2 && x <= 4;
+      return ring || core ? 1 : 0;
+    }
+    if ((r === 7 || c === 7) && (r < 8 && c < 8)) return 0;
+    if ((r === 7 && c >= N - 8) || (c === N - 8 && r < 8)) return 0;
+    if ((c === 7 && r >= N - 8) || (r === N - 8 && c < 8)) return 0;
+    return null;
+  };
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const f = finder(r, c);
+    const on = f === null ? rnd() > .52 : f === 1;
+    q.appendChild(document.createElement(on ? 'b' : 'i'));
+  }
+</script></body></html>

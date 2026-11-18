@@ -41,6 +41,10 @@ enum BenefitSource {
 
   /// "Meus benefícios".
   myBenefits('my_benefits'),
+
+  /// Botão de uma novidade, de um guia da Central de ajuda ou de um banner
+  /// da Home (destino `clube`).
+  appNews('app_news'),
   unknown('unknown');
 
   const BenefitSource(this.key);

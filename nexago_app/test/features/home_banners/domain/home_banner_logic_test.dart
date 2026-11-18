@@ -54,6 +54,11 @@ void main() {
           HomeBannerDestination.blog);
     });
 
+    test('chave clube abre o Clube de Vantagens', () {
+      expect(HomeBanner.fromMap(raw({'destination': 'clube'}))!.destination,
+          HomeBannerDestination.clube);
+    });
+
     test('chave desconhecida para este build esconde o banner', () {
       expect(HomeBanner.fromMap(raw({'destination': 'radar'})), isNull);
       expect(HomeBanner.fromMap(raw({'audience': 'inativos'})), isNull);

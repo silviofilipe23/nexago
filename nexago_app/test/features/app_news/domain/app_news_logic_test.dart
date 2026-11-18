@@ -101,6 +101,11 @@ void main() {
       )!;
       expect(blog.icon, AppNewsIcon.blog);
       expect(blog.destination, HomeBannerDestination.blog);
+      final clube = AppNewsFeature.fromMap(
+        feature('d', {'destination': 'clube'}),
+      )!;
+      expect(clube.destination, HomeBannerDestination.clube);
+      expect(clube.icon, isNull);
     });
   });
 

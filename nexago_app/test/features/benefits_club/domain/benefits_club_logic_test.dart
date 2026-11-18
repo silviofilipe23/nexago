@@ -358,6 +358,7 @@ void main() {
       expect(BenefitSource.fromQuery(null), BenefitSource.deeplink);
       expect(BenefitSource.fromQuery(' '), BenefitSource.deeplink);
       expect(BenefitSource.fromQuery('hub_card'), BenefitSource.hubCard);
+      expect(BenefitSource.fromQuery('app_news'), BenefitSource.appNews);
       expect(BenefitSource.fromQuery('banner'), BenefitSource.unknown);
     });
   });

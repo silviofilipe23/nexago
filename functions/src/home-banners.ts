@@ -57,6 +57,8 @@ export const HOME_BANNER_DESTINATIONS = [
   "minhas-reservas",
   "creditos-chuva",
   "blog",
+  // Clube de Vantagens: build 124+ (antes, o app esconde o conteúdo).
+  "clube",
   "url",
 ] as const;
 /** Quem vê. O app decide com o que já carrega na Home (conta, reservas, inscrições). */

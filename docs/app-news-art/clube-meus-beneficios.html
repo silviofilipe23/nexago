@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="art.css">
+<style>
+  .t { font-size: 11px; font-weight: 800; letter-spacing: -.02em; }
+  .s { font-size: 9px; color: var(--dim); margin-top: 3px; }
+  .tabs { position: absolute; left: 57px; top: 84px; width: 276px; height: 32px; border-radius: 12px; background: var(--surf); border: 1px solid var(--line); display: flex; padding: 3px; }
+  .tab { flex: 1; border-radius: 9px; display: grid; place-items: center; font-size: 10px; font-weight: 700; color: var(--dim); }
+  .tab.on { background: var(--or); color: #0A0A0A; }
+  .p { position: absolute; left: 57px; width: 276px; height: 56px; padding: 0 10px; display: flex; align-items: center; gap: 10px; }
+  .logo { width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0; display: grid; place-items: center; }
+  .sel { border-color: rgba(255,106,26,.55); box-shadow: 0 0 0 4px rgba(255,106,26,.10), 0 18px 44px rgba(0,0,0,.6); }
+</style></head>
+<body><div class="art">
+  <div class="tabs"><div class="tab">Usados</div><div class="tab on">Salvos</div></div>
+  <div class="p card sel" style="top:128px;">
+    <div class="logo" style="background:linear-gradient(135deg,#3B0F3F,#7A2A86); color:#F2C6FA;"><span class="i" style="font-size:18px;">&#xf11d;</span></div>
+    <div><div class="t">Açaí</div><div class="s">10% de desconto em todo pedido</div></div>
+    <span class="i" style="margin-left:auto; color:var(--or); font-size:20px;">&#xf738;</span>
+  </div>
+  <div class="p card" style="top:192px;">
+    <div class="logo" style="background:linear-gradient(135deg,#0F2A1C,#187345); color:var(--win);"><span class="i" style="font-size:18px;">&#xf01c8;</span></div>
+    <div><div class="t">Arena</div><div class="s">R$ 10 de desconto na reserva</div></div>
+    <span class="i" style="margin-left:auto; color:var(--or); font-size:20px;">&#xf738;</span>
+  </div>
+  <div class="p card" style="top:256px; opacity:.55;">
+    <div class="logo" style="background:linear-gradient(135deg,#0E1F33,#1D4F86); color:#BFE0FF;"><span class="i" style="font-size:18px;">&#xf767;</span></div>
+    <div><div class="t">Academia</div><div class="s">1ª aula grátis</div></div>
+    <span class="i" style="margin-left:auto; color:var(--or); font-size:20px;">&#xf738;</span>
+  </div>
+</div></body></html>

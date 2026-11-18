@@ -47,6 +47,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   search: 'Busca',
   map: 'Mapa',
   my_benefits: 'Meus benefícios',
+  app_news: 'Novidades, ajuda ou banner',
   unknown: 'Não informada',
 };
 

@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/errors/friendly_error_message.dart';
 import 'package:nexago_app/core/layout/nexa_page_header.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../../core/ui/fade_slide_in.dart';
 import '../../../core/ui/nexa_skeleton.dart';
 import '../domain/arena_access_providers.dart';
 import '../domain/arena_booking_day_timeline.dart';
@@ -21,6 +20,7 @@ import 'widgets/arena_bookings_day_timeline.dart';
 import 'widgets/arena_bookings_header.dart';
 import 'widgets/arena_bookings_insight_card.dart';
 import 'widgets/arena_bookings_shortcuts.dart';
+import 'widgets/arena_bookings_skeleton.dart';
 import 'widgets/arena_bookings_tasks_strip.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 
@@ -48,7 +48,8 @@ class ArenaBookingsPage extends ConsumerWidget {
             }
             return const _BookingsScrollBody();
           },
-          loading: () => const ArenaLoadingState(label: 'Carregando arena...'),
+          // Esqueleto com a forma da aba: a tela pronta entra sem pular.
+          loading: () => const ArenaBookingsPageSkeleton(),
           error: (e, _) => ArenaErrorState(
             message: friendlyErrorMessage(
               e,
@@ -78,11 +79,9 @@ class _BookingsScrollBody extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(
         horizontal: ArenaDashboardTokens.horizontalPadding,
       ),
-      header: const FadeSlideIn(
-        duration: Duration(milliseconds: 420),
-        offsetY: 14,
-        child: ArenaBookingsHeader(),
-      ),
+      // Sem animação de entrada: o título já estava no esqueleto da aba e
+      // deslizar aqui faria ele piscar e descer quando a arena carrega.
+      header: const ArenaBookingsHeader(),
       child: CustomScrollView(
         controller:
             ref.watch(arenaShellScrollRegistryProvider).controllerFor(3),
@@ -130,8 +129,19 @@ EdgeInsets _listPadding(double bottom, {double top = 4}) => EdgeInsets.fromLTRB(
       bottom,
     );
 
-/// Esqueleto com a forma dos cards: carrega sem "pular" a tela.
-List<Widget> _loadingSlivers() => const [
+/// Linha do dia carregando: resumo e cards no trilho, na forma da linha
+/// pronta.
+List<Widget> _dayLoadingSlivers() => const [
+      SliverPadding(
+        padding: EdgeInsets.symmetric(
+          horizontal: ArenaDashboardTokens.horizontalPadding,
+        ),
+        sliver: SliverToBoxAdapter(child: ArenaBookingsDaySkeleton()),
+      ),
+    ];
+
+/// Busca carregando: esqueleto com a forma dos cards do resultado.
+List<Widget> _searchLoadingSlivers() => const [
       SliverToBoxAdapter(
         child: NexaListSkeleton.cards(
           key: Key('arena-bookings-skeleton'),
@@ -229,7 +239,7 @@ class _DayTimeline {
             ),
         ];
       },
-      loading: _loadingSlivers,
+      loading: _dayLoadingSlivers,
       error: (e, _) => _errorSlivers(e),
     );
   }
@@ -308,7 +318,7 @@ class _SearchResults {
             ),
         ];
       },
-      loading: _loadingSlivers,
+      loading: _searchLoadingSlivers,
       error: (e, _) => _errorSlivers(e),
     );
   }

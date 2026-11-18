@@ -2,482 +2,461 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/formatting/app_currency_format.dart';
 
+import '../../../../core/formatting/app_currency_format.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
-import '../../../athlete/domain/athlete_profile.dart';
+import '../../../arenas/domain/booking_players.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
+import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
+import '../../domain/arena_booking_card_pills.dart';
+import '../../domain/arena_booking_day_timeline.dart';
 import '../../domain/arena_booking_labels.dart';
 import '../../domain/arena_bookings_grouping.dart';
 import '../../domain/arena_manager_booking.dart';
 import '../../domain/arena_slot_detail_providers.dart';
-import '../../../professor_links/presentation/widgets/professor_links_ui.dart';
+import 'arena_booking_card_actions.dart';
 import 'arena_dashboard_tokens.dart';
+import 'arena_now_booking_label.dart';
 
+/// Azul de aula/professor no tema claro (o #5B9BFF do escuro fica a ~2,6:1
+/// no branco).
+const Color _blueOnLight = Color(0xFF2F5BD3);
+
+/// Avatares de convidados mostrados antes do contador "+N".
+const int _maxGuestAvatars = 2;
+
+/// Card de uma reserva na aba Reservas.
+///
+/// Separa os três eixos (pagamento, presença e tipo) em selos com ícone,
+/// texto e cor; mostra quanto falta receber; e, quando [showActions], põe
+/// Check-in, Receber e Conversar no próprio card.
 class ArenaBookingCard extends ConsumerWidget {
-  const ArenaBookingCard({super.key, required this.booking});
+  const ArenaBookingCard({
+    super.key,
+    required this.booking,
+    this.now,
+    this.phase = ArenaTimelinePhase.upcoming,
+    this.progress = 0,
+    this.minutesLeft,
+    this.showActions = false,
+  });
+
+  final ArenaManagerBooking booking;
+
+  /// Relógio da linha do dia (presença: "Chega em", "Atrasado").
+  final DateTime? now;
+
+  final ArenaTimelinePhase phase;
+
+  /// Quanto da reserva em quadra já passou (só em [ArenaTimelinePhase.live]).
+  final double progress;
+  final int? minutesLeft;
+
+  /// Ações rápidas: só na linha de hoje e em reserva ativa.
+  final bool showActions;
+
+  bool get _isLive => phase == ArenaTimelinePhase.live;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.themeColors;
+    final clock = now ?? DateTime.now();
+    final amount = ArenaBookingsGrouping.amountReais(booking.data);
+    final due = arenaBookingDueReais(booking);
+    final payment = arenaBookingPaymentPill(booking);
+    final presence = arenaBookingPresencePill(booking, now: clock);
+    final pills = [
+      if (payment != null) payment,
+      if (presence != null) presence,
+      ...arenaBookingTypePills(booking),
+    ];
+    final duration =
+        arenaBookingDurationLabel(booking.startTime, booking.endTime);
+
+    final decoration = ArenaDashboardTokens.cardDecoration(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: Key('arena-booking-card-${booking.id}'),
+        onTap: () => _open(context),
+        borderRadius: BorderRadius.circular(ArenaDashboardTokens.cardRadius),
+        child: Ink(
+          decoration: _isLive
+              ? decoration.copyWith(
+                  border: Border.all(
+                    color: AppColors.brand.withValues(alpha: 0.6),
+                    width: 1.4,
+                  ),
+                )
+              : decoration,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_isLive) ...[
+                  _LiveHeader(minutesLeft: minutesLeft),
+                  const SizedBox(height: 10),
+                ],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      booking.startTime,
+                      style: AppTypography.mono(
+                        fontSize: 18,
+                        color: colors.onSurface,
+                        letterSpacing: -0.3,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Flexível: em card estreito a duração encolhe antes do
+                    // valor (o que o balcão precisa ler).
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          duration.isEmpty
+                              ? '–${booking.endTime}'
+                              : '–${booking.endTime} · $duration',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.mono(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: colors.onSurfaceMuted,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (amount != null) ...[
+                      const SizedBox(width: 8),
+                      _Amount(amount: amount, due: due),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _WhoRow(booking: booking),
+                if (pills.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [for (final p in pills) ArenaBookingPillChip(p)],
+                  ),
+                ],
+                if (_isLive) ...[
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 4,
+                      color: AppColors.brand,
+                      backgroundColor: colors.surfaceRaised,
+                    ),
+                  ),
+                ],
+                if (showActions && !booking.isCanceled && !booking.isClassBlock)
+                  ArenaBookingCardActions(booking: booking, dueReais: due),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _open(BuildContext context) {
+    // Bloqueio de aula abre Aulas (a presença é a chamada da aula).
+    if (booking.isClassBlock) {
+      openArenaNowBooking(context, booking);
+      return;
+    }
+    context.pushNamed(
+      AppRouteNames.arenaBookingDetail,
+      pathParameters: {'bookingId': booking.id},
+      extra: booking,
+    );
+  }
+}
+
+class _LiveHeader extends StatelessWidget {
+  const _LiveHeader({required this.minutesLeft});
+
+  final int? minutesLeft;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final left = minutesLeft;
+    return Row(
+      children: [
+        const ArenaBookingPillChip(
+          ArenaBookingPill(
+              'Em quadra', ArenaPillTone.brand, ArenaPillKind.live),
+        ),
+        const SizedBox(width: 8),
+        if (left != null)
+          Flexible(
+            child: Text(
+              'termina em ${arenaMinutesLabel(left)}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: colors.onSurfaceMuted,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _Amount extends StatelessWidget {
+  const _Amount({required this.amount, required this.due});
+
+  final double amount;
+  final double? due;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    final owed = due;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          formatBRL(amount),
+          style: AppTypography.mono(fontSize: 14, color: colors.onSurface),
+        ),
+        if (owed != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              'falta ${formatBRL(owed)}',
+              key: const Key('arena-booking-card-due'),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: colors.pending,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Avatares do grupo + nome de quem reservou + quadra e esporte.
+class _WhoRow extends ConsumerWidget {
+  const _WhoRow({required this.booking});
 
   final ArenaManagerBooking booking;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final athleteId = booking.athleteId.trim();
-    final nameAsync = ref.watch(athleteDisplayLabelProvider(athleteId));
-    final profileAsync = athleteId.isEmpty
-        ? null
-        : ref.watch(athleteProfileByIdProvider(athleteId));
-
     final colors = context.themeColors;
-    final statusBadge = _businessStatusBadge(booking.data);
-    final statusColor = _statusBadgeColor(statusBadge);
-    final paymentLabel = arenaBookingPaymentShortLabel(booking.data);
-    final sportLabel = arenaBookingSportLabel(booking.data);
-    final attendanceLabel = ArenaBookingsGrouping.attendanceChipLabel(booking);
-    final isAttendancePending = attendanceLabel.toLowerCase() == 'pendente';
-    final extraPlayers = arenaBookingExtraPlayers(booking);
-    final amount = ArenaBookingsGrouping.amountReais(booking.data);
-    final amountStr = amount != null ? formatBRL(amount) : null;
+    final athleteId = booking.athleteId.trim();
+    // Aula mostra o nome da turma (o selo "Aula" já diz o que é).
+    final fixed = booking.isClassBlock
+        ? (booking.customerName ?? 'Aula')
+        : arenaNowStaticWho(booking);
+    final String name = fixed ??
+        ref.watch(athleteDisplayLabelProvider(athleteId)).maybeWhen<String>(
+              data: (v) => v,
+              orElse: () => 'Carregando…',
+            );
+    final ownerPhoto = athleteId.isEmpty
+        ? null
+        : ref
+            .watch(athleteProfileByIdProvider(athleteId))
+            .valueOrNull
+            ?.avatarUrl
+            ?.trim();
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          context.pushNamed(
-            AppRouteNames.arenaBookingDetail,
-            pathParameters: {'bookingId': booking.id},
-            extra: booking,
-          );
-        },
-        borderRadius: BorderRadius.circular(ArenaDashboardTokens.cardRadius),
-        child: Ink(
-          decoration: ArenaDashboardTokens.cardDecoration(context),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 14, 16, 14),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Container(
-                      width: 3,
-                      decoration: BoxDecoration(
-                        color: context.themeColors.readableTone(statusColor),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              child: Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      '${booking.startTime} – ${booking.endTime}',
-                                      style: AppTypography.mono(
-                                        fontSize: 15,
-                                        color: colors.onSurface,
-                                        letterSpacing: 0.2,
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  _StatusBadge(
-                                    label: statusBadge,
-                                    color: statusColor,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (amountStr != null) ...[
-                              SizedBox(width: 8),
-                              Text(
-                                amountStr,
-                                style: AppTypography.mono(
-                                  fontSize: 15,
-                                  color: colors.onSurface,
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        SizedBox(height: 14),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            _AthleteAvatarRow(
-                              nameAsync: nameAsync,
-                              profileAsync: profileAsync,
-                              extraPlayers: extraPlayers,
-                            ),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: athleteId.isEmpty &&
-                                      booking.customerName != null
-                                  ? Text(
-                                      booking.customerName!,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 15,
-                                        height: 1.25,
-                                        color: colors.onSurface,
-                                      ),
-                                    )
-                                  : nameAsync.when(
-                                      data: (name) => Text(
-                                        name,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 15,
-                                          height: 1.25,
-                                          color: colors.onSurface,
-                                        ),
-                                      ),
-                                      loading: () => Text(
-                                        'Carregando…',
-                                        style: TextStyle(
-                                          color: colors.onSurfaceMuted,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      error: (_, __) => Text(
-                                        'Atleta',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 15,
-                                          color: colors.onSurface,
-                                        ),
-                                      ),
-                                    ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _MetaChip(
-                              icon: Icons.sports_tennis_rounded,
-                              label: sportLabel == null
-                                  ? booking.courtName
-                                  : '${booking.courtName} · $sportLabel',
-                            ),
-                            _MetaChip(
-                              icon: Icons.account_balance_wallet_outlined,
-                              label: paymentLabel,
-                            ),
-                            if (booking.isRecurring)
-                              const _MetaChip(
-                                icon: Icons.event_repeat_rounded,
-                                label: 'Horário fixo',
-                                accent: AppColors.brand,
-                              ),
-                            if (booking.isClassBlock)
-                              const _MetaChip(
-                                icon: Icons.school_rounded,
-                                label: 'Aula',
-                                accent: AppColors.brand,
-                              ),
-                            if (arenaBookingProfessorLabel(booking.data)
-                                case final professor?)
-                              _MetaChip(
-                                icon: Icons.school_outlined,
-                                label: professor,
-                                accent: ProfessorLinksStyle.blue,
-                              ),
-                          ],
-                        ),
-                        // Bloqueio de aula não tem check-in: a presença é a
-                        // chamada da aula.
-                        if (!booking.isClassBlock) ...[
-                          SizedBox(height: 8),
-                          _MetaChip(
-                            icon: Icons.schedule_rounded,
-                            label: attendanceLabel,
-                            accent:
-                                isAttendancePending ? AppColors.pending : null,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    final guests = bookingGuestsOf(booking.data, ownerUid: athleteId)
+        .take(_maxGuestAvatars)
+        .toList();
+    final rest = arenaBookingExtraPlayers(booking) - guests.length;
+
+    final sport = arenaBookingSportLabel(booking.data);
+    final where =
+        sport == null ? booking.courtName : '${booking.courtName} · $sport';
+
+    final avatars = <Widget>[
+      if (booking.isClassBlock)
+        const _Avatar(icon: Icons.school_rounded)
+      else
+        _Avatar(
+          imageUrl: ownerPhoto,
+          label: ArenaBookingsGrouping.athleteInitials(name),
+        ),
+      for (final g in guests)
+        _Avatar(
+          imageUrl: g.athlete.avatarUrl,
+          label: ArenaBookingsGrouping.athleteInitials(
+            g.athlete.displayName ?? '',
           ),
         ),
-      ),
-    );
-  }
+      if (rest > 0) _Avatar(label: '+$rest', neutral: true),
+    ];
 
-  static String _businessStatusBadge(Map<String, dynamic> data) {
-    final status = (data['status'] as String?)?.toLowerCase().trim() ?? '';
-    return switch (status) {
-      'active' => 'ATIVA',
-      'completed' => 'CONCLUÍDA',
-      'cancelled' || 'canceled' => 'CANCELADA',
-      _ => 'ATIVA',
-    };
-  }
-
-  static Color _statusBadgeColor(String badge) {
-    return switch (badge) {
-      'ATIVA' => AppColors.win,
-      'CONCLUÍDA' => AppColors.onSurfaceMuted,
-      'CANCELADA' => AppColors.live,
-      _ => AppColors.win,
-    };
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    // Cinza de "concluída" vem cru do AppColors: no claro, o do tema.
-    final ink = color == AppColors.onSurfaceMuted
-        ? colors.onSurfaceMuted
-        : colors.readableTone(color);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: ink, shape: BoxShape.circle),
-          ),
-          SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              color: ink,
-              fontWeight: FontWeight.w800,
-              fontSize: 10,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AthleteAvatarRow extends StatelessWidget {
-  const _AthleteAvatarRow({
-    required this.nameAsync,
-    required this.profileAsync,
-    required this.extraPlayers,
-  });
-
-  final AsyncValue<String> nameAsync;
-  final AsyncValue<AthleteProfile?>? profileAsync;
-
-  /// Jogadores além do dono (convidados, placar ou `confirmedParticipants`).
-  final int extraPlayers;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final name = nameAsync.valueOrNull ?? '';
-    final initials = ArenaBookingsGrouping.athleteInitials(name);
-    final url = profileAsync?.valueOrNull?.avatarUrl?.trim();
-    final showExtra = extraPlayers > 0;
-
-    return SizedBox(
-      width: showExtra ? 50 : 32,
-      height: 32,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            left: 0,
-            child: _BookingAvatar(
-              imageUrl: url,
-              initials: initials,
-              size: 32,
-              borderColor: colors.surfaceCard,
-            ),
-          ),
-          if (showExtra)
-            Positioned(
-              left: 18,
-              child: _BookingAvatar(
-                imageUrl: null,
-                initials: '+$extraPlayers',
-                size: 32,
-                borderColor: colors.surfaceCard,
-                backgroundColor: colors.surfaceRaised,
-                foregroundColor: colors.onSurface,
-                maxInitials: 3,
+    return Row(
+      children: [
+        _AvatarStack(children: avatars),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  height: 1.25,
+                  color: colors.onSurface,
+                ),
               ),
-            ),
+              const SizedBox(height: 2),
+              Text(
+                where,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: colors.onSurfaceMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AvatarStack extends StatelessWidget {
+  const _AvatarStack({required this.children});
+
+  final List<Widget> children;
+
+  static const double size = 30;
+  static const double _step = 20;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size + (children.length - 1) * _step,
+      height: size,
+      child: Stack(
+        // Pinta do último para o primeiro: o dono fica por cima e as
+        // iniciais dele não somem atrás do "+N".
+        children: [
+          for (var i = children.length - 1; i >= 0; i--)
+            Positioned(left: i * _step, child: children[i]),
         ],
       ),
     );
   }
 }
 
-class _BookingAvatar extends StatelessWidget {
-  const _BookingAvatar({
-    required this.imageUrl,
-    required this.initials,
-    required this.size,
-    required this.borderColor,
-    this.backgroundColor,
-    this.foregroundColor,
-    this.maxInitials = 2,
-  });
+class _Avatar extends StatelessWidget {
+  const _Avatar({this.imageUrl, this.label, this.icon, this.neutral = false});
 
   final String? imageUrl;
-  final String initials;
-  final double size;
-  final Color borderColor;
-  final Color? backgroundColor;
-  final Color? foregroundColor;
-  final int maxInitials;
+  final String? label;
+  final IconData? icon;
+
+  /// Contador "+N": fundo neutro do tema.
+  final bool neutral;
 
   @override
   Widget build(BuildContext context) {
-    final radius = size / 2;
-    final bg = backgroundColor ?? AppColors.brand.withValues(alpha: 0.22);
-    final fg = foregroundColor ?? AppColors.brand;
-    final displayInitials = initials.length > maxInitials
-        ? initials.substring(0, maxInitials)
-        : initials;
+    final colors = context.themeColors;
+    const size = _AvatarStack.size;
+    final bg = neutral
+        ? colors.surfaceRaised
+        : AppColors.brand.withValues(alpha: 0.22);
+    final fg = neutral ? colors.onSurface : colors.brandText;
+    final raw = label ?? '';
+    final text = raw.length > 3 ? raw.substring(0, 3) : raw;
 
-    if (imageUrl != null && imageUrl!.isNotEmpty) {
-      return Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: borderColor, width: 2),
-        ),
-        child: ClipOval(
-          child: CachedNetworkImage(
-            imageUrl: imageUrl!,
-            width: size,
-            height: size,
-            fit: BoxFit.cover,
-            placeholder: (_, __) => _initialsPlaceholder(
-              radius: radius,
-              bg: bg,
-              fg: fg,
-              initials: displayInitials,
-            ),
-            errorWidget: (_, __, ___) => _initialsPlaceholder(
-              radius: radius,
-              bg: bg,
-              fg: fg,
-              initials: displayInitials,
-            ),
-          ),
-        ),
-      );
-    }
+    Widget fallback() => Container(
+          color: bg,
+          alignment: Alignment.center,
+          child: icon != null
+              ? Icon(icon, size: 15, color: fg)
+              : Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
+                ),
+        );
 
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: bg,
-      foregroundColor: fg,
-      child: Text(
-        displayInitials,
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-          fontSize: size * 0.34,
-          color: fg,
-        ),
+    final url = imageUrl?.trim();
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: colors.surfaceCard, width: 2),
       ),
-    );
-  }
-
-  static Widget _initialsPlaceholder({
-    required double radius,
-    required Color bg,
-    required Color fg,
-    required String initials,
-  }) {
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: bg,
-      child: Text(
-        initials,
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-          fontSize: radius * 0.68,
-          color: fg,
-        ),
+      child: ClipOval(
+        child: url == null || url.isEmpty
+            ? fallback()
+            : CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => fallback(),
+                errorWidget: (_, __, ___) => fallback(),
+              ),
       ),
     );
   }
 }
 
-class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.icon, required this.label, this.accent});
+/// Selo do card: ícone + texto + cor (nunca só a cor).
+class ArenaBookingPillChip extends StatelessWidget {
+  const ArenaBookingPillChip(this.pill, {super.key});
 
-  final IconData icon;
-  final String label;
-  final Color? accent;
+  final ArenaBookingPill pill;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    final fg =
-        accent != null ? colors.readableTone(accent!) : colors.onSurfaceMuted;
-    final bg = accent != null
-        ? accent!.withValues(alpha: 0.14)
-        : context.themeColors.surfaceRaised;
-
+    final (ink, tint) = arenaPillColors(context.themeColors, pill.tone);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-        border: accent != null
-            ? Border.all(color: accent!.withValues(alpha: 0.35))
-            : null,
+        color: tint,
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: fg),
-          SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: AppTypography.monoFontFamily,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: fg,
+          Icon(arenaPillIcon(pill.kind), size: 13, color: ink),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              pill.label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                height: 1.1,
+                color: ink,
+              ),
             ),
           ),
         ],
@@ -485,3 +464,43 @@ class _MetaChip extends StatelessWidget {
     );
   }
 }
+
+/// Cor do texto (tom do tema) e do fundo (cru translúcido) de um selo.
+(Color, Color) arenaPillColors(AppThemeColors colors, ArenaPillTone tone) {
+  return switch (tone) {
+    ArenaPillTone.ok => (colors.win, AppColors.win.withValues(alpha: 0.14)),
+    ArenaPillTone.pending => (
+        colors.pending,
+        AppColors.pending.withValues(alpha: 0.16),
+      ),
+    ArenaPillTone.live => (colors.live, AppColors.live.withValues(alpha: 0.14)),
+    ArenaPillTone.brand => (
+        colors.brandText,
+        AppColors.brand.withValues(alpha: 0.14),
+      ),
+    ArenaPillTone.blue => (
+        colors.isDark ? ProfessorLinksStyle.blue : _blueOnLight,
+        ProfessorLinksStyle.blue.withValues(alpha: 0.14),
+      ),
+    ArenaPillTone.muted => (colors.onSurfaceMuted, colors.surfaceRaised),
+  };
+}
+
+IconData arenaPillIcon(ArenaPillKind kind) => switch (kind) {
+      ArenaPillKind.paid => Icons.check_circle_rounded,
+      ArenaPillKind.deposit => Icons.payments_rounded,
+      ArenaPillKind.awaitingPayment => Icons.hourglass_top_rounded,
+      ArenaPillKind.payOnsite => Icons.storefront_rounded,
+      ArenaPillKind.paymentFailed => Icons.error_outline_rounded,
+      ArenaPillKind.checkedIn => Icons.how_to_reg_rounded,
+      ArenaPillKind.confirmed => Icons.thumb_up_alt_rounded,
+      ArenaPillKind.arriving => Icons.directions_walk_rounded,
+      ArenaPillKind.late => Icons.schedule_rounded,
+      ArenaPillKind.noShow => Icons.person_off_rounded,
+      ArenaPillKind.checkInPending => Icons.schedule_rounded,
+      ArenaPillKind.recurring => Icons.event_repeat_rounded,
+      ArenaPillKind.classBlock => Icons.school_rounded,
+      ArenaPillKind.professor => Icons.school_outlined,
+      ArenaPillKind.canceled => Icons.cancel_rounded,
+      ArenaPillKind.live => Icons.sports_tennis_rounded,
+    };

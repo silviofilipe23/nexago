@@ -185,7 +185,7 @@ void main() {
         final name = tester.widget<Text>(find.text('Lucas Andrade'));
         expect(name.style?.color, onSurface);
 
-        final time = tester.widget<Text>(find.text('19:00 – 20:00'));
+        final time = tester.widget<Text>(find.text('19:00'));
         expect(time.style?.color, onSurface);
         expect(time.style?.fontFamily, AppTypography.monoFontFamily);
 

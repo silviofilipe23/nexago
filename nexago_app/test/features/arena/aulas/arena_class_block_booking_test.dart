@@ -250,20 +250,15 @@ void main() {
     testWidgets('bloqueio de aula mostra "Aula" e não o check-in pendente',
         (tester) async {
       await pumpCard(tester, _classBlock);
-      expect(find.text('Aula'), findsOneWidget);
-      expect(
-        find.text(ArenaBookingsGrouping.attendanceChipLabel(_classBlock)),
-        findsNothing,
-      );
+      // Selo "Aula" (e o nome, quando a turma não tem nome).
+      expect(find.text('Aula'), findsWidgets);
+      expect(find.text('Check-in pendente'), findsNothing);
     });
 
     testWidgets('reserva comum segue com o chip de check-in', (tester) async {
       await pumpCard(tester, _regular);
       expect(find.text('Aula'), findsNothing);
-      expect(
-        find.text(ArenaBookingsGrouping.attendanceChipLabel(_regular)),
-        findsOneWidget,
-      );
+      expect(find.text('Check-in pendente'), findsOneWidget);
     });
   });
 

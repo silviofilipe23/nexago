@@ -6,6 +6,7 @@ import '../../arenas/domain/arena_court.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/domain/slots_providers.dart';
 import 'arena_booking_view_mode.dart';
+import 'arena_booking_day_timeline.dart';
 import 'arena_bookings_grouping.dart';
 import 'arena_bookings_ui_models.dart';
 import 'arena_date_utils.dart';
@@ -392,24 +393,7 @@ final arenaBookingsTodayInsightProvider =
   );
 });
 
-int _attendanceOrder(String status) {
-  switch (status) {
-    case 'checked_in':
-      return 0;
-    case 'confirmed':
-      return 1;
-    case 'pending':
-      return 2;
-    case 'no_show':
-      return 3;
-    default:
-      return 4;
-  }
-}
-
-int _arenaBookingsManagerSort(ArenaManagerBooking a, ArenaManagerBooking b) {
-  final byAttendance = _attendanceOrder(a.attendanceStatus)
-      .compareTo(_attendanceOrder(b.attendanceStatus));
-  if (byAttendance != 0) return byAttendance;
-  return a.startTime.compareTo(b.startTime);
-}
+/// Ordem do gestor: pelo relógio (horário, depois quadra). Antes ordenava
+/// por presença primeiro e a reserva das 7h pendente caía abaixo da das 21h.
+int _arenaBookingsManagerSort(ArenaManagerBooking a, ArenaManagerBooking b) =>
+    arenaBookingChronologicalOrder(a, b);

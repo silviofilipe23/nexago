@@ -5,34 +5,47 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/errors/friendly_error_message.dart';
 import 'package:nexago_app/core/layout/nexa_page_header.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_access_providers.dart';
-import '../domain/arena_club_admin_providers.dart';
-import '../domain/aulas/arena_class_providers.dart';
-import '../domain/arena_recurring_providers.dart';
-import '../domain/arena_bookings_grouping.dart';
+import '../domain/arena_booking_day_timeline.dart';
+import '../domain/arena_bookings_day_providers.dart';
 import '../domain/arena_providers.dart';
 import '../domain/arena_shell_providers.dart';
 import '../domain/arena_staff_role.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_booking_card.dart';
+import 'widgets/arena_bookings_day_timeline.dart';
 import 'widgets/arena_bookings_header.dart';
 import 'widgets/arena_bookings_insight_card.dart';
 import 'widgets/arena_bookings_mode_chips.dart';
 import 'widgets/arena_bookings_section_header.dart';
+import 'widgets/arena_bookings_shortcuts.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 
+/// Aba Reservas do gestor: linha do dia (Hoje), atalhos de Aulas, Horários
+/// fixos e Clubinho, e o botão "Nova reserva" para quem escreve na agenda.
 class ArenaBookingsPage extends ConsumerWidget {
   const ArenaBookingsPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final managed = ref.watch(managedArenaIdProvider);
+    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
+    final hasArena = managed.valueOrNull?.isNotEmpty ?? false;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
+      floatingActionButton: canWrite && hasArena
+          ? Padding(
+              padding: EdgeInsets.only(
+                bottom: ArenaDashboardTokens.shellFabLift(context),
+              ),
+              child: const _NewBookingButton(),
+            )
+          : null,
       body: SafeArea(
         bottom: false,
         child: managed.when(
@@ -61,16 +74,39 @@ class ArenaBookingsPage extends ConsumerWidget {
   }
 }
 
+/// "Nova reserva": abre a agenda, onde o gestor escolhe quadra e horário
+/// (mesmo caminho do "+" do Painel).
+class _NewBookingButton extends StatelessWidget {
+  const _NewBookingButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingActionButton.extended(
+      key: const Key('arena-bookings-new'),
+      heroTag: 'arena-bookings-new',
+      onPressed: () => context.go(AppRoutes.arenaSchedule),
+      backgroundColor: AppColors.brand,
+      foregroundColor: AppColors.black,
+      elevation: 2,
+      icon: const Icon(Icons.add_rounded),
+      label: const Text(
+        'Nova reserva',
+        style: TextStyle(fontWeight: FontWeight.w800),
+      ),
+    );
+  }
+}
+
 class _BookingsScrollBody extends ConsumerWidget {
   const _BookingsScrollBody();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(bookingViewModeProvider);
-    final insight = ref.watch(arenaBookingsTodayInsightProvider);
-    // Manutenção lê a agenda mas não escreve — os dois atalhos abaixo levam a
-    // telas de criação (horário fixo, clubinho), então somem para quem só lê.
     final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
+    final bottomPadding = canWrite
+        ? ArenaDashboardTokens.shellFabScrollBottomPadding(context)
+        : ArenaDashboardTokens.shellScrollBottomPadding(context);
 
     return NexaPageHeader(
       topGap: 8,
@@ -88,29 +124,21 @@ class _BookingsScrollBody extends ConsumerWidget {
         key: const PageStorageKey<String>('arena-bookings-scroll'),
         physics: ArenaDashboardTokens.shellScrollPhysics,
         slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                ArenaDashboardTokens.horizontalPadding,
-                16,
-                ArenaDashboardTokens.horizontalPadding,
-                0,
-              ),
+          const SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              ArenaDashboardTokens.horizontalPadding,
+              14,
+              ArenaDashboardTokens.horizontalPadding,
+              0,
+            ),
+            sliver: SliverToBoxAdapter(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const ArenaBookingsModeChips(),
-                  // Aulas têm visão só leitura (manutenção acompanha as aulas
-                  // do dia), então o atalho não depende de escrever agenda.
-                  const SizedBox(height: 10),
-                  const _ClassesEntryRow(),
-                  if (canWrite) ...[
-                    const SizedBox(height: 10),
-                    const _RecurringEntryRow(),
-                    const SizedBox(height: 8),
-                    const _ClubsEntryRow(),
-                  ],
-                  const SizedBox(height: 12),
+                  ArenaBookingsShortcuts(),
+                  SizedBox(height: 12),
+                  ArenaBookingsModeChips(),
+                  SizedBox(height: 12),
                 ],
               ),
             ),
@@ -118,177 +146,9 @@ class _BookingsScrollBody extends ConsumerWidget {
           ..._BookingsBody.sliversFor(
             ref: ref,
             mode: mode,
-            insight: insight,
-            bottomPadding:
-                ArenaDashboardTokens.shellScrollBottomPadding(context),
+            bottomPadding: bottomPadding,
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Atalho para a gestão de horários fixos (mensalistas).
-class _RecurringEntryRow extends ConsumerWidget {
-  const _RecurringEntryRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final count =
-        ref.watch(arenaActiveRecurringSeriesProvider).valueOrNull?.length;
-
-    return Material(
-      color: AppColors.brand.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => context.pushNamed(AppRouteNames.arenaRecurring),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.event_repeat_rounded,
-                color: AppColors.brand,
-                size: 18,
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Horários fixos (mensalistas)',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: context.themeColors.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ),
-              if (count != null && count > 0)
-                Text(
-                  '$count ativo${count > 1 ? 's' : ''}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.brand,
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppColors.brand,
-                size: 18,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Atalho para a gestão do Clubinho (jogo aberto com lista pública).
-class _ClubsEntryRow extends ConsumerWidget {
-  const _ClubsEntryRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final clubs = ref.watch(managedArenaClubsProvider).valueOrNull;
-    final activeCount = clubs?.where((c) => c.isActive).length;
-
-    return Material(
-      color: AppColors.brand.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => context.pushNamed(AppRouteNames.arenaClubs),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.groups_rounded,
-                color: AppColors.brand,
-                size: 18,
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Clubinho (jogo aberto)',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: context.themeColors.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ),
-              if (activeCount != null && activeCount > 0)
-                Text(
-                  '$activeCount ativo${activeCount > 1 ? 's' : ''}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.brand,
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppColors.brand,
-                size: 18,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Atalho para as Aulas (turmas com professor, chamada do dia).
-class _ClassesEntryRow extends ConsumerWidget {
-  const _ClassesEntryRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final todayKey = arenaDateKey(arenaTodayDateOnly());
-    final today = ref.watch(arenaClassDayViewProvider(todayKey)).valueOrNull;
-    final count = today?.classCount;
-
-    return Material(
-      color: AppColors.brand.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => context.pushNamed(AppRouteNames.arenaClasses),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.school_rounded,
-                color: AppColors.brand,
-                size: 18,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Aulas (turmas e chamada)',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: context.themeColors.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-              ),
-              if (count != null && count > 0)
-                Text(
-                  '$count hoje',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.brand,
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppColors.brand,
-                size: 18,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -300,16 +160,12 @@ class _BookingsBody {
   static List<Widget> sliversFor({
     required WidgetRef ref,
     required BookingViewMode mode,
-    required ArenaBookingsTodayInsight? insight,
     required double bottomPadding,
   }) {
     switch (mode) {
       case BookingViewMode.today:
-        return _FlatList.sliversFor(
-          async: ref.watch(arenaBookingsTodayProvider),
-          insight: insight,
-          emptyTitle: 'Nenhuma reserva hoje',
-          emptyMessage: 'Não há reservas ativas para hoje.',
+        return _TodayTimeline.sliversFor(
+          ref: ref,
           bottomPadding: bottomPadding,
         );
       case BookingViewMode.tomorrow:
@@ -323,17 +179,132 @@ class _BookingsBody {
         return _GroupedList.sliversFor(
           async: ref.watch(arenaFutureBookingsGroupedProvider),
           emptyTitle: 'Nenhuma reserva futura',
-          emptyMessage: 'Não há reservas após amanhã na amostra carregada.',
+          emptyMessage: 'Não há reservas nos próximos 60 dias.',
           bottomPadding: bottomPadding,
         );
       case BookingViewMode.past:
         return _GroupedList.sliversFor(
           async: ref.watch(arenaPastBookingsGroupedProvider),
           emptyTitle: 'Nenhuma reserva passada',
-          emptyMessage: 'Não há reservas anteriores na amostra carregada.',
+          emptyMessage: 'Não há reservas nos últimos 30 dias.',
           bottomPadding: bottomPadding,
         );
     }
+  }
+}
+
+EdgeInsets _listPadding(double bottom, {double top = 4}) => EdgeInsets.fromLTRB(
+      ArenaDashboardTokens.horizontalPadding,
+      top,
+      ArenaDashboardTokens.horizontalPadding,
+      bottom,
+    );
+
+List<Widget> _loadingSlivers() => const [
+      SliverFillRemaining(
+        hasScrollBody: false,
+        child: ArenaLoadingState(label: 'Carregando reservas...'),
+      ),
+    ];
+
+List<Widget> _errorSlivers(Object e) => [
+      SliverFillRemaining(
+        hasScrollBody: false,
+        child: ArenaErrorState(message: _loadErrorMessage(e)),
+      ),
+    ];
+
+/// Hoje: resumo do dia, aviso de dia vazio e a linha do dia.
+class _TodayTimeline {
+  const _TodayTimeline._();
+
+  static List<Widget> sliversFor({
+    required WidgetRef ref,
+    required double bottomPadding,
+  }) {
+    final async = ref.watch(arenaBookingsTodayTimelineProvider);
+    final summary = ref.watch(arenaBookingsTodaySummaryProvider);
+    final insight = ref.watch(arenaBookingsTodayInsightProvider);
+    final seesMoney = ref.watch(arenaCanReadProvider(ArenaArea.financeiro));
+
+    return async.when(
+      data: (entries) {
+        final hasBookings = entries.any((e) => e is ArenaTimelineBookingEntry);
+        final now = entries
+            .whereType<ArenaTimelineNowEntry>()
+            .map((e) => e.now)
+            .firstOrNull;
+        return [
+          SliverPadding(
+            padding: _listPadding(0, top: 0),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (summary != null) ...[
+                    ArenaBookingsDayStats(
+                      summary: summary,
+                      seesMoney: seesMoney,
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+                  if (insight != null) ...[
+                    ArenaBookingsInsightCard(insight: insight),
+                    const SizedBox(height: 14),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          if (!hasBookings && insight == null)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: ArenaEmptyState(
+                title: 'Nenhuma reserva hoje',
+                message: 'Quando alguém reservar, a reserva aparece aqui.',
+                icon: Icons.event_busy_outlined,
+              ),
+            )
+          else
+            SliverPadding(
+              padding: _listPadding(bottomPadding, top: 0),
+              sliver: ArenaBookingsDayTimelineSliver(
+                entries: entries,
+                now: now ?? DateTime.now(),
+              ),
+            ),
+        ];
+      },
+      loading: _loadingSlivers,
+      error: (e, _) => _errorSlivers(e),
+    );
+  }
+}
+
+/// Linha "5 reservas · R$ 600" das abas sem linha do dia. O R$ só para quem
+/// lê o financeiro (mesma regra do Painel).
+class _ModeSummary extends ConsumerWidget {
+  const _ModeSummary();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(bookingViewModeProvider);
+    final count = ref.watch(arenaBookingsTabCountsProvider).forMode(mode);
+    final seesMoney = ref.watch(arenaCanReadProvider(ArenaArea.financeiro));
+    final reservas = count == 1 ? '1 reserva' : '$count reservas';
+    final text = seesMoney
+        ? '$reservas · ${formatBRL(ref.watch(arenaBookingsTabSummaryProvider))}'
+        : reservas;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+    );
   }
 }
 
@@ -345,11 +316,10 @@ class _FlatList {
     required String emptyTitle,
     required String emptyMessage,
     required double bottomPadding,
-    ArenaBookingsTodayInsight? insight,
   }) {
     return async.when(
       data: (bookings) {
-        if (bookings.isEmpty && insight == null) {
+        if (bookings.isEmpty) {
           return [
             SliverFillRemaining(
               hasScrollBody: false,
@@ -361,51 +331,30 @@ class _FlatList {
             ),
           ];
         }
-        final itemCount = bookings.length + (insight != null ? 1 : 0);
         return [
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(
-              ArenaDashboardTokens.horizontalPadding,
-              4,
-              ArenaDashboardTokens.horizontalPadding,
-              bottomPadding,
-            ),
+            padding: _listPadding(bottomPadding),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
-                  if (insight != null && index == 0) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: ArenaBookingsInsightCard(insight: insight),
-                    );
-                  }
-                  final i = insight != null ? index - 1 : index;
+                  if (index == 0) return const _ModeSummary();
+                  final i = index - 1;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: FadeSlideIn(
-                      delay: Duration(milliseconds: 40 * i.clamp(0, 12)),
+                      delay: Duration(milliseconds: 20 * i.clamp(0, 5)),
                       child: ArenaBookingCard(booking: bookings[i]),
                     ),
                   );
                 },
-                childCount: itemCount,
+                childCount: bookings.length + 1,
               ),
             ),
           ),
         ];
       },
-      loading: () => [
-        const SliverFillRemaining(
-          hasScrollBody: false,
-          child: ArenaLoadingState(label: 'Carregando reservas...'),
-        ),
-      ],
-      error: (e, _) => [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: ArenaErrorState(message: _loadErrorMessage(e)),
-        ),
-      ],
+      loading: _loadingSlivers,
+      error: (e, _) => _errorSlivers(e),
     );
   }
 }
@@ -433,19 +382,14 @@ class _GroupedList {
             ),
           ];
         }
-        final itemCount = _groupedItemCount(sections);
         return [
           SliverPadding(
-            padding: EdgeInsets.fromLTRB(
-              ArenaDashboardTokens.horizontalPadding,
-              4,
-              ArenaDashboardTokens.horizontalPadding,
-              bottomPadding,
-            ),
+            padding: _listPadding(bottomPadding),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
-                  final flat = _groupedFlatIndex(sections, index);
+                  if (index == 0) return const _ModeSummary();
+                  final flat = _groupedFlatIndex(sections, index - 1);
                   if (flat.isHeader) {
                     return Padding(
                       padding:
@@ -461,24 +405,14 @@ class _GroupedList {
                     child: ArenaBookingCard(booking: flat.booking!),
                   );
                 },
-                childCount: itemCount,
+                childCount: _groupedItemCount(sections) + 1,
               ),
             ),
           ),
         ];
       },
-      loading: () => [
-        const SliverFillRemaining(
-          hasScrollBody: false,
-          child: ArenaLoadingState(label: 'Carregando reservas...'),
-        ),
-      ],
-      error: (e, _) => [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: ArenaErrorState(message: _loadErrorMessage(e)),
-        ),
-      ],
+      loading: _loadingSlivers,
+      error: (e, _) => _errorSlivers(e),
     );
   }
 }

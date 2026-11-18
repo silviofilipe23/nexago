@@ -110,6 +110,8 @@ void main() {
       expect(isArenaOwnerOnlyPath('/arena/settings/plan'), isTrue);
       expect(isArenaOwnerOnlyPath('/arena/settings/plan/activated'), isTrue);
       expect(isArenaOwnerOnlyPath('/arena/settings/plan/pending'), isTrue);
+      // Meta do mês: só o dono grava (gestor/financeiro só leem no Painel).
+      expect(isArenaOwnerOnlyPath('/arena/settings/goal'), isTrue);
     });
 
     test('o resto nao e', () {

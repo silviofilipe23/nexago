@@ -876,6 +876,9 @@ abstract final class AppRoutes {
   /// Plano/assinatura da arena (gestor). Filha de [arenaSettings].
   static const String arenaPlan = '/arena/settings/plan';
 
+  /// Meta de faturamento do mês (só o dono grava). Filha de [arenaSettings].
+  static const String arenaMonthGoal = '/arena/settings/goal';
+
   /// Celebração pós-ativação do plano pago.
   static const String arenaPlanActivated = '/arena/settings/plan/activated';
 
@@ -1468,6 +1471,7 @@ abstract final class AppRouteNames {
   static const String arenaBookingSuccess = 'arenaBookingSuccess';
   static const String arenaPayments = 'arenaPayments';
   static const String arenaPlan = 'arenaPlan';
+  static const String arenaMonthGoal = 'arenaMonthGoal';
   static const String arenaPlanActivated = 'arenaPlanActivated';
   static const String arenaSubscriptionPending = 'arenaSubscriptionPending';
   static const String arenaProducts = 'arenaProducts';

@@ -1388,6 +1388,28 @@ service cloud.firestore {
       );
       allow write: if false;
     }
+    // Meta de faturamento do mês (aba Negócio do Painel). Fica FORA do doc da
+    // arena, que é público: a meta revela quanto a arena fatura. Lê quem lê o
+    // financeiro; grava só o dono (gestor e financeiro só LEEM o financeiro),
+    // num único doc e formato fechado — autoria e hora vêm do token e do
+    // relógio do servidor.
+    match /arenas/{arenaId}/goals/{goalId} {
+      allow read: if request.auth != null && goalId == 'monthlyRevenue' && (
+        isAdmin() || isSuperAdmin() || arenaCanRead(arenaId, 'financeiro')
+      );
+      allow create, update: if request.auth != null &&
+        goalId == 'monthlyRevenue' &&
+        isArenaOwner(arenaId) &&
+        request.resource.data.keys().hasOnly(['amountReais', 'updatedAt', 'updatedBy']) &&
+        request.resource.data.amountReais is number &&
+        request.resource.data.amountReais > 0 &&
+        request.resource.data.amountReais <= 10000000 &&
+        request.resource.data.updatedAt == request.time &&
+        request.resource.data.updatedBy == request.auth.uid;
+      allow delete: if request.auth != null &&
+        goalId == 'monthlyRevenue' &&
+        isArenaOwner(arenaId);
+    }
     match /arenas/{arenaId}/courts/{courtId} {
       allow read: if true;
       allow create: if request.auth != null && (

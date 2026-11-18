@@ -361,17 +361,18 @@ ArenaTodaySoFar _todaySoFar(
   final grid = slots.where((s) => !s.isBlocked).length;
   final booked = slots.where((s) => s.isBooked).length;
   return ArenaTodaySoFar(
-    revenueReais: _revenue(today),
+    revenueReais: arenaRevenueReais(today),
     bookingsCount: today.where((b) => !b.isClassBlock).length,
     occupancyPercent: grid == 0 ? null : booked / grid * 100,
-    lastWeekRevenueReais: _revenue(lastWeek),
+    lastWeekRevenueReais: arenaRevenueReais(lastWeek),
     lastWeekBookingsCount: lastWeek.where((b) => !b.isClassBlock).length,
   );
 }
 
 /// Mesma regra de receita do Painel (`ArenaDashboardService`): conta a
-/// reserva ativa, menos pagamento recusado/cancelado.
-double _revenue(List<ArenaManagerBooking> list) {
+/// reserva ativa, menos pagamento recusado/cancelado. Quem chama já filtrou
+/// as reservas ativas (`arenaNowBookingIsActive`).
+double arenaRevenueReais(Iterable<ArenaManagerBooking> list) {
   var sum = 0.0;
   for (final b in list) {
     final ps = (b.data['paymentStatus'] as String?)?.trim().toLowerCase();

@@ -16,21 +16,28 @@ class ArenaPromotionFormSheet extends ConsumerStatefulWidget {
     super.key,
     required this.arenaId,
     this.existing,
+    this.draft,
   });
 
   final String arenaId;
   final ArenaPromotion? existing;
 
+  /// Valores iniciais de uma promoção NOVA (ex.: o horário vazio sugerido
+  /// pelo Painel). Ignorado quando [existing] vem preenchido.
+  final ArenaPromotionDraft? draft;
+
   static Future<bool> show(
     BuildContext context, {
     required String arenaId,
     ArenaPromotion? existing,
+    ArenaPromotionDraft? draft,
   }) async {
     final result = await showArenaShellModalBottomSheet<bool>(
       context: context,
       builder: (ctx) => ArenaPromotionFormSheet(
         arenaId: arenaId,
         existing: existing,
+        draft: draft,
       ),
     );
     return result == true;
@@ -68,14 +75,15 @@ class _ArenaPromotionFormSheetState
   void initState() {
     super.initState();
     final existing = widget.existing;
+    final draft = existing == null ? widget.draft : null;
     _labelController = TextEditingController(
-      text: existing?.label ?? 'Tarde ociosa',
+      text: existing?.label ?? draft?.label ?? 'Tarde ociosa',
     );
     _startController = TextEditingController(
-      text: existing?.startTime ?? '14:00',
+      text: existing?.startTime ?? draft?.startTime ?? '14:00',
     );
     _endController = TextEditingController(
-      text: existing?.endTime ?? '18:00',
+      text: existing?.endTime ?? draft?.endTime ?? '18:00',
     );
     _discountController = TextEditingController(
       text: existing?.discountPercent != null
@@ -84,7 +92,9 @@ class _ArenaPromotionFormSheetState
     );
     _weekdays = existing != null
         ? Set<int>.from(existing.weekdays)
-        : {1, 2, 3, 4, 5};
+        : draft != null
+            ? Set<int>.from(draft.weekdays)
+            : {1, 2, 3, 4, 5};
     _allCourts = existing == null || existing.courtIds.isEmpty;
     _courtIds = existing != null && existing.courtIds.isNotEmpty
         ? Set<String>.from(existing.courtIds)
@@ -351,4 +361,19 @@ class _ArenaPromotionFormSheetState
       ),
     );
   }
+}
+
+/// Valores iniciais de uma promoção nova (dias 1=seg … 7=dom, `HH:MM`).
+class ArenaPromotionDraft {
+  const ArenaPromotionDraft({
+    required this.label,
+    required this.weekdays,
+    required this.startTime,
+    required this.endTime,
+  });
+
+  final String label;
+  final Set<int> weekdays;
+  final String startTime;
+  final String endTime;
 }

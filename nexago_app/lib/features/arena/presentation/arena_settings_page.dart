@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/active_role_providers.dart';
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/router/routes.dart';
 import '../../auth/presentation/role_selection_page.dart';
@@ -13,6 +14,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../domain/arena_access_providers.dart';
+import '../domain/arena_business_providers.dart';
 import '../domain/arena_providers.dart';
 import '../domain/arena_staff_role.dart';
 import '../domain/products/arena_product_logic.dart';
@@ -89,6 +91,9 @@ class _SettingsBody extends ConsumerWidget {
         ref.watch(arenaCanReadProvider(ArenaArea.financeiro));
     final canReadPerfil = ref.watch(arenaCanReadProvider(ArenaArea.perfil));
     final isOwner = ref.watch(arenaAccessProvider).valueOrNull?.isOwner ?? false;
+    final monthGoal = isOwner
+        ? ref.watch(arenaMonthlyRevenueGoalProvider).valueOrNull
+        : null;
 
     final profileSubtitle = arena != null
         ? '${arena.locationLabel} • ${formatFollowersCount(followers)}'
@@ -194,6 +199,17 @@ class _SettingsBody extends ConsumerWidget {
                   subtitle: 'Assinatura e benefícios da arena',
                   variant: ArenaSettingsIconVariant.neutral,
                   onTap: () => context.pushNamed(AppRouteNames.arenaPlan),
+                  showDivider: !isLast,
+                ),
+          if (isOwner)
+            (isLast) => ArenaSettingsTile(
+                  icon: Icons.flag_outlined,
+                  title: 'Meta do mês',
+                  subtitle: monthGoal == null
+                      ? 'Defina quanto quer faturar por mês'
+                      : '${formatBRLWhole(monthGoal)} por mês',
+                  variant: ArenaSettingsIconVariant.neutral,
+                  onTap: () => context.pushNamed(AppRouteNames.arenaMonthGoal),
                   showDivider: !isLast,
                 ),
           if (canReadFinanceiro)

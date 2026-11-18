@@ -11,9 +11,12 @@ import 'arena_dashboard_insights_section.dart';
 import 'arena_dashboard_kpi_grid.dart';
 import 'arena_dashboard_period_chips.dart';
 import 'arena_dashboard_revenue_chart_card.dart';
+import 'arena_idle_map_card.dart';
+import 'arena_month_goal_card.dart';
 import 'arena_now_tab.dart';
 
-/// Aba "Negócio": período, indicadores, gráfico e leituras do dia.
+/// Aba "Negócio": meta do mês, período, indicadores, gráfico, horários
+/// vazios da semana e leituras do dia.
 class ArenaBusinessTab extends ConsumerWidget {
   const ArenaBusinessTab({super.key});
 
@@ -93,6 +96,8 @@ class ArenaBusinessTab extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 20),
+          const ArenaIdleMapCard(),
+          const SizedBox(height: 20),
           ArenaDashboardInsightsSection(
             summary: summary,
             includeMoney: seesMoney,
@@ -104,6 +109,12 @@ class ArenaBusinessTab extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // A meta é do mês corrente: fica acima do seletor de período, que
+        // não a afeta.
+        if (seesMoney) ...[
+          const ArenaMonthGoalCard(),
+          const SizedBox(height: 20),
+        ],
         const ArenaDashboardPeriodChips(),
         const SizedBox(height: 16),
         body,

@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/search/search_keywords.dart';
 import 'arena_booking_card_pills.dart';
 import 'arena_booking_labels.dart';
 import 'arena_bookings_grouping.dart';
+import 'arena_date_utils.dart';
 import 'arena_manager_booking.dart';
 
 /// Filtro de pagamento da aba Reservas.
@@ -13,7 +15,8 @@ extension ArenaPaymentFilterLabel on ArenaPaymentFilter {
   String get label => switch (this) {
         ArenaPaymentFilter.paid => 'Pago',
         ArenaPaymentFilter.due => 'Falta receber',
-        ArenaPaymentFilter.awaitingOnline => 'Aguardando pagamento',
+        // Curto para caber numa linha com os outros (cobre Pix, cartão e MP).
+        ArenaPaymentFilter.awaitingOnline => 'Aguardando online',
       };
 }
 
@@ -148,4 +151,25 @@ bool arenaBookingMatchesQuery(
     ArenaBookingsGrouping.displayCode(b.id),
   ].whereType<String>().map(normalizeSearchTerm).join(' ');
   return terms.every(haystack.contains);
+}
+
+/// Contexto da folha de filtros: o dia aberto e a busca. "Hoje, 18 de nov ·
+/// vale também para a busca" ou "Sexta, 20 de nov · vale também para a
+/// busca".
+String arenaBookingsFilterScopeLabel(DateTime day, DateTime today) {
+  final d = arenaDateOnly(day);
+  final when = DateFormat("d 'de' MMM", 'pt_BR').format(d).replaceAll('.', '');
+  final weekday = DateFormat('EEEE', 'pt_BR').format(d).split('-').first;
+  final head = d == arenaDateOnly(today)
+      ? 'Hoje'
+      : '${weekday[0].toUpperCase()}${weekday.substring(1)}';
+  return '$head, $when · vale também para a busca';
+}
+
+/// Texto do botão da folha para [count] reservas; `null` enquanto carrega.
+/// Com zero, o botão vira "Fechar" (a folha avisa que não há reserva).
+String arenaBookingsFilterDoneLabel(int? count) {
+  if (count == null) return 'Ver reservas';
+  if (count == 0) return 'Fechar';
+  return count == 1 ? 'Ver 1 reserva' : 'Ver $count reservas';
 }

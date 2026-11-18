@@ -278,3 +278,18 @@ final arenaBookingsTasksProvider =
     now: now,
   );
 });
+
+/// Quantas reservas a tela mostra com o filtro atual (botão da folha de
+/// filtros): o resultado da busca, se ela está aberta; senão, as reservas
+/// ativas do dia aberto. `null` enquanto carrega.
+final arenaBookingsFilteredCountProvider = Provider.autoDispose<int?>((ref) {
+  final results = ref.watch(arenaBookingsSearchResultsProvider);
+  if (results != null) {
+    return results.valueOrNull?.fold<int>(0, (n, s) => n + s.bookings.length);
+  }
+  return ref
+      .watch(arenaBookingsDayTimelineProvider)
+      .valueOrNull
+      ?.whereType<ArenaTimelineBookingEntry>()
+      .length;
+});

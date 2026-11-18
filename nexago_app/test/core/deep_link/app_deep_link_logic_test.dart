@@ -174,6 +174,70 @@ void main() {
         isNull,
       );
     });
+
+    group('reservar na arena (/reservar/:arenaId)', () {
+      String? resolve(String url) => resolveAppDeepLinkPath(Uri.parse(url));
+
+      test('página da arena no portal abre o detalhe da arena no app', () {
+        expect(
+          resolve('https://atleta.nexago.com.br/reservar/arena-1'),
+          '/arena/arena-1',
+        );
+      });
+
+      test('preserva a query (ex.: bestPrice do "melhor preço")', () {
+        expect(
+          resolve('https://atleta.nexago.com.br/reservar/arena-1?bestPrice=1'),
+          '/arena/arena-1?bestPrice=1',
+        );
+      });
+
+      test('id com caractere especial volta codificado', () {
+        expect(
+          resolve('https://atleta.nexago.com.br/reservar/arena%20cfc'),
+          '/arena/arena%20cfc',
+        );
+      });
+
+      // Etapas do fluxo do portal não têm estado no app (horário, Pix): o
+      // link recomeça pela arena em vez de cair na tela de erro.
+      test('agendar e pagamento recomeçam pela arena', () {
+        expect(
+          resolve('https://atleta.nexago.com.br/reservar/arena-1/agendar'),
+          '/arena/arena-1',
+        );
+        expect(
+          resolve(
+            'https://atleta.nexago.com.br/reservar/arena-1/agendar/pagamento',
+          ),
+          '/arena/arena-1',
+        );
+      });
+
+      test('sessão de Clubinho vai para a sessão do app', () {
+        expect(
+          resolve(
+            'https://atleta.nexago.com.br/reservar/arena-1/clubinho/sess-9',
+          ),
+          '/clubinho/sess-9',
+        );
+        expect(
+          resolve(
+            'https://atleta.nexago.com.br/reservar/arena-1/clubinho/sess-9/pagamento',
+          ),
+          '/clubinho/sess-9',
+        );
+      });
+
+      test('/reservar sem arena fica com o portal', () {
+        expect(resolve('https://atleta.nexago.com.br/reservar'), isNull);
+      });
+
+      test('esquema próprio (nexago://reservar/:arenaId)', () {
+        expect(resolve('nexago://reservar/arena-1'), '/arena/arena-1');
+        expect(resolve('nexago:///reservar/arena-1'), '/arena/arena-1');
+      });
+    });
   });
 
   group('isMercadoPagoOAuthDeepLink', () {

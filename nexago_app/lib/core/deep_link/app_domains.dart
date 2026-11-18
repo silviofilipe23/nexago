@@ -35,6 +35,12 @@ abstract final class AppShareLinks {
   static String league(String leagueId) =>
       '${AppDomains.athletePortal}/ligas/$leagueId';
 
+  /// Página de reserva da arena (`/reservar/:arenaId`). Reivindicado como
+  /// App/Universal Link: quem tem o app cai no detalhe da arena; sem o app, o
+  /// portal atende.
+  static String arenaBooking(String arenaId) =>
+      '${AppDomains.athletePortal}/reservar/${Uri.encodeComponent(arenaId)}';
+
   /// Perfil público do organizador no portal do atleta. Exceção à regra acima, de
   /// propósito: `/organizadores/**` NÃO é reivindicado como App Link (nem no
   /// AndroidManifest nem no AASA), então o link abre o portal — o app publicado

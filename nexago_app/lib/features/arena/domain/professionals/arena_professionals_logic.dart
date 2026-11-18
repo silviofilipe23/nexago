@@ -606,7 +606,7 @@ String? arenaProfessorAccountStateLabel(ArenaProfessorAccountState state) =>
 /// página da arena no app) que fica o "Você é professor?" para quem não foi
 /// convidado pedir o vínculo.
 String arenaProfessorRequestPageUrl(String arenaId) =>
-    '${AppDomains.athletePortal}/reservar/${Uri.encodeComponent(arenaId)}';
+    AppShareLinks.arenaBooking(arenaId);
 
 // ---------------------------------------------------------------------------
 // Detalhe: ações por estado

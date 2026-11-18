@@ -10,6 +10,9 @@ import 'package:nexago_app/features/arena/domain/arena_dashboard_period.dart';
 import 'package:nexago_app/features/arena/domain/arena_dashboard_period_metrics.dart';
 import 'package:nexago_app/features/arena/domain/arena_dashboard_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_dashboard_summary.dart';
+import 'package:nexago_app/features/arena/domain/arena_manager_booking.dart';
+import 'package:nexago_app/features/arena/domain/arena_now.dart';
+import 'package:nexago_app/features/arena/domain/arena_now_providers.dart';
 import 'package:nexago_app/features/arena/domain/arena_staff_role.dart';
 import 'package:nexago_app/features/arena/domain/review_reply_providers.dart';
 import 'package:nexago_app/features/arena/presentation/arena_dashboard_page.dart';
@@ -80,6 +83,54 @@ const _metrics = ArenaDashboardPeriodMetrics(
   chartTrendPercent: null,
 );
 
+const _inPlay = ArenaManagerBooking(
+  id: 'b1',
+  athleteId: '',
+  courtId: 'q1',
+  courtName: 'Quadra 1',
+  dateKey: '2026-11-18',
+  startTime: '18:00',
+  endTime: '19:00',
+  data: {
+    'status': 'confirmed',
+    'customerName': 'Time Rafa',
+    'paymentChannel': 'onsite',
+    'amountReais': 120,
+  },
+);
+
+/// Aba Agora com uma quadra em jogo, check-in a receber no local e receita:
+/// tudo que pode vazar R\$ para quem não lê o financeiro.
+final _now = ArenaNowSnapshot(
+  now: DateTime(2026, 11, 18, 18, 42),
+  courts: const [
+    ArenaCourtNow(
+      courtId: 'q1',
+      courtName: 'Quadra 1',
+      state: ArenaCourtNowState.inPlay,
+      booking: _inPlay,
+      progress: 0.7,
+      until: '19:00',
+    ),
+  ],
+  nextBooking: null,
+  tasks: const [
+    ArenaNowTask(
+      kind: ArenaNowTaskKind.checkIn,
+      count: 1,
+      amountReais: 120,
+      booking: _inPlay,
+    ),
+  ],
+  today: const ArenaTodaySoFar(
+    revenueReais: 250,
+    bookingsCount: 3,
+    occupancyPercent: 50,
+    lastWeekRevenueReais: 200,
+    lastWeekBookingsCount: 2,
+  ),
+);
+
 void main() {
   setUpAll(() async {
     await initializeDateFormatting('pt_BR');
@@ -106,6 +157,9 @@ void main() {
           ),
           reviewReplyServiceProvider.overrideWith(
             (ref) => ReviewReplyService(_FakeFirestore()),
+          ),
+          arenaNowSnapshotProvider.overrideWith(
+            (ref) => AsyncValue<ArenaNowSnapshot>.data(_now),
           ),
         ],
         child: MaterialApp(
@@ -134,5 +188,66 @@ void main() {
     await pumpDashboard(tester, overridesForRole(ArenaStaffRole.manutencao));
     expect(find.textContaining('comanda'), findsNothing);
     expect(find.textContaining('Bloquear'), findsNothing);
+  });
+
+  testWidgets('recepcao nao ve R\$ em nenhuma aba', (tester) async {
+    await pumpDashboard(tester, overridesForRole(ArenaStaffRole.recepcao));
+    for (final tab in ['Agora', 'Negócio', 'Clientes']) {
+      await tester.tap(find.text(tab));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.textContaining('R\$'), findsNothing, reason: tab);
+    }
+  });
+
+  testWidgets('gestor abre na aba Agora com quadras e pendencias',
+      (tester) async {
+    await pumpDashboard(tester, overridesForRole(ArenaStaffRole.gestor));
+    expect(find.text('Precisa de você'), findsOneWidget);
+    expect(find.text('EM JOGO'), findsOneWidget);
+    expect(find.text('Check-in pendente'), findsOneWidget);
+    expect(find.textContaining('a receber no local'), findsOneWidget);
+  });
+
+  testWidgets('financeiro abre na aba Negocio', (tester) async {
+    await pumpDashboard(tester, overridesForRole(ArenaStaffRole.financeiro));
+    expect(find.text('Semana'), findsOneWidget);
+    expect(find.text('Precisa de você'), findsNothing);
+  });
+
+  testWidgets('tocar em Clientes mostra seguidores e reputacao',
+      (tester) async {
+    await pumpDashboard(tester, overridesForRole(ArenaStaffRole.gestor));
+    await tester.tap(find.text('Clientes'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Seguidores'), findsOneWidget);
+  });
+
+  testWidgets('Painel nao tem sino de notificacao falso', (tester) async {
+    await pumpDashboard(tester, overridesForRole(null, owner: true));
+    expect(find.byIcon(Icons.notifications_none_rounded), findsNothing);
+  });
+
+  testWidgets('o + da manutencao nao oferece comanda nem reserva',
+      (tester) async {
+    await pumpDashboard(tester, overridesForRole(ArenaStaffRole.manutencao));
+    await tester.tap(find.byTooltip('Nova ação'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Aulas de hoje'), findsOneWidget);
+    expect(find.text('Abrir comanda'), findsNothing);
+    expect(find.text('Reservar ou bloquear horário'), findsNothing);
+  });
+
+  testWidgets('o + do gestor oferece reservar, comanda e aulas',
+      (tester) async {
+    await pumpDashboard(tester, overridesForRole(ArenaStaffRole.gestor));
+    await tester.tap(find.byTooltip('Nova ação'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Reservar ou bloquear horário'), findsOneWidget);
+    expect(find.text('Abrir comanda'), findsOneWidget);
+    expect(find.text('Aulas de hoje'), findsOneWidget);
   });
 }

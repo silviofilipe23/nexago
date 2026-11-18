@@ -228,29 +228,29 @@ class ArenaDashboardService {
     final chartTotal7Days =
         summary.revenueLast7Days.fold<double>(0, (a, b) => a + b);
 
-    double? chartTrendPercent;
-    final rev = summary.revenueLast7Days;
-    if (rev.length == 7) {
-      final todayRev = rev[6];
-      final pastSix = rev.sublist(0, 6);
-      final avgPast = pastSix.fold<double>(0, (a, b) => a + b) / 6;
-      if (avgPast > 0) {
-        chartTrendPercent = ((todayRev - avgPast) / avgPast) * 100;
-      } else if (todayRev > 0) {
-        chartTrendPercent = 100;
-      }
-    }
+    // Comparações justas: mesmo dia da semana / mesma duração de janela.
+    // Comparar hoje com a média dos 6 dias anteriores misturava domingo com
+    // terça e acendia vermelho falso; o mês fica sem variação porque a janela
+    // de reservas só olha 30 dias para trás.
+    final last7 = _revenueBetween(bookings, anchor, 0, 7);
+    final prev7 = _revenueBetween(bookings, anchor, 7, 14);
+    final chartTrendPercent = _changePercent(last7, prev7);
 
-    double? revenueTrendPercent;
-    if (period == ArenaDashboardPeriod.today && rev.length == 7) {
-      revenueTrendPercent = chartTrendPercent;
-    } else if (period == ArenaDashboardPeriod.week && rev.length == 7) {
-      final firstHalf = rev.sublist(0, 3).fold<double>(0, (a, b) => a + b);
-      final secondHalf = rev.sublist(4, 7).fold<double>(0, (a, b) => a + b);
-      if (firstHalf > 0) {
-        revenueTrendPercent = ((secondHalf - firstHalf) / firstHalf) * 100;
-      }
-    }
+    final (double? revenueTrendPercent, String? comparisonLabel) =
+        switch (period) {
+      ArenaDashboardPeriod.today => (
+          _changePercent(
+            _revenueBetween(bookings, anchor, 0, 1),
+            _revenueBetween(bookings, anchor, 7, 8),
+          ),
+          'vs. o mesmo dia da semana passada',
+        ),
+      ArenaDashboardPeriod.week => (
+          chartTrendPercent,
+          'vs. os 7 dias anteriores',
+        ),
+      ArenaDashboardPeriod.month => (null, null),
+    };
 
     ArenaDashboardKpiBadge? revenueBadge;
     if (revenueTrendPercent != null && revenueTrendPercent.abs() >= 1) {
@@ -269,31 +269,16 @@ class ArenaDashboardService {
         ? summary.occupancyRatePercent
         : occupancyRatePercent;
     if (occ < 40) {
+      // Nível, não variação: sem seta de queda.
       occupancyBadge = const ArenaDashboardKpiBadge(
-        label: '▼ baixa',
+        label: 'baixa',
         tone: ArenaDashboardKpiBadgeTone.negative,
       );
     }
 
-    final bookingsBadge = ArenaDashboardKpiBadge(
-      label: switch (period) {
-        ArenaDashboardPeriod.today => 'hoje',
-        ArenaDashboardPeriod.week => '7d',
-        ArenaDashboardPeriod.month => '30d',
-      },
-      tone: ArenaDashboardKpiBadgeTone.neutral,
-    );
-
-    ArenaDashboardKpiBadge? peakBadge;
     final peak = period == ArenaDashboardPeriod.today
         ? summary.peakHour
         : peakHour;
-    if (peak != null) {
-      peakBadge = ArenaDashboardKpiBadge(
-        label: _peakPeriodLabel(peak),
-        tone: ArenaDashboardKpiBadgeTone.neutral,
-      );
-    }
 
     return ArenaDashboardPeriodMetrics(
       period: period,
@@ -305,17 +290,37 @@ class ArenaDashboardService {
       peakHour: peak,
       revenueBadge: revenueBadge,
       occupancyBadge: occupancyBadge,
-      bookingsBadge: bookingsBadge,
-      peakBadge: peakBadge,
+      bookingsBadge: null,
+      peakBadge: null,
       chartTotal7Days: chartTotal7Days,
       chartTrendPercent: chartTrendPercent,
+      comparisonLabel: revenueBadge == null ? null : comparisonLabel,
     );
   }
 
-  static String _peakPeriodLabel(int hour) {
-    if (hour < 12) return 'manhã';
-    if (hour < 18) return 'tarde';
-    return 'noite';
+  /// Receita das reservas ativas entre `fromDaysAgo` (inclusive) e
+  /// `toDaysAgo` (exclusive) dias antes de [anchor]; 0 = hoje.
+  static double _revenueBetween(
+    List<ArenaManagerBooking> bookings,
+    DateTime anchor,
+    int fromDaysAgo,
+    int toDaysAgo,
+  ) {
+    final keys = {
+      for (var i = fromDaysAgo; i < toDaysAgo; i++)
+        arenaDateKey(anchor.subtract(Duration(days: i))),
+    };
+    return bookings
+        .where((b) =>
+            keys.contains(b.dateKey) &&
+            !_bookingStatusIsCanceled(b.data) &&
+            _countsTowardRevenue(b))
+        .fold<double>(0, (acc, b) => acc + _bookingAmountReais(b.data));
+  }
+
+  static double? _changePercent(double current, double base) {
+    if (base <= 0) return null;
+    return (current - base) / base * 100;
   }
 
   static DateTime? _dateKeyToLocalDay(String key) {

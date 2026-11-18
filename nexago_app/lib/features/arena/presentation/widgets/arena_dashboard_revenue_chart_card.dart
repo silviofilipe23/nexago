@@ -71,14 +71,16 @@ class ArenaDashboardRevenueChartCard extends StatelessWidget {
                 color: context.themeColors.onSurface,
               ),
             ),
-            SizedBox(height: 4),
-            Text(
-              'soma 7d',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                fontWeight: FontWeight.w600,
+            if (trend != null && trend.abs() >= 1) ...[
+              SizedBox(height: 4),
+              Text(
+                'Variação comparada com os 7 dias anteriores',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: context.themeColors.onSurfaceMuted,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
+            ],
             SizedBox(height: 8),
             ArenaDashboardRevenueChart(values: values, labels: labels),
           ],

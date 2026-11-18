@@ -225,6 +225,21 @@ void main() {
     expect(find.text('Seguidores'), findsOneWidget);
   });
 
+  // "Nova reserva" no header do Painel: mesma regra da aba Reservas.
+  testWidgets('recepcao ve Nova reserva no header do Painel', (tester) async {
+    await pumpDashboard(tester, overridesForRole(ArenaStaffRole.recepcao));
+    expect(
+      find.byKey(const Key('arena-dashboard-new-booking')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('manutencao nao ve Nova reserva no header do Painel',
+      (tester) async {
+    await pumpDashboard(tester, overridesForRole(ArenaStaffRole.manutencao));
+    expect(find.byKey(const Key('arena-dashboard-new-booking')), findsNothing);
+  });
+
   testWidgets('Painel nao tem sino de notificacao falso', (tester) async {
     await pumpDashboard(tester, overridesForRole(null, owner: true));
     expect(find.byIcon(Icons.notifications_none_rounded), findsNothing);

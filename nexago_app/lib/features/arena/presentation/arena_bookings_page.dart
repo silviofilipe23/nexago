@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import 'package:nexago_app/core/errors/friendly_error_message.dart';
 import 'package:nexago_app/core/layout/nexa_page_header.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../../core/router/routes.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../../core/ui/nexa_skeleton.dart';
 import '../domain/arena_access_providers.dart';
@@ -29,26 +26,15 @@ import 'widgets/arena_dashboard_tokens.dart';
 
 /// Aba Reservas do gestor (modelo A, "Linha do dia"): faixa de 7 dias, linha
 /// do dia com horários livres, busca e filtros, atalhos de Aulas, Horários
-/// fixos e Clubinho, e "Nova reserva" para quem escreve na agenda.
+/// fixos e Clubinho. "Nova reserva" fica no header (ArenaBookingsHeader).
 class ArenaBookingsPage extends ConsumerWidget {
   const ArenaBookingsPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final managed = ref.watch(managedArenaIdProvider);
-    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
-    final hasArena = managed.valueOrNull?.isNotEmpty ?? false;
-
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      floatingActionButton: canWrite && hasArena
-          ? Padding(
-              padding: EdgeInsets.only(
-                bottom: ArenaDashboardTokens.shellFabLift(context),
-              ),
-              child: const _NewBookingButton(),
-            )
-          : null,
       body: SafeArea(
         bottom: false,
         child: managed.when(
@@ -77,43 +63,15 @@ class ArenaBookingsPage extends ConsumerWidget {
   }
 }
 
-/// "Nova reserva": abre a agenda no dia aberto aqui, onde o gestor escolhe
-/// quadra e horário (mesmo caminho do "+" do Painel).
-class _NewBookingButton extends ConsumerWidget {
-  const _NewBookingButton();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return FloatingActionButton.extended(
-      key: const Key('arena-bookings-new'),
-      heroTag: 'arena-bookings-new',
-      onPressed: () {
-        openArenaScheduleOn(ref, ref.read(arenaBookingsSelectedDayProvider));
-        context.go(AppRoutes.arenaSchedule);
-      },
-      backgroundColor: AppColors.brand,
-      foregroundColor: AppColors.black,
-      elevation: 2,
-      icon: const Icon(Icons.add_rounded),
-      label: const Text(
-        'Nova reserva',
-        style: TextStyle(fontWeight: FontWeight.w800),
-      ),
-    );
-  }
-}
-
 class _BookingsScrollBody extends ConsumerWidget {
   const _BookingsScrollBody();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final canWrite = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
     final searching = ref.watch(arenaBookingsSearchProvider) != null;
     final results = ref.watch(arenaBookingsSearchResultsProvider);
-    final bottomPadding = canWrite
-        ? ArenaDashboardTokens.shellFabScrollBottomPadding(context)
-        : ArenaDashboardTokens.shellScrollBottomPadding(context);
+    final bottomPadding =
+        ArenaDashboardTokens.shellScrollBottomPadding(context);
 
     return NexaPageHeader(
       topGap: 8,

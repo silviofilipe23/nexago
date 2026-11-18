@@ -8,9 +8,11 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_access_providers.dart';
 import '../../domain/arena_schedule_providers.dart';
 import '../../domain/arena_selection_providers.dart';
+import '../../domain/arena_staff_role.dart';
+import 'arena_new_booking_button.dart';
 
 /// Cabeçalho do Painel: logo, nome da arena (com troca quando o usuário
-/// alcança mais de uma), saudação e data.
+/// alcança mais de uma), saudação, data e "Nova reserva".
 ///
 /// Não tem sino: enquanto não existe central de notificações, um ponto de
 /// "não lida" fixo só ensinava o gestor a ignorá-lo. As pendências reais
@@ -36,6 +38,7 @@ class ArenaDashboardHeader extends ConsumerWidget {
             : 'Arena';
     final canSwitch = memberships.length > 1;
     final today = now ?? DateTime.now();
+    final canBook = ref.watch(arenaCanWriteProvider(ArenaArea.agenda));
 
     final title = Row(
       mainAxisSize: MainAxisSize.min,
@@ -82,6 +85,8 @@ class ArenaDashboardHeader extends ConsumerWidget {
               const SizedBox(height: 2),
               Text(
                 '${arenaGreeting(today)} · ${_formatDay(today)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.onSurfaceMuted,
                   fontWeight: FontWeight.w500,
@@ -90,6 +95,12 @@ class ArenaDashboardHeader extends ConsumerWidget {
             ],
           ),
         ),
+        // Atalho para reservar sem passar pela aba Reservas (some para quem
+        // não escreve na agenda).
+        if (canBook) ...[
+          const SizedBox(width: 12),
+          const ArenaNewBookingButton(key: Key('arena-dashboard-new-booking')),
+        ],
       ],
     );
   }

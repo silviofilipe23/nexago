@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -14,7 +13,6 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/domain/booking_reschedule.dart';
 import '../../arenas/presentation/booking_reschedule_page.dart';
-import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/arena_access_providers.dart';
 import '../domain/arena_booking_canceled_args.dart';
 import '../domain/arena_bookings_grouping.dart';
@@ -31,6 +29,7 @@ import 'widgets/arena_booking_cancel_sheet.dart';
 import 'widgets/arena_booking_class_block_card.dart';
 import 'widgets/arena_booking_detail_athletes.dart';
 import 'widgets/arena_booking_detail_checkin.dart';
+import 'widgets/arena_athlete_contact.dart';
 import 'widgets/arena_booking_detail_actions.dart';
 import 'widgets/arena_booking_detail_header.dart';
 import 'widgets/arena_booking_detail_history.dart';
@@ -229,7 +228,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
             athleteName: athleteName,
             onSendMessage: athleteId.isEmpty
                 ? null
-                : () => _contactAthlete(context, ref, athleteId),
+                : () => contactArenaAthlete(context, ref, athleteId),
           ),
           SizedBox(height: 14),
           ArenaBookingDetailActions(
@@ -245,7 +244,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
                 : null,
             onContact: athleteId.isEmpty
                 ? null
-                : () => _contactAthlete(context, ref, athleteId),
+                : () => contactArenaAthlete(context, ref, athleteId),
             onBlock: !canWrite || athleteId.isEmpty || historyArenaId.isEmpty
                 ? null
                 : () => _confirmBlockAthlete(
@@ -403,56 +402,6 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
     if (d == null) return null;
     return (d['amountReais'] as num?)?.toDouble() ??
         (d['priceReais'] as num?)?.toDouble();
-  }
-
-  static Future<void> _contactAthlete(
-    BuildContext context,
-    WidgetRef ref,
-    String athleteId,
-  ) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final profile = ref.read(athleteProfileByIdProvider(athleteId)).valueOrNull;
-    final email = await ref.read(athleteUserEmailProvider(athleteId).future);
-    final phone = profile?.phoneNumber?.trim();
-
-    Uri? uri;
-    if (phone != null && phone.isNotEmpty) {
-      final digits = String.fromCharCodes(
-        phone.runes.where((r) => r >= 0x30 && r <= 0x39),
-      );
-      if (digits.length >= 10) {
-        var n = digits;
-        if (n.startsWith('0')) n = n.substring(1);
-        if (!n.startsWith('55') && n.length <= 11) {
-          n = '55$n';
-        }
-        uri = Uri.parse('https://wa.me/$n');
-      } else {
-        uri = Uri(scheme: 'tel', path: phone);
-      }
-    }
-    uri ??= (email != null && email.isNotEmpty)
-        ? Uri(
-            scheme: 'mailto',
-            path: email,
-            queryParameters: {'subject': 'Reserva — Nexago'},
-          )
-        : null;
-
-    if (uri == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Contato do atleta indisponível.')),
-      );
-      return;
-    }
-
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok && context.mounted) {
-      messenger.showSnackBar(
-        const SnackBar(
-            content: Text('Não foi possível abrir o app de contato.')),
-      );
-    }
   }
 
   static Future<void> _reschedule(

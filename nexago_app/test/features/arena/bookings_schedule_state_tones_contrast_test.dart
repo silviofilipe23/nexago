@@ -101,6 +101,16 @@ final _activeBooking = _booking(const {
   'amountReais': 120,
 });
 
+// Sinal pago: selo âmbar "Sinal pago" e "falta R$ 60,00".
+final _depositBooking = _booking(const {
+  'status': 'active',
+  'attendanceStatus': 'checked_in',
+  'paymentChannel': 'pix',
+  'paymentStatus': 'partial',
+  'amountReais': 120,
+  'amountPaidOnlineReais': 60,
+}, id: 'b3');
+
 final _canceledBooking = _booking(const {
   'status': 'canceled',
   'attendanceStatus': 'pending',
@@ -279,13 +289,15 @@ final _historyScreen = ToneScreen(
 
 final List<ToneScreen> arenaBookingsToneScreens = [
   ToneScreen(
-    'Reservas: card ativo (check-in pendente) e cancelado',
+    'Reservas: card ativo, com sinal pago e cancelado',
     (tester, theme) => pumpTonePiece(
       tester,
       theme,
       Column(
         children: [
           ArenaBookingCard(booking: _activeBooking),
+          const SizedBox(height: 12),
+          ArenaBookingCard(booking: _depositBooking),
           const SizedBox(height: 12),
           ArenaBookingCard(booking: _canceledBooking),
         ],
@@ -295,12 +307,15 @@ final List<ToneScreen> arenaBookingsToneScreens = [
     ),
     tonePiece,
     [
-      'ATIVA',
-      'CANCELADA',
-      'Pendente',
-      Icons.schedule_rounded,
-      // "+1" saiu do verde: o contador de jogadores é neutro (texto do tema).
-      'marca',
+      // Card novo: tom só onde há estado (pagamento, presença, cancelada).
+      // "ATIVA" saiu e o "+1" de jogadores é neutro.
+      'Sinal pago',
+      'falta ${formatBRL(60)}',
+      'Check-in feito',
+      'Cancelada',
+      Icons.payments_rounded,
+      Icons.how_to_reg_rounded,
+      Icons.cancel_rounded,
     ],
   ),
   ToneScreen(

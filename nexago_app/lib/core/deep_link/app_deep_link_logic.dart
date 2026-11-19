@@ -36,6 +36,12 @@ String? resolveAppDeepLinkPath(Uri uri) {
     return _withQuery('/${segments.join('/')}', uri);
   }
 
+  // Toque no widget "Próximo jogo" da tela inicial: `nexago://agenda`. A rota
+  // antiga de Minhas reservas é quem troca o shell para a aba Agenda.
+  if (segments.first == 'agenda' && uri.scheme == 'nexago') {
+    return '/my-bookings';
+  }
+
   if (segments.first == 'reservar' && segments.length >= 2) {
     return _arenaBookingPath(segments, uri);
   }
@@ -92,6 +98,7 @@ List<String>? _deepLinkPathSegments(Uri uri) {
     if (uri.host == 'loja') {
       return ['loja', ...uri.pathSegments.where((s) => s.isNotEmpty)];
     }
+    if (uri.host == 'agenda') return const ['agenda'];
     return uri.pathSegments.where((s) => s.isNotEmpty).toList();
   }
 

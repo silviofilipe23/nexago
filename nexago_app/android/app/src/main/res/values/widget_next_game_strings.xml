@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_next_game_description">Seu próximo jogo, aula ou torneio com a contagem até ele.</string>
+    <string name="widget_next_game_later">Depois</string>
+    <string name="widget_next_game_until">até o jogo</string>
+    <string name="widget_next_game_now">Agora</string>
+    <string name="widget_next_game_happening">acontecendo</string>
+    <string name="widget_next_game_all_day">dia inteiro</string>
+    <string name="widget_next_game_next">próximo compromisso</string>
+    <string name="widget_next_game_free_label">Agenda livre</string>
+    <string name="widget_next_game_free_title">Nada marcado</string>
+    <string name="widget_next_game_free_caption">Bora jogar?</string>
+    <string name="widget_next_game_open_agenda">Abrir Agenda</string>
+    <string name="widget_next_game_signed_out_title">Entre no nexaGO</string>
+    <string name="widget_next_game_signed_out_caption">para ver sua agenda</string>
+    <string name="widget_next_game_open_app">Abrir nexaGO</string>
+</resources>

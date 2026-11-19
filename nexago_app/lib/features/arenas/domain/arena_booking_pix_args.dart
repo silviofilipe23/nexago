@@ -10,6 +10,8 @@ class ArenaBookingPixArgs {
     required this.paymentFraction,
     this.paymentExpiresAt,
     this.weatherCreditAppliedReais = 0,
+    this.split = false,
+    this.splitPayerNames = const {},
   });
 
   final String bookingId;
@@ -23,4 +25,11 @@ class ArenaBookingPixArgs {
   /// o resto INTEGRAL (metade de um resto pequeno cairia abaixo do mínimo do
   /// Pix): a tela não oferece o sinal de 50%.
   final double weatherCreditAppliedReais;
+
+  /// A reserva já foi dividida com os jogadores ("Dividir com os jogadores"):
+  /// a tela acompanha as fatias em vez de gerar um Pix da reserva inteira.
+  final bool split;
+
+  /// Nome de cada pagador da divisão, para a lista de quem já pagou.
+  final Map<String, String> splitPayerNames;
 }

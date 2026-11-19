@@ -4,11 +4,19 @@
 /// a hora mais cheia da semana). Sem resumo, ou com pouca amostra
 /// (`byWeekday: null`), o bloco não aparece.
 class ArenaPopularTimes {
-  const ArenaPopularTimes({required this.bookingsCount, this.byWeekday});
+  const ArenaPopularTimes({
+    required this.bookingsCount,
+    this.athletesCount = 0,
+    this.byWeekday,
+  });
 
   static const int hoursPerDay = 24;
 
   final int bookingsCount;
+
+  /// Atletas distintos que jogaram na arena no período ("Quem joga aqui").
+  /// Só o total: o servidor não grava quem.
+  final int athletesCount;
   final Map<int, List<int>>? byWeekday;
 
   /// Valores do dia da semana ISO, ou `null` sem dado para ele.
@@ -16,6 +24,7 @@ class ArenaPopularTimes {
 
   factory ArenaPopularTimes.fromMap(Map<String, dynamic> data) {
     final count = data['bookingsCount'];
+    final athletes = data['athletesCount'];
     final raw = data['byWeekday'];
     Map<int, List<int>>? byWeekday;
     if (raw is Map) {
@@ -31,6 +40,7 @@ class ArenaPopularTimes {
     }
     return ArenaPopularTimes(
       bookingsCount: count is num ? count.toInt() : 0,
+      athletesCount: athletes is num && athletes > 0 ? athletes.toInt() : 0,
       byWeekday: byWeekday == null ? null : Map.unmodifiable(byWeekday),
     );
   }

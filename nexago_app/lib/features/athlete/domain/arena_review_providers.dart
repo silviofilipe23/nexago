@@ -6,6 +6,7 @@ import '../../../core/formatting/app_date_format.dart';
 import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../../arenas/domain/my_booking_item.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
+import '../data/arena_review_prompt_store.dart';
 import '../data/arena_review_service.dart';
 import 'arena_reputation.dart';
 import 'arena_review.dart';
@@ -29,9 +30,37 @@ final arenaReviewServiceProvider = Provider<ArenaReviewService>((ref) {
   return ArenaReviewService(ref.watch(firestoreProvider));
 });
 
-/// Reservas cujo convite o atleta dispensou ("Agora não") nesta sessão — não persiste:
-/// reabrir o app traz o cartão de volta, como no portal.
+/// Reservas cujo convite o atleta dispensou ("Agora não") nesta sessão: some na hora,
+/// sem esperar o aparelho gravar. O que vale entre aberturas do app é
+/// [persistedDismissedArenaReviewsProvider].
 final dismissedArenaReviewsProvider = StateProvider<Set<String>>((ref) => const {});
+
+final arenaReviewPromptStoreProvider = Provider<ArenaReviewPromptStore>(
+  (ref) => SharedPrefsArenaReviewPromptStore(),
+);
+
+/// Dispensas gravadas no aparelho para a conta atual: reabrir o app não traz de volta
+/// o convite de uma reserva que o atleta já dispensou.
+final persistedDismissedArenaReviewsProvider =
+    FutureProvider.autoDispose<Set<String>>((ref) async {
+  final userId = ref.watch(authProvider).valueOrNull?.uid ?? '';
+  if (userId.isEmpty) return const {};
+  return ref.watch(arenaReviewPromptStoreProvider).dismissed(userId);
+});
+
+/// "Agora não": esconde já e grava no aparelho.
+Future<void> dismissArenaReviewPrompt(WidgetRef ref, String bookingId) async {
+  ref
+      .read(dismissedArenaReviewsProvider.notifier)
+      .update((ids) => {...ids, bookingId});
+  final userId = ref.read(authProvider).valueOrNull?.uid ?? '';
+  if (userId.isEmpty) return;
+  try {
+    await ref.read(arenaReviewPromptStoreProvider).dismiss(userId, bookingId);
+  } on Exception {
+    // Falhou gravar no aparelho: nesta sessão o convite já sumiu; volta só ao reabrir.
+  }
+}
 
 /// Reservas avaliadas nesta sessão: o cartão e o botão somem na hora, sem esperar a
 /// consulta ao servidor.
@@ -71,6 +100,8 @@ final pendingReviewProvider =
   if (userId == null || userId.isEmpty) return null;
   final bookings = await ref.watch(myBookingsStreamProvider.future);
   final dismissed = ref.watch(dismissedArenaReviewsProvider);
+  final persisted =
+      await ref.watch(persistedDismissedArenaReviewsProvider.future);
   final local = ref.watch(locallyReviewedBookingsProvider);
   final now = DateTime.now();
   final windowStart = now.subtract(arenaReviewPromptWindow);
@@ -94,7 +125,7 @@ final pendingReviewProvider =
   );
   final picked = pickPendingArenaReview(
     candidates,
-    excludedBookingIds: {...reviewed, ...dismissed, ...local},
+    excludedBookingIds: {...reviewed, ...dismissed, ...persisted, ...local},
     now: now,
   );
   if (picked == null) return null;
@@ -189,6 +220,8 @@ Future<PendingArenaReview?> _loadReviewTarget(
     endTime: endTime,
     ownerUid: _readString(data, ['athleteId', 'bookingAthleteId']),
     rawStatus: status,
+    courtId: courtId,
+    sport: pick(['sport', 'esporte'], fallback?.sport ?? ''),
   );
 }
 

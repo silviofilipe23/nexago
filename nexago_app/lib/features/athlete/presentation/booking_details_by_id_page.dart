@@ -9,7 +9,7 @@ import '../domain/agenda/athlete_agenda_logic.dart';
 import 'booking_details_page.dart';
 
 /// Detalhe da reserva aberto só pelo id (`/booking/:bookingId/details`), para quem chega
-/// sem os dados na mão — o push "Como foi o jogo?" (`arena_review_request`). Lê a reserva
+/// sem os dados na mão — o push "Como foi jogar na arena?" (`arena_review_request`). Lê a reserva
 /// e mostra o mesmo [BookingDetailsPage] das outras telas.
 class BookingDetailsByIdPage extends ConsumerWidget {
   const BookingDetailsByIdPage({super.key, required this.bookingId});

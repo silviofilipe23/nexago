@@ -401,6 +401,35 @@ class AnalyticsService {
   Future<void> logAthletePlusCardDismissed() =>
       _analytics.logEvent(name: AnalyticsEvents.athletePlusCardDismissed);
 
+  // --- Avaliação da arena depois da reserva ---
+
+  /// [source]: `agenda_card` (estrela no cartão) · `screen` (tela aberta sem nota).
+  Future<void> logArenaReviewSubmitted({
+    required int rating,
+    required int tagCount,
+    required bool hasComment,
+    required bool? onTime,
+    required String source,
+  }) => _analytics.logEvent(
+    name: AnalyticsEvents.arenaReviewSubmitted,
+    parameters: {
+      'rating': rating,
+      'tag_count': tagCount,
+      'has_comment': hasComment ? 1 : 0,
+      'on_time': onTime == null ? 'unanswered' : (onTime ? 'yes' : 'late'),
+      'source': source,
+    },
+  );
+
+  Future<void> logArenaReviewPromptDismissed() =>
+      _analytics.logEvent(name: AnalyticsEvents.arenaReviewPromptDismissed);
+
+  Future<void> logArenaReviewRebookTapped({required int rating}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.arenaReviewRebookTapped,
+        parameters: {'rating': rating},
+      );
+
   // --- Peladas ---
 
   Future<void> logPeladasTabViewed() =>

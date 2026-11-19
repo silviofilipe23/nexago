@@ -83,8 +83,15 @@ describe("reviewRequestCopy", () => {
     const copy = reviewRequestCopy({
       bookingId: "b1", uid: "uid1", arenaId: "a", arenaName: "Arena CFC", startTime: "19:00",
     });
-    assert.equal(copy.title, "Como foi o jogo na Arena CFC?");
+    assert.equal(copy.title, "Como foi jogar na Arena CFC?");
     assert.match(copy.body, /reserva das 19:00/);
+  });
+
+  it("sem nome da arena não repete o título do pós-jogo do placar", () => {
+    const copy = reviewRequestCopy({
+      bookingId: "b1", uid: "uid1", arenaId: "a", arenaName: "", startTime: "19:00",
+    });
+    assert.equal(copy.title, "Como foi a arena?");
   });
 });
 

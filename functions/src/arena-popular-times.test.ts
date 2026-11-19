@@ -102,6 +102,33 @@ describe("buildArenaPopularTimes", () => {
   });
 });
 
+describe("athletesCount", () => {
+  it("conta atletas distintos: dono da reserva e convidados que entraram", () => {
+    const out = buildArenaPopularTimes("a1", [
+      booking({athleteId: "u1", participantUids: ["u2", "u3"]}),
+      booking({athleteId: "u2", participantUids: ["u1"]}),
+      booking({athleteId: "u4"}),
+    ], range);
+    assert.equal(out.athletesCount, 4);
+  });
+
+  it("não conta reserva inválida, balcão sem conta nem lixo", () => {
+    const out = buildArenaPopularTimes("a1", [
+      booking({athleteId: "u1"}),
+      booking({athleteId: "u9", status: "cancelled"}),
+      booking({athleteId: "", participantUids: [7, "", " u5 "]}),
+      booking({athleteId: "u8", date: "lixo"}),
+    ], range);
+    assert.equal(out.athletesCount, 2);
+  });
+
+  it("sai mesmo abaixo do mínimo do desenho", () => {
+    const out = buildArenaPopularTimes("a1", [booking({athleteId: "u1"})], range);
+    assert.equal(out.byWeekday, null);
+    assert.equal(out.athletesCount, 1);
+  });
+});
+
 describe("refreshArenaPopularTimesCore", () => {
   it("grava um resumo por arena e zera a arena que ficou sem reservas", async () => {
     const fake = new FakeFirestore();
@@ -118,6 +145,7 @@ describe("refreshArenaPopularTimesCore", () => {
     assert.equal(written, 3);
     const a1 = fake.store.get(`${ARENA_POPULAR_TIMES}/a1`);
     assert.equal(a1?.["bookingsCount"], 25);
+    assert.equal(a1?.["athletesCount"], 0);
     assert.ok(a1?.["byWeekday"]);
     const a2 = fake.store.get(`${ARENA_POPULAR_TIMES}/a2`);
     assert.equal(a2?.["bookingsCount"], 1);
@@ -125,5 +153,6 @@ describe("refreshArenaPopularTimesCore", () => {
     const a3 = fake.store.get(`${ARENA_POPULAR_TIMES}/a3`);
     assert.equal(a3?.["bookingsCount"], 0);
     assert.equal(a3?.["byWeekday"], null);
+    assert.equal(a3?.["athletesCount"], 0);
   });
 });

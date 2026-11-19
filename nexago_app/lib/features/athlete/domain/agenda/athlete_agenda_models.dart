@@ -236,20 +236,6 @@ class AthleteAgendaMonthDay {
   final int eventCount;
 }
 
-class AthleteAgendaDaySection {
-  const AthleteAgendaDaySection({
-    required this.date,
-    required this.title,
-    required this.subtitle,
-    required this.items,
-  });
-
-  final DateTime date;
-  final String title;
-  final String subtitle;
-  final List<AthleteAgendaItem> items;
-}
-
 class AthleteAgendaTimelineRow {
   const AthleteAgendaTimelineRow.item(
     this.item, {
@@ -278,16 +264,6 @@ class AthleteAgendaFilterCounts {
   final int trainings;
   final int tournaments;
   final int challenges;
-}
-
-class AthleteAgendaTimeTabCounts {
-  const AthleteAgendaTimeTabCounts({
-    required this.upcoming,
-    required this.past,
-  });
-
-  final int upcoming;
-  final int past;
 }
 
 /// Preview mock de drop-in para empty state D3.

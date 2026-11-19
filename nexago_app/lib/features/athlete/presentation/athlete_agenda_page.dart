@@ -153,6 +153,8 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
           if (!i.isCanceled) i,
       ],
       now: now,
+      onSubscribeCalendar: () =>
+          context.pushNamed(AppRouteNames.athleteCalendarSync),
     );
     if (picked == null || !mounted) return;
 

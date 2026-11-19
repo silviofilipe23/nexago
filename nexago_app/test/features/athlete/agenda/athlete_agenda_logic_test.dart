@@ -135,20 +135,6 @@ void main() {
     });
   });
 
-  group('countAgendaTimeTabs', () {
-    test('counts upcoming and past items', () {
-      final now = DateTime(2025, 5, 26, 15);
-      final items = [
-        rentalAt(DateTime(2025, 5, 26, 18)),
-        pastRentalAt(DateTime(2025, 5, 26, 10)),
-      ];
-
-      final counts = countAgendaTimeTabs(items, now: now);
-      expect(counts.upcoming, 1);
-      expect(counts.past, 1);
-    });
-  });
-
   group('buildDaySummary', () {
     test('counts active items today and next minutes', () {
       final now = DateTime(2025, 5, 26, 10);
@@ -191,21 +177,6 @@ void main() {
       expect(markers[25].isSelected, true);
       expect(markers[26].tournamentDots, 1);
       expect(markers[0].eventCount, 0);
-    });
-  });
-
-  group('groupItemsByDaySection', () {
-    test('groups with Hoje and Amanhã labels', () {
-      final now = DateTime(2025, 5, 26, 9);
-      final items = [
-        rentalAt(DateTime(2025, 5, 26, 18)),
-        tournamentAt(DateTime(2025, 5, 27, 10)),
-      ];
-
-      final sections = groupItemsByDaySection(items, now: now);
-      expect(sections.length, 2);
-      expect(sections[0].title, contains('Hoje'));
-      expect(sections[1].title, contains('Amanhã'));
     });
   });
 

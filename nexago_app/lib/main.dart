@@ -22,9 +22,11 @@ import 'core/map/mapbox_config.dart';
 import 'core/notifications/notification_navigation.dart';
 import 'core/notifications/notification_providers.dart';
 import 'core/notifications/notification_service.dart';
+import 'core/home_widget/agenda_widget_channel.dart';
 import 'core/quick_actions/athlete_quick_actions_logic.dart';
 import 'core/quick_actions/athlete_quick_actions_providers.dart';
 import 'core/quick_actions/quick_actions_navigation.dart';
+import 'features/athlete/domain/agenda/agenda_widget_providers.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/native_interface_style.dart';
@@ -106,6 +108,7 @@ class NexagoApp extends ConsumerStatefulWidget {
 class _NexagoAppState extends ConsumerState<NexagoApp> {
   ProviderSubscription<AsyncValue<User?>>? _authSub;
   ProviderSubscription<List<QuickActionItem>?>? _quickActionsSub;
+  ProviderSubscription<String?>? _agendaWidgetSub;
   StreamSubscription<Uri>? _deepLinkSub;
   late final AppLifecycleListener _lifecycleListener;
 
@@ -119,13 +122,20 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
       // O menu do ícone fica gravado com o app fechado: recalcular ao sair
       // tira dele a reserva que já passou. Precisa ser aqui e síncrono — com
       // o app oculto não há frame para um `invalidate` rodar.
-      onHide: () => _publishQuickActions(
-        ref.refresh(athleteQuickActionsProvider),
-      ),
+      onHide: () {
+        _publishQuickActions(ref.refresh(athleteQuickActionsProvider));
+        // Mesma razão para o widget "Próximo jogo" da tela inicial.
+        _publishAgendaWidget(ref.refresh(agendaWidgetSnapshotProvider));
+      },
     );
     _quickActionsSub = ref.listenManual<List<QuickActionItem>?>(
       athleteQuickActionsProvider,
       (_, items) => _publishQuickActions(items),
+      fireImmediately: true,
+    );
+    _agendaWidgetSub = ref.listenManual<String?>(
+      agendaWidgetSnapshotProvider,
+      (_, json) => _publishAgendaWidget(json),
       fireImmediately: true,
     );
     Future<void>(() async {
@@ -226,6 +236,12 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
     unawaited(ref.read(quickActionsChannelProvider).setItems(items));
   }
 
+  /// `null` = Agenda ainda carregando: o widget fica com o que já tinha.
+  void _publishAgendaWidget(String? json) {
+    if (json == null) return;
+    unawaited(ref.read(agendaWidgetChannelProvider).saveSnapshot(json));
+  }
+
   void _handleDeepLink(Uri uri) {
     navigateFromDeepLink(
       uri: uri,
@@ -240,6 +256,7 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
     _deepLinkSub?.cancel();
     _authSub?.close();
     _quickActionsSub?.close();
+    _agendaWidgetSub?.close();
     super.dispose();
   }
 

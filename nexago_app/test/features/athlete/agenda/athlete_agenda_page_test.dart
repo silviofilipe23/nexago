@@ -17,6 +17,7 @@ import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_models.
 import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_providers.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_notifications_providers.dart';
 import 'package:nexago_app/features/athlete/presentation/athlete_agenda_page.dart';
+import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_month_picker_sheet.dart';
 import 'package:nexago_app/features/athlete_billing/domain/athlete_billing.dart';
 
 /// Repositório de aulas vazio: a agenda não depende dele nestes cenários.
@@ -320,6 +321,46 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Ir para uma data'), findsWidgets);
+    expect(find.text('Assinar no calendário do celular'), findsOneWidget);
+  });
+
+  testWidgets('atalho do seletor fecha a folha e abre a assinatura', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    var subscribed = 0;
+    DateTime? picked = DateTime(2000);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () async {
+                picked = await showAgendaMonthPicker(
+                  context,
+                  items: const [],
+                  now: DateTime.now(),
+                  onSubscribeCalendar: () => subscribed++,
+                );
+              },
+              child: const Text('abrir'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('abrir'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('agenda-subscribe-calendar')));
+    await tester.pumpAndSettle();
+
+    expect(subscribed, 1);
+    expect(picked, isNull);
+    expect(find.text('Ir para uma data'), findsNothing);
   });
 }
 

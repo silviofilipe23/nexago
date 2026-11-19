@@ -416,6 +416,7 @@ export {getMyProfessorStudents} from "./professor-students";
 export {onProfessorLessonCreated} from "./professor-lessons";
 // Agenda do professor em outros apps (feed .ics com token).
 export {configureProfessorCalendarFeed, professorCalendarFeed} from "./professor-calendar";
+export {configureAthleteCalendarFeed, athleteCalendarFeed} from "./athlete-calendar";
 // Avaliação do aluno pelo professor (fundamentos, nota geral, foco).
 export {deleteProfessorEvaluation, saveProfessorEvaluation} from "./professor-evaluations";
 // Pedido de remarcação de particular pelo chat (D3).

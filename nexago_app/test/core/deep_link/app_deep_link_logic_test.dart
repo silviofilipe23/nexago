@@ -65,6 +65,11 @@ void main() {
       );
     });
 
+    test('nexago://agenda abre a Agenda (toque no widget Próximo jogo)', () {
+      expect(
+          resolveAppDeepLinkPath(Uri.parse('nexago://agenda')), '/my-bookings');
+    });
+
     test('maps nexago custom scheme path', () {
       expect(
         resolveAppDeepLinkPath(

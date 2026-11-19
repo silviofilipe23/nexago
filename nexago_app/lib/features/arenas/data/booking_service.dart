@@ -7,6 +7,7 @@ import '../domain/arena_booking_confirm_args.dart';
 import '../domain/arena_booking_quote.dart';
 import '../domain/my_booking_item.dart';
 import '../domain/pending_pix_booking_match.dart';
+import '../../../core/errors/friendly_error_message.dart';
 import '../../../core/firebase/functions_region.dart';
 
 /// Paridade com o fluxo web: transação em `arenaSlotLocks` + `arenaSlots` + `arenaBookings`,
@@ -404,7 +405,11 @@ class BookingService {
       throw BookingException(_mapFunctionsMessage(e), code: _functionsCode(e));
     } catch (e) {
       if (e is BookingException) rethrow;
-      throw BookingException('Não foi possível concluir a reserva: $e');
+      throw BookingException(friendlyErrorMessage(
+        e,
+        action: 'Não foi possível concluir a reserva',
+        logReason: 'booking:create',
+      ));
     }
   }
 

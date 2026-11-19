@@ -8,6 +8,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../core/formatting/app_currency_format.dart';
 
 import '../../../core/auth/active_role_providers.dart';
+import '../../../core/errors/friendly_error_message.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
 import '../../professor_links/application/professor_links_providers.dart';
@@ -40,7 +41,6 @@ import 'widgets/booking_confirm/booking_confirm_coupon_field.dart';
 import 'widgets/booking_confirm/booking_confirm_hero_card.dart';
 import 'widgets/booking_confirm/booking_confirm_lesson_student_picker.dart';
 import 'widgets/booking_confirm/booking_confirm_member_hours_note.dart';
-import 'widgets/booking_confirm/booking_confirm_observations_field.dart';
 import 'widgets/booking_confirm/booking_confirm_price_summary.dart';
 import 'widgets/booking_confirm/booking_confirm_professor_option.dart';
 import 'widgets/booking_confirm/booking_confirm_sport_picker.dart';
@@ -73,7 +73,6 @@ class _ArenaBookingConfirmPageState
   ArenaBookingQuote? _quote;
   bool _quoting = false;
   String? _lastQuoteKey;
-  late final TextEditingController _observationsController;
   late final TextEditingController _couponController;
   bool _couponApplying = false;
   String? _couponError;
@@ -105,7 +104,6 @@ class _ArenaBookingConfirmPageState
   @override
   void initState() {
     super.initState();
-    _observationsController = TextEditingController();
     _couponController = TextEditingController();
     _lessonStudentId = ref.read(professorLessonStudentProvider);
   }
@@ -119,7 +117,6 @@ class _ArenaBookingConfirmPageState
 
   @override
   void dispose() {
-    _observationsController.dispose();
     _couponController.dispose();
     super.dispose();
   }
@@ -343,7 +340,15 @@ class _ArenaBookingConfirmPageState
       showAppSnackBar(context, e.message, isError: true);
     } catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, 'Erro ao iniciar pagamento: $e', isError: true);
+      showAppSnackBar(
+        context,
+        friendlyErrorMessage(
+          e,
+          action: 'Não foi possível iniciar o pagamento',
+          logReason: 'booking:pix-start',
+        ),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -415,7 +420,15 @@ class _ArenaBookingConfirmPageState
       showAppSnackBar(context, e.message, isError: e.isSlotConflict);
     } catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, 'Erro ao reservar: $e', isError: true);
+      showAppSnackBar(
+        context,
+        friendlyErrorMessage(
+          e,
+          action: 'Não foi possível reservar',
+          logReason: 'booking:create-onsite',
+        ),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -836,13 +849,6 @@ class _ArenaBookingConfirmPageState
                                 ),
                               ),
                             ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 18),
-                              child: BookingConfirmObservationsField(
-                                controller: _observationsController,
-                                enabled: !_submitting,
-                              ),
-                            ),
                             // Coberta pelo plano: nada a pagar, sem forma
                             // de pagamento.
                             if (!coveredByPlan) ...[
@@ -943,6 +949,10 @@ class _ArenaBookingConfirmPageState
                               child: Center(
                                 child: TextButton(
                                   onPressed: _submitting ? null : _onBack,
+                                  style: TextButton.styleFrom(
+                                    foregroundColor:
+                                        context.themeColors.brandText,
+                                  ),
                                   child: const Text('Alterar horário'),
                                 ),
                               ),
@@ -962,7 +972,12 @@ class _ArenaBookingConfirmPageState
                           _quoting ? 'Calculando…' : formatBRL(stickyAmount),
                       ctaLabel: stickyCta,
                       submitting: _submitting,
-                      enabled: (canPayHere || coveredByPlan) && !_submitting,
+                      // Recalculando o preço: o total na barra ainda é o
+                      // antigo, então não deixa confirmar até a cotação
+                      // nova chegar.
+                      enabled: (canPayHere || coveredByPlan) &&
+                          !_submitting &&
+                          !_quoting,
                       onConfirm: () {
                         if (sport == null) {
                           HapticFeedback.heavyImpact();
@@ -1070,7 +1085,7 @@ class _PaymentOptionCard extends StatelessWidget {
                 Icon(
                   icon,
                   color: selected
-                      ? AppColors.brand
+                      ? context.themeColors.brandText
                       : theme.colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 12),
@@ -1105,7 +1120,7 @@ class _PaymentOptionCard extends StatelessWidget {
                         ? Icons.check_circle_rounded
                         : Icons.radio_button_unchecked_rounded,
                     color: selected
-                        ? AppColors.brand
+                        ? context.themeColors.brandText
                         : theme.colorScheme.onSurfaceVariant,
                   ),
                 ),

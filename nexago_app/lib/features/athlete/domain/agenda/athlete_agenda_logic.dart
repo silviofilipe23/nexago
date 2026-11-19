@@ -26,19 +26,12 @@ const athleteAgendaClassSessionAccent = Color(0xFFD4E157);
 final _weekdayFmt = DateFormat('EEE', 'pt_BR');
 final _sectionDateFmt = DateFormat('dd/MM', 'pt_BR');
 final _headerDateFmt = DateFormat('d MMM', 'pt_BR');
-final _monthYearFmt = DateFormat('MMMM yyyy', 'pt_BR');
 final _monthTitleFmt = DateFormat('MMMM', 'pt_BR');
 
 DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
 bool isSameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
-
-DateTime startOfWeek(DateTime day) {
-  final d = dateOnly(day);
-  final weekday = d.weekday;
-  return d.subtract(Duration(days: weekday - 1));
-}
 
 DateTime startOfMonth(DateTime day) => DateTime(day.year, day.month);
 
@@ -558,22 +551,6 @@ bool isAgendaItemPast(AthleteAgendaItem item, {DateTime? now}) {
   return !clock.isBefore(end);
 }
 
-AthleteAgendaTimeTabCounts countAgendaTimeTabs(
-  List<AthleteAgendaItem> items, {
-  DateTime? now,
-}) {
-  var upcoming = 0;
-  var past = 0;
-  for (final item in items) {
-    if (isAgendaItemPast(item, now: now)) {
-      past++;
-    } else {
-      upcoming++;
-    }
-  }
-  return AthleteAgendaTimeTabCounts(upcoming: upcoming, past: past);
-}
-
 /// O item ocupa [day] na agenda? Torneio de vários dias ocupa do primeiro ao
 /// último dia do evento: no domingo das finais ele continua em Próximos e
 /// nos pontos do seletor de data. O resto ocupa só o dia em que começa,
@@ -724,16 +701,6 @@ String formatAgendaHeaderEyebrow(DateTime day) {
   return '$weekday · $date · GMT-3';
 }
 
-String formatAgendaMonthEyebrow(DateTime visibleMonth) {
-  final label = _monthYearFmt
-      .format(startOfMonth(visibleMonth))
-      .replaceAll('.', '')
-      .toUpperCase();
-  return '$label · GMT-3';
-}
-
-String formatAgendaMonthTitle() => 'Seu mês';
-
 String formatAgendaMonthGridTitle(DateTime visibleMonth) {
   final raw = _monthTitleFmt.format(startOfMonth(visibleMonth));
   if (raw.isEmpty) return raw;
@@ -825,42 +792,6 @@ String formatSectionSubtitle(
     return '$active JOGOS · PRÓXIMO EM $mins MIN';
   }
   return '$active JOGOS';
-}
-
-List<AthleteAgendaDaySection> groupItemsByDaySection(
-  List<AthleteAgendaItem> items, {
-  DateTime? now,
-  bool reverseDays = false,
-}) {
-  if (items.isEmpty) return const [];
-  final byDay = <DateTime, List<AthleteAgendaItem>>{};
-  for (final item in items) {
-    final key = dateOnly(item.startsAt);
-    byDay.putIfAbsent(key, () => []).add(item);
-  }
-  final keys = byDay.keys.toList()..sort();
-  if (reverseDays) {
-    keys.sort((a, b) => b.compareTo(a));
-  }
-  return keys
-      .map(
-        (day) => AthleteAgendaDaySection(
-          date: day,
-          title: formatSectionTitle(day, now: now),
-          subtitle: formatSectionSubtitle(
-            byDay[day]!,
-            now: now,
-            pastOnly: reverseDays,
-          ),
-          items: byDay[day]!
-            ..sort(
-              (a, b) => reverseDays
-                  ? b.startsAt.compareTo(a.startsAt)
-                  : a.startsAt.compareTo(b.startsAt),
-            ),
-        ),
-      )
-      .toList(growable: false);
 }
 
 List<AthleteAgendaTimelineRow> buildAgendaTimelineRows({

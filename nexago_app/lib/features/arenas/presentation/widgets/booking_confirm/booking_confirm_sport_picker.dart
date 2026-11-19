@@ -124,10 +124,10 @@ class _SportChip extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (selected) ...[
-                  const Icon(
+                  Icon(
                     Icons.check_rounded,
                     size: 16,
-                    color: AppColors.brand,
+                    color: context.themeColors.brandText,
                   ),
                   const SizedBox(width: 6),
                 ],
@@ -135,7 +135,7 @@ class _SportChip extends StatelessWidget {
                   label,
                   style: theme.textTheme.labelLarge?.copyWith(
                     fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                    color: selected ? AppColors.brand : null,
+                    color: selected ? context.themeColors.brandText : null,
                   ),
                 ),
               ],

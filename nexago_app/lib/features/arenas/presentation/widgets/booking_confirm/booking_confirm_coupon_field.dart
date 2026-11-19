@@ -79,13 +79,15 @@ class BookingConfirmCouponField extends StatelessWidget {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.06),
+                        color:
+                            context.themeColors.outline.withValues(alpha: 0.25),
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.06),
+                        color:
+                            context.themeColors.outline.withValues(alpha: 0.25),
                       ),
                     ),
                     focusedBorder: OutlineInputBorder(
@@ -157,7 +159,11 @@ class _AppliedCouponChip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.local_offer_rounded, size: 18, color: AppColors.brand),
+          Icon(
+            Icons.local_offer_rounded,
+            size: 18,
+            color: context.themeColors.brandText,
+          ),
           SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -168,7 +174,13 @@ class _AppliedCouponChip extends StatelessWidget {
               ),
             ),
           ),
-          TextButton(onPressed: onRemove, child: Text('Remover')),
+          TextButton(
+            onPressed: onRemove,
+            style: TextButton.styleFrom(
+              foregroundColor: context.themeColors.brandText,
+            ),
+            child: const Text('Remover'),
+          ),
         ],
       ),
     );

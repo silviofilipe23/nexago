@@ -29,7 +29,8 @@ class BookingConfirmStickyBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.themeColors.canvas.withValues(alpha: 0.98),
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+          top: BorderSide(
+              color: context.themeColors.outline.withValues(alpha: 0.3)),
         ),
       ),
       child: SafeArea(
@@ -58,7 +59,7 @@ class BookingConfirmStickyBar extends StatelessWidget {
                         totalLabel!,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w900,
-                          color: AppColors.brand,
+                          color: context.themeColors.brandText,
                           fontSize: 20,
                           height: 1,
                         ),

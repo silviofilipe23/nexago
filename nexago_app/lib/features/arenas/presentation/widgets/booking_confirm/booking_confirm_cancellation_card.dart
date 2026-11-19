@@ -23,7 +23,7 @@ class BookingConfirmCancellationCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         color: context.themeColors.surfaceRaised,
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.06),
+          color: context.themeColors.outline.withValues(alpha: 0.25),
         ),
       ),
       child: Row(

@@ -42,7 +42,8 @@ class BookingConfirmPriceSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasDiscount = discountLineLabel != null && discountAmountLabel != null;
+    final hasDiscount =
+        discountLineLabel != null && discountAmountLabel != null;
     final hasCredit = weatherCreditAmountLabel != null;
     final hasMemberHours =
         memberHoursLineLabel != null && memberHoursAmountLabel != null;
@@ -65,7 +66,8 @@ class BookingConfirmPriceSummary extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
             color: context.themeColors.surfaceRaised,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            border: Border.all(
+                color: context.themeColors.outline.withValues(alpha: 0.25)),
           ),
           child: Column(
             children: [
@@ -171,8 +173,7 @@ class _PriceRow extends StatelessWidget {
         ),
         Text(
           value,
-          style:
-              valueStyle ??
+          style: valueStyle ??
               theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
         ),
       ],

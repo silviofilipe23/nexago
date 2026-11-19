@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
@@ -82,7 +83,7 @@ class BookingConfirmProfessorOption extends StatelessWidget {
                     Icon(
                       Icons.school_outlined,
                       color: value
-                          ? AppColors.brand
+                          ? context.themeColors.brandText
                           : theme.colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: 12),

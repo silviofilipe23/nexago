@@ -58,6 +58,7 @@ import WidgetKit
     InterfaceStyleChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
     LiveActivityChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
     NextMatchLiveActivityChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
+    BookingLiveActivityChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
     HomeWidgetChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "NexaQuickActions") {
       QuickActionsChannel.register(with: registrar)

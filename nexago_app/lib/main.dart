@@ -16,6 +16,8 @@ import 'core/app_update/app_update_gate.dart';
 import 'core/layout/nexa_native_liquid_glass.dart';
 import 'core/time/nexago_event_timezone.dart';
 import 'core/auth/auth_providers.dart';
+import 'core/live_activity/booking_live_activity_models.dart';
+import 'core/live_activity/booking_live_activity_service.dart';
 import 'core/biometric/biometric_app_gate.dart';
 import 'core/deep_link/deep_link_navigation.dart';
 import 'core/map/mapbox_config.dart';
@@ -109,6 +111,7 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
   ProviderSubscription<AsyncValue<User?>>? _authSub;
   ProviderSubscription<List<QuickActionItem>?>? _quickActionsSub;
   ProviderSubscription<String?>? _agendaWidgetSub;
+  ProviderSubscription<BookingLiveActivityPlan?>? _bookingLiveActivitySub;
   StreamSubscription<Uri>? _deepLinkSub;
   late final AppLifecycleListener _lifecycleListener;
 
@@ -116,9 +119,14 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
   void initState() {
     super.initState();
     _lifecycleListener = AppLifecycleListener(
-      onResume: () => unawaited(
-        ref.read(notificationServiceProvider).clearDeliveredNotifications(),
-      ),
+      onResume: () {
+        unawaited(
+          ref.read(notificationServiceProvider).clearDeliveredNotifications(),
+        );
+        // A janela de 2 horas anda com o relógio: voltar ao app pode ser o
+        // momento de ligar o card da reserva (Live Activity).
+        _syncBookingLiveActivity(ref.refresh(bookingLiveActivityPlanProvider));
+      },
       // O menu do ícone fica gravado com o app fechado: recalcular ao sair
       // tira dele a reserva que já passou. Precisa ser aqui e síncrono — com
       // o app oculto não há frame para um `invalidate` rodar.
@@ -136,6 +144,11 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
     _agendaWidgetSub = ref.listenManual<String?>(
       agendaWidgetSnapshotProvider,
       (_, json) => _publishAgendaWidget(json),
+      fireImmediately: true,
+    );
+    _bookingLiveActivitySub = ref.listenManual<BookingLiveActivityPlan?>(
+      bookingLiveActivityPlanProvider,
+      (_, plan) => _syncBookingLiveActivity(plan),
       fireImmediately: true,
     );
     Future<void>(() async {
@@ -242,6 +255,12 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
     unawaited(ref.read(agendaWidgetChannelProvider).saveSnapshot(json));
   }
 
+  /// Live Activity da reserva (iOS): liga o card nas 2 horas antes do jogo e
+  /// tira o de reserva cancelada.
+  void _syncBookingLiveActivity(BookingLiveActivityPlan? plan) {
+    unawaited(ref.read(bookingLiveActivityServiceProvider).sync(plan));
+  }
+
   void _handleDeepLink(Uri uri) {
     navigateFromDeepLink(
       uri: uri,
@@ -257,6 +276,7 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
     _authSub?.close();
     _quickActionsSub?.close();
     _agendaWidgetSub?.close();
+    _bookingLiveActivitySub?.close();
     super.dispose();
   }
 

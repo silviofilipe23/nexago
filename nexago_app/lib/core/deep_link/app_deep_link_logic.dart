@@ -42,6 +42,18 @@ String? resolveAppDeepLinkPath(Uri uri) {
     return '/my-bookings';
   }
 
+  // Toque na Live Activity da reserva: `nexago://reserva/:id` (detalhe) e
+  // `nexago://reserva/:id/placar` (fim de jogo, "Lançar placar"). Singular de
+  // propósito: `reservar/` é a página da arena no portal.
+  if (segments.first == 'reserva' && uri.scheme == 'nexago') {
+    if (segments.length < 2) return null;
+    final id = Uri.encodeComponent(segments[1]);
+    if (segments.length >= 3 && segments[2] == 'placar') {
+      return '/reservar/placar/$id';
+    }
+    return '/booking/$id/details';
+  }
+
   if (segments.first == 'reservar' && segments.length >= 2) {
     return _arenaBookingPath(segments, uri);
   }
@@ -99,6 +111,9 @@ List<String>? _deepLinkPathSegments(Uri uri) {
       return ['loja', ...uri.pathSegments.where((s) => s.isNotEmpty)];
     }
     if (uri.host == 'agenda') return const ['agenda'];
+    if (uri.host == 'reserva') {
+      return ['reserva', ...uri.pathSegments.where((s) => s.isNotEmpty)];
+    }
     return uri.pathSegments.where((s) => s.isNotEmpty).toList();
   }
 

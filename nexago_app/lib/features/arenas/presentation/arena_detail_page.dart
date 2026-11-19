@@ -31,10 +31,15 @@ import '../../professor_links/presentation/widgets/arena_professor_link_card.dar
 import '../../professor_links/presentation/widgets/arena_public_professors_section.dart';
 import '../../schedule_plans/presentation/widgets/schedule_plans_entry_points.dart';
 import 'arena_booking_navigation.dart';
+import '../domain/arena_detail_hours_logic.dart';
 import '../domain/arena_detail_offers_logic.dart';
+import '../domain/slots_page_logic.dart';
+import '../../organizer_public_profile/domain/organizer_event.dart';
 import 'widgets/arena_detail/arena_detail_agenda.dart';
 import 'widgets/arena_detail/arena_detail_amenity_chips.dart';
 import 'widgets/arena_detail/arena_detail_anchor_bar.dart';
+import 'widgets/arena_detail/arena_detail_events_section.dart';
+import 'widgets/arena_detail/arena_detail_hours.dart';
 import 'widgets/arena_detail/arena_detail_bottom_cta.dart';
 import 'widgets/arena_detail/arena_detail_club_section.dart';
 import 'widgets/arena_detail/arena_detail_courts_section.dart';
@@ -179,6 +184,7 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
   final GlobalKey _anchorsKey = GlobalKey();
   final GlobalKey _agendaKey = GlobalKey();
   final GlobalKey _offersKey = GlobalKey();
+  final GlobalKey _eventsKey = GlobalKey();
   final GlobalKey _courtsKey = GlobalKey();
   final GlobalKey _plansKey = GlobalKey();
   final GlobalKey _clubKey = GlobalKey();
@@ -240,7 +246,11 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
     });
   }
 
-  List<ArenaDetailAnchor> _anchors({required bool hasOffers}) => [
+  List<ArenaDetailAnchor> _anchors({
+    required bool hasOffers,
+    required bool hasEvents,
+  }) =>
+      [
         ArenaDetailAnchor(
           label: 'Horários',
           onTap: () => _scrollTo(_agendaKey),
@@ -249,6 +259,11 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
           ArenaDetailAnchor(
             label: 'Planos e aulas',
             onTap: () => _scrollTo(_offersKey),
+          ),
+        if (hasEvents)
+          ArenaDetailAnchor(
+            label: 'Torneios',
+            onTap: () => _scrollTo(_eventsKey),
           ),
         ArenaDetailAnchor(
           label: 'Quadras',
@@ -378,6 +393,13 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
     }
   }
 
+  void _openEvent(OrganizerEvent event) {
+    context.pushNamed(
+      AppRouteNames.tournamentDetail,
+      pathParameters: {'tournamentId': event.id},
+    );
+  }
+
   void _openReviews(ArenaListItem arena) {
     final city = arena.city?.trim() ?? '';
     context.pushNamed(
@@ -440,9 +462,17 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
     final description = arena.description?.trim() ?? '';
     final whatsAppUrl = arenaPartnerWhatsAppUrl(arena);
 
+    final now = DateTime.now();
     final hasOffers =
         ref.watch(arenaDetailOtherOffersProvider(arena.id)).isNotEmpty;
-    final anchors = _anchors(hasOffers: hasOffers);
+    final hasEvents =
+        arenaDetailUpcomingEvents(ref, arena.id, now).isNotEmpty;
+    final anchors = _anchors(hasOffers: hasOffers, hasEvents: hasEvents);
+    final hours = ref.watch(arenaDetailHoursProvider(
+      (arenaId: arena.id, today: slotDayOnly(now)),
+    ));
+    final openStatus =
+        hours == null ? null : arenaOpenStatus(hours.today, now);
     const side = 20.0;
 
     return Scaffold(
@@ -503,6 +533,10 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                               ),
                             ],
                           ),
+                          if (openStatus != null) ...[
+                            const SizedBox(height: 6),
+                            ArenaDetailOpenStatusLine(status: openStatus),
+                          ],
                           const SizedBox(height: 16),
                           ArenaDetailMetricsBar(
                             rating: rating,
@@ -559,6 +593,14 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                       padding: const EdgeInsets.fromLTRB(side, 0, side, 120),
                       sliver: SliverList(
                         delegate: SliverChildListDelegate([
+                          KeyedSubtree(
+                            key: _eventsKey,
+                            child: ArenaDetailEventsSection(
+                              arenaId: arena.id,
+                              now: now,
+                              onOpen: _openEvent,
+                            ),
+                          ),
                           if (arena.amenities.hasAny) ...[
                             const SizedBox(height: 28),
                             ArenaDetailAmenityChips(
@@ -632,6 +674,11 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                                             'WhatsApp.',
                                           ),
                                 ),
+                                if (hours != null &&
+                                    hours.week.isNotEmpty) ...[
+                                  const SizedBox(height: 20),
+                                  ArenaDetailWeekHours(rows: hours.week),
+                                ],
                                 const SizedBox(height: 28),
                                 ArenaDetailRulesSection(rules: _rules(arena)),
                               ],
@@ -652,7 +699,7 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                                   )
                                 : ArenaDetailReviewsSection(
                                     reviews: reviews,
-                                    now: DateTime.now(),
+                                    now: now,
                                     onViewAll: reviews.isNotEmpty
                                         ? () => _openReviews(arena)
                                         : null,

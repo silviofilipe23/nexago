@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 import '../../../core/formatting/app_currency_format.dart';
 import 'athlete_cancel_policy.dart';
 
@@ -112,6 +114,66 @@ class ArenaBookingCancellationPolicy {
     final outcome = _policyOutcome(policy, name);
     return '${outcome[0].toUpperCase()}${outcome.substring(1)}. '
         'Depois disso, o cancelamento é combinado com a $name.';
+  }
+
+  /// Fim do prazo do cancelamento grátis.
+  static DateTime freeCancellationDeadline(DateTime bookingStart) =>
+      bookingStart
+          .subtract(const Duration(hours: freeCancellationHoursBeforeStart));
+
+  static final _deadlineDayFmt = DateFormat('EEE, dd/MM', 'pt_BR');
+  static final _deadlineTimeFmt = DateFormat('HH:mm', 'pt_BR');
+
+  /// "hoje às 13:00", "amanhã às 13:00" ou "ter, 25/11 às 13:00".
+  static String deadlineLabel(DateTime deadline, DateTime now) {
+    final time = _deadlineTimeFmt.format(deadline);
+    final day = DateTime(deadline.year, deadline.month, deadline.day);
+    final today = DateTime(now.year, now.month, now.day);
+    final days = day.difference(today).inHours ~/ 24;
+    if (days == 0) return 'hoje às $time';
+    if (days == 1) return 'amanhã às $time';
+    final weekday = _deadlineDayFmt.format(deadline).replaceAll('.', '');
+    return '$weekday às $time';
+  }
+
+  /// Título da regra na tela de confirmar reserva: o prazo como data e hora,
+  /// não "6h antes". Pagando na arena nada foi cobrado pelo app, então
+  /// cancelar no prazo é grátis seja qual for a política; pagando pelo app,
+  /// "grátis" só quando o valor volta inteiro.
+  static String checkoutCancellationTitle({
+    required DateTime bookingStart,
+    required DateTime now,
+    required AthleteCancelPolicy policy,
+    required bool paysOnline,
+  }) {
+    if (!canCancelBookingForFree(bookingStart, now)) {
+      return 'Sem cancelamento pelo app';
+    }
+    final label = deadlineLabel(freeCancellationDeadline(bookingStart), now);
+    final free = !paysOnline || policy == AthleteCancelPolicy.full;
+    return free ? 'Cancelamento grátis até $label' : 'Cancelamento até $label';
+  }
+
+  /// Linha de apoio na confirmação, conforme a forma de pagamento: o estorno
+  /// só é assunto de quem paga pelo app.
+  static String checkoutCancellationSubtitle(
+    String arenaName,
+    AthleteCancelPolicy policy, {
+    required DateTime bookingStart,
+    required DateTime now,
+    required bool paysOnline,
+  }) {
+    final name = _arenaLabel(arenaName);
+    if (!canCancelBookingForFree(bookingStart, now)) {
+      return 'Falta menos de ${freeCancellationHoursBeforeStart}h para o '
+          'horário: depois de confirmar, o cancelamento é combinado com a '
+          '$name.';
+    }
+    if (!paysOnline) {
+      return 'Cancele pelo app até lá. Depois disso, o cancelamento é '
+          'combinado com a $name.';
+    }
+    return cancellationSubtitle(arenaName, policy);
   }
 
   /// Texto da confirmação antes de cancelar (só aparece dentro do prazo),

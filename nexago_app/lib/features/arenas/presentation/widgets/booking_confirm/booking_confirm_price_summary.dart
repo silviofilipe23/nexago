@@ -24,7 +24,11 @@ class BookingConfirmPriceSummary extends StatelessWidget {
   final String platformFeeLabel;
 
   /// Desconto de professor ("Desconto de professor (20%)" / "−R$ 20,00").
-  /// Com os dois, o resumo mostra a linha do desconto e o total.
+  /// Com os dois, o resumo mostra a linha do desconto.
+  ///
+  /// [totalAmountLabel] é o total do recibo, mostrado sempre que vier,
+  /// depois da linha da taxa ([platformFeeLabel]: o atleta não paga taxa na
+  /// reserva; os 5% da plataforma saem da arena).
   final String? discountLineLabel;
   final String? discountAmountLabel;
   final String? totalAmountLabel;
@@ -47,6 +51,11 @@ class BookingConfirmPriceSummary extends StatelessWidget {
     final hasCredit = weatherCreditAmountLabel != null;
     final hasMemberHours =
         memberHoursLineLabel != null && memberHoursAmountLabel != null;
+    // Desconto, crédito e taxa grátis: o que deixa mais barato, em verde.
+    final freeStyle = theme.textTheme.bodyLarge?.copyWith(
+      fontWeight: FontWeight.w700,
+      color: context.themeColors.readableTone(AppColors.win),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,10 +94,7 @@ class BookingConfirmPriceSummary extends StatelessWidget {
                   key: const Key('booking-confirm-professor-discount'),
                   label: discountLineLabel!,
                   value: discountAmountLabel!,
-                  valueStyle: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: context.themeColors.readableTone(AppColors.win),
-                  ),
+                  valueStyle: freeStyle,
                 ),
               ],
               if (hasMemberHours) ...[
@@ -97,10 +103,7 @@ class BookingConfirmPriceSummary extends StatelessWidget {
                   key: const Key('booking-confirm-member-hours'),
                   label: memberHoursLineLabel!,
                   value: memberHoursAmountLabel!,
-                  valueStyle: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: context.themeColors.readableTone(AppColors.win),
-                  ),
+                  valueStyle: freeStyle,
                 ),
               ],
               if (hasCredit) ...[
@@ -109,14 +112,22 @@ class BookingConfirmPriceSummary extends StatelessWidget {
                   key: const Key('booking-confirm-weather-credit'),
                   label: 'Crédito na arena',
                   value: weatherCreditAmountLabel!,
-                  valueStyle: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: context.themeColors.readableTone(AppColors.win),
-                  ),
+                  valueStyle: freeStyle,
                 ),
               ],
-              if ((hasDiscount || hasMemberHours || hasCredit) &&
-                  totalAmountLabel != null) ...[
+              const SizedBox(height: 10),
+              _PriceRow(
+                key: const Key('booking-confirm-fee'),
+                label: 'Taxa de serviço',
+                value: platformFeeLabel,
+                valueStyle: freeStyle,
+              ),
+              if (totalAmountLabel != null) ...[
+                const SizedBox(height: 10),
+                Divider(
+                  height: 1,
+                  color: context.themeColors.outline.withValues(alpha: 0.25),
+                ),
                 const SizedBox(height: 10),
                 _PriceRow(
                   key: const Key('booking-confirm-total'),
@@ -128,15 +139,6 @@ class BookingConfirmPriceSummary extends StatelessWidget {
                   ),
                 ),
               ],
-              // SizedBox(height: 12),
-              // _PriceRow(
-              //   label: 'Taxa de plataforma',
-              //   value: platformFeeLabel,
-              //   valueStyle: theme.textTheme.bodyLarge?.copyWith(
-              //     fontWeight: FontWeight.w700,
-              //     color: AppColors.win,
-              //   ),
-              // ),
             ],
           ),
         ),

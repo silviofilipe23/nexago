@@ -12,6 +12,7 @@ class BookingConfirmHeroCard extends StatelessWidget {
     required this.arenaName,
     required this.courtName,
     this.courtSubtitle,
+    this.sportLabel,
   });
 
   final String dateKey;
@@ -20,11 +21,19 @@ class BookingConfirmHeroCard extends StatelessWidget {
   final String courtName;
   final String? courtSubtitle;
 
+  /// Esporte quando a quadra só tem um: vira texto aqui em vez de um
+  /// seletor com uma opção só.
+  final String? sportLabel;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dateUpper = formatBookingDateHeaderUppercase(dateKey);
-    final locationParts = <String>[arenaName, courtName];
+    final locationParts = <String>[
+      arenaName,
+      courtName,
+      if (sportLabel != null && sportLabel!.trim().isNotEmpty) sportLabel!,
+    ];
 
     return Container(
       padding: const EdgeInsets.all(18),

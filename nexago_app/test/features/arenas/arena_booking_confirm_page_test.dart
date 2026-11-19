@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/auth/auth_service.dart';
+import 'package:nexago_app/core/formatting/app_currency_format.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/data/booking_service.dart';
@@ -24,9 +25,10 @@ import 'package:nexago_app/features/professor_links/application/professor_links_
 import '../../core/theme/state_tone_contrast.dart';
 import '../weather/weather_test_fakes.dart';
 
-// Correções da tela de confirmar reserva: erro técnico na tela, botão
-// liberado com o preço desatualizado, laranja ilegível no tema claro e o
-// campo de observações que não chegava em lugar nenhum.
+// Tela de confirmar reserva: correções (erro técnico na tela, botão liberado
+// com o preço desatualizado, laranja ilegível no tema claro, campo de
+// observações que não chegava em lugar nenhum) e a ordem dos blocos
+// (pagamento antes do recibo, Total sempre, prazo em data e hora).
 
 final _args = ArenaBookingConfirmArgs(
   arenaId: 'a1',
@@ -86,6 +88,7 @@ Future<void> _pumpConfirm(
   WidgetTester tester,
   _FakeBookingService service, {
   ThemeData? theme,
+  List<String> sports = const ['Pickleball', 'Beach Tennis'],
 }) async {
   tester.view.physicalSize = const Size(900, 3200);
   tester.view.devicePixelRatio = 1;
@@ -115,11 +118,11 @@ Future<void> _pumpConfirm(
         bookingServiceProvider.overrideWithValue(service),
         arenaByIdProvider.overrideWith((ref, id) => Stream.value(null)),
         courtsStreamProvider.overrideWith(
-          (ref, id) => Stream.value(const [
+          (ref, id) => Stream.value([
             ArenaCourt(
               id: 'q2',
               name: 'Quadra 2',
-              sportTypes: ['Pickleball', 'Beach Tennis'],
+              sportTypes: sports,
             ),
           ]),
         ),
@@ -235,5 +238,75 @@ void main() {
         'Não foi possível concluir a reserva. Tente de novo em instantes.',
       )),
     );
+  });
+
+  group('ordem e recibo', () {
+    double top(WidgetTester tester, String text) =>
+        tester.getTopLeft(find.text(text)).dy;
+
+    testWidgets('forma de pagamento vem antes do resumo de valores',
+        (tester) async {
+      await _pumpConfirm(tester, _FakeBookingService());
+
+      expect(
+        top(tester, 'FORMA DE PAGAMENTO'),
+        lessThan(top(tester, 'RESUMO DE VALORES')),
+      );
+      expect(
+        top(tester, 'RESUMO DE VALORES'),
+        lessThan(top(tester, 'CUPOM DE DESCONTO (OPCIONAL)')),
+      );
+    });
+
+    testWidgets('caso comum mostra taxa grátis e Total', (tester) async {
+      await _pumpConfirm(tester, _FakeBookingService());
+
+      expect(find.byKey(const Key('booking-confirm-fee')), findsOneWidget);
+      expect(find.text('Taxa de serviço'), findsOneWidget);
+      expect(find.text('Grátis'), findsOneWidget);
+      final total = find.byKey(const Key('booking-confirm-total'));
+      expect(total, findsOneWidget);
+      expect(
+        find.descendant(of: total, matching: find.text(formatBRL(70))),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('um esporte só vira texto no hero, sem seletor',
+        (tester) async {
+      await _pumpConfirm(
+        tester,
+        _FakeBookingService(),
+        sports: const ['Pickleball'],
+      );
+
+      expect(find.text('ESPORTE'), findsNothing);
+      expect(find.textContaining('Quadra 2 · Pickleball'), findsOneWidget);
+    });
+
+    testWidgets('dois esportes: seletor aparece e o hero não escolhe',
+        (tester) async {
+      await _pumpConfirm(tester, _FakeBookingService());
+
+      expect(find.text('ESPORTE'), findsOneWidget);
+      expect(find.textContaining('· Pickleball'), findsNothing);
+    });
+
+    testWidgets('política mostra o prazo e muda com a forma de pagamento',
+        (tester) async {
+      await _pumpConfirm(tester, _FakeBookingService());
+
+      expect(find.textContaining('Cancelamento grátis até '), findsOneWidget);
+      expect(find.textContaining('6h antes'), findsNothing);
+      expect(find.textContaining('Cancele pelo app até lá'), findsOneWidget);
+      expect(find.textContaining('(Pix ou cartão)'), findsNothing);
+
+      await tester.tap(find.text('Pagar online'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.textContaining('(Pix ou cartão)'), findsOneWidget);
+      expect(find.textContaining('Cancele pelo app até lá'), findsNothing);
+    });
   });
 }

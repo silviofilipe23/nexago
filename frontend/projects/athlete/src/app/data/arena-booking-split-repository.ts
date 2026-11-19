@@ -1,4 +1,13 @@
-import { collection, onSnapshot, orderBy, query, type DocumentData, type Firestore, type Timestamp } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  type DocumentData,
+  type Firestore,
+  type Timestamp,
+} from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
 
 /** Split de pagamento de reserva PIX entre amigos — cada fatia vira uma cobrança PIX própria
@@ -136,4 +145,36 @@ export function watchArenaBookingPaymentShares(
     (snap) => onChange(snap.docs.map((d) => shareFromDoc(d.id, d.data()))),
     () => onChange([]),
   );
+}
+
+/** Uma fatia só, ao vivo — a tela do CONVIDADO (`/reservas/:bookingId/parcela/:shareId`). As rules
+ *  deixam o pagador ler a fatia dele, mas não LISTAR as outras: por isso o convidado não usa
+ *  `watchArenaBookingPaymentShares`. `null` = a fatia não existe (link errado ou desfeita). */
+export function watchArenaBookingPaymentShare(
+  db: Firestore,
+  bookingId: string,
+  shareId: string,
+  onChange: (share: ArenaBookingPaymentShare | null) => void,
+  onError: (err: unknown) => void,
+): () => void {
+  return onSnapshot(
+    doc(db, 'arenaBookings', bookingId, 'paymentShares', shareId),
+    (snap) => onChange(snap.exists() ? shareFromDoc(snap.id, snap.data()) : null),
+    onError,
+  );
+}
+
+/** Rótulo do status na tela do convidado (mesmos textos do app). A fatia não paga a tempo vira
+ *  conta de quem reservou — do ponto de vista do convidado, não "sua". */
+export function guestShareStatusLabel(status: ArenaBookingPaymentShareStatus): string {
+  switch (status) {
+    case 'paid':
+      return 'Pago';
+    case 'expired':
+      return 'Expirado';
+    case 'covered_by_organizer':
+      return 'Virou conta de quem reservou';
+    default:
+      return 'Aguardando';
+  }
 }

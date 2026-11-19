@@ -173,6 +173,16 @@ export const routes: Routes = [
       ),
   },
   {
+    // Reserva dividida: o CONVIDADO paga a sua fatia. É o `url` do push
+    // `arena_booking_share_payment_pending` (`arena-booking-split.ts`) — o sino e o Web Push leem
+    // `webUrl ?? url`, e sem esta rota o link caía no `**`. Os guards devolvem o atleta pra cá
+    // pelo `?redirect=` depois do login.
+    path: 'reservas/:bookingId/parcela/:shareId',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./reservar/booking-share-payment.component').then((m) => m.BookingSharePaymentComponent),
+  },
+  {
     path: 'reservar',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>

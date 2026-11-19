@@ -168,6 +168,13 @@ enum BookingShareStatus {
         BookingShareStatus.coveredByOrganizer => 'Virou sua conta',
         BookingShareStatus.pending => 'Aguardando',
       };
+
+  /// Rótulo na tela do convidado: a fatia não paga vira conta de quem
+  /// reservou, não "sua".
+  String get guestLabel => switch (this) {
+        BookingShareStatus.coveredByOrganizer => 'Virou conta de quem reservou',
+        _ => label,
+      };
 }
 
 /// Uma fatia viva (`arenaBookings/{bookingId}/paymentShares/{id}`).

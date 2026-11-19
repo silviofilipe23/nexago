@@ -79,3 +79,25 @@ final slotsStreamProvider =
     StreamProvider.autoDispose.family<List<ArenaSlot>, SlotsQuery>((ref, query) {
   return ref.watch(slotsRepositoryProvider).watchSlots(query);
 });
+
+/// `arenaSlots` de todas as quadras da arena no dia (um listener só), com a
+/// grade virtual e as promoções aplicadas.
+final arenaDaySlotsProvider = StreamProvider.autoDispose
+    .family<List<ArenaSlot>, ({String arenaId, DateTime day})>((ref, params) {
+  return ref
+      .watch(slotsRepositoryProvider)
+      .watchArenaDaySlotsMerged(arenaId: params.arenaId, date: params.day);
+});
+
+/// Mesma grade de [arenaDaySlotsProvider] para [days] dias seguidos a partir
+/// de `from` — as mesmas quatro consultas, então a faixa de dias inteira não
+/// abre leitura nova.
+final arenaRangeSlotsProvider = StreamProvider.autoDispose.family<
+    List<ArenaSlot>,
+    ({String arenaId, DateTime from, int days})>((ref, params) {
+  return ref.watch(slotsRepositoryProvider).watchArenaRangeSlotsMerged(
+        arenaId: params.arenaId,
+        from: params.from,
+        days: params.days,
+      );
+});

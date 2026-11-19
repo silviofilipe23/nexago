@@ -20,8 +20,6 @@ import '../domain/arena_peak_rule.dart';
 import '../domain/arena_slot.dart';
 import '../domain/court_pricing.dart';
 import '../../../core/auth/auth_providers.dart';
-import '../../athlete/domain/athlete_notification_preferences_providers.dart';
-import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/slot_vacancy_alert.dart';
 import '../domain/slot_vacancy_alerts_provider.dart';
 import '../domain/slots_page_logic.dart';
@@ -39,6 +37,7 @@ import 'widgets/slots/slots_bottom_bar.dart';
 import 'widgets/slots/slots_fully_booked_body.dart';
 import 'widgets/slots/slots_court_carousel.dart';
 import 'widgets/slots/slots_day_strip.dart';
+import 'widgets/slots/slots_vacancy_topic_prompt.dart';
 import 'widgets/slots/slots_duration_picker.dart';
 import 'widgets/slots/slots_list_section.dart';
 import 'widgets/slots/slots_page_header.dart';
@@ -569,39 +568,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
         return;
       }
 
-      final profile = ref.read(athleteProfileProvider).valueOrNull;
-      if (profile != null &&
-          !profile.notificationPreferences.topics.availableSlots) {
-        final enable = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: context.themeColors.surfaceSheet,
-            title: Text('Ativar notificações de vagas?'),
-            content: Text(
-              'Para avisar quando liberar, ative o tópico '
-              '"Horários disponíveis" nas suas preferências.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text('Agora não'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: Text('Ativar'),
-              ),
-            ],
-          ),
-        );
-        if (enable == true) {
-          ref
-              .read(athleteNotificationPreferencesProvider.notifier)
-              .setTopic(availableSlots: true);
-          await ref
-              .read(athleteNotificationPreferencesProvider.notifier)
-              .saveNow();
-        }
-      }
+      await promptAvailableSlotsTopicIfOff(context, ref);
 
       await service.subscribe(
         userId: user.uid,

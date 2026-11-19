@@ -31,7 +31,10 @@ import '../../professor_links/presentation/widgets/arena_professor_link_card.dar
 import '../../professor_links/presentation/widgets/arena_public_professors_section.dart';
 import '../../schedule_plans/presentation/widgets/schedule_plans_entry_points.dart';
 import 'arena_booking_navigation.dart';
+import '../domain/arena_detail_offers_logic.dart';
+import 'widgets/arena_detail/arena_detail_agenda.dart';
 import 'widgets/arena_detail/arena_detail_amenity_chips.dart';
+import 'widgets/arena_detail/arena_detail_anchor_bar.dart';
 import 'widgets/arena_detail/arena_detail_bottom_cta.dart';
 import 'widgets/arena_detail/arena_detail_club_section.dart';
 import 'widgets/arena_detail/arena_detail_courts_section.dart';
@@ -39,6 +42,7 @@ import 'widgets/arena_detail/arena_detail_hero.dart';
 import 'widgets/arena_detail/arena_detail_info_sections.dart';
 import 'widgets/arena_detail/arena_detail_promotions.dart';
 import 'widgets/arena_detail/arena_detail_metrics_bar.dart';
+import 'widgets/arena_detail/arena_detail_other_offers.dart';
 import 'widgets/arena_detail/arena_detail_reviews_section.dart';
 
 /// Detalhe da arena (protótipo NexaGO — dark-first).
@@ -168,15 +172,107 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
   bool? _favoriteOverride;
   bool _favoritePending = false;
 
+  /// Dia e horário escolhidos na agenda (a barra de baixo segue isso).
+  ArenaDetailAgendaReport? _agenda;
+
+  final ScrollController _scroll = ScrollController();
+  final GlobalKey _anchorsKey = GlobalKey();
+  final GlobalKey _agendaKey = GlobalKey();
+  final GlobalKey _offersKey = GlobalKey();
+  final GlobalKey _courtsKey = GlobalKey();
+  final GlobalKey _plansKey = GlobalKey();
+  final GlobalKey _clubKey = GlobalKey();
+  final GlobalKey _classesKey = GlobalKey();
+  final GlobalKey _infoKey = GlobalKey();
+  final GlobalKey _reviewsKey = GlobalKey();
+
+  /// Os atalhos do conteúdo saíram pelo topo: mostra a cópia grudada.
+  bool _pinAnchors = false;
+
   static final _kmFormat = NumberFormat.decimalPattern('pt_BR');
 
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  double get _pinnedTop => MediaQuery.paddingOf(context).top;
+
+  void _onScroll() {
+    final box = _anchorsKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached) return;
+    final pin = box.localToGlobal(Offset.zero).dy < _pinnedTop;
+    if (pin != _pinAnchors) setState(() => _pinAnchors = pin);
+  }
+
+  /// Rola até a seção [key], deixando-a logo abaixo dos atalhos grudados.
+  void _scrollTo(GlobalKey key) {
+    final box = key.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !_scroll.hasClients) return;
+    final dy = box.localToGlobal(Offset.zero).dy;
+    final target = _scroll.offset +
+        dy -
+        (_pinnedTop + ArenaDetailAnchorBar.height + 8);
+    _scroll.animateTo(
+      target.clamp(0.0, _scroll.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _onAgendaReport(ArenaDetailAgendaReport report) {
+    setState(() => _agenda = report);
+  }
+
+  void _openOffer(ArenaOfferKind kind) {
+    _scrollTo(switch (kind) {
+      ArenaOfferKind.schedulePlan => _plansKey,
+      ArenaOfferKind.club => _clubKey,
+      ArenaOfferKind.classes => _classesKey,
+    });
+  }
+
+  List<ArenaDetailAnchor> _anchors({required bool hasOffers}) => [
+        ArenaDetailAnchor(
+          label: 'Horários',
+          onTap: () => _scrollTo(_agendaKey),
+        ),
+        if (hasOffers)
+          ArenaDetailAnchor(
+            label: 'Planos e aulas',
+            onTap: () => _scrollTo(_offersKey),
+          ),
+        ArenaDetailAnchor(
+          label: 'Quadras',
+          onTap: () => _scrollTo(_courtsKey),
+        ),
+        ArenaDetailAnchor(
+          label: 'Sobre e contato',
+          onTap: () => _scrollTo(_infoKey),
+        ),
+        ArenaDetailAnchor(
+          label: 'Avaliações',
+          onTap: () => _scrollTo(_reviewsKey),
+        ),
+      ];
+
+  /// Abre a grade no dia que o atleta está olhando na agenda (hoje, antes de
+  /// ele mexer).
   void _openSlots({String? courtId, String? sport}) {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final day = _agenda?.day ?? DateTime(now.year, now.month, now.day);
     openArenaBookingSlots(
       context,
       arena: widget.arena,
-      date: today,
+      date: day,
       courtId: courtId,
       sport: sport,
     );
@@ -282,6 +378,18 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
     }
   }
 
+  void _openReviews(ArenaListItem arena) {
+    final city = arena.city?.trim() ?? '';
+    context.pushNamed(
+      AppRouteNames.arenaReviews,
+      pathParameters: {'arenaId': arena.id},
+      queryParameters: {
+        'arenaName': arena.name,
+        if (city.isNotEmpty) 'arenaCity': city,
+      },
+    );
+  }
+
   List<ArenaDetailRule> _rules(ArenaListItem arena) {
     final policy = arena.athleteCancelPolicy;
     final payment = arenaPaymentMethodsLabel(
@@ -332,150 +440,253 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
     final description = arena.description?.trim() ?? '';
     final whatsAppUrl = arenaPartnerWhatsAppUrl(arena);
 
+    final hasOffers =
+        ref.watch(arenaDetailOtherOffersProvider(arena.id)).isNotEmpty;
+    final anchors = _anchors(hasOffers: hasOffers);
+    const side = 20.0;
+
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       body: Column(
         children: [
           Expanded(
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(
-                  child: ArenaDetailHero(
-                    arenaId: arena.id,
-                    photos: arenaGalleryUrls(arena),
-                    onShare: _share,
-                    isBestPrice: widget.isBestPrice,
-                    isFavorite: isFavorite,
-                    isFavoritePending: _favoritePending,
-                    onBack: () => context.pop(),
-                    onToggleFavorite: _toggleFavorite,
-                  ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      Text(
-                        arena.name,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          color: context.themeColors.onSurface,
-                          letterSpacing: -0.5,
-                          height: 1.15,
-                        ),
+            child: Stack(
+              children: [
+                CustomScrollView(
+                  controller: _scroll,
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: ArenaDetailHero(
+                        arenaId: arena.id,
+                        photos: arenaGalleryUrls(arena),
+                        onShare: _share,
+                        isBestPrice: widget.isBestPrice,
+                        isFavorite: isFavorite,
+                        isFavoritePending: _favoritePending,
+                        onBack: () => context.pop(),
+                        onToggleFavorite: _toggleFavorite,
                       ),
-                      SizedBox(height: 8),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.place_outlined,
-                            size: 18,
-                            color: context.themeColors.onSurfaceMuted,
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(side, 16, side, 0),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          Text(
+                            arena.name,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: context.themeColors.onSurface,
+                              letterSpacing: -0.5,
+                              height: 1.15,
+                            ),
                           ),
-                          SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              _locationLine(),
-                              style: theme.textTheme.bodyMedium?.copyWith(
+                          const SizedBox(height: 8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.place_outlined,
+                                size: 18,
                                 color: context.themeColors.onSurfaceMuted,
-                                fontWeight: FontWeight.w600,
-                                height: 1.35,
                               ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-                      ArenaDetailMetricsBar(
-                        rating: rating,
-                        reviewsCount: reviewsCount,
-                        entryPricePerHour: entryPrice,
-                        totalCourts: totalCourts,
-                        freeCourtsToday: freeCourts,
-                      ),
-                      ArenaDetailPromotions(
-                        arenaId: arena.id,
-                        onOpenSlots: _openSlots,
-                      ),
-                      if (arena.amenities.hasAny) ...[
-                        SizedBox(height: 20),
-                        ArenaDetailAmenityChips(amenities: arena.amenities),
-                      ],
-                      SizedBox(height: 24),
-                      ArenaDetailCourtsSection(
-                        arena: arena,
-                        today: today,
-                        loading: widget.todayLoading,
-                        onOpenCourt: (courtId) => _openSlots(courtId: courtId),
-                        onOpenSport: (sport) => _openSlots(sport: sport),
-                      ),
-                      // Horário fixo vendido como plano (só com plano publicado),
-                      // logo abaixo das quadras: é a outra forma de reservar.
-                      ArenaDetailSchedulePlansSection(arenaId: arena.id),
-                      // Plano de aulas para contratar e assinar pelo app.
-                      ArenaDetailClassPlansSection(arenaId: arena.id),
-                      ArenaDetailClubSection(arenaId: arena.id),
-                      // Vínculos ativos com "Aparecer no perfil da arena".
-                      ArenaPublicProfessorsSection(arenaId: arena.id),
-                      if (description.isNotEmpty) ...[
-                        const SizedBox(height: 28),
-                        ArenaDetailAboutSection(description: description),
-                      ],
-                      const SizedBox(height: 28),
-                      ArenaDetailLocationSection(
-                        address: arenaFullAddress(arena),
-                        onDirections: arenaHasDirections(arena)
-                            ? () => _openExternal(
-                                  arenaDirectionsUrl(arena),
-                                  'Não foi possível abrir o mapa.',
-                                )
-                            : null,
-                        onWhatsApp: whatsAppUrl == null
-                            ? null
-                            : () => _openExternal(
-                                  whatsAppUrl,
-                                  'Não foi possível abrir o WhatsApp.',
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  _locationLine(),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: context.themeColors.onSurfaceMuted,
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.35,
+                                  ),
                                 ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          ArenaDetailMetricsBar(
+                            rating: rating,
+                            reviewsCount: reviewsCount,
+                            entryPricePerHour: entryPrice,
+                            totalCourts: totalCourts,
+                            freeCourtsToday: freeCourts,
+                          ),
+                          ArenaDetailPromotions(
+                            arenaId: arena.id,
+                            onOpenSlots: _openSlots,
+                          ),
+                          const SizedBox(height: 8),
+                        ]),
                       ),
-                      const SizedBox(height: 28),
-                      ArenaDetailRulesSection(rules: _rules(arena)),
-                      SizedBox(height: 28),
-                      if (widget.reviewsLoading && reviews.isEmpty)
-                        Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(16),
-                            child: CircularProgressIndicator(
-                              color: AppColors.brand,
-                              strokeWidth: 2,
+                    ),
+                    SliverToBoxAdapter(
+                      child: Visibility(
+                        visible: !_pinAnchors,
+                        maintainSize: true,
+                        maintainAnimation: true,
+                        maintainState: true,
+                        child: KeyedSubtree(
+                          key: _anchorsKey,
+                          child: ArenaDetailAnchorBar(anchors: anchors),
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: KeyedSubtree(
+                          key: _agendaKey,
+                          child: ArenaDetailAgenda(
+                            arena: arena,
+                            onReport: _onAgendaReport,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: KeyedSubtree(
+                        key: _offersKey,
+                        child: Padding(
+                          padding: EdgeInsets.only(top: hasOffers ? 28 : 0),
+                          child: ArenaDetailOtherOffers(
+                            arenaId: arena.id,
+                            onTap: _openOffer,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(side, 0, side, 120),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          if (arena.amenities.hasAny) ...[
+                            const SizedBox(height: 28),
+                            ArenaDetailAmenityChips(
+                              amenities: arena.amenities,
+                            ),
+                          ],
+                          const SizedBox(height: 28),
+                          KeyedSubtree(
+                            key: _courtsKey,
+                            child: ArenaDetailCourtsSection(
+                              arena: arena,
+                              today: today,
+                              loading: widget.todayLoading,
+                              onOpenCourt: (courtId) =>
+                                  _openSlots(courtId: courtId),
+                              onOpenSport: (sport) => _openSlots(sport: sport),
                             ),
                           ),
-                        )
-                      else
-                        ArenaDetailReviewsSection(
-                          reviews: reviews,
-                          now: DateTime.now(),
-                          onViewAll: reviews.isNotEmpty
-                              ? () => context.pushNamed(
-                                    AppRouteNames.arenaReviews,
-                                    pathParameters: {'arenaId': arena.id},
-                                    queryParameters: {
-                                      'arenaName': arena.name,
-                                      if (arena.city?.trim().isNotEmpty == true)
-                                        'arenaCity': arena.city!.trim(),
-                                    },
+                          // Horário fixo vendido como plano (só com plano
+                          // publicado): é a outra forma de reservar.
+                          KeyedSubtree(
+                            key: _plansKey,
+                            child: ArenaDetailSchedulePlansSection(
+                              arenaId: arena.id,
+                            ),
+                          ),
+                          // Plano de aulas e professores com vínculo público.
+                          KeyedSubtree(
+                            key: _classesKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                ArenaDetailClassPlansSection(
+                                  arenaId: arena.id,
+                                ),
+                                ArenaPublicProfessorsSection(
+                                  arenaId: arena.id,
+                                ),
+                              ],
+                            ),
+                          ),
+                          KeyedSubtree(
+                            key: _clubKey,
+                            child: ArenaDetailClubSection(arenaId: arena.id),
+                          ),
+                          KeyedSubtree(
+                            key: _infoKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (description.isNotEmpty) ...[
+                                  const SizedBox(height: 28),
+                                  ArenaDetailAboutSection(
+                                    description: description,
+                                  ),
+                                ],
+                                const SizedBox(height: 28),
+                                ArenaDetailLocationSection(
+                                  address: arenaFullAddress(arena),
+                                  onDirections: arenaHasDirections(arena)
+                                      ? () => _openExternal(
+                                            arenaDirectionsUrl(arena),
+                                            'Não foi possível abrir o mapa.',
+                                          )
+                                      : null,
+                                  onWhatsApp: whatsAppUrl == null
+                                      ? null
+                                      : () => _openExternal(
+                                            whatsAppUrl,
+                                            'Não foi possível abrir o '
+                                            'WhatsApp.',
+                                          ),
+                                ),
+                                const SizedBox(height: 28),
+                                ArenaDetailRulesSection(rules: _rules(arena)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+                          KeyedSubtree(
+                            key: _reviewsKey,
+                            child: widget.reviewsLoading && reviews.isEmpty
+                                ? const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(16),
+                                      child: CircularProgressIndicator(
+                                        color: AppColors.brand,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
                                   )
-                              : null,
-                        ),
-                      // "Você é professor?" — por último, depois do que é da
-                      // reserva; com vínculo em aberto vira o status dele.
-                      ArenaProfessorLinkCard(
-                        arenaId: arena.id,
-                        arenaName: arena.name,
-                        arenaLogoUrl: arena.logoUrl,
+                                : ArenaDetailReviewsSection(
+                                    reviews: reviews,
+                                    now: DateTime.now(),
+                                    onViewAll: reviews.isNotEmpty
+                                        ? () => _openReviews(arena)
+                                        : null,
+                                  ),
+                          ),
+                          // "Você é professor?" — por último, depois do que é
+                          // da reserva; com vínculo em aberto vira o status.
+                          ArenaProfessorLinkCard(
+                            arenaId: arena.id,
+                            arenaName: arena.name,
+                            arenaLogoUrl: arena.logoUrl,
+                          ),
+                        ]),
                       ),
-                    ]),
+                    ),
+                  ],
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: IgnorePointer(
+                    ignoring: !_pinAnchors,
+                    child: AnimatedOpacity(
+                      opacity: _pinAnchors ? 1 : 0,
+                      duration: const Duration(milliseconds: 160),
+                      child: ColoredBox(
+                        color: context.themeColors.canvas,
+                        child: Padding(
+                          padding: EdgeInsets.only(top: _pinnedTop),
+                          child: ArenaDetailAnchorBar(anchors: anchors),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -485,6 +696,7 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
             onPressed: () => _openSlots(),
             entryPricePerHour: entryPrice,
             freeSlotsToday: today?.totalFreeSlotsToday,
+            selection: _agenda?.selection,
           ),
         ],
       ),

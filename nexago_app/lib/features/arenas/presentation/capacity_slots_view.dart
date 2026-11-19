@@ -12,22 +12,14 @@ import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/arena_booking_confirm_args.dart';
 import '../domain/arena_court.dart';
 import '../domain/arena_list_item.dart';
-import '../domain/arena_slot.dart';
 import '../domain/arena_sport_codes.dart';
 import '../domain/capacity_slots_logic.dart';
 import '../domain/slots_page_logic.dart';
 import '../domain/slots_providers.dart';
 import 'widgets/slots/slots_bottom_bar.dart';
+import 'widgets/slots/slots_choice_chips.dart';
 import 'widgets/slots/slots_day_strip.dart';
 import 'widgets/slots/slots_page_header.dart';
-
-/// `arenaSlots` de todas as quadras da arena no dia (um listener só).
-final arenaDaySlotsProvider = StreamProvider.autoDispose
-    .family<List<ArenaSlot>, ({String arenaId, DateTime day})>((ref, params) {
-  return ref
-      .watch(slotsRepositoryProvider)
-      .watchArenaDaySlotsMerged(arenaId: params.arenaId, date: params.day);
-});
 
 /// Escolha de horário numa arena "a arena define a quadra": esporte + dia + horário + duração,
 /// sem quadra. Ver `docs/product/reservas-por-capacidade.md` e o canvas (página do atleta).
@@ -174,25 +166,17 @@ class _CapacitySlotsViewState extends ConsumerState<CapacitySlotsView> {
                       if (sports.isNotEmpty) ...[
                         _SectionLabel('Esporte'),
                         // Todos numa linha só, rolando para o lado (sem quebrar em várias linhas).
-                        SingleChildScrollView(
-                          key: const Key('capacity-sports'),
-                          scrollDirection: Axis.horizontal,
-                          clipBehavior: Clip.none,
-                          child: Row(
-                            children: [
-                              for (final (i, s) in sports.indexed) ...[
-                                if (i > 0) const SizedBox(width: 8),
-                                ChoiceChip(
-                                  label: Text(courtSportLabel(s)),
-                                  selected: s == sport,
-                                  onSelected: (_) => setState(() {
-                                    _sport = s;
-                                    _selectedStart = null;
-                                  }),
-                                ),
-                              ],
-                            ],
-                          ),
+                        SlotsChoiceChipsRow<String>(
+                          scrollKey: const Key('capacity-sports'),
+                          options: [
+                            for (final s in sports)
+                              SlotsChoiceOption(value: s, label: courtSportLabel(s)),
+                          ],
+                          selected: sport ?? '',
+                          onSelected: (s) => setState(() {
+                            _sport = s;
+                            _selectedStart = null;
+                          }),
                         ),
                         const SizedBox(height: 12),
                       ],
@@ -208,20 +192,13 @@ class _CapacitySlotsViewState extends ConsumerState<CapacitySlotsView> {
                       const SizedBox(height: 12),
                       if (durations.length > 1) ...[
                         _SectionLabel('Duração'),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final m in durations)
-                              ChoiceChip(
-                                label: Text(formatSelectionDurationLabel(1, m)),
-                                selected: m == duration,
-                                onSelected: (_) => setState(() {
-                                  _durationMinutes = m;
-                                  _selectedStart = null;
-                                }),
-                              ),
-                          ],
+                        SlotsDurationChips(
+                          durations: durations,
+                          selectedMinutes: duration,
+                          onSelected: (m) => setState(() {
+                            _durationMinutes = m;
+                            _selectedStart = null;
+                          }),
                         ),
                         const SizedBox(height: 12),
                       ],

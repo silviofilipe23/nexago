@@ -5,17 +5,22 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/arenas/domain/arena_amenities.dart';
 import 'package:nexago_app/features/arenas/domain/arena_booking_allocation.dart';
 import 'package:nexago_app/features/arenas/domain/arena_booking_confirm_args.dart';
 import 'package:nexago_app/features/arenas/domain/arena_court.dart';
 import 'package:nexago_app/features/arenas/domain/arena_list_item.dart';
 import 'package:nexago_app/features/arenas/domain/arena_peak_rule.dart';
+import 'package:nexago_app/features/arenas/domain/arena_popular_times.dart';
+import 'package:nexago_app/features/arenas/domain/arena_popular_times_providers.dart';
 import 'package:nexago_app/features/arenas/domain/arena_slot.dart';
 import 'package:nexago_app/features/arenas/domain/slot_vacancy_alerts_provider.dart';
 import 'package:nexago_app/features/arenas/domain/slots_providers.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_agenda.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_bottom_cta.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
+import 'package:nexago_app/features/weather/application/weather_providers.dart';
+import 'package:nexago_app/features/weather/domain/weather_models.dart';
 
 /// Agenda do perfil da arena: escolher um horário, reservar direto (ou pela
 /// grade quando há regra de pico) e o dia lotado.
@@ -114,6 +119,8 @@ Future<_Navigation> _pump(
   ArenaListItem arena = _courtArena,
   required List<ArenaSlot> slots,
   List<ArenaPeakRule> peakRules = const [],
+  ArenaPopularTimes? popularTimes,
+  BookingWeatherForecast? forecast,
 }) async {
   tester.view.physicalSize = const Size(900, 2400);
   tester.view.devicePixelRatio = 1;
@@ -157,6 +164,10 @@ Future<_Navigation> _pump(
         slotVacancyAlertActiveProvider.overrideWith(
           (ref, key) => Stream.value(false),
         ),
+        arenaPopularTimesProvider.overrideWith(
+          (ref, id) => Stream.value(popularTimes),
+        ),
+        slotWeatherForecastProvider.overrideWith((ref, key) async => forecast),
       ],
       child: MaterialApp.router(theme: AppTheme.dark, routerConfig: router),
     ),
@@ -318,5 +329,79 @@ void main() {
     expect(args.courtId, '');
     expect(args.sport, 'beachTennis');
     expect(args.amountReais, 120);
+  });
+
+  testWidgets('shows how busy the day usually is and the picked hour',
+      (tester) async {
+    await _pump(
+      tester,
+      slots: [_slot('q1', '19:00', '20:00')],
+      popularTimes: ArenaPopularTimes.fromMap({
+        'bookingsCount': 40,
+        'byWeekday': {
+          '5': [for (var h = 0; h < 24; h++) h == 19 ? 100 : (h == 9 ? 30 : 0)],
+        },
+      }),
+    );
+
+    expect(find.text('MOVIMENTO DE SEXTA'), findsOneWidget);
+    expect(find.text('Costuma lotar das 19h às 20h'), findsOneWidget);
+
+    await tester.tap(find.text('19:00'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Às 19h costuma estar cheio'), findsOneWidget);
+  });
+
+  testWidgets('no summary, no busy block', (tester) async {
+    await _pump(tester, slots: [_slot('q1', '19:00', '20:00')]);
+
+    expect(find.textContaining('MOVIMENTO'), findsNothing);
+  });
+
+  testWidgets('a picked time on an open court shows the forecast',
+      (tester) async {
+    await _pump(
+      tester,
+      slots: [_slot('q1', '19:00', '20:00')],
+      forecast: const BookingWeatherForecast(
+        hours: [
+          WeatherHour(time: '19:00', probability: 10, precipitationMm: 0),
+        ],
+        source: 'open-meteo',
+      ),
+    );
+    expect(find.text('Sem chuva no seu horário'), findsNothing);
+
+    await tester.tap(find.text('19:00'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Sem chuva no seu horário'), findsOneWidget);
+  });
+
+  testWidgets('a covered arena skips the forecast', (tester) async {
+    await _pump(
+      tester,
+      arena: const ArenaListItem(
+        id: 'a1',
+        name: 'Arena Coberta',
+        locationLabel: 'Goiânia, GO',
+        pricePerHourReais: 0,
+        amenities: ArenaAmenities(coveredCourt: true),
+      ),
+      slots: [_slot('q1', '19:00', '20:00')],
+      forecast: const BookingWeatherForecast(
+        hours: [WeatherHour(time: '19:00', probability: 10)],
+      ),
+    );
+
+    await tester.tap(find.text('19:00'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Sem chuva no seu horário'), findsNothing);
   });
 }

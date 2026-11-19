@@ -13,3 +13,14 @@ void logAnalytics(
     event(ref.read(analyticsServiceProvider)).catchError((Object _) {});
   } catch (_) {}
 }
+
+/// [logAnalytics] para depois de um `await`, quando o widget pode já ter saído
+/// da tela: o [ProviderContainer] continua valendo, o `WidgetRef` não.
+void logAnalyticsIn(
+  ProviderContainer container,
+  Future<void> Function(AnalyticsService analytics) event,
+) {
+  try {
+    event(container.read(analyticsServiceProvider)).catchError((Object _) {});
+  } catch (_) {}
+}

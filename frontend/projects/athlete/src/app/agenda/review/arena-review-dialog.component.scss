@@ -81,12 +81,30 @@
   color: var(--nx-text-mute);
 }
 
-.arv-rating-label {
-  margin: 8px 0 0;
+.arv-rating-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
   text-align: center;
+}
+
+.arv-rating-label {
+  margin: 0;
   font-size: 15px;
   font-weight: 800;
   color: var(--nx-win);
+}
+
+// Nota 1–3 em vermelho, como no app.
+.arv-rating-label--low {
+  color: var(--nx-live);
+}
+
+.arv-rating-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--nx-text-mute);
 }
 
 .arv-stars {
@@ -159,6 +177,40 @@
   background: rgba(255, 106, 26, 0.12);
 }
 
+// "O que pode melhorar" e "Atrasou": marcado em vermelho, não no laranja do elogio.
+.arv-chip--critical.arv-chip--on {
+  color: var(--nx-live);
+  border-color: var(--nx-live);
+  background: color-mix(in srgb, var(--nx-live) 12%, transparent);
+}
+
+.arv-link {
+  align-self: flex-start;
+  padding: 4px 0;
+  font-size: 13px;
+  font-weight: 700;
+  background: none;
+  border: none;
+  color: var(--nx-orange-500);
+  cursor: pointer;
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+.arv-notice {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--nx-text-mute);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+}
+
 .arv-comment {
   width: 100%;
   resize: vertical;
@@ -219,10 +271,94 @@
   border-radius: var(--nx-r-2);
   cursor: pointer;
 
+  text-decoration: none;
+
   &:disabled {
     cursor: default;
     opacity: 0.75;
   }
+}
+
+// Sem nota o CTA diz o que falta: apagado, não laranja-meio-transparente.
+.arv-btn-primary:disabled:not(:has(app-nx-spinner)) {
+  color: var(--nx-text-mute);
+  background: var(--nx-surface-1);
+  opacity: 1;
+}
+
+.arv-btn-outline {
+  flex: 1;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--nx-text);
+  background: transparent;
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  cursor: pointer;
+}
+
+// ── "Avaliação enviada" ─────────────────────────────────────────────
+.arv-dialog--sent {
+  align-items: center;
+  text-align: center;
+  padding-top: 28px;
+}
+
+.arv-sent-check {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--nx-win);
+  border: 2px solid var(--nx-win);
+  background: color-mix(in srgb, var(--nx-win) 8%, transparent);
+}
+
+.arv-sent-title {
+  margin: 4px 0 0;
+
+  &:focus {
+    outline: none;
+  }
+}
+
+.arv-sent-message {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--nx-text-mute);
+}
+
+.arv-rebook {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 16px;
+  text-align: left;
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-4);
+}
+
+.arv-rebook-when {
+  margin: 4px 0 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--nx-text);
+}
+
+.arv-rebook-where {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.arv-dialog--sent .arv-actions {
+  align-self: stretch;
 }
 
 // Alerta de envio: separa do formulário acima e dos botões abaixo.

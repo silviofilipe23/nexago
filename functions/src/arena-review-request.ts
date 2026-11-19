@@ -1,5 +1,5 @@
 /**
- * Avaliar a arena · push "Como foi o jogo?" depois do horário.
+ * Avaliar a arena · push "Como foi jogar na arena?" depois do horário.
  *
  * O app só pedia a avaliação numa tela que saiu da navegação (08/06/2026) e não havia aviso
  * nenhum: a avaliação depois do horário não chegava ao atleta. Esta agendada avisa o DONO da
@@ -96,10 +96,10 @@ export interface ArenaReviewRequest {
 }
 
 export function reviewRequestCopy(r: ArenaReviewRequest): {title: string; body: string} {
-  const arena = r.arenaName || "na arena";
+  // "Como foi o jogo?" é o pós-jogo do placar; aqui o atleta avalia a ARENA.
   return {
-    title: r.arenaName ? `Como foi o jogo na ${arena}?` : "Como foi o jogo?",
-    body: `Avalie sua reserva das ${r.startTime} em 20 segundos e ganhe +${ARENA_REVIEW_XP} XP.`,
+    title: r.arenaName ? `Como foi jogar na ${r.arenaName}?` : "Como foi a arena?",
+    body: `Avalie a arena da sua reserva das ${r.startTime} em 20 segundos e ganhe +${ARENA_REVIEW_XP} XP.`,
   };
 }
 

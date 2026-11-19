@@ -29,6 +29,9 @@ export interface MyBooking {
   attendanceConfirmed: boolean;
   amountReais: number | null;
   createdAt: Date | null;
+  /** Quadra e esporte (`sport`/`esporte`); usados pelo "Jogar de novo" da avaliação. */
+  courtId?: string;
+  sport?: string | null;
 }
 
 function dateKeyFromDynamic(v: unknown): string {
@@ -58,6 +61,8 @@ function bookingFromDoc(id: string, data: Record<string, unknown>): MyBooking {
     attendanceConfirmed: data['attendanceConfirmed'] === true,
     amountReais: typeof data['amountReais'] === 'number' ? data['amountReais'] : typeof data['priceReais'] === 'number' ? (data['priceReais'] as number) : null,
     createdAt: toDate(data['createdAt']),
+    courtId: optionalStr(data['courtId']) ?? '',
+    sport: optionalStr(data['sport']) ?? optionalStr(data['esporte']),
   };
 }
 

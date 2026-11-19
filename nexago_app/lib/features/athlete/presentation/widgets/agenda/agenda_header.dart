@@ -9,7 +9,6 @@ class AgendaHeader extends StatelessWidget {
     super.key,
     required this.eyebrow,
     required this.title,
-    required this.monthModeActive,
     required this.unreadNotificationCount,
     required this.searchVisible,
     required this.onSearchTap,
@@ -23,7 +22,6 @@ class AgendaHeader extends StatelessWidget {
 
   final String eyebrow;
   final String title;
-  final bool monthModeActive;
   final int unreadNotificationCount;
   final bool searchVisible;
   final VoidCallback onSearchTap;
@@ -99,8 +97,8 @@ class AgendaHeader extends StatelessWidget {
           SizedBox(width: 4),
           _HeaderIconButton(
             icon: Icons.calendar_month_rounded,
-            tooltip: monthModeActive ? 'Visão do dia' : 'Visão do mês',
-            active: monthModeActive,
+            tooltip: 'Ir para uma data',
+            active: false,
             onTap: onCalendarTap,
           ),
           SizedBox(width: 4),

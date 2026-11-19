@@ -3051,6 +3051,16 @@ service cloud.firestore {
         (
           !('reported' in request.resource.data) ||
           request.resource.data.reported == false
+        ) &&
+        // opções marcadas na avaliação e "a quadra foi liberada no horário?"
+        (
+          !('tags' in request.resource.data) ||
+          (request.resource.data.tags is list &&
+            request.resource.data.tags.size() <= 10)
+        ) &&
+        (
+          !('onTime' in request.resource.data) ||
+          request.resource.data.onTime is bool
         );
       allow update: if request.auth != null && (
         // atleta autor pode editar sua própria avaliação sem tocar em `reply`
@@ -3061,7 +3071,16 @@ service cloud.firestore {
           request.resource.data.bookingId == resource.data.bookingId &&
           request.resource.data.reply == resource.data.reply &&
           request.resource.data.likesCount == resource.data.likesCount &&
-          request.resource.data.reported == resource.data.reported
+          request.resource.data.reported == resource.data.reported &&
+          (
+            !('tags' in request.resource.data) ||
+            (request.resource.data.tags is list &&
+              request.resource.data.tags.size() <= 10)
+          ) &&
+          (
+            !('onTime' in request.resource.data) ||
+            request.resource.data.onTime is bool
+          )
         ) ||
         // gestor da arena pode criar/editar apenas a resposta oficial
         (
@@ -3071,6 +3090,8 @@ service cloud.firestore {
           request.resource.data.bookingId == resource.data.bookingId &&
           request.resource.data.rating == resource.data.rating &&
           request.resource.data.comment == resource.data.comment &&
+          request.resource.data.get('tags', null) == resource.data.get('tags', null) &&
+          request.resource.data.get('onTime', null) == resource.data.get('onTime', null) &&
           request.resource.data.reply is map &&
           request.resource.data.reply.message is string &&
           request.resource.data.reply.message.size() >= 5 &&
@@ -3089,6 +3110,8 @@ service cloud.firestore {
           request.resource.data.bookingId == resource.data.bookingId &&
           request.resource.data.rating == resource.data.rating &&
           request.resource.data.comment == resource.data.comment &&
+          request.resource.data.get('tags', null) == resource.data.get('tags', null) &&
+          request.resource.data.get('onTime', null) == resource.data.get('onTime', null) &&
           request.resource.data.reply == resource.data.reply &&
           request.resource.data.reported == resource.data.reported &&
           (
@@ -3147,6 +3170,13 @@ service cloud.firestore {
     // Resumo por torneio e reputação do organizador: públicos (o site lê sem login).
     // Fora do doc do torneio de propósito: o organizador grava em `tournaments/{id}`.
     match /tournamentReviewSummaries/{tournamentId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // "Horários mais movimentados" do perfil público da arena: desenho relativo (0–100) por
+    // dia da semana e hora, sem contagem nem nome. Grava só a agendada `refreshArenaPopularTimes`.
+    match /arenaPopularTimes/{arenaId} {
       allow read: if true;
       allow write: if false;
     }

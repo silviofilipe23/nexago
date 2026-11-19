@@ -133,7 +133,7 @@ const arenaWeatherRequestDecidedNotificationType =
 const arenaWeatherCreditExpiringNotificationType =
     'arena_weather_credit_expiring';
 
-/// Push "Como foi o jogo?" (`functions/src/arena-review-request.ts`).
+/// Push "Como foi jogar na arena?" (`functions/src/arena-review-request.ts`).
 const arenaReviewRequestNotificationType = 'arena_review_request';
 
 /// Destino do push de avaliar a arena; `null` para outros tipos.
@@ -385,7 +385,7 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
   final weatherRoute = arenaWeatherNotificationRoute(type, data);
   if (weatherRoute != null) return weatherRoute;
 
-  // "Como foi o jogo?": o `url` é `/my-bookings` (app antigo); este build abre o
+  // "Como foi jogar na arena?": o `url` é `/my-bookings` (app antigo); este build abre o
   // detalhe da reserva, com o "Avaliar experiência" — por isso o tipo vem antes da url.
   final reviewRoute = arenaReviewRequestNotificationRoute(type, data);
   if (reviewRoute != null) return reviewRoute;

@@ -2,20 +2,6 @@ import '../../../core/theme/app_colors.dart';
 import '../domain/agenda/athlete_agenda_logic.dart';
 import '../domain/agenda/athlete_agenda_models.dart';
 
-List<AthleteAgendaNeedsYouItem> mockAgendaNeedsYouItems() {
-  return const [
-    AthleteAgendaNeedsYouItem(
-      id: 'mock-needs-challenge-1',
-      kind: AthleteAgendaNeedsYouKind.rankingChallenge,
-      title: 'Lucas M. te desafiou',
-      subtitle: 'Confronto direto 2-1 · Vale a #4 do ranking municipal',
-      meta: 'Sáb 30/05 · 09:00 · Arena CFC · Quadra 3',
-      statusLabel: 'AGUARDA RESPOSTA',
-      isMock: true,
-    ),
-  ];
-}
-
 AthleteAgendaItem mockAgendaLiveTournamentItem({DateTime? now}) {
   final clock = now ?? DateTime.now();
   final today = dateOnly(clock);

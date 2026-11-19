@@ -21,6 +21,31 @@ final bookingWeatherForecastProvider = FutureProvider.autoDispose
   }
 });
 
+/// Horário escolhido no perfil da arena (sem reserva).
+typedef SlotWeatherKey = ({
+  String arenaId,
+  String dateKey,
+  String startTime,
+  String endTime,
+});
+
+/// Previsão de um horário escolhido no perfil da arena, antes de reservar.
+/// `null` quando não há o que mostrar — inclusive com a callable ainda não
+/// publicada (o "NOT FOUND" cru vira só cartão escondido).
+final slotWeatherForecastProvider = FutureProvider.autoDispose
+    .family<BookingWeatherForecast?, SlotWeatherKey>((ref, key) async {
+  try {
+    return await ref.watch(weatherServiceProvider).slotForecast(
+          arenaId: key.arenaId,
+          dateKey: key.dateKey,
+          startTime: key.startTime,
+          endTime: key.endTime,
+        );
+  } catch (_) {
+    return null;
+  }
+});
+
 /// Número para "Falar com a arena" (A6): o WhatsApp de `arenas/{arenaId}`
 /// (`whatsapp`/`whatsApp`/`whatsappNumber`) ou, sem ele, o telefone
 /// (`phone`/`phoneNumber`/`telefone`/`mobile`) — a prioridade do

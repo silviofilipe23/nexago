@@ -606,6 +606,31 @@ bool _agendaItemOverlapsDays(
       !first.isAfter(dateOnly(rangeEnd));
 }
 
+/// O item entra no filtro da fileira de chips? "Reservas" inclui o Clubinho;
+/// "Desafios" são os jogos do Bora Jogar (desafio de ranking ainda não existe).
+bool matchesAgendaFilter(AthleteAgendaItem item, AthleteAgendaFilter filter) =>
+    switch (filter) {
+      AthleteAgendaFilter.all => true,
+      AthleteAgendaFilter.rentals =>
+        item.kind == AthleteAgendaItemKind.rental ||
+            item.kind == AthleteAgendaItemKind.clubSession,
+      AthleteAgendaFilter.trainings =>
+        item.kind == AthleteAgendaItemKind.classSession,
+      AthleteAgendaFilter.tournaments =>
+        item.kind == AthleteAgendaItemKind.tournament,
+      AthleteAgendaFilter.challenges =>
+        item.kind == AthleteAgendaItemKind.challenge ||
+            item.kind == AthleteAgendaItemKind.friendlyMatch,
+    };
+
+/// Busca no título e no subtítulo, sem diferenciar maiúsculas.
+bool matchesAgendaQuery(AthleteAgendaItem item, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  return item.title.toLowerCase().contains(q) ||
+      item.subtitle.toLowerCase().contains(q);
+}
+
 List<AthleteAgendaItem> filterAgendaItems({
   required List<AthleteAgendaItem> items,
   required AthleteAgendaFilter filter,
@@ -639,25 +664,7 @@ List<AthleteAgendaItem> filterAgendaItems({
     };
   }
 
-  filtered = switch (filter) {
-    AthleteAgendaFilter.all => filtered,
-    AthleteAgendaFilter.rentals => filtered.where(
-        (i) =>
-            i.kind == AthleteAgendaItemKind.rental ||
-            i.kind == AthleteAgendaItemKind.clubSession,
-      ),
-    AthleteAgendaFilter.trainings => filtered.where(
-        (i) => i.kind == AthleteAgendaItemKind.classSession,
-      ),
-    AthleteAgendaFilter.tournaments => filtered.where(
-        (i) => i.kind == AthleteAgendaItemKind.tournament,
-      ),
-    AthleteAgendaFilter.challenges => filtered.where(
-        (i) =>
-            i.kind == AthleteAgendaItemKind.challenge ||
-            i.kind == AthleteAgendaItemKind.friendlyMatch,
-      ),
-  };
+  filtered = filtered.where((i) => matchesAgendaFilter(i, filter));
 
   if (viewMode == AthleteAgendaViewMode.month) {
     final monthStart = startOfMonth(visibleMonth);
@@ -669,14 +676,7 @@ List<AthleteAgendaItem> filterAgendaItems({
     filtered = filtered.where((i) => agendaItemOccursOn(i, selectedDay));
   }
 
-  final q = query.trim().toLowerCase();
-  if (q.isNotEmpty) {
-    filtered = filtered.where(
-      (i) =>
-          i.title.toLowerCase().contains(q) ||
-          i.subtitle.toLowerCase().contains(q),
-    );
-  }
+  filtered = filtered.where((i) => matchesAgendaQuery(i, query));
 
   // Próximos: ordem do relógio (18h antes de 21h), porque a lista do dia é
   // desenhada como linha do tempo. Passados: o mais recente primeiro.
@@ -854,7 +854,7 @@ String buildMonthSummaryDescription(List<AthleteAgendaItem> items) {
   final parts = <String>[];
   for (final item in items.take(2)) {
     final label = switch (item.kind) {
-      AthleteAgendaItemKind.rental => 'Aluguel',
+      AthleteAgendaItemKind.rental => 'Reserva',
       AthleteAgendaItemKind.tournament => 'Torneio',
       AthleteAgendaItemKind.challenge => 'Desafio',
       AthleteAgendaItemKind.friendlyMatch => 'Jogo',

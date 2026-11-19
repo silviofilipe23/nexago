@@ -24,6 +24,7 @@ import '../../../domain/agenda/class_story.dart';
 import '../../booking_details_page.dart';
 import '../../class_session_detail_page.dart';
 import '../../class_story_page.dart';
+import 'agenda_card_context_widgets.dart';
 import 'agenda_card_decoration.dart';
 import '../../../../../core/errors/friendly_error_message.dart';
 
@@ -414,7 +415,6 @@ class _RentalCard extends ConsumerWidget {
     final partnerName = rental.partnerName;
     final partnerInitials = rental.partnerInitials ?? '??';
     final showPartner = partnerName != null && partnerName.isNotEmpty;
-    final showWeather = rental.startAt.hour >= 17 && !isCanceled;
     final showActions = isFuture && !isCanceled;
     final showStory =
         !rental.needsPayment && isBookingStoryShareable(rental.rawStatus);
@@ -465,7 +465,7 @@ class _RentalCard extends ConsumerWidget {
               Row(
                 children: [
                   _OutlinedKindBadge(
-                    label: 'ALUGUEL',
+                    label: 'RESERVA',
                     icon: Icons.add_circle_outline,
                     color: accent,
                   ),
@@ -525,14 +525,10 @@ class _RentalCard extends ConsumerWidget {
                     const SizedBox(width: 14),
                     _PartnerChip(initials: partnerInitials, name: partnerName),
                   ],
-                  const Spacer(),
-                  // if (showWeather)
-                  //   _WeatherPill(
-                  //     temperature: '22°',
-                  //     color: athleteAgendaTournamentAccent,
-                  //   ),
                 ],
               ),
+              // Chance de chuva nas próximas 48h (previsão do servidor).
+              AgendaRainPill(rental: rental, now: DateTime.now()),
               if (showActions) ...[
                 const SizedBox(height: 14),
                 Row(
@@ -604,6 +600,11 @@ class _RentalCard extends ConsumerWidget {
                       ),
                     ],
                   ],
+                ),
+                AgendaRentalWayActions(
+                  rental: rental,
+                  arenaName: displayArenaName,
+                  addressLine: arenaAsync?.valueOrNull?.addressLine,
                 ),
               ],
               if (showResult) ...[
@@ -878,6 +879,11 @@ class _TournamentCard extends StatelessWidget {
                           color: context.themeColors.onSurfaceMuted,
                         ),
                       ),
+                      // Dia do evento: quando e onde é a próxima partida.
+                      if (isLive)
+                        AgendaTournamentNextMatchPanel(
+                          tournamentId: tournament.tournamentId,
+                        ),
                     ],
                   ),
                 ),
@@ -1153,39 +1159,6 @@ class _PartnerChip extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _WeatherPill extends StatelessWidget {
-  const _WeatherPill({required this.temperature, required this.color});
-
-  final String temperature;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: context.themeColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.nightlight_round, size: 14, color: color),
-          const SizedBox(width: 4),
-          Text(
-            temperature,
-            style: AppTypography.mono(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: context.themeColors.onSurface,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -1,11 +1,20 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/domain/arena_promotion.dart';
 import 'package:nexago_app/features/arenas/domain/slots_providers.dart';
+import 'package:nexago_app/features/arenas/domain/arena_detail_hours_logic.dart';
 import 'package:nexago_app/features/arenas/domain/arena_detail_offers_logic.dart';
+import 'package:nexago_app/features/arenas/domain/arena_events_providers.dart';
+import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_events_section.dart';
+import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_hours.dart';
+import 'package:nexago_app/features/organizer_public_profile/data/organizer_event_mapper.dart';
+import 'package:nexago_app/features/organizer_public_profile/domain/organizer_event.dart';
+import 'package:nexago_app/features/tournaments/data/tournament_inscriptions_repository.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_anchor_bar.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_bottom_cta.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_other_offers.dart';
@@ -406,6 +415,132 @@ void main() {
       await tester.tap(find.text('Quadras'));
       await tester.tap(find.text('Horários'));
       expect(calls, ['q', 'h']);
+    });
+  });
+
+  group('ArenaDetailOpenStatusLine', () {
+    testWidgets('shows the open label', (tester) async {
+      await _pump(
+        tester,
+        const ArenaDetailOpenStatusLine(
+          status: ArenaOpenStatus(
+            isOpen: true,
+            label: 'Aberta agora · até 23:00',
+          ),
+        ),
+      );
+
+      expect(find.text('Aberta agora · até 23:00'), findsOneWidget);
+    });
+  });
+
+  group('ArenaDetailWeekHours', () {
+    testWidgets('lists each row of the week', (tester) async {
+      await _pump(
+        tester,
+        const ArenaDetailWeekHours(
+          rows: [
+            ArenaWeekHoursRow(
+              daysLabel: 'Seg–Sex',
+              hoursLabel: '07:00–23:00',
+            ),
+            ArenaWeekHoursRow(daysLabel: 'Dom', hoursLabel: 'Fechado'),
+          ],
+        ),
+      );
+
+      expect(find.text('HORÁRIOS DE RESERVA'), findsOneWidget);
+      expect(find.text('Seg–Sex'), findsOneWidget);
+      expect(find.text('07:00–23:00'), findsOneWidget);
+      expect(find.text('Fechado'), findsOneWidget);
+    });
+
+    testWidgets('renders nothing without rows', (tester) async {
+      await _pump(tester, const ArenaDetailWeekHours(rows: []));
+
+      expect(find.text('HORÁRIOS DE RESERVA'), findsNothing);
+    });
+  });
+
+  group('ArenaDetailEventsSection', () {
+    setUpAll(() => initializeDateFormatting('pt_BR'));
+    final now = DateTime(2030, 11, 8, 10);
+
+    OrganizerEvent event(String id, String name, int inDays,
+        {String listing = 'open'}) {
+      return organizerEventFromMap(id, {
+        'name': name,
+        'listingStatus': listing,
+        'sport': 'beachVolleyball',
+        'arenaId': 'a1',
+        'startAt': Timestamp.fromDate(now.add(Duration(days: inDays))),
+        'categories': [
+          {'id': 'c1', 'categoryName': 'Misto', 'maxTeams': 16},
+        ],
+      })!;
+    }
+
+    List<Override> overrides(List<OrganizerEvent> events) => [
+          arenaEventsProvider('a1').overrideWith(
+            (ref) => Stream.value(events),
+          ),
+          tournamentCategoryEnrollmentCountsProvider.overrideWith(
+            (ref, id) => Stream.value(const {'c1': 4}),
+          ),
+        ];
+
+    testWidgets('lists upcoming events soonest first and opens one',
+        (tester) async {
+      OrganizerEvent? opened;
+      await _pump(
+        tester,
+        ArenaDetailEventsSection(
+          arenaId: 'a1',
+          now: now,
+          onOpen: (e) => opened = e,
+        ),
+        overrides: overrides([
+          event('later', 'Copa de Verão', 30),
+          event('soon', 'Etapa 1 da Liga', 5),
+          event('old', 'Torneio passado', -60, listing: 'completed'),
+        ]),
+      );
+      await tester.pump();
+
+      expect(find.text('Torneios e ligas aqui'), findsOneWidget);
+      expect(find.text('Torneio passado'), findsNothing);
+      final soonY = tester.getTopLeft(find.text('Etapa 1 da Liga')).dy;
+      final laterY = tester.getTopLeft(find.text('Copa de Verão')).dy;
+      expect(soonY, lessThan(laterY));
+
+      await tester.tap(find.text('Etapa 1 da Liga'));
+      expect(opened?.id, 'soon');
+    });
+
+    testWidgets('shows three and counts the rest', (tester) async {
+      await _pump(
+        tester,
+        ArenaDetailEventsSection(arenaId: 'a1', now: now, onOpen: (_) {}),
+        overrides: overrides([
+          for (var i = 1; i <= 5; i++) event('e$i', 'Evento $i', i * 7),
+        ]),
+      );
+      await tester.pump();
+
+      expect(find.text('Evento 3'), findsOneWidget);
+      expect(find.text('Evento 4'), findsNothing);
+      expect(find.text('E mais 2 eventos.'), findsOneWidget);
+    });
+
+    testWidgets('renders nothing without upcoming events', (tester) async {
+      await _pump(
+        tester,
+        ArenaDetailEventsSection(arenaId: 'a1', now: now, onOpen: (_) {}),
+        overrides: overrides(const []),
+      );
+      await tester.pump();
+
+      expect(find.text('Torneios e ligas aqui'), findsNothing);
     });
   });
 }

@@ -5,14 +5,19 @@ import 'package:intl/intl.dart';
 
 import '../../../../../core/auth/auth_providers.dart';
 import '../../../../../core/formatting/app_currency_format.dart';
+import '../../../../../core/formatting/app_date_format.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../../athlete/domain/athlete_profile_providers.dart';
+import '../../../../weather/presentation/widgets/booking_forecast_card.dart';
 import '../../../domain/arena_booking_confirm_args.dart';
 import '../../../domain/arena_court.dart';
 import '../../../domain/arena_detail_agenda_logic.dart';
+import '../../../domain/arena_detail_providers.dart';
 import '../../../domain/arena_list_item.dart';
 import '../../../domain/arena_peak_rule.dart';
+import '../../../domain/arena_popular_times.dart';
+import '../../../domain/arena_popular_times_providers.dart';
 import '../../../domain/arena_slot.dart';
 import '../../../domain/arena_sport_codes.dart';
 import '../../../domain/slot_vacancy_alert.dart';
@@ -23,6 +28,7 @@ import '../../arena_booking_navigation.dart';
 import '../slots/slots_vacancy_topic_prompt.dart';
 import 'arena_detail_agenda_section.dart';
 import 'arena_detail_bottom_cta.dart';
+import 'arena_detail_popular_times.dart';
 
 /// O que a agenda conta para a página: o dia aberto e o horário escolhido
 /// (`null` = nenhum), que vira a barra "Reservar".
@@ -45,8 +51,9 @@ class ArenaDetailAgenda extends ConsumerStatefulWidget {
     this.clock = DateTime.now,
   });
 
-  /// Dias da faixa: os mesmos 21 da grade de horários.
-  static const int stripDays = 21;
+  /// Dias da faixa: os mesmos 21 da grade de horários. Igual ao horário de
+  /// funcionamento do perfil, para os dois lerem a mesma grade.
+  static const int stripDays = kArenaDetailGridDays;
 
   final ArenaListItem arena;
   final ValueChanged<ArenaDetailAgendaReport> onReport;
@@ -61,6 +68,7 @@ class ArenaDetailAgenda extends ConsumerStatefulWidget {
 
 class _ArenaDetailAgendaState extends ConsumerState<ArenaDetailAgenda> {
   static final _dayFmt = DateFormat('EEE, d MMM', 'pt_BR');
+  static final _weekdayFmt = DateFormat('EEEE', 'pt_BR');
 
   late DateTime _day = slotDayOnly(widget.clock());
   String? _sport;
@@ -346,7 +354,7 @@ class _ArenaDetailAgendaState extends ConsumerState<ArenaDetailAgenda> {
       view == null ? null : _selectionFor(view, selected, rangeSlots ?? []),
     );
 
-    return ArenaDetailAgendaSection(
+    final section = ArenaDetailAgendaSection(
       view: view,
       stripStart: stripStart,
       stripDays: ArenaDetailAgenda.stripDays,
@@ -371,6 +379,58 @@ class _ArenaDetailAgendaState extends ConsumerState<ArenaDetailAgenda> {
       onNotifyToggle: view == null || view.candidates.isEmpty
           ? null
           : () => _toggleNotify(view, notifyActive),
+    );
+
+    final extras = [
+      if (dayState != null && dayState != AgendaDayState.noSchedule)
+        ..._popularTimes(selected),
+      if (selected != null && !arena.amenities.coveredCourt)
+        _forecast(selected, now),
+    ];
+    if (extras.isEmpty) return section;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        section,
+        for (final extra in extras) ...[
+          const SizedBox(height: 20),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: widget.horizontalPadding),
+            child: extra,
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// "Movimento" do dia da semana aberto; nada sem resumo da arena.
+  List<Widget> _popularTimes(AgendaTime? selected) {
+    final data = ref.watch(arenaPopularTimesProvider(widget.arena.id));
+    final view = popularDayView(
+      data.valueOrNull,
+      weekday: _day.weekday,
+      selectedHour:
+          selected == null ? null : slotStartMinutes(selected.startTime) ~/ 60,
+    );
+    if (view == null) return const [];
+    final weekday = _weekdayFmt.format(_day).replaceAll('-feira', '');
+    return [ArenaDetailPopularTimes(view: view, weekdayLabel: weekday)];
+  }
+
+  /// Previsão do horário escolhido (arena com quadra aberta).
+  Widget _forecast(AgendaTime selected, DateTime now) {
+    final start = _day.add(
+      Duration(minutes: slotStartMinutes(selected.startTime)),
+    );
+    var endMinutes = slotStartMinutes(selected.endTime);
+    if (endMinutes <= slotStartMinutes(selected.startTime)) endMinutes += 1440;
+    return SlotForecastCard(
+      arenaId: widget.arena.id,
+      dateKey: calendarDateKey(_day),
+      startTime: selected.startTime,
+      endTime: selected.endTime,
+      game: (start: start, end: _day.add(Duration(minutes: endMinutes))),
+      now: now,
     );
   }
 }

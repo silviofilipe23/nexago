@@ -934,7 +934,7 @@ export class AthleteAgendaComponent {
   protected onReviewSubmitted(bookingId: string): void {
     this.reviewStore.markReviewed(bookingId);
     this.reviewingBooking.set(null);
-    this.showNotice('Obrigado! +10 XP no seu progresso.');
+    // O "Avaliação enviada" do próprio modal já mostra o +10 XP; aviso aqui seria repetido.
   }
 
   /** Backend recusou por "já avaliada" — sem XP, então sem a notícia de +10 XP; só

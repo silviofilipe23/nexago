@@ -56,6 +56,8 @@ class ArenaReviewService {
     required String userId,
     required int rating,
     String? comment,
+    List<String> tags = const [],
+    bool? onTime,
   }) async {
     final aid = arenaId.trim();
     final bid = bookingId.trim();
@@ -123,6 +125,10 @@ class ArenaReviewService {
         'bookingId': bid,
         'rating': rating,
         'comment': cleanComment,
+        // Opções marcadas como dado (somáveis no perfil e no painel); o texto
+        // "Destaques: …" segue em `comment` para o portal e os apps antigos.
+        if (tags.isNotEmpty) 'tags': ([...tags]..sort()),
+        if (onTime != null) 'onTime': onTime,
         'likesCount': 0,
         'reported': false,
         'createdAt': FieldValue.serverTimestamp(),

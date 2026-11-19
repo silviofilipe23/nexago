@@ -157,6 +157,17 @@ void main() {
     expect(find.byKey(const Key('agenda-booking-result-b1')), findsNothing);
   });
 
+  testWidgets('aluguel futuro: sem tempo de deslocamento inventado', (
+    tester,
+  ) async {
+    // O card mostrava "14 min · car" fixo para toda reserva futura, sem
+    // calcular nada. Até existir cálculo real, nada de deslocamento no card.
+    await abrirAgenda(tester, aluguel(status: 'confirmed'));
+
+    expect(find.textContaining('min · car'), findsNothing);
+    expect(find.byIcon(Icons.place_outlined), findsNothing);
+  });
+
   testWidgets('aluguel que já passou: "Postar no story" abre o pós-jogo', (
     tester,
   ) async {

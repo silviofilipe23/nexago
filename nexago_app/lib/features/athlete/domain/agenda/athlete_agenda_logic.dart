@@ -574,6 +574,38 @@ AthleteAgendaTimeTabCounts countAgendaTimeTabs(
   return AthleteAgendaTimeTabCounts(upcoming: upcoming, past: past);
 }
 
+/// O item ocupa [day] na agenda? Torneio de vários dias ocupa do primeiro ao
+/// último dia do evento: no domingo das finais ele continua na lista, nos
+/// pontos da faixa de dias e no mês. O resto ocupa só o dia em que começa,
+/// mesmo que a reserva atravesse a meia-noite.
+bool agendaItemOccursOn(AthleteAgendaItem item, DateTime day) {
+  final target = dateOnly(day);
+  final (first, last) = _agendaItemDaySpan(item);
+  return !target.isBefore(first) && !target.isAfter(last);
+}
+
+/// Primeiro e último dia civil que o item ocupa na agenda.
+(DateTime, DateTime) _agendaItemDaySpan(AthleteAgendaItem item) {
+  final first = dateOnly(item.startsAt);
+  final end = item.endsAt;
+  if (item.kind != AthleteAgendaItemKind.tournament || end == null) {
+    return (first, first);
+  }
+  final last = dateOnly(end);
+  return (first, last.isBefore(first) ? first : last);
+}
+
+/// O item ocupa algum dia entre [rangeStart] e [rangeEnd] (inclusivos)?
+bool _agendaItemOverlapsDays(
+  AthleteAgendaItem item,
+  DateTime rangeStart,
+  DateTime rangeEnd,
+) {
+  final (first, last) = _agendaItemDaySpan(item);
+  return !last.isBefore(dateOnly(rangeStart)) &&
+      !first.isAfter(dateOnly(rangeEnd));
+}
+
 List<AthleteAgendaItem> filterAgendaItems({
   required List<AthleteAgendaItem> items,
   required AthleteAgendaFilter filter,
@@ -630,12 +662,11 @@ List<AthleteAgendaItem> filterAgendaItems({
   if (viewMode == AthleteAgendaViewMode.month) {
     final monthStart = startOfMonth(visibleMonth);
     final monthEnd = endOfMonth(visibleMonth);
-    filtered = filtered.where((i) {
-      final d = dateOnly(i.startsAt);
-      return !d.isBefore(monthStart) && !d.isAfter(monthEnd);
-    });
+    filtered = filtered.where(
+      (i) => _agendaItemOverlapsDays(i, monthStart, monthEnd),
+    );
   } else if (timeTab != AthleteAgendaTimeTab.past) {
-    filtered = filtered.where((i) => isSameDay(i.startsAt, selectedDay));
+    filtered = filtered.where((i) => agendaItemOccursOn(i, selectedDay));
   }
 
   final q = query.trim().toLowerCase();
@@ -647,10 +678,15 @@ List<AthleteAgendaItem> filterAgendaItems({
     );
   }
 
-  // Horário mais tarde primeiro, em qualquer aba: no dia, a reserva das 21h
-  // fica acima da das 18h que já passou.
+  // Próximos: ordem do relógio (18h antes de 21h), porque a lista do dia é
+  // desenhada como linha do tempo. Passados: o mais recente primeiro.
+  final mostRecentFirst = timeTab == AthleteAgendaTimeTab.past;
   final copy = filtered.toList()
-    ..sort((a, b) => b.startsAt.compareTo(a.startsAt));
+    ..sort(
+      (a, b) => mostRecentFirst
+          ? b.startsAt.compareTo(a.startsAt)
+          : a.startsAt.compareTo(b.startsAt),
+    );
   return copy;
 }
 
@@ -719,7 +755,7 @@ List<AthleteAgendaMonthDay> buildAgendaMonthDayMarkers({
   return List.generate(totalDays, (index) {
     final date = DateTime(monthStart.year, monthStart.month, index + 1);
     final dayItems =
-        items.where((i) => isSameDay(i.startsAt, date)).toList(growable: false);
+        items.where((i) => agendaItemOccursOn(i, date)).toList(growable: false);
     var rentals = 0;
     var trainings = 0;
     var tournaments = 0;
@@ -768,7 +804,7 @@ int countFreeDaysInMonth(
     if (timeTab == AthleteAgendaTimeTab.upcoming && date.isBefore(today)) {
       continue;
     }
-    final hasEvents = items.any((i) => isSameDay(i.startsAt, date));
+    final hasEvents = items.any((i) => agendaItemOccursOn(i, date));
     if (!hasEvents) free++;
   }
   return free;
@@ -848,7 +884,7 @@ List<AthleteAgendaMonthSummaryRow> buildAgendaMonthSummaryRows({
       continue;
     }
     final dayItems = items
-        .where((i) => isSameDay(i.startsAt, date))
+        .where((i) => agendaItemOccursOn(i, date))
         .toList(growable: false)
       ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
 
@@ -911,10 +947,9 @@ List<AthleteAgendaItem> filterAgendaItemsForWeekStrip({
         (i) => isAgendaItemPast(i, now: clock),
       ),
   };
-  filtered = filtered.where((i) {
-    final d = dateOnly(i.startsAt);
-    return !d.isBefore(rangeStart) && !d.isAfter(rangeEnd);
-  });
+  filtered = filtered.where(
+    (i) => _agendaItemOverlapsDays(i, rangeStart, rangeEnd),
+  );
   return filtered.toList();
 }
 
@@ -933,7 +968,7 @@ List<AthleteAgendaWeekDay> buildWeekDayStrip({
   return List.generate(dayCount, (index) {
     final date = start.add(Duration(days: index));
     final dayItems =
-        items.where((i) => isSameDay(i.startsAt, date)).toList(growable: false);
+        items.where((i) => agendaItemOccursOn(i, date)).toList(growable: false);
     var rentals = 0;
     var trainings = 0;
     var tournaments = 0;

@@ -341,6 +341,13 @@ export function bookingChannelLabel(channel: string | null): string {
             </div>
 
             <div class="stack side">
+              @if (b.athleteNotes; as notes) {
+                <!-- Recado que o atleta deixou ao reservar pelo app (só a criação grava). -->
+                <section class="card" aria-label="Recado do atleta" data-testid="booking-athlete-notes">
+                  <div class="card-h"><h2 class="card-title">Recado do atleta</h2></div>
+                  <p class="athlete-notes">{{ notes }}</p>
+                </section>
+              }
               <section class="card" aria-label="Pagamento">
                 <div class="card-h">
                   <h2 class="card-title">Pagamento</h2>
@@ -1177,6 +1184,15 @@ export function bookingChannelLabel(channel: string | null): string {
     }
 
     /* Coluna lateral */
+    .athlete-notes {
+      margin: 0;
+      color: var(--nx-text);
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-line;
+      overflow-wrap: anywhere;
+    }
+
     .row {
       display: flex;
       justify-content: space-between;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +24,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../data/booking_service.dart';
+import '../data/last_booking_payment_store.dart';
 import '../data/payment_service.dart';
 import '../domain/arena_booking_cancellation_policy.dart';
 import '../domain/athlete_cancel_policy.dart';
@@ -31,6 +34,7 @@ import '../domain/arena_booking_pix_args.dart';
 import '../domain/arena_booking_quote.dart';
 import '../domain/arena_sport_codes.dart';
 import '../domain/arenas_providers.dart';
+import '../domain/booking_payment_method.dart';
 import '../domain/booking_professor_mode.dart';
 import '../domain/booking_providers.dart';
 import '../domain/slots_providers.dart';
@@ -72,6 +76,10 @@ class _ArenaBookingConfirmPageState
     extends ConsumerState<ArenaBookingConfirmPage> {
   bool _submitting = false;
   _PaymentChoice _paymentChoice = _PaymentChoice.atVenue;
+
+  /// O atleta tocou numa forma nesta tela: daí em diante vale a escolha
+  /// dele, não a lembrada da última reserva.
+  bool _paymentPicked = false;
   ArenaBookingQuote? _quote;
   bool _quoting = false;
   String? _lastQuoteKey;
@@ -257,6 +265,7 @@ class _ArenaBookingConfirmPageState
     required String sport,
     required bool asProfessor,
     String? lessonStudentId,
+    bool rememberChoice = false,
   }) async {
     final user = ref.read(authServiceProvider).currentUser;
     if (user == null) {
@@ -286,6 +295,9 @@ class _ArenaBookingConfirmPageState
             athleteNotes: _athleteNotesController.text,
           );
       if (resumed == null) _clearLessonStudent();
+      if (rememberChoice) {
+        _rememberPayment(user.uid, BookingPaymentMethod.online);
+      }
       if (!mounted) return;
 
       // O crédito de chuva cobriu tudo: reserva já paga, sem Pix.
@@ -377,6 +389,7 @@ class _ArenaBookingConfirmPageState
     String? lessonStudentId,
     bool coveredByPlan = false,
     bool onsiteEnabled = true,
+    bool rememberChoice = false,
   }) async {
     final user = ref.read(authServiceProvider).currentUser;
     if (user == null) {
@@ -404,6 +417,9 @@ class _ArenaBookingConfirmPageState
                 athleteNotes: _athleteNotesController.text,
               );
       _clearLessonStudent();
+      if (rememberChoice) {
+        _rememberPayment(user.uid, BookingPaymentMethod.onsite);
+      }
       if (!mounted) return;
       await tryAwardReserveTodayMission(ref, dateKey: args.dateKey);
       if (!mounted) return;
@@ -555,6 +571,20 @@ class _ArenaBookingConfirmPageState
 
   /// Com crédito de chuva aplicado, trocar Pix ↔ arena muda quanto entra
   /// (no Pix fica um mínimo para cobrar): recota. Sem crédito, nada muda.
+  /// A forma mudou sem toque (a lembrada chegou depois da 1ª cotação):
+  /// recota como o toque faria, fora do build.
+  void _syncQuotePaymentMode(ArenaBookingConfirmArgs args, String mode) {
+    if (_quotePaymentMode == mode) return;
+    final needsRequote = _lastQuoteKey != null &&
+        _useWeatherCredit &&
+        (_quote?.hasWeatherCredit ?? false);
+    _quotePaymentMode = mode;
+    if (!needsRequote) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadQuote(args);
+    });
+  }
+
   void _requoteForPaymentMode(ArenaBookingConfirmArgs args, String mode) {
     if (_quotePaymentMode == mode) return;
     _quotePaymentMode = mode;
@@ -564,13 +594,26 @@ class _ArenaBookingConfirmPageState
   }
 
   /// Alinhado a [ArenaListItem] (`onsitePaymentEnabled` / `onlinePaymentEnabled` no Firestore).
+  ///
+  /// Com as duas formas, abre na última usada ([remembered]) até o atleta
+  /// tocar em outra; sem histórico, o padrão de sempre (na arena).
   _PaymentChoice _effectivePaymentChoice({
     required bool onsiteEnabled,
     required bool onlineEnabled,
+    BookingPaymentMethod? remembered,
   }) {
     if (onsiteEnabled && !onlineEnabled) return _PaymentChoice.atVenue;
     if (!onsiteEnabled && onlineEnabled) return _PaymentChoice.pix;
-    return _paymentChoice;
+    if (_paymentPicked || remembered == null) return _paymentChoice;
+    return remembered == BookingPaymentMethod.online
+        ? _PaymentChoice.pix
+        : _PaymentChoice.atVenue;
+  }
+
+  /// Guarda a forma usada, só quando o atleta tinha as duas para escolher
+  /// (arena que só aceita uma não diz nada da preferência dele).
+  void _rememberPayment(String uid, BookingPaymentMethod method) {
+    unawaited(ref.read(lastBookingPaymentStoreProvider).save(uid, method));
   }
 
   void _onBack() {
@@ -648,11 +691,18 @@ class _ArenaBookingConfirmPageState
       activeRole: ref.watch(activeMobileRoleProvider),
     );
     final asProfessor = offerProfessor && (_asProfessor ?? true);
+    final remembered = onsiteEnabled && onlineEnabled
+        ? ref.watch(lastBookingPaymentProvider).valueOrNull
+        : null;
     final choice = _effectivePaymentChoice(
       onsiteEnabled: onsiteEnabled,
       onlineEnabled: onlineEnabled,
+      remembered: remembered,
     );
-    _quotePaymentMode = choice == _PaymentChoice.pix ? 'pix' : 'onsite';
+    _syncQuotePaymentMode(
+      args,
+      choice == _PaymentChoice.pix ? 'pix' : 'onsite',
+    );
     _maybeLoadQuote(args, asProfessor: asProfessor);
     // Aula da carteira: só como professor de vínculo independente, entre os
     // alunos ativos (o servidor confere de novo).
@@ -882,6 +932,11 @@ class _ArenaBookingConfirmPageState
                                               if (onsiteEnabled)
                                                 _PaymentOptionCard(
                                                   title: 'Pagar na arena',
+                                                  badge: remembered ==
+                                                          BookingPaymentMethod
+                                                              .onsite
+                                                      ? 'Último usado'
+                                                      : null,
                                                   subtitle:
                                                       'Confirme agora e pague presencialmente ao chegar.',
                                                   icon:
@@ -893,9 +948,12 @@ class _ArenaBookingConfirmPageState
                                                     HapticFeedback
                                                         .selectionClick();
                                                     setState(
-                                                      () => _paymentChoice =
-                                                          _PaymentChoice
-                                                              .atVenue,
+                                                      () {
+                                                        _paymentPicked = true;
+                                                        _paymentChoice =
+                                                            _PaymentChoice
+                                                                .atVenue;
+                                                      },
                                                     );
                                                     _requoteForPaymentMode(
                                                       args,
@@ -909,6 +967,11 @@ class _ArenaBookingConfirmPageState
                                               if (onlineEnabled)
                                                 _PaymentOptionCard(
                                                   title: 'Pagar online',
+                                                  badge: remembered ==
+                                                          BookingPaymentMethod
+                                                              .online
+                                                      ? 'Último usado'
+                                                      : null,
                                                   subtitle:
                                                       'Pix ou cartão de crédito — confirmação automática.',
                                                   icon: Icons.payments_outlined,
@@ -919,8 +982,11 @@ class _ArenaBookingConfirmPageState
                                                     HapticFeedback
                                                         .selectionClick();
                                                     setState(
-                                                      () => _paymentChoice =
-                                                          _PaymentChoice.pix,
+                                                      () {
+                                                        _paymentPicked = true;
+                                                        _paymentChoice =
+                                                            _PaymentChoice.pix;
+                                                      },
                                                     );
                                                     _requoteForPaymentMode(
                                                       args,
@@ -1007,6 +1073,18 @@ class _ArenaBookingConfirmPageState
                                 enabled: !_submitting,
                                 onApply: () => _applyCoupon(args),
                                 onRemove: () => _removeCoupon(args),
+                                available: ref
+                                        .watch(
+                                          availableArenaCouponsProvider(
+                                            widget.arenaId,
+                                          ),
+                                        )
+                                        .valueOrNull ??
+                                    const [],
+                                onPickAvailable: (code) {
+                                  _couponController.text = code;
+                                  _applyCoupon(args);
+                                },
                               ),
                             ),
                             Padding(
@@ -1077,6 +1155,7 @@ class _ArenaBookingConfirmPageState
                             sport: sport,
                             asProfessor: asProfessor,
                             lessonStudentId: lessonStudentId,
+                            rememberChoice: onsiteEnabled && onlineEnabled,
                           );
                         } else {
                           _finalizeBookingPayAtArena(
@@ -1084,6 +1163,7 @@ class _ArenaBookingConfirmPageState
                             sport: sport,
                             asProfessor: asProfessor,
                             lessonStudentId: lessonStudentId,
+                            rememberChoice: onsiteEnabled && onlineEnabled,
                           );
                         }
                       },
@@ -1107,8 +1187,12 @@ class _PaymentOptionCard extends StatelessWidget {
     required this.selected,
     required this.disabled,
     required this.onTap,
+    this.badge,
   });
   final String title;
+
+  /// Selo ao lado do título ("Último usado").
+  final String? badge;
   final String subtitle;
   final IconData icon;
   final bool selected;
@@ -1164,11 +1248,19 @@ class _PaymentOptionCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            title,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if (badge != null) _PaymentBadge(label: badge!),
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -1263,6 +1355,33 @@ class _PaymentErrorCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentBadge extends StatelessWidget {
+  const _PaymentBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: colors.outline.withValues(alpha: 0.5)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: colors.onSurfaceMuted,
+                fontWeight: FontWeight.w700,
+              ),
         ),
       ),
     );

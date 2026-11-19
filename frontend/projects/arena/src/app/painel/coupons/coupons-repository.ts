@@ -22,6 +22,8 @@ export interface ArenaCouponTermsInput {
   validUntil?: string | null;
   maxRedemptionsTotal?: number | null;
   maxRedemptionsPerAthlete?: number;
+  /** Divulgar no app (lista de cupons disponíveis na reserva). */
+  showInApp?: boolean;
 }
 
 export interface CreateArenaCouponInput extends ArenaCouponTermsInput {
@@ -44,6 +46,7 @@ function termsPayload(input: ArenaCouponTermsInput): Record<string, unknown> {
   if (input.validFrom) payload['validFrom'] = input.validFrom;
   if (input.validUntil) payload['validUntil'] = input.validUntil;
   if (input.maxRedemptionsTotal != null) payload['maxRedemptionsTotal'] = input.maxRedemptionsTotal;
+  if (input.showInApp != null) payload['showInApp'] = input.showInApp;
   return payload;
 }
 

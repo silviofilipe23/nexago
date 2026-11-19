@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
+import '../../../../../core/theme/app_colors.dart';
+
 /// Linha opcional recolhida do checkout ("Tenho um cupom", "Recado para a
 /// arena"): ocupa uma linha até o atleta tocar, e aí a tela mostra o campo.
 /// Quem não precisa do extra não rola por ele.
@@ -11,12 +13,16 @@ class BookingConfirmOptionRow extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.enabled = true,
+    this.trailing,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool enabled;
+
+  /// Texto curto antes da seta ("2 disponíveis").
+  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +54,16 @@ class BookingConfirmOptionRow extends StatelessWidget {
                   ),
                 ),
               ),
+              if (trailing != null) ...[
+                const SizedBox(width: 8),
+                Text(
+                  trailing!,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colors.readableTone(AppColors.win),
+                  ),
+                ),
+              ],
               Icon(
                 Icons.chevron_right_rounded,
                 color: colors.onSurfaceMuted,

@@ -2,6 +2,7 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {Timestamp} from "firebase-admin/firestore";
 import {
+  availableCouponsForAthlete,
   computeCouponDiscountReais,
   couponRedemptionLimitError,
   couponValidityError,
@@ -19,6 +20,7 @@ function baseCoupon(overrides: Partial<ArenaCouponDoc> = {}): ArenaCouponDoc {
     discountPercent: 10,
     maxRedemptionsPerAthlete: 1,
     redemptionsCount: 0,
+    showInApp: false,
     ...overrides,
   };
 }
@@ -181,5 +183,74 @@ describe("couponRedemptionLimitError — limites de uso", () => {
       couponRedemptionLimitError(coupon, {totalRedemptions: 10_000, athleteRedemptions: 0}),
       null,
     );
+  });
+});
+
+describe("availableCouponsForAthlete — lista do checkout", () => {
+  const now = new Date("2026-11-20T12:00:00Z");
+  const none = new Map<string, number>();
+
+  it("só mostra cupom que a arena divulga no app", () => {
+    const list = availableCouponsForAthlete(
+      [baseCoupon({id: "PRIVADO"}), baseCoupon({id: "VERAO10", showInApp: true})],
+      none,
+      now,
+    );
+    assert.deepEqual(list.map((c) => c.code), ["VERAO10"]);
+  });
+
+  it("tira inativo, expirado, futuro e esgotado", () => {
+    const list = availableCouponsForAthlete(
+      [
+        baseCoupon({id: "A", code: "A", showInApp: true, active: false}),
+        baseCoupon({
+          id: "B", code: "B", showInApp: true,
+          validUntil: Timestamp.fromDate(new Date("2026-11-19T00:00:00Z")),
+        }),
+        baseCoupon({
+          id: "C", code: "C", showInApp: true,
+          validFrom: Timestamp.fromDate(new Date("2026-12-01T00:00:00Z")),
+        }),
+        baseCoupon({id: "D", code: "D", showInApp: true, maxRedemptionsTotal: 5, redemptionsCount: 5}),
+        baseCoupon({id: "E", code: "E", showInApp: true}),
+      ],
+      none,
+      now,
+    );
+    assert.deepEqual(list.map((c) => c.code), ["E"]);
+  });
+
+  it("tira o que o atleta já usou até o limite dele", () => {
+    const list = availableCouponsForAthlete(
+      [
+        baseCoupon({id: "USADO", code: "USADO", showInApp: true}),
+        baseCoupon({id: "DUAS", code: "DUAS", showInApp: true, maxRedemptionsPerAthlete: 2}),
+      ],
+      new Map([["USADO", 1], ["DUAS", 1]]),
+      now,
+    );
+    assert.deepEqual(list.map((c) => c.code), ["DUAS"]);
+  });
+
+  it("maior desconto primeiro e sem contadores da arena", () => {
+    const list = availableCouponsForAthlete(
+      [
+        baseCoupon({id: "FIXO", code: "FIXO", showInApp: true, discountPercent: undefined, fixedDiscountReais: 15}),
+        baseCoupon({id: "P20", code: "P20", showInApp: true, discountPercent: 20}),
+        baseCoupon({id: "P10", code: "P10", showInApp: true, discountPercent: 10}),
+      ],
+      none,
+      now,
+    );
+    assert.deepEqual(list.map((c) => c.code), ["P20", "P10", "FIXO"]);
+    assert.deepEqual(Object.keys(list[0]).sort(), [
+      "code", "discountPercent", "fixedDiscountReais", "validUntil",
+    ]);
+  });
+
+  it("parseCouponDoc lê showInApp só quando é true", () => {
+    assert.equal(parseCouponDoc("X", {showInApp: true}).showInApp, true);
+    assert.equal(parseCouponDoc("X", {showInApp: "sim"}).showInApp, false);
+    assert.equal(parseCouponDoc("X", {}).showInApp, false);
   });
 });

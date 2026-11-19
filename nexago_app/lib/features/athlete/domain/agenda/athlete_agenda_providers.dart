@@ -8,10 +8,13 @@ import '../../../athlete_training/application/athlete_training_providers.dart'
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/formatting/app_date_format.dart';
 import '../../../friendly_match/domain/friendly_match_providers.dart';
+import '../../../tournaments/domain/athlete_tournament_day_logic.dart';
+import '../../../tournaments/domain/athlete_tournament_day_providers.dart';
 import '../../../tournaments/domain/my_tournaments_providers.dart';
 import '../../../tournaments/domain/tournament_partner_invite.dart';
 import '../../../tournaments/domain/tournament_partner_invite_providers.dart';
 import '../../data/class_agenda_repository.dart';
+import 'agenda_card_context.dart';
 import 'agenda_pendencies.dart';
 import 'athlete_agenda_logic.dart';
 import 'athlete_agenda_models.dart';
@@ -172,4 +175,13 @@ final athleteAgendaPendenciesProvider =
     invites: ref.watch(pendingTournamentPartnerInvitesProvider).valueOrNull ??
         const <TournamentPartnerInvite>[],
   );
+});
+
+/// Próxima partida do atleta no torneio [tournamentId], no dia do evento: a
+/// mesma escolha do Modo Focus, por torneio. Lê o contexto do dia que a
+/// Início e o Modo Focus já carregam (uma leitura de partidas por torneio).
+final agendaTournamentNextMatchProvider = FutureProvider.autoDispose
+    .family<AthleteNextMatch?, String>((ref, tournamentId) async {
+  final ctx = await ref.watch(athleteEventDayContextProvider.future);
+  return pickAgendaTournamentNextMatch(ctx, tournamentId: tournamentId);
 });

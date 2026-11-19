@@ -99,3 +99,27 @@ describe('banco de horas do mensalista na reserva', () => {
     expect(formatMemberMinutes(180)).toBe('3h');
   });
 });
+
+describe('arenaBookingFromDoc — recado do atleta', () => {
+  const base = {
+    arenaId: 'a1',
+    athleteId: 'u1',
+    courtId: 'c1',
+    date: '2026-11-20',
+    startTime: '19:00',
+    endTime: '20:00',
+  };
+
+  it('lê o recado aparado, mantendo as quebras de linha', () => {
+    const booking = arenaBookingFromDoc(
+      fakeDoc('b1', { ...base, athleteNotes: '  Vamos chegar 10 min antes.\nTraz bola?  ' }),
+    );
+    expect(booking.athleteNotes).toBe('Vamos chegar 10 min antes.\nTraz bola?');
+  });
+
+  it('sem recado, em branco ou tipo errado vira null', () => {
+    expect(arenaBookingFromDoc(fakeDoc('b2', base)).athleteNotes).toBeNull();
+    expect(arenaBookingFromDoc(fakeDoc('b3', { ...base, athleteNotes: '   ' })).athleteNotes).toBeNull();
+    expect(arenaBookingFromDoc(fakeDoc('b4', { ...base, athleteNotes: 42 })).athleteNotes).toBeNull();
+  });
+});

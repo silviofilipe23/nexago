@@ -54,6 +54,7 @@ import {dayKeyFromEventDate} from "./event-timezone";
 import {arenaBookingStartAt} from "./arena-booking-start-at";
 import {athleteCancelPolicySnapshot} from "./arena-athlete-cancel-policy";
 import {arenaBlockApplies} from "./arena-block-guard";
+import {parseAthleteNotes} from "./arena-booking-athlete-notes";
 import {
   applyMemberHours,
   loadMemberHoursContext,
@@ -122,6 +123,11 @@ interface BookingInput {
    * recebem "Atualize o app" (salvo modo misto com quadra escolhida).
    */
   allocation?: "capacity";
+  /**
+   * Recado do atleta para a arena ("Vamos chegar 10 min antes"). Opcional, até 280 caracteres;
+   * apps antigos não enviam. Vira `athleteNotes` na reserva, que só a criação grava.
+   */
+  athleteNotes?: string;
 }
 
 function parseDateKey(dateRaw: string): string {
@@ -502,6 +508,7 @@ export const createArenaBooking = onCall({
   if (dateKey < dayKeyFromEventDate(new Date())) {
     throw new HttpsError("invalid-argument", "Não dá pra reservar em data passada.");
   }
+  const athleteNotes = parseAthleteNotes(input.athleteNotes);
   // Arena "a arena define a quadra": sem quadra pedida, a reserva nasce flutuante numa quadra
   // provisória (a transação pega a 1ª candidata ainda livre).
   const resolved = await resolveBookingCourt(input, {arenaId, dateKey, startTime, endTime});
@@ -842,6 +849,7 @@ export const createArenaBooking = onCall({
             : null,
         ...(weatherCreditReais > 0 ? {weatherCreditReais, weatherCreditUses} : {}),
         source: "platform",
+        ...(athleteNotes ? {athleteNotes} : {}),
         // Arena "a arena define a quadra": a flutuante espera a recepção; a escolhida pelo atleta
         // (modo misto) já nasce definida. Arena no modo de sempre não ganha os campos.
         // `revealCourtBeforeArrival` copia a opção da arena na criação: a troca de opção vale

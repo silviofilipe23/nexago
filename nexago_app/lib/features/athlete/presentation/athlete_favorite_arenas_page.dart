@@ -35,7 +35,7 @@ class _AthleteFavoriteArenasPageState
     required String arenaId,
   }) async {
     if (userId == null || userId.isEmpty) {
-      showAppSnackBar(context, 'Faça login para seguir arenas.', isError: true);
+      showAppSnackBar(context, 'Faça login para favoritar arenas.', isError: true);
       return;
     }
     if (_favoritePendingArenaIds.contains(arenaId)) return;

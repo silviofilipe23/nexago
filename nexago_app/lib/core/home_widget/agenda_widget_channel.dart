@@ -2,8 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Lado nativo: `MainActivity.kt` (Android). No iOS o widget depende do App
-/// Group da extensão, que ainda não existe: lá o canal fica desligado.
+/// Lado nativo: `MainActivity.kt` (Android) e `HomeWidgetChannel` no
+/// `AppDelegate.swift` (iOS), que grava no App Group lido pela extensão
+/// `NexagoWidgets`.
 const agendaWidgetChannelName = 'nexago/home_widget';
 
 /// Ponte com o widget "Próximo jogo" da tela inicial: grava o snapshot da
@@ -17,7 +18,9 @@ class AgendaWidgetChannel {
   String? _lastSent;
 
   static bool get _supported =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 
   /// Grava o snapshot. Idempotente: o mesmo JSON não volta ao nativo.
   Future<void> saveSnapshot(String json) async {

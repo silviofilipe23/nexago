@@ -41,6 +41,7 @@ import '../domain/slots_providers.dart';
 import 'booking_success_page.dart';
 import 'widgets/booking_confirm/booking_confirm_app_bar.dart';
 import 'widgets/booking_confirm/booking_confirm_cancellation_card.dart';
+import 'widgets/booking_confirm/booking_confirm_athlete_notes_field.dart';
 import 'widgets/booking_confirm/booking_confirm_cashback_note.dart';
 import 'widgets/booking_confirm/booking_confirm_coupon_field.dart';
 import 'widgets/booking_confirm/booking_confirm_hero_card.dart';
@@ -83,6 +84,7 @@ class _ArenaBookingConfirmPageState
   bool _quoting = false;
   String? _lastQuoteKey;
   late final TextEditingController _couponController;
+  late final TextEditingController _athleteNotesController;
   bool _couponApplying = false;
   String? _couponError;
   String? _appliedCouponCode;
@@ -118,6 +120,7 @@ class _ArenaBookingConfirmPageState
   void initState() {
     super.initState();
     _couponController = TextEditingController();
+    _athleteNotesController = TextEditingController();
     _lessonStudentId = ref.read(professorLessonStudentProvider);
   }
 
@@ -131,6 +134,7 @@ class _ArenaBookingConfirmPageState
   @override
   void dispose() {
     _couponController.dispose();
+    _athleteNotesController.dispose();
     super.dispose();
   }
 
@@ -288,6 +292,7 @@ class _ArenaBookingConfirmPageState
             asProfessor: asProfessor,
             professorStudentId: lessonStudentId,
             useWeatherCredit: _sendWeatherCredit,
+            athleteNotes: _athleteNotesController.text,
           );
       if (resumed == null) _clearLessonStudent();
       if (rememberChoice) {
@@ -409,6 +414,7 @@ class _ArenaBookingConfirmPageState
                 professorStudentId: lessonStudentId,
                 paymentMode: coveredByPlan && !onsiteEnabled ? 'pix' : 'onsite',
                 useWeatherCredit: _sendWeatherCredit && !coveredByPlan,
+                athleteNotes: _athleteNotesController.text,
               );
       _clearLessonStudent();
       if (rememberChoice) {
@@ -1079,6 +1085,13 @@ class _ArenaBookingConfirmPageState
                                   _couponController.text = code;
                                   _applyCoupon(args);
                                 },
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: BookingConfirmAthleteNotesField(
+                                controller: _athleteNotesController,
+                                enabled: !_submitting,
                               ),
                             ),
                             Padding(

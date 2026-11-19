@@ -342,6 +342,15 @@ String? arenaBookingAthletePricingLabel(Map<String, dynamic>? data) {
   return 'Preço $label';
 }
 
+/// Recado do atleta para a arena (`athleteNotes`, gravado por
+/// `createArenaBooking` só na criação). `null` sem recado.
+String? arenaBookingAthleteNotes(Map<String, dynamic>? data) {
+  final raw = data?['athleteNotes'];
+  if (raw is! String) return null;
+  final text = raw.trim();
+  return text.isEmpty ? null : text;
+}
+
 /// Status da reserva apenas no âmbito do negócio (ativa, cancelada…).
 String arenaBookingBusinessStatusLabel(Map<String, dynamic>? data) {
   if (data == null) return '—';

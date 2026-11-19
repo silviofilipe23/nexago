@@ -11,7 +11,6 @@ import '../../../tournaments/domain/my_tournaments_providers.dart';
 import '../../../tournaments/domain/tournament_partner_invite.dart';
 import '../../../tournaments/domain/tournament_partner_invite_providers.dart';
 import '../../data/class_agenda_repository.dart';
-import '../../data/mock_athlete_agenda_data.dart';
 import 'athlete_agenda_logic.dart';
 import 'athlete_agenda_models.dart';
 import 'class_agenda_entry.dart';
@@ -159,54 +158,32 @@ final athleteAgendaItemsProvider =
   );
 });
 
+/// "Precisa de você": só pendência real com ação do atleta.
+///
+/// Hoje são os convites de dupla recebidos e ainda em aberto. Ficaram de fora
+/// os desafios de demonstração (`mockAgendaNeedsYouItems`) e o "Confirmar
+/// dupla" por reserva: ele lia `attendanceStatus == 'pending'`, que é o
+/// check-in da arena e vale para toda reserva ainda não jogada.
 final athleteAgendaNeedsYouProvider =
     Provider.autoDispose<List<AthleteAgendaNeedsYouItem>>((ref) {
   final uid = ref.watch(authProvider).valueOrNull?.uid ?? '';
   final invites =
       ref.watch(pendingTournamentPartnerInvitesProvider).valueOrNull ??
           const <TournamentPartnerInvite>[];
-  final bookings = mergeOwnAndGuestBookings(
-    ref.watch(myBookingsStreamProvider).valueOrNull ?? const [],
-    ref.watch(myGuestBookingsStreamProvider).valueOrNull ?? const [],
-  );
 
-  final items = <AthleteAgendaNeedsYouItem>[...mockAgendaNeedsYouItems()];
-
-  for (final invite in invites) {
-    if (!invite.isPending || invite.isExpired) continue;
-    if (uid.isNotEmpty &&
-        invite.inviteeUid != uid &&
-        invite.inviterUid != uid) {
-      continue;
-    }
-    items.add(
-      AthleteAgendaNeedsYouItem(
-        id: 'invite-${invite.id}',
-        kind: AthleteAgendaNeedsYouKind.partnerInvite,
-        title: '${invite.inviterName} convidou você',
-        subtitle: 'Torneio · dupla',
-        meta: 'Responda antes do prazo',
-        statusLabel: 'CONVITE PENDENTE',
-        inviteId: invite.id,
-      ),
-    );
-  }
-
-  for (final booking in bookings) {
-    if (booking.attendanceConfirmed) continue;
-    if (booking.attendanceStatus != 'pending') continue;
-    items.add(
-      AthleteAgendaNeedsYouItem(
-        id: 'booking-${booking.id}',
-        kind: AthleteAgendaNeedsYouKind.bookingConfirmation,
-        title: 'Confirmar dupla',
-        subtitle: booking.arenaName,
-        meta: '${booking.startTime} · ${booking.courtName ?? 'Quadra'}',
-        statusLabel: 'PENDENTE',
-        bookingId: booking.id,
-      ),
-    );
-  }
-
-  return items;
+  return [
+    for (final invite in invites)
+      if (invite.isPending &&
+          !invite.isExpired &&
+          (uid.isEmpty || invite.inviteeUid == uid))
+        AthleteAgendaNeedsYouItem(
+          id: 'invite-${invite.id}',
+          kind: AthleteAgendaNeedsYouKind.partnerInvite,
+          title: '${invite.inviterName} convidou você',
+          subtitle: 'Torneio · dupla',
+          meta: 'Responda antes do prazo',
+          statusLabel: 'CONVITE PENDENTE',
+          inviteId: invite.id,
+        ),
+  ];
 });

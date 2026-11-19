@@ -144,9 +144,9 @@ List<CapacityTime> buildCapacityTimes({
   final out = <CapacityTime>[];
   for (final start in starts) {
     var free = 0;
-    _Chain? sample;
+    SlotChain? sample;
     for (final list in byCourt.values) {
-      final chain = _chainFrom(list, start, durationMinutes);
+      final chain = slotChainFrom(list, start, durationMinutes);
       if (chain == null) continue;
       sample ??= chain;
       if (chain.allAvailable) free++;
@@ -164,21 +164,31 @@ List<CapacityTime> buildCapacityTimes({
   return out;
 }
 
-class _Chain {
-  _Chain(this.starts, this.endTime, this.allAvailable);
+/// Slots contíguos de uma quadra que fecham uma duração (ver [slotChainFrom]).
+class SlotChain {
+  const SlotChain(this.starts, this.endTime, this.allAvailable, this.priceReais);
+
+  /// Inícios dos slots cobertos, em ordem.
   final List<String> starts;
   final String endTime;
+
+  /// Todos os slots da cadeia ainda podem ser reservados.
   final bool allAvailable;
+
+  /// Soma do preço dos slots (promoção já aplicada); `null` se algum não tem preço.
+  final double? priceReais;
 }
 
 /// Slots contíguos da quadra que somam [minutes] a partir de [start]; `null` se a grade da
-/// quadra não fecha a duração (buraco, fim do dia ou passo diferente).
-_Chain? _chainFrom(List<ArenaSlot> slots, String start, int minutes) {
+/// quadra não fecha a duração (buraco, fim do dia ou passo diferente). [slots] é de uma quadra
+/// só, ordenado pelo início.
+SlotChain? slotChainFrom(List<ArenaSlot> slots, String start, int minutes) {
   final index = slots.indexWhere((s) => _hm(s.startTime) == start);
   if (index < 0) return null;
   final starts = <String>[];
   var covered = 0;
   var available = true;
+  double? price = 0;
   var cursor = _toMinutes(start);
   for (var i = index; i < slots.length && covered < minutes; i++) {
     final s = slots[i];
@@ -187,11 +197,14 @@ _Chain? _chainFrom(List<ArenaSlot> slots, String start, int minutes) {
     if (end <= cursor) end += 24 * 60;
     starts.add(_hm(s.startTime));
     if (!s.isSelectable) available = false;
+    final slotPrice = s.priceReais;
+    price = (price == null || slotPrice == null) ? null : price + slotPrice;
     covered += end - cursor;
     cursor = end % (24 * 60);
   }
   if (covered != minutes) return null;
-  return _Chain(starts, _fmt(cursor), available);
+  final total = price == null ? null : (price * 100).roundToDouble() / 100;
+  return SlotChain(starts, _fmt(cursor), available, total);
 }
 
 String _hm(String raw) {

@@ -415,7 +415,6 @@ class _RentalCard extends ConsumerWidget {
     final partnerInitials = rental.partnerInitials ?? '??';
     final showPartner = partnerName != null && partnerName.isNotEmpty;
     final showWeather = rental.startAt.hour >= 17 && !isCanceled;
-    final showTravel = isFuture && !isCanceled;
     final showActions = isFuture && !isCanceled;
     final showStory =
         !rental.needsPayment && isBookingStoryShareable(rental.rawStatus);
@@ -534,27 +533,6 @@ class _RentalCard extends ConsumerWidget {
                   //   ),
                 ],
               ),
-              if (showTravel) ...[
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.place_outlined,
-                      size: 15,
-                      color: context.themeColors.onSurfaceMuted,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '14 min · car',
-                      style: AppTypography.mono(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: context.themeColors.onSurfaceMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
               if (showActions) ...[
                 const SizedBox(height: 14),
                 Row(

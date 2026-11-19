@@ -130,7 +130,7 @@ void main() {
   });
 
   group('clubSession nos contadores e filtros da agenda', () {
-    test('conta no chip de aluguéis e aparece no filtro rentals', () {
+    test('conta no chip de Reservas e aparece no filtro rentals', () {
       final club = mapClubParticipationToAgendaItem(participant())!;
 
       final counts = countAgendaFilters([club]);
@@ -139,16 +139,8 @@ void main() {
       expect(counts.tournaments, 0);
       expect(counts.challenges, 0);
 
-      final filtered = filterAgendaItems(
-        items: [club],
-        filter: AthleteAgendaFilter.rentals,
-        viewMode: AthleteAgendaViewMode.month,
-        selectedDay: DateTime(2026, 7, 24),
-        visibleMonth: DateTime(2026, 7),
-        now: DateTime(2026, 7, 20, 12),
-      );
-      expect(filtered, hasLength(1));
-      expect(filtered.single.kind, AthleteAgendaItemKind.clubSession);
+      expect(matchesAgendaFilter(club, AthleteAgendaFilter.rentals), isTrue);
+      expect(club.kind, AthleteAgendaItemKind.clubSession);
     });
 
     test('sessão que já passou usa o fim real (não some antes da hora)', () {

@@ -13,7 +13,7 @@ import '../../../tournaments/domain/tournament_listing_status.dart';
 import 'athlete_agenda_models.dart';
 import 'class_agenda_entry.dart';
 
-/// Cores por tipo de evento (strip, cards, chips).
+/// Cores por tipo de evento (cards, chips, pontos do seletor de data).
 const athleteAgendaRentalAccent = Color(0xFF6EB5FF);
 const athleteAgendaTournamentAccent = Color(0xFF9B8CFF);
 const athleteAgendaChallengeAccent = Color(0xFFFF6B9D);
@@ -575,8 +575,8 @@ AthleteAgendaTimeTabCounts countAgendaTimeTabs(
 }
 
 /// O item ocupa [day] na agenda? Torneio de vários dias ocupa do primeiro ao
-/// último dia do evento: no domingo das finais ele continua na lista, nos
-/// pontos da faixa de dias e no mês. O resto ocupa só o dia em que começa,
+/// último dia do evento: no domingo das finais ele continua em Próximos e
+/// nos pontos do seletor de data. O resto ocupa só o dia em que começa,
 /// mesmo que a reserva atravesse a meia-noite.
 bool agendaItemOccursOn(AthleteAgendaItem item, DateTime day) {
   final target = dateOnly(day);
@@ -593,17 +593,6 @@ bool agendaItemOccursOn(AthleteAgendaItem item, DateTime day) {
   }
   final last = dateOnly(end);
   return (first, last.isBefore(first) ? first : last);
-}
-
-/// O item ocupa algum dia entre [rangeStart] e [rangeEnd] (inclusivos)?
-bool _agendaItemOverlapsDays(
-  AthleteAgendaItem item,
-  DateTime rangeStart,
-  DateTime rangeEnd,
-) {
-  final (first, last) = _agendaItemDaySpan(item);
-  return !last.isBefore(dateOnly(rangeStart)) &&
-      !first.isAfter(dateOnly(rangeEnd));
 }
 
 /// O item entra no filtro da fileira de chips? "Reservas" inclui o Clubinho;
@@ -629,65 +618,6 @@ bool matchesAgendaQuery(AthleteAgendaItem item, String query) {
   if (q.isEmpty) return true;
   return item.title.toLowerCase().contains(q) ||
       item.subtitle.toLowerCase().contains(q);
-}
-
-List<AthleteAgendaItem> filterAgendaItems({
-  required List<AthleteAgendaItem> items,
-  required AthleteAgendaFilter filter,
-  required AthleteAgendaViewMode viewMode,
-  required DateTime selectedDay,
-  required DateTime visibleMonth,
-  AthleteAgendaTimeTab timeTab = AthleteAgendaTimeTab.upcoming,
-  String query = '',
-  DateTime? now,
-}) {
-  final clock = now ?? DateTime.now();
-  Iterable<AthleteAgendaItem> filtered = items;
-
-  // Dia específico em foco (viewMode == day, fora da aba "Passados"): mostra
-  // os jogos do dia mesmo que já tenham acontecido — só reserva cancelada
-  // continua escondida. A exclusão de itens passados da aba "Próximos" só
-  // faz sentido pra visão geral (mês), não pro dia que o atleta escolheu ver.
-  final dayInFocus = viewMode == AthleteAgendaViewMode.day &&
-      timeTab == AthleteAgendaTimeTab.upcoming;
-
-  if (dayInFocus) {
-    filtered = filtered.where((i) => !i.isCanceled);
-  } else {
-    filtered = switch (timeTab) {
-      AthleteAgendaTimeTab.upcoming => filtered.where(
-          (i) => !isAgendaItemPast(i, now: clock),
-        ),
-      AthleteAgendaTimeTab.past => filtered.where(
-          (i) => isAgendaItemPast(i, now: clock),
-        ),
-    };
-  }
-
-  filtered = filtered.where((i) => matchesAgendaFilter(i, filter));
-
-  if (viewMode == AthleteAgendaViewMode.month) {
-    final monthStart = startOfMonth(visibleMonth);
-    final monthEnd = endOfMonth(visibleMonth);
-    filtered = filtered.where(
-      (i) => _agendaItemOverlapsDays(i, monthStart, monthEnd),
-    );
-  } else if (timeTab != AthleteAgendaTimeTab.past) {
-    filtered = filtered.where((i) => agendaItemOccursOn(i, selectedDay));
-  }
-
-  filtered = filtered.where((i) => matchesAgendaQuery(i, query));
-
-  // Próximos: ordem do relógio (18h antes de 21h), porque a lista do dia é
-  // desenhada como linha do tempo. Passados: o mais recente primeiro.
-  final mostRecentFirst = timeTab == AthleteAgendaTimeTab.past;
-  final copy = filtered.toList()
-    ..sort(
-      (a, b) => mostRecentFirst
-          ? b.startsAt.compareTo(a.startsAt)
-          : a.startsAt.compareTo(b.startsAt),
-    );
-  return copy;
 }
 
 AthleteAgendaDaySummary buildDaySummary(
@@ -778,221 +708,6 @@ List<AthleteAgendaMonthDay> buildAgendaMonthDayMarkers({
       date: date,
       dayNumber: date.day,
       isToday: isSameDay(date, today),
-      isSelected: isSameDay(date, anchor),
-      rentalDots: rentals,
-      trainingDots: trainings,
-      tournamentDots: tournaments,
-      challengeDots: challenges,
-      eventCount: dayItems.length,
-    );
-  });
-}
-
-int countFreeDaysInMonth(
-  DateTime visibleMonth,
-  List<AthleteAgendaItem> items, {
-  DateTime? now,
-  AthleteAgendaTimeTab timeTab = AthleteAgendaTimeTab.upcoming,
-}) {
-  final monthStart = startOfMonth(visibleMonth);
-  final totalDays = daysInMonth(visibleMonth);
-  final today = dateOnly(now ?? DateTime.now());
-  var free = 0;
-
-  for (var d = 1; d <= totalDays; d++) {
-    final date = DateTime(monthStart.year, monthStart.month, d);
-    if (timeTab == AthleteAgendaTimeTab.upcoming && date.isBefore(today)) {
-      continue;
-    }
-    final hasEvents = items.any((i) => agendaItemOccursOn(i, date));
-    if (!hasEvents) free++;
-  }
-  return free;
-}
-
-Color dominantAgendaKindColor(List<AthleteAgendaItem> items) {
-  var rentals = 0;
-  var trainings = 0;
-  var tournaments = 0;
-  var challenges = 0;
-  for (final item in items) {
-    switch (item.kind) {
-      case AthleteAgendaItemKind.rental:
-      case AthleteAgendaItemKind.clubSession:
-        rentals++;
-      case AthleteAgendaItemKind.classSession:
-        trainings++;
-      case AthleteAgendaItemKind.tournament:
-        tournaments++;
-      case AthleteAgendaItemKind.challenge:
-      case AthleteAgendaItemKind.friendlyMatch:
-        challenges++;
-    }
-  }
-  if (tournaments >= rentals &&
-      tournaments >= trainings &&
-      tournaments >= challenges) {
-    return athleteAgendaTournamentAccent;
-  }
-  if (rentals >= trainings && rentals >= challenges) {
-    return athleteAgendaRentalAccent;
-  }
-  if (trainings >= challenges) return athleteAgendaClassSessionAccent;
-  return athleteAgendaChallengeAccent;
-}
-
-String formatMonthSummaryDayTitle(DateTime day) {
-  final weekday = _sectionWeekdayShort(day);
-  final cap = weekday.isEmpty
-      ? weekday
-      : '${weekday[0].toUpperCase()}${weekday.substring(1)}';
-  return '$cap ${day.day}';
-}
-
-String buildMonthSummaryDescription(List<AthleteAgendaItem> items) {
-  if (items.isEmpty) return '';
-  final parts = <String>[];
-  for (final item in items.take(2)) {
-    final label = switch (item.kind) {
-      AthleteAgendaItemKind.rental => 'Reserva',
-      AthleteAgendaItemKind.tournament => 'Torneio',
-      AthleteAgendaItemKind.challenge => 'Desafio',
-      AthleteAgendaItemKind.friendlyMatch => 'Jogo',
-      AthleteAgendaItemKind.clubSession => 'Clubinho',
-      AthleteAgendaItemKind.classSession => 'Aula',
-    };
-    parts.add('$label · ${item.title}');
-  }
-  return parts.join(' · ');
-}
-
-List<AthleteAgendaMonthSummaryRow> buildAgendaMonthSummaryRows({
-  required DateTime visibleMonth,
-  required List<AthleteAgendaItem> items,
-  DateTime? now,
-  AthleteAgendaTimeTab timeTab = AthleteAgendaTimeTab.upcoming,
-  bool reverseDays = false,
-}) {
-  final monthStart = startOfMonth(visibleMonth);
-  final totalDays = daysInMonth(visibleMonth);
-  final today = dateOnly(now ?? DateTime.now());
-  final rows = <AthleteAgendaMonthSummaryRow>[];
-
-  for (var d = 1; d <= totalDays; d++) {
-    final date = DateTime(monthStart.year, monthStart.month, d);
-    if (timeTab == AthleteAgendaTimeTab.upcoming && date.isBefore(today)) {
-      continue;
-    }
-    final dayItems = items
-        .where((i) => agendaItemOccursOn(i, date))
-        .toList(growable: false)
-      ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
-
-    if (dayItems.isEmpty) {
-      rows.add(
-        AthleteAgendaMonthSummaryRow(
-          date: date,
-          title: formatMonthSummaryDayTitle(date),
-          subtitle: 'Livre',
-          description: '',
-          accentColor: AppColors.onSurfaceMuted,
-          isFree: true,
-          eventCount: 0,
-        ),
-      );
-      continue;
-    }
-
-    final count = dayItems.length;
-    rows.add(
-      AthleteAgendaMonthSummaryRow(
-        date: date,
-        title: formatMonthSummaryDayTitle(date),
-        subtitle: count == 1 ? '1 jogo' : '$count jogos',
-        description: buildMonthSummaryDescription(dayItems),
-        accentColor: dominantAgendaKindColor(dayItems),
-        isFree: false,
-        eventCount: count,
-      ),
-    );
-  }
-
-  if (reverseDays) {
-    rows.sort((a, b) => b.date.compareTo(a.date));
-  }
-  return rows;
-}
-
-/// Itens na janela do strip (7 dias), só filtro temporal — sem dia selecionado.
-List<AthleteAgendaItem> filterAgendaItemsForWeekStrip({
-  required List<AthleteAgendaItem> items,
-  required DateTime selectedDay,
-  AthleteAgendaTimeTab timeTab = AthleteAgendaTimeTab.upcoming,
-  DateTime? now,
-  int dayCount = 7,
-  int daysBeforeSelected = 2,
-}) {
-  final clock = now ?? DateTime.now();
-  final anchor = dateOnly(selectedDay);
-  final rangeStart = anchor.subtract(Duration(days: daysBeforeSelected));
-  final rangeEnd = rangeStart.add(Duration(days: dayCount - 1));
-
-  Iterable<AthleteAgendaItem> filtered = items;
-  // A "aba Próximos" só esconde reservas canceladas aqui — os dots do strip
-  // (inclusive de hoje) precisam refletir jogos que já aconteceram, senão o
-  // dia mostra 0 eventos no strip mas a lista abaixo dele mostra os jogos.
-  filtered = switch (timeTab) {
-    AthleteAgendaTimeTab.upcoming => filtered.where((i) => !i.isCanceled),
-    AthleteAgendaTimeTab.past => filtered.where(
-        (i) => isAgendaItemPast(i, now: clock),
-      ),
-  };
-  filtered = filtered.where(
-    (i) => _agendaItemOverlapsDays(i, rangeStart, rangeEnd),
-  );
-  return filtered.toList();
-}
-
-List<AthleteAgendaWeekDay> buildWeekDayStrip({
-  required DateTime selectedDay,
-  required List<AthleteAgendaItem> items,
-  DateTime? now,
-  int dayCount = 7,
-  int daysBeforeSelected = 2,
-}) {
-  final clock = now ?? DateTime.now();
-  final today = dateOnly(clock);
-  final anchor = dateOnly(selectedDay);
-  final start = anchor.subtract(Duration(days: daysBeforeSelected));
-
-  return List.generate(dayCount, (index) {
-    final date = start.add(Duration(days: index));
-    final dayItems =
-        items.where((i) => agendaItemOccursOn(i, date)).toList(growable: false);
-    var rentals = 0;
-    var trainings = 0;
-    var tournaments = 0;
-    var challenges = 0;
-    for (final item in dayItems) {
-      switch (item.kind) {
-        case AthleteAgendaItemKind.rental:
-        case AthleteAgendaItemKind.clubSession:
-          rentals++;
-        case AthleteAgendaItemKind.classSession:
-          trainings++;
-        case AthleteAgendaItemKind.tournament:
-          tournaments++;
-        case AthleteAgendaItemKind.challenge:
-        case AthleteAgendaItemKind.friendlyMatch:
-          challenges++;
-      }
-    }
-    return AthleteAgendaWeekDay(
-      date: date,
-      weekdayLabel: _weekdayFmt.format(date).replaceAll('.', '').toUpperCase(),
-      dayNumber: date.day,
-      isToday: isSameDay(date, today),
-      isPast: date.isBefore(today),
       isSelected: isSameDay(date, anchor),
       rentalDots: rentals,
       trainingDots: trainings,

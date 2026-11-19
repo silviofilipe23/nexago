@@ -75,7 +75,7 @@ void main() {
           isNull);
     });
 
-    test('aula conta e filtra no pill Treinos, fora de Aluguéis', () {
+    test('aula conta e filtra no pill Treinos, fora de Reservas', () {
       final item = mapClassEntryToAgendaItem(entry({}))!;
       final merged = mergeAgendaItems(
           bookings: const [],
@@ -85,30 +85,19 @@ void main() {
       expect(merged.single.kind, AthleteAgendaItemKind.classSession);
       expect(countAgendaFilters(merged).trainings, 1);
       expect(countAgendaFilters(merged).rentals, 0);
-      int countFor(AthleteAgendaFilter filter) => filterAgendaItems(
-            items: merged,
-            filter: filter,
-            viewMode: AthleteAgendaViewMode.day,
-            selectedDay: DateTime(2026, 10, 20),
-            visibleMonth: DateTime(2026, 10),
-            timeTab: AthleteAgendaTimeTab.upcoming,
-            now: DateTime(2026, 10, 19, 12),
-          ).length;
+      int countFor(AthleteAgendaFilter filter) =>
+          merged.where((i) => matchesAgendaFilter(i, filter)).length;
       expect(countFor(AthleteAgendaFilter.trainings), 1);
       expect(countFor(AthleteAgendaFilter.rentals), 0);
       expect(countFor(AthleteAgendaFilter.all), 1);
     });
   });
   group('cor própria de treino', () {
-    test('aula marca ponto, resumo e cor de treino, não de aluguel', () {
+    test('aula marca ponto e resumo de treino, não de reserva', () {
       final item = mapClassEntryToAgendaItem(entry({}))!;
       expect(item.accentColor, isNot(athleteAgendaRentalAccent));
 
       final day = DateTime(2026, 10, 20);
-      final week = buildWeekDayStrip(selectedDay: day, items: [item], now: day);
-      final selected = week.firstWhere((d) => d.isSelected);
-      expect(selected.trainingDots, 1);
-      expect(selected.rentalDots, 0);
 
       final month = buildAgendaMonthDayMarkers(
         visibleMonth: DateTime(2026, 10),
@@ -124,7 +113,6 @@ void main() {
       expect(summary.rentalsToday, 0);
       expect(summary.totalToday, 1);
 
-      expect(dominantAgendaKindColor([item]), athleteAgendaClassSessionAccent);
     });
   });
 }

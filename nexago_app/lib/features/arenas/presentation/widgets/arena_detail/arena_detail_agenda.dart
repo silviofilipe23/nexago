@@ -11,6 +11,7 @@ import '../../../../athlete/domain/athlete_profile_providers.dart';
 import '../../../domain/arena_booking_confirm_args.dart';
 import '../../../domain/arena_court.dart';
 import '../../../domain/arena_detail_agenda_logic.dart';
+import '../../../domain/arena_detail_providers.dart';
 import '../../../domain/arena_list_item.dart';
 import '../../../domain/arena_peak_rule.dart';
 import '../../../domain/arena_slot.dart';
@@ -45,8 +46,9 @@ class ArenaDetailAgenda extends ConsumerStatefulWidget {
     this.clock = DateTime.now,
   });
 
-  /// Dias da faixa: os mesmos 21 da grade de horários.
-  static const int stripDays = 21;
+  /// Dias da faixa: os mesmos 21 da grade de horários. Igual ao horário de
+  /// funcionamento do perfil, para os dois lerem a mesma grade.
+  static const int stripDays = kArenaDetailGridDays;
 
   final ArenaListItem arena;
   final ValueChanged<ArenaDetailAgendaReport> onReport;

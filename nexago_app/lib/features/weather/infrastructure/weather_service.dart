@@ -207,6 +207,22 @@ class WeatherService {
     return BookingWeatherForecast.fromMap(data);
   }
 
+  /// Previsão de um horário escolhido no perfil da arena, ainda sem reserva.
+  Future<BookingWeatherForecast> slotForecast({
+    required String arenaId,
+    required String dateKey,
+    required String startTime,
+    required String endTime,
+  }) async {
+    final data = await _call('getArenaSlotWeatherForecast', <String, dynamic>{
+      'arenaId': arenaId.trim(),
+      'date': dateKey.trim(),
+      'startTime': startTime.trim(),
+      'endTime': endTime.trim(),
+    });
+    return BookingWeatherForecast.fromMap(data);
+  }
+
   Future<void> withdrawRequest({required String bookingId}) async {
     await _call('withdrawArenaWeatherRequest', <String, dynamic>{
       'bookingId': bookingId.trim(),

@@ -3174,6 +3174,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // "Horários mais movimentados" do perfil público da arena: desenho relativo (0–100) por
+    // dia da semana e hora, sem contagem nem nome. Grava só a agendada `refreshArenaPopularTimes`.
+    match /arenaPopularTimes/{arenaId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Avaliar aulas (treino com presença): só o próprio aluno lê a dele; grava só a callable
     // `submitClassReview`. A gestão vai ler por callable (sem o uid de quem escondeu o nome).
     match /classReviews/{reviewId} {

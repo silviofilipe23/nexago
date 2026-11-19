@@ -899,6 +899,7 @@ export {
 } from "./arena-coupons";
 // --- Relatórios de ocupação de quadra (gestor de arena) ---
 export {getArenaOccupancyReport} from "./arena-occupancy-report";
+export {refreshArenaPopularTimes} from "./arena-popular-times";
 // CRM da arena: base de clientes, contratos de mensalista, filas do time e conversão de avulso.
 export {getArenaCrmOverview, getArenaCrmCustomer, updateArenaCrm} from "./arena-crm";
 export {getArenaBookingContacts} from "./arena-booking-contacts";
@@ -1150,6 +1151,7 @@ export {
   chooseArenaWeatherOption,
   decideArenaWeatherRequest,
   endArenaRainMode,
+  getArenaSlotWeatherForecast,
   getArenaWeatherForecast,
   getBookingWeatherForecast,
   previewArenaRainMode,

@@ -211,4 +211,53 @@ void main() {
       );
     });
   });
+
+  group('getArenaSlotWeatherForecast', () {
+    test('manda arena, data e horário e lê as horas', () async {
+      final f = FakeWeatherFunctions(responses: {
+        'getArenaSlotWeatherForecast': {
+          'forecast': {
+            'hours': [
+              {'time': '19:00', 'probability': 60, 'precipitationMm': 2.5},
+            ],
+            'source': 'open-meteo',
+            'fetchedAt': '2030-11-08T12:00:00.000Z',
+          },
+          'availableFrom': null,
+        },
+      });
+      final r = await serviceWith(f).slotForecast(
+        arenaId: ' a1 ',
+        dateKey: '2030-11-08',
+        startTime: '19:00',
+        endTime: '20:00',
+      );
+      expect(f.payloadOf('getArenaSlotWeatherForecast'), {
+        'arenaId': 'a1',
+        'date': '2030-11-08',
+        'startTime': '19:00',
+        'endTime': '20:00',
+      });
+      expect(r.hours.single.probability, 60);
+      expect(r.sourceLabel, 'Open-Meteo');
+      expect(r.availableFrom, isNull);
+    });
+
+    test('longe demais: só a data em que a previsão chega', () async {
+      final f = FakeWeatherFunctions(responses: {
+        'getArenaSlotWeatherForecast': {
+          'forecast': null,
+          'availableFrom': '2030-11-20',
+        },
+      });
+      final r = await serviceWith(f).slotForecast(
+        arenaId: 'a1',
+        dateKey: '2030-12-04',
+        startTime: '19:00',
+        endTime: '20:00',
+      );
+      expect(r.hours, isEmpty);
+      expect(r.availableFrom, DateTime(2030, 11, 20));
+    });
+  });
 }

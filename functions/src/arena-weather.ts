@@ -29,7 +29,14 @@ import {
   WEB_PUSH_PUBLIC_KEY,
   WEB_PUSH_SUBJECT,
 } from "./notification-delivery";
-import {fetchArenaWeather, weatherDaysAround, WEATHER_API_KEY} from "./arena-weather-forecast";
+import {
+  fetchArenaWeather,
+  slotWeatherForecast,
+  weatherDaysAround,
+  WEATHER_API_KEY,
+  type FetchLike,
+  type SlotWeatherForecast,
+} from "./arena-weather-forecast";
 import {
   ARENA_WEATHER_CREDITS,
   weatherCreditDoc,
@@ -554,13 +561,34 @@ export const getBookingWeatherForecast = onCall({
   const availableFrom = addDaysToDateKey(dateKey, -WEATHER_FORECAST_HORIZON_DAYS);
   if (spNow(new Date()).dateKey < availableFrom) return {forecast: null, availableFrom};
   const arena = await loadArena(db, arenaId);
-  const weather = await fetchArenaWeather(arena.data, dateKey);
-  if (!weather) return {forecast: null, availableFrom: null};
-  const days = await weatherDaysAround(arena.data, dateKey, win, weather.hours);
-  return {
-    forecast: {hours: weatherDisplayHours(days, win), source: weather.source, fetchedAt: new Date().toISOString()},
-    availableFrom: null,
-  };
+  return slotWeatherForecast(arena.data, dateKey, win);
+});
+
+/**
+ * Previsão de um horário que o atleta escolheu no perfil da arena, antes de reservar: mesma
+ * janela e mesmo horizonte da previsão da reserva. Só arena parceira (a pré-cadastrada não
+ * tem agenda no app).
+ */
+export async function getArenaSlotWeatherForecastCore(
+  db: Firestore,
+  rawInput: unknown,
+  options: {fetchImpl?: FetchLike; nowMs?: number; apiKey?: string} = {},
+): Promise<SlotWeatherForecast> {
+  const data = (rawInput ?? {}) as {arenaId?: unknown; date?: unknown; startTime?: unknown; endTime?: unknown};
+  const arenaId = requireText(data.arenaId, "arenaId");
+  const date = requireDateKey(data.date);
+  const win = requirePeriod(data.startTime, data.endTime);
+  const arena = await loadArena(db, arenaId);
+  if (arena.data["unclaimed"] === true) throw new HttpsError("not-found", "Arena não encontrada.");
+  return slotWeatherForecast(arena.data, date, win, options);
+}
+
+export const getArenaSlotWeatherForecast = onCall({
+  region: CLIENT_FACING_REGIONS,
+  secrets: [WEATHER_API_KEY],
+}, async (request) => {
+  requireUid(request);
+  return getArenaSlotWeatherForecastCore(getFirestore(), request.data);
 });
 
 // ── Modo chuva ───────────────────────────────────────────────────────────

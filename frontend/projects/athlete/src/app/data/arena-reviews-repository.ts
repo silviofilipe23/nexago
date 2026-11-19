@@ -35,7 +35,14 @@ export interface SubmitArenaReviewInput {
   userId: string;
   rating: number;
   comment: string | null;
+  /** Opções marcadas (destaques ou o que melhorar), já ordenadas. Vazio = campo ausente. */
+  tags?: readonly string[];
+  /** "A quadra foi liberada no horário?" — null/ausente quando não respondida. */
+  onTime?: boolean | null;
 }
+
+/** Limite das rules para `tags` em `arena_reviews`. */
+const MAX_REVIEW_TAGS = 10;
 
 function readString(data: Record<string, unknown>, keys: readonly string[]): string {
   for (const key of keys) {
@@ -74,6 +81,12 @@ export function validateBookingForReview(
   return null;
 }
 
+/** `tags` como o app grava: sem vazio, sem repetição, em ordem de unidade UTF-16 (a do
+ *  `List.sort()` do Dart), para o mesmo conjunto virar a mesma lista nas duas origens. */
+export function normalizeReviewTags(tags: readonly string[]): string[] {
+  return [...new Set(tags.map((t) => t.trim()).filter((t) => t.length > 0))].sort();
+}
+
 export async function submitArenaReview(
   db: Firestore,
   input: SubmitArenaReviewInput,
@@ -87,6 +100,8 @@ export async function submitArenaReview(
   if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) {
     throw new ArenaReviewError('A nota deve estar entre 1 e 5.');
   }
+  const tags = normalizeReviewTags(input.tags ?? []);
+  if (tags.length > MAX_REVIEW_TAGS) throw new ArenaReviewError('Escolha no máximo 10 opções.');
 
   const existing = await getDocs(
     query(collection(db, ARENA_REVIEWS), where('bookingId', '==', bookingId), limit(1)),
@@ -110,6 +125,10 @@ export async function submitArenaReview(
     bookingId,
     rating: input.rating,
     comment: comment.length > 0 ? comment : null,
+    // Opções como dado (somáveis no perfil da arena), no mesmo formato do app; o texto
+    // "Destaques: …"/"A melhorar: …" segue em `comment` para quem só lê o comentário.
+    ...(tags.length > 0 ? { tags } : {}),
+    ...(typeof input.onTime === 'boolean' ? { onTime: input.onTime } : {}),
     likesCount: 0,
     reported: false,
     createdAt: serverTimestamp(),

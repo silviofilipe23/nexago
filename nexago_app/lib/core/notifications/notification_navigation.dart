@@ -3,13 +3,10 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../auth/auth_providers.dart';
+import '../auth/settled_session.dart';
 import '../deep_link/deep_link_providers.dart';
 import '../links/open_external_url.dart';
 import '../router/routes.dart';
-
-/// Tempo máximo esperando a sessão assentar antes de decidir o destino.
-const _sessionSettleTimeout = Duration(seconds: 8);
 
 /// Mensalidade de aula com fatura online (`ensureClassAsaasPayment` em
 /// `functions/src/asaas-class-billing.ts`): "Toque para pagar com PIX ou cartão".
@@ -275,7 +272,7 @@ Future<void> navigateFromNotificationData(
   // Cold start (toque com o app fechado): o payload chega antes do Firebase
   // Auth restaurar a sessão. Navegar nesse instante mandava o atleta para o
   // login e o destino se perdia — o convite nunca abria.
-  final hasSession = await _awaitSettledSession(ref);
+  final hasSession = await awaitSettledSession(ref);
   final destination = resolveNotificationTapDestination(
     data: data,
     hasSession: hasSession,
@@ -293,19 +290,6 @@ Future<void> navigateFromNotificationData(
   WidgetsBinding.instance.addPostFrameCallback((_) {
     router.go(destination.path);
   });
-}
-
-/// Espera a primeira resolução do estado de auth (sessão restaurada ou não).
-Future<bool> _awaitSettledSession(WidgetRef ref) async {
-  final current = ref.read(authProvider);
-  if (!current.isLoading) return current.valueOrNull != null;
-  try {
-    final user =
-        await ref.read(authProvider.future).timeout(_sessionSettleTimeout);
-    return user != null;
-  } catch (_) {
-    return ref.read(authProvider).valueOrNull != null;
-  }
 }
 
 /// Destino da notificação de VAGA LIBERADA, montado a partir dos ids.

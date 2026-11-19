@@ -470,7 +470,7 @@ abstract final class AppRoutes {
   static const String bookingArenaReview = '/booking/:bookingId/review';
 
   /// Detalhe da reserva só pelo id. Destino do push `arena_review_request`
-  /// ("Como foi o jogo?"), cujo `url` é `/my-bookings` para os apps antigos.
+  /// ("Como foi jogar na arena?"), cujo `url` é `/my-bookings` para os apps antigos.
   static const String bookingDetailsById = '/booking/:bookingId/details';
 
   /// Créditos de chuva do atleta (saldo por arena, validade, usados/vencidos).

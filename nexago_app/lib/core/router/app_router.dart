@@ -187,6 +187,8 @@ import '../../features/benefits_club/presentation/partner_lead_form_page.dart';
 import '../../features/cashback/presentation/cashback_page.dart';
 import '../../features/weather/presentation/booking_weather_choice_page.dart';
 import '../../features/athlete/presentation/arena_review_page.dart';
+import '../../features/athlete/presentation/widgets/arena_review/arena_review_widgets.dart'
+    show arenaReviewRatingQuery, parseArenaReviewRatingQuery;
 import '../../features/athlete/presentation/athlete_waitlist_page.dart';
 import '../../features/athlete/presentation/booking_details_by_id_page.dart';
 import '../../features/athlete_billing/presentation/athlete_billing_routes.dart';
@@ -1744,6 +1746,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.bookingArenaReview,
         builder: (context, state) => ArenaReviewPage(
           bookingId: state.pathParameters['bookingId']?.trim() ?? '',
+          initialRating: parseArenaReviewRatingQuery(
+            state.uri.queryParameters[arenaReviewRatingQuery],
+          ),
         ),
       ),
       GoRoute(

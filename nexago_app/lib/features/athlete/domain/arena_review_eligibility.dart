@@ -1,4 +1,5 @@
 import '../../arenas/domain/my_booking_item.dart';
+import 'arena_review_form_logic.dart';
 
 /// Quando a reserva entra na fila de avaliação: 5 minutos depois do fim — o mesmo
 /// atraso do portal (`pending-arena-review.ts`) e do push `arena_review_request`.
@@ -13,16 +14,6 @@ const int arenaReviewXp = 10;
 
 /// Comentário livre, somado aos destaques escolhidos.
 const int arenaReviewCommentMax = 500;
-
-/// Destaques rápidos (viram a 1ª linha do comentário: "Destaques: …").
-const List<String> arenaReviewHighlights = <String>[
-  'Quadra impecável',
-  'Atendimento',
-  'Iluminação',
-  'Vestiário',
-  'Pontualidade',
-  'Estacionamento',
-];
 
 DateTime? _dateOnly(String raw) {
   final value = raw.trim();
@@ -114,13 +105,23 @@ MyBookingItem? pickPendingArenaReview(
   return best;
 }
 
-/// Comentário gravado: destaques na 1ª linha, texto livre embaixo; null quando vazio.
-String? composeArenaReviewComment(Iterable<String> highlights, String text) {
-  final tags = highlights.toList()..sort();
+/// Comentário gravado: opções marcadas na 1ª linha ("Destaques: …" no elogio, o
+/// formato que o portal e os apps antigos já leem; "A melhorar: …" na nota baixa),
+/// texto livre embaixo; null quando vazio.
+String? composeArenaReviewComment(
+  Iterable<String> tags,
+  String text, {
+  ArenaReviewTone tone = ArenaReviewTone.praise,
+}) {
+  final sorted = tags.toList()..sort();
   final userText = text.trim();
-  if (tags.isEmpty && userText.isEmpty) return null;
+  if (sorted.isEmpty && userText.isEmpty) return null;
+  final heading = switch (tone) {
+    ArenaReviewTone.praise => 'Destaques',
+    ArenaReviewTone.improve => 'A melhorar',
+  };
   final buffer = StringBuffer();
-  if (tags.isNotEmpty) buffer.write('Destaques: ${tags.join(', ')}');
+  if (sorted.isNotEmpty) buffer.write('$heading: ${sorted.join(', ')}');
   if (userText.isNotEmpty) {
     if (buffer.isNotEmpty) buffer.writeln();
     buffer.write(userText);

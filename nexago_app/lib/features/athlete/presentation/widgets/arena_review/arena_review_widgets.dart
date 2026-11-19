@@ -7,25 +7,48 @@ import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/arena_review_eligibility.dart';
+import '../../../domain/arena_review_form_logic.dart';
 import '../../../domain/arena_review_providers.dart';
 
-/// Abre "Avaliar reserva" (`/booking/:bookingId/review`).
-void openArenaReview(BuildContext context, String bookingId) {
+/// Query da nota já escolhida (estrela tocada no cartão da Agenda).
+const String arenaReviewRatingQuery = 'nota';
+
+/// Abre "Avaliar a arena" (`/booking/:bookingId/review`). [rating] chega da estrela
+/// tocada no cartão da Agenda e já vem marcada na tela.
+void openArenaReview(BuildContext context, String bookingId, {int? rating}) {
   context.pushNamed(
     AppRouteNames.bookingArenaReview,
     pathParameters: {'bookingId': bookingId},
+    queryParameters: {
+      if (rating != null && rating >= 1 && rating <= 5)
+        arenaReviewRatingQuery: '$rating',
+    },
   );
+}
+
+/// Lê a nota da query; fora de 1–5 vira null.
+int? parseArenaReviewRatingQuery(String? raw) {
+  final value = int.tryParse(raw?.trim() ?? '');
+  if (value == null || value < 1 || value > 5) return null;
+  return value;
 }
 
 const _weekdays = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 
-/// Cor do humor da nota: verde do bom pra cima, amarelo no regular, laranja abaixo.
+/// Cor do humor da nota: verde do bom pra cima, amarelo no regular, vermelho abaixo
+/// (nota ruim precisa parecer ruim, e não com o laranja da marca).
 Color arenaReviewMoodColor(BuildContext context, int? rating) {
   final colors = context.themeColors;
   if (rating == null) return colors.onSurfaceMuted;
   if (rating >= 4) return colors.win;
   if (rating == 3) return colors.pending;
-  return colors.brandText;
+  return colors.live;
+}
+
+/// Cor da estrela cheia: a marca na nota boa, o tom do humor na regular e na ruim.
+Color arenaReviewStarColor(BuildContext context, int? rating) {
+  if (rating == null || rating >= 4) return AppColors.brand;
+  return arenaReviewMoodColor(context, rating);
 }
 
 /// Selo "+10 XP" em mono. [onBrand] é a versão sobre o botão laranja.
@@ -188,6 +211,10 @@ class _Pill extends StatelessWidget {
   }
 }
 
+const double _starGap = 8;
+const double _starMinTile = 44;
+const double _starMaxTile = 56;
+
 /// Estrelas como herói: cinco alvos de 56 px, humor da nota acima e régua embaixo.
 class ArenaReviewStarHero extends StatelessWidget {
   const ArenaReviewStarHero({
@@ -205,11 +232,12 @@ class ArenaReviewStarHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final scaleStyle = AppTypography.mono(
-      fontSize: 9.5,
+      fontSize: 10,
       fontWeight: FontWeight.w500,
       letterSpacing: 1.1,
       color: colors.onSurfaceMuted,
     );
+    final starColor = arenaReviewStarColor(context, rating);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -223,55 +251,62 @@ class ArenaReviewStarHero extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(5, (index) {
-            final star = index + 1;
-            final filled = (rating ?? 0) >= star;
-            return Padding(
-              padding: EdgeInsets.only(left: index == 0 ? 0 : 8),
-              child: Semantics(
-                button: true,
-                selected: rating == star,
-                label: '$star de 5',
-                child: Material(
-                  color: filled
-                      ? AppColors.brand.withValues(alpha: 0.10)
-                      : colors.surfaceCard,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(
+        LayoutBuilder(
+          builder: (context, constraints) {
+            // 56 px quando cabe; em tela estreita (320 pt) encolhe até 44.
+            final tile = ((constraints.maxWidth - _starGap * 4) / 5)
+                .clamp(_starMinTile, _starMaxTile)
+                .toDouble();
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                final star = index + 1;
+                final filled = (rating ?? 0) >= star;
+                return Padding(
+                  padding: EdgeInsets.only(left: index == 0 ? 0 : _starGap),
+                  child: Semantics(
+                    button: true,
+                    selected: rating == star,
+                    label: '$star de 5',
+                    child: Material(
                       color: filled
-                          ? AppColors.brand.withValues(alpha: 0.55)
-                          : colors.outline.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  child: InkWell(
-                    key: ValueKey('arena-review-star-$star'),
-                    borderRadius: BorderRadius.circular(14),
-                    onTap: enabled ? () => onChanged(star) : null,
-                    child: SizedBox(
-                      width: 56,
-                      height: 56,
-                      child: AnimatedScale(
-                        scale: filled ? 1 : 0.92,
-                        duration: const Duration(milliseconds: 180),
-                        curve: Curves.easeOutBack,
-                        child: Icon(
-                          filled
-                              ? Icons.star_rounded
-                              : Icons.star_outline_rounded,
-                          size: 30,
-                          color:
-                              filled ? AppColors.brand : colors.onSurfaceMuted,
+                          ? starColor.withValues(alpha: 0.10)
+                          : colors.surfaceCard,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                          color: filled
+                              ? starColor.withValues(alpha: 0.55)
+                              : colors.outline.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: InkWell(
+                        key: ValueKey('arena-review-star-$star'),
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: enabled ? () => onChanged(star) : null,
+                        child: SizedBox(
+                          width: tile,
+                          height: tile,
+                          child: AnimatedScale(
+                            scale: filled ? 1 : 0.92,
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOutBack,
+                            child: Icon(
+                              filled
+                                  ? Icons.star_rounded
+                                  : Icons.star_outline_rounded,
+                              size: 30,
+                              color: filled ? starColor : colors.onSurfaceMuted,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
+                );
+              }),
             );
-          }),
+          },
         ),
         const SizedBox(height: 8),
         Padding(
@@ -282,6 +317,17 @@ class ArenaReviewStarHero extends StatelessWidget {
               Text('PÉSSIMO', style: scaleStyle),
               Text('EXCELENTE', style: scaleStyle),
             ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          arenaReviewHint(rating),
+          key: const ValueKey('arena-review-hint'),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.35,
+            color: colors.onSurface.withValues(alpha: 0.78),
           ),
         ),
       ],
@@ -296,39 +342,55 @@ class ArenaReviewChip extends StatelessWidget {
     required this.label,
     required this.selected,
     this.onTap,
+    this.critical = false,
   });
 
   final String label;
   final bool selected;
   final VoidCallback? onTap;
 
+  /// Opção de "o que melhorar": marcada fica no tom de alerta, não no laranja cheio.
+  final bool critical;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    return Material(
-      color: selected ? AppColors.brand : colors.surfaceCard,
-      shape: StadiumBorder(
-        side: BorderSide(
-          color: selected
-              ? AppColors.brand
-              : colors.outline.withValues(alpha: 0.45),
-        ),
-      ),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: selected
-                  ? AppColors.black
-                  : colors.onSurface.withValues(alpha: 0.8),
+    final Color fill;
+    final Color border;
+    final Color text;
+    if (!selected) {
+      fill = colors.surfaceCard;
+      border = colors.outline.withValues(alpha: 0.45);
+      text = colors.onSurface.withValues(alpha: 0.8);
+    } else if (critical) {
+      fill = colors.live.withValues(alpha: 0.14);
+      border = colors.live;
+      text = colors.live;
+    } else {
+      fill = AppColors.brand;
+      border = AppColors.brand;
+      text = AppColors.black;
+    }
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: fill,
+        shape: StadiumBorder(side: BorderSide(color: border)),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: text,
+              ),
             ),
           ),
         ),

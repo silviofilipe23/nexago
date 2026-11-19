@@ -1,15 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
+import '../../../../../core/observability/analytics_log.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/arena_review.dart';
 import '../../../domain/arena_review_providers.dart';
 import '../arena_review/arena_review_widgets.dart';
 
-/// Convite "Como foi o jogo?" no topo da Agenda (canvas "Avaliação da arena
+/// Convite "Como foi jogar na arena?" no topo da Agenda (canvas "Avaliação da arena
 /// depois do horário" 01): a reserva concluída mais recente que ainda não foi avaliada.
+/// Tocar numa estrela abre a tela já com a nota; "Agora não" vale para aquela reserva
+/// também depois de reabrir o app.
 class AgendaReviewPromptCard extends ConsumerWidget {
   const AgendaReviewPromptCard({super.key});
 
@@ -21,10 +26,12 @@ class AgendaReviewPromptCard extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
       child: AgendaReviewPromptView(
         pending: pending,
-        onReview: () => openArenaReview(context, pending.bookingId),
-        onDismiss: () => ref
-            .read(dismissedArenaReviewsProvider.notifier)
-            .update((ids) => {...ids, pending.bookingId}),
+        onRate: (rating) =>
+            openArenaReview(context, pending.bookingId, rating: rating),
+        onDismiss: () {
+          logAnalytics(ref, (a) => a.logArenaReviewPromptDismissed());
+          unawaited(dismissArenaReviewPrompt(ref, pending.bookingId));
+        },
       ),
     );
   }
@@ -34,12 +41,14 @@ class AgendaReviewPromptView extends StatelessWidget {
   const AgendaReviewPromptView({
     super.key,
     required this.pending,
-    required this.onReview,
+    required this.onRate,
     required this.onDismiss,
   });
 
   final PendingArenaReview pending;
-  final VoidCallback onReview;
+
+  /// Estrela tocada (1 a 5): abre a tela de avaliar com ela marcada.
+  final ValueChanged<int> onRate;
   final VoidCallback onDismiss;
 
   @override
@@ -78,7 +87,7 @@ class AgendaReviewPromptView extends StatelessWidget {
                       ? 'RESERVA CONCLUÍDA'
                       : 'RESERVA CONCLUÍDA · $day',
                   style: AppTypography.mono(
-                    fontSize: 9.5,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.5,
                     color: colors.brandText,
@@ -86,11 +95,23 @@ class AgendaReviewPromptView extends StatelessWidget {
                 ),
               ),
               const ArenaReviewXpChip(),
+              // "Agora não" como fechar: a linha das estrelas fica livre para os
+              // cinco alvos de 44 px mesmo em tela estreita.
+              IconButton(
+                key: const ValueKey('agenda-review-dismiss'),
+                onPressed: onDismiss,
+                tooltip: 'Agora não',
+                visualDensity: VisualDensity.compact,
+                constraints:
+                    const BoxConstraints.tightFor(width: 44, height: 44),
+                icon: Icon(Icons.close_rounded,
+                    size: 20, color: colors.onSurfaceMuted),
+              ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
-            'Como foi o jogo na $arena?',
+            'Como foi jogar na $arena?',
             style: AppTypography.soraRegular(
               fontSize: 18,
               height: 1.25,
@@ -104,48 +125,49 @@ class AgendaReviewPromptView extends StatelessWidget {
               style: TextStyle(fontSize: 12.5, color: colors.onSurfaceMuted),
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: FilledButton.icon(
-                    key: const ValueKey('agenda-review-open'),
-                    onPressed: onReview,
-                    icon: const Icon(Icons.star_rounded, size: 18),
-                    label: const Text(
-                      'Avaliar agora',
-                      style:
-                          TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.brand,
-                      foregroundColor: AppColors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                height: 44,
-                child: TextButton(
-                  key: const ValueKey('agenda-review-dismiss'),
-                  onPressed: onDismiss,
-                  style: TextButton.styleFrom(
-                      foregroundColor: colors.onSurfaceMuted),
-                  child: const Text(
-                    'Agora não',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                  ),
-                ),
-              ),
+              for (var star = 1; star <= 5; star++)
+                _PromptStar(star: star, onTap: () => onRate(star)),
             ],
           ),
+          Text(
+            'Toque numa estrela para avaliar',
+            style: TextStyle(fontSize: 12, color: colors.onSurfaceMuted),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Estrela vazia de 44 px no cartão: o toque já é a nota.
+class _PromptStar extends StatelessWidget {
+  const _PromptStar({required this.star, required this.onTap});
+
+  final int star;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Dar nota $star de 5',
+      excludeSemantics: true,
+      child: InkResponse(
+        key: ValueKey('agenda-review-star-$star'),
+        onTap: onTap,
+        radius: 24,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            Icons.star_outline_rounded,
+            size: 30,
+            color: context.themeColors.brandText,
+          ),
+        ),
       ),
     );
   }

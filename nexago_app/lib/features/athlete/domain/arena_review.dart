@@ -130,6 +130,8 @@ class PendingArenaReview {
     required this.endTime,
     this.ownerUid = '',
     this.rawStatus = '',
+    this.courtId = '',
+    this.sport = '',
   });
 
   final String bookingId;
@@ -146,4 +148,9 @@ class PendingArenaReview {
 
   /// `status` cru da reserva; vazio quando desconhecido.
   final String rawStatus;
+
+  /// Quadra e esporte da reserva, para o "Jogar de novo" abrir os horários certos.
+  /// Vazios quando o documento não diz.
+  final String courtId;
+  final String sport;
 }

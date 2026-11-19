@@ -41,6 +41,9 @@ abstract final class AnalyticsEvents {
   static const friendlyMatchInviteAccepted = 'friendly_match_invite_accepted';
   static const friendlyMatchCheckedIn = 'friendly_match_checked_in';
   static const friendlyMatchReviewSubmitted = 'friendly_match_review_submitted';
+  static const arenaReviewSubmitted = 'arena_review_submitted';
+  static const arenaReviewPromptDismissed = 'arena_review_prompt_dismissed';
+  static const arenaReviewRebookTapped = 'arena_review_rebook_tapped';
 
   // Loja · vitrine (tela 01). Mesmos nomes do portal web
   // (`docs/business-rules/loja-vitrine.md`).

@@ -298,7 +298,7 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                     SliverToBoxAdapter(
                       child: AgendaPendenciesSection(items: pendencies),
                     ),
-                  // "Como foi o jogo?" da reserva concluída mais recente.
+                  // "Como foi jogar na arena?" da reserva concluída mais recente.
                   const SliverToBoxAdapter(
                     child: AgendaReviewPromptCard(),
                   ),

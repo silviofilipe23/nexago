@@ -930,6 +930,16 @@ abstract final class AppRoutes {
   /// Convite para jogar: `/convite/:inviteId`
   static const String bookingInvite = '/convite/:inviteId';
 
+  /// Convidado paga a sua fatia da reserva dividida ("Dividir com os
+  /// jogadores"). É o `url` do push `arena_booking_share_payment_pending`.
+  static const String bookingSharePayment =
+      '/reservas/:bookingId/parcela/:shareId';
+
+  static String bookingSharePaymentLocation(String bookingId, String shareId) =>
+      bookingSharePayment
+          .replaceFirst(':bookingId', Uri.encodeComponent(bookingId))
+          .replaceFirst(':shareId', Uri.encodeComponent(shareId));
+
   /// Conferir o placar do pós-jogo do aluguel (confirmar / contestar).
   static const String bookingResultReview = '/reservar/resultado/:bookingId';
 
@@ -1494,6 +1504,7 @@ abstract final class AppRouteNames {
   static const String arenaBookingBlocked = 'arenaBookingBlocked';
   static const String bookingSuccess = 'bookingSuccess';
   static const String bookingInvite = 'bookingInvite';
+  static const String bookingSharePayment = 'bookingSharePayment';
   static const String bookingResultReview = 'bookingResultReview';
   static const String lancarPlacar = 'lancarPlacar';
   static const String peladaDetail = 'peladaDetail';

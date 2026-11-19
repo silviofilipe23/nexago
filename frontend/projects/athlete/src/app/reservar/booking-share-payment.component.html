@@ -1,0 +1,79 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <div class="cv-body">
+    @if (!loaded()) {
+      <div class="cv-card cv-card--skeleton" aria-busy="true" aria-label="Carregando a sua parte da reserva"></div>
+    } @else if (share(); as s) {
+      <section class="cv-card">
+        <header class="cv-hero" [attr.data-gate]="s.status === 'paid' ? 'joined' : null">
+          <span class="cv-eyebrow">Reserva dividida</span>
+          <h1 class="cv-title">Sua parte: {{ amountLabel() }}</h1>
+          <span class="sp-status" [attr.data-status]="s.status">{{ statusLabel() }}</span>
+        </header>
+
+        @if (booking(); as b) {
+          <div class="cv-details">
+            <p class="cv-headline">{{ b.arenaName || 'Arena' }}</p>
+            @if (b.courtName) {
+              <p class="cv-caption">{{ b.courtName }}</p>
+            }
+            <ul class="cv-info">
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+                <span>{{ whenLabel() }}</span>
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                <span>{{ hourLabel() }}</span>
+              </li>
+            </ul>
+          </div>
+        }
+
+        <div class="sp-pay">
+          @switch (s.status) {
+            @case ('paid') {
+              <p class="sp-note" data-tone="win" role="status">Pagamento confirmado. Bom jogo!</p>
+            }
+            @case ('covered_by_organizer') {
+              <p class="sp-note" data-tone="live">
+                O prazo para pagar pelo nexaGO acabou e o valor passou para a conta de quem reservou, paga na
+                arena. Acerte a sua parte direto com essa pessoa.
+              </p>
+            }
+            @case ('expired') {
+              <p class="sp-note" data-tone="live">Esta cobrança expirou e não aceita mais pagamento.</p>
+            }
+            @default {
+              @if (s.pixCopyPaste) {
+                @if (deadlineLabel()) {
+                  <p class="sp-deadline">Pague até {{ deadlineLabel() }}. Depois disso, o valor vira conta de quem reservou.</p>
+                }
+                @if (qrSrc(); as src) {
+                  <div class="sp-qr-frame">
+                    <img class="sp-qr-img" [src]="src" alt="QR Code Pix" />
+                  </div>
+                }
+                <div class="sp-code-row">
+                  <span class="sp-code">{{ s.pixCopyPaste }}</span>
+                  <button type="button" class="cv-btn cv-btn--ghost sp-copy-btn" (click)="copyPixCode()">Copiar</button>
+                </div>
+                <p class="sp-hint" role="status">Assim que o banco confirmar, esta tela muda para "Pago".</p>
+              } @else {
+                <p class="sp-note" data-tone="pending">O Pix ainda está sendo gerado. Volte em instantes.</p>
+              }
+            }
+          }
+        </div>
+      </section>
+    } @else {
+      <section class="cv-card cv-card--message">
+        <span class="cv-eyebrow">Reserva dividida</span>
+        <h1 class="cv-title">{{ loadError() ? 'Não foi possível abrir a cobrança' : 'Cobrança não encontrada' }}</h1>
+        <p class="cv-subtitle">
+          {{ loadError() ?? 'Ela pode ter sido desfeita por quem reservou. Confira com quem te chamou para jogar.' }}
+        </p>
+        <a routerLink="/painel" class="cv-btn cv-btn--ghost">Voltar ao painel</a>
+      </section>
+    }
+  </div>
+</app-at-panel-shell>

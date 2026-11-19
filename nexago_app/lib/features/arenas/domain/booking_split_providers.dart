@@ -13,3 +13,12 @@ final bookingPaymentSharesProvider = StreamProvider.autoDispose
     .family<List<BookingPaymentShare>, String>((ref, bookingId) {
   return ref.watch(bookingSplitRepositoryProvider).watchShares(bookingId);
 });
+
+/// Uma fatia ao vivo — a tela do convidado (`/reservas/:bookingId/parcela/:shareId`).
+final bookingPaymentShareProvider = StreamProvider.autoDispose
+    .family<BookingPaymentShare?, ({String bookingId, String shareId})>(
+        (ref, key) {
+  return ref
+      .watch(bookingSplitRepositoryProvider)
+      .watchShare(key.bookingId, key.shareId);
+});

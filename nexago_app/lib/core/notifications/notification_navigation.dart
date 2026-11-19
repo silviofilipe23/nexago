@@ -8,6 +8,12 @@ import '../deep_link/deep_link_providers.dart';
 import '../links/open_external_url.dart';
 import '../router/routes.dart';
 
+/// Reserva dividida ("Dividir com os jogadores"): o convidado recebe o Pix
+/// da fatia dele (`splitArenaBookingPaymentCore` em
+/// `functions/src/arena-booking-split.ts`).
+const arenaBookingSharePaymentPendingNotificationType =
+    'arena_booking_share_payment_pending';
+
 /// Mensalidade de aula com fatura online (`ensureClassAsaasPayment` em
 /// `functions/src/asaas-class-billing.ts`): "Toque para pagar com PIX ou cartão".
 const classChargeLinkNotificationType = 'arena_class_charge_link';
@@ -721,6 +727,19 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     if (bookingId.isEmpty) return AppRoutes.athleteMatchHistory;
     return AppRoutes.peladaDetail
         .replaceAll(':bookingId', Uri.encodeComponent(bookingId));
+  }
+
+  // Reserva dividida: o convidado abre a tela de pagar a fatia dele. Sem
+  // este caso o tipo caía no ramo genérico de `booking` (Minhas reservas),
+  // onde a fatia não aparece. Monta pelos ids; o `url` é o mesmo caminho.
+  if (type == arenaBookingSharePaymentPendingNotificationType) {
+    final bookingId = (data['bookingId'] as String?)?.trim() ?? '';
+    final shareId = (data['shareId'] as String?)?.trim() ?? '';
+    if (bookingId.isNotEmpty && shareId.isNotEmpty) {
+      return AppRoutes.bookingSharePaymentLocation(bookingId, shareId);
+    }
+    return appRouteForNotificationUrl(data['url'] as String?) ??
+        AppRoutes.myBookings;
   }
 
   if (type == 'booking_invite') {

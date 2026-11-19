@@ -84,6 +84,26 @@ class BookingSplitRepository {
           ]),
         );
   }
+
+  /// Uma fatia só, ao vivo — a tela do convidado. As rules não deixam o
+  /// convidado LISTAR as fatias (só ler a dele), então ele não pode usar
+  /// [watchShares]. `null` = a fatia não existe (link errado ou desfeita).
+  Stream<BookingPaymentShare?> watchShare(String bookingId, String shareId) {
+    final id = bookingId.trim();
+    final sid = shareId.trim();
+    if (id.isEmpty || sid.isEmpty) return Stream.value(null);
+    return _firestore
+        .collection('arenaBookings')
+        .doc(id)
+        .collection('paymentShares')
+        .doc(sid)
+        .snapshots()
+        .map((doc) {
+      final data = doc.data();
+      if (!doc.exists || data == null) return null;
+      return BookingPaymentShare.fromMap(doc.id, _withDates(data));
+    });
+  }
 }
 
 /// `Timestamp` → `DateTime`, para o domínio não depender do Firestore.

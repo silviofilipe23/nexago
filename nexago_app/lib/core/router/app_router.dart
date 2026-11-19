@@ -158,6 +158,7 @@ import '../../features/athlete/presentation/athlete_complete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_edit_profile_page.dart';
 import '../../features/athlete/presentation/athlete_profile_goals_page.dart';
 import '../../features/athlete/presentation/booking_invite_page.dart';
+import '../../features/arenas/presentation/booking_share_payment_page.dart';
 import '../../features/arenas/presentation/lancar_placar/lancar_placar_route_page.dart';
 import '../../features/arenas/presentation/pelada_detail_page.dart';
 import '../../features/arenas/presentation/peladas_list.dart';
@@ -3703,6 +3704,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final inviteId = state.pathParameters['inviteId']!;
           return BookingInvitePage(inviteId: inviteId);
         },
+      ),
+      GoRoute(
+        path: AppRoutes.bookingSharePayment,
+        name: AppRouteNames.bookingSharePayment,
+        builder: (context, state) => BookingSharePaymentPage(
+          bookingId: state.pathParameters['bookingId']?.trim() ?? '',
+          shareId: state.pathParameters['shareId']?.trim() ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.lancarPlacar,

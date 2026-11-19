@@ -21,6 +21,10 @@ export interface ReviewableBooking {
   dateKey: string;
   startTime: string;
   endTime: string;
+  /** Quadra e esporte da reserva, para o "Jogar de novo" abrir os horários certos.
+   *  Ausentes/vazios quando o documento não diz. */
+  courtId?: string;
+  sport?: string | null;
 }
 
 export type ReviewEligibilityFields = Pick<MyBooking, 'status' | 'dateKey' | 'startTime' | 'endTime'>;

@@ -1,4 +1,9 @@
-import { REVIEW_CANCELED_MESSAGE, REVIEW_NOT_COMPLETED_MESSAGE, validateBookingForReview } from './arena-reviews-repository';
+import {
+  REVIEW_CANCELED_MESSAGE,
+  REVIEW_NOT_COMPLETED_MESSAGE,
+  normalizeReviewTags,
+  validateBookingForReview,
+} from './arena-reviews-repository';
 
 const OWNER = { arenaId: 'a1', userId: 'u1' };
 
@@ -61,5 +66,17 @@ describe('validateBookingForReview', () => {
   it('libera quando o doc não traz arena nem dono (nada a contradizer)', () => {
     const anonimo = { status: 'confirmed', date: '2026-04-15', startTime: '19:00', endTime: '20:30' };
     expect(validateBookingForReview(OWNER, anonimo, afterEnd)).toBeNull();
+  });
+});
+
+describe('normalizeReviewTags', () => {
+  it('apara, tira vazios e repetidos e ordena como o Dart', () => {
+    expect(normalizeReviewTags([' Vestiário', 'Atendimento', '', 'Vestiário', 'Bar e água'])).toEqual([
+      'Atendimento', 'Bar e água', 'Vestiário',
+    ]);
+  });
+
+  it('devolve lista vazia sem opções', () => {
+    expect(normalizeReviewTags([])).toEqual([]);
   });
 });

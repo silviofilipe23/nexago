@@ -2033,6 +2033,40 @@ service cloud.firestore {
         // booking direto liberaria a quadra com a aula ainda de pé na chamada.
         (!keys.hasAny(['status']) || before.get('isClassSession', false) != true);
     }
+    // Live Activity do Pix no iPhone (`functions/src/pix-live-activity.ts`).
+    // Chave `{uid}_{asaasPaymentId}`: o id da cobrança aparece em docs que todo
+    // atleta logado lê, então a chave leva o dono — ninguém ocupa o doc de
+    // outra pessoa. O app cria ao gerar o Pix e depois só troca os tokens; a
+    // fase (`phase`, `phaseChangedAt`) é do servidor.
+    function pixLiveActivityShapeOk(d) {
+      return d.keys().hasOnly(['uid', 'paymentId', 'kind', 'fcmToken',
+          'liveActivityToken', 'expiresAt', 'phase', 'phaseChangedAt',
+          'createdAt', 'updatedAt']) &&
+        d.uid is string &&
+        d.paymentId is string && d.paymentId.size() > 0 && d.paymentId.size() <= 100 &&
+        d.kind is string && d.kind.size() <= 32 &&
+        d.fcmToken is string && d.fcmToken.size() <= 4096 &&
+        d.liveActivityToken is string && d.liveActivityToken.size() <= 512 &&
+        d.expiresAt is timestamp;
+    }
+    match /pixLiveActivities/{activityId} {
+      // `resource == null`: o app lê antes de gravar para saber se cria ou
+      // só troca o token — ler um doc inexistente não pode ser negado.
+      allow read: if request.auth != null &&
+        (resource == null || resource.data.uid == request.auth.uid);
+      allow delete: if request.auth != null &&
+        resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.uid == request.auth.uid &&
+        activityId == request.auth.uid + '_' + request.resource.data.paymentId &&
+        request.resource.data.phase == 'waiting' &&
+        pixLiveActivityShapeOk(request.resource.data);
+      allow update: if request.auth != null &&
+        resource.data.uid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['fcmToken', 'liveActivityToken', 'updatedAt']) &&
+        pixLiveActivityShapeOk(request.resource.data);
+    }
     match /arenaBookings/{bookingId} {
       // Leitura autenticada ampla: o preview do convite compartilhado
       // (/convite/:inviteId) relê a reserva ANTES de o convidado ter vínculo

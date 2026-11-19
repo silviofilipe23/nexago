@@ -876,6 +876,8 @@ export {
   cancelArenaBookingInvite,
   onArenaBookingCanceledNotifyParticipants,
 } from "./arena-booking-invite";
+// Live Activity do Pix no iPhone: urgência dos 2 min, expiração e limpeza (1 min).
+export {sweepPixLiveActivities} from "./pix-live-activity";
 // Cashback do atleta: reservas de saldo de cobranças mortas e intenções pendentes (5 min).
 export {expireCashbackHolds} from "./cashback-hold-sweeper";
 // Cashback do atleta: liberar depois do evento, vencer e avisar (diária, 10h).

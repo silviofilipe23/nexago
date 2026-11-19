@@ -7,18 +7,27 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		05F7528CBFDA0B45F1C20852 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1E8A1ED659C765C7CAB17376 /* SwiftUI.framework */; };
 		09DEA6510A2654D07E1A4647 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 581EBC19BCE5B6350E3F4BD2 /* Pods_RunnerTests.framework */; };
+		0A89393B1A3DBF2A9F119E0A /* PixPaymentLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61ECF4DB67D1CB20B4B33EAF /* PixPaymentLiveActivity.swift */; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
+		26DC1A57357619C60CD75911 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6A883155D2A6D9C0A8534CD8 /* Foundation.framework */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
+		34292DCDB2E84AD848FC5114 /* PixPaymentAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24BB2CF63F3507F681DA5166 /* PixPaymentAttributes.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+		48503A92F2EBFF59CC15DB5D /* NexagoLiveActivities.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D87165308CC02317D1C1DC26 /* NexagoLiveActivities.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
+		77938645A9C798A1E07AD52A /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F69535595520F186E2916B0B /* WidgetKit.framework */; };
+		783E8B02A4E51062A20BCC49 /* NexagoLiveActivitiesBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC29D479D5CA50B9480F1435 /* NexagoLiveActivitiesBundle.swift */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
+		7BC0333202AB2411B4E6EE86 /* LiveActivityChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9CF1E7DFB6DC3928B11D8D /* LiveActivityChannel.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		9A4FFFC51CDD54231A135480 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CA0A50CA6C58DB13AC5D2CDE /* GoogleService-Info.plist */; };
 		B8F2A1022EC4000100C636F1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B8F2A1012EC4000100C636F1 /* PrivacyInfo.xcprivacy */; };
+		B932D3069A96CA1C5F544FB1 /* PixPaymentAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24BB2CF63F3507F681DA5166 /* PixPaymentAttributes.swift */; };
 		FCBE9B32B11F88B4BD9FA839 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 23535E3903C2CE05F890504B /* Pods_Runner.framework */; };
 /* End PBXBuildFile section */
 
@@ -30,9 +39,27 @@
 			remoteGlobalIDString = 97C146ED1CF9000F007C117D;
 			remoteInfo = Runner;
 		};
+		F033F1366E46F7433CD6F908 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 97C146E61CF9000F007C117D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 23ABFBB2728B8EB090E11601;
+			remoteInfo = NexagoLiveActivities;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		83B81AA71DF7906656C3921F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				48503A92F2EBFF59CC15DB5D /* NexagoLiveActivities.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9705A1C41CF9048500538489 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -48,7 +75,9 @@
 /* Begin PBXFileReference section */
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		1E8A1ED659C765C7CAB17376 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/SwiftUI.framework; sourceTree = DEVELOPER_DIR; };
 		23535E3903C2CE05F890504B /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		24BB2CF63F3507F681DA5166 /* PixPaymentAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PixPaymentAttributes.swift; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
@@ -56,12 +85,16 @@
 		5207BC24D2216A1AF1EA9BF3 /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
 		581EBC19BCE5B6350E3F4BD2 /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		613509F3BE9BA1C9F9269A20 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
+		61ECF4DB67D1CB20B4B33EAF /* PixPaymentLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PixPaymentLiveActivity.swift; sourceTree = "<group>"; };
+		6373BBF8491C1D026E695030 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		6A883155D2A6D9C0A8534CD8 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		78E0A7A72DC9AD7400C4905E /* FlutterGeneratedPluginSwiftPackage */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = FlutterGeneratedPluginSwiftPackage; path = Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		7AFA3C8F1D35360C0083082F /* Profile.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Profile.xcconfig; path = Flutter/Profile.xcconfig; sourceTree = "<group>"; };
+		8F9CF1E7DFB6DC3928B11D8D /* LiveActivityChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveActivityChannel.swift; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
 		9740EEB31CF90195004384FC /* Generated.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Generated.xcconfig; path = Flutter/Generated.xcconfig; sourceTree = "<group>"; };
 		97C146EE1CF9000F007C117D /* Runner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -70,15 +103,29 @@
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B0BAEEFFD215F2B9D86A8846 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
+		B12881B2F9B86F3220FD8C58 /* NexagoLiveActivities.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = NexagoLiveActivities.xcconfig; sourceTree = "<group>"; };
 		B8F2A1012EC4000100C636F1 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BFF702AD2FCEA3BB55DB6A3B /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		CA0A50CA6C58DB13AC5D2CDE /* GoogleService-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
+		CC29D479D5CA50B9480F1435 /* NexagoLiveActivitiesBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NexagoLiveActivitiesBundle.swift; sourceTree = "<group>"; };
+		D87165308CC02317D1C1DC26 /* NexagoLiveActivities.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NexagoLiveActivities.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E51D55A778F7C38D6D02CD7F /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 		E7A1B0022EC5000100C636F1 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 		E7A1B0032EC5000100C636F1 /* RunnerDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RunnerDebug.entitlements; sourceTree = "<group>"; };
+		F69535595520F186E2916B0B /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/WidgetKit.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		400A043E81497C4DBE66E954 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				26DC1A57357619C60CD75911 /* Foundation.framework in Frameworks */,
+				77938645A9C798A1E07AD52A /* WidgetKit.framework in Frameworks */,
+				05F7528CBFDA0B45F1C20852 /* SwiftUI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5604DBEAB5D8D320904BC4CD /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -112,6 +159,7 @@
 			children = (
 				23535E3903C2CE05F890504B /* Pods_Runner.framework */,
 				581EBC19BCE5B6350E3F4BD2 /* Pods_RunnerTests.framework */,
+				DDC4A4F4350C740BC55A1054 /* iOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -139,6 +187,7 @@
 				CA0A50CA6C58DB13AC5D2CDE /* GoogleService-Info.plist */,
 				C5F8859772A99A1FE709AEE2 /* Pods */,
 				6C57E42B62E17EECBE97C871 /* Frameworks */,
+				EBC0E24A57C1C9178B3F12D3 /* NexagoLiveActivities */,
 			);
 			sourceTree = "<group>";
 		};
@@ -147,6 +196,7 @@
 			children = (
 				97C146EE1CF9000F007C117D /* Runner.app */,
 				331C8081294A63A400263BE5 /* RunnerTests.xctest */,
+				D87165308CC02317D1C1DC26 /* NexagoLiveActivities.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -166,6 +216,7 @@
 				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */,
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
+				8F9CF1E7DFB6DC3928B11D8D /* LiveActivityChannel.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -183,9 +234,49 @@
 			path = Pods;
 			sourceTree = "<group>";
 		};
+		DDC4A4F4350C740BC55A1054 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				6A883155D2A6D9C0A8534CD8 /* Foundation.framework */,
+				F69535595520F186E2916B0B /* WidgetKit.framework */,
+				1E8A1ED659C765C7CAB17376 /* SwiftUI.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		EBC0E24A57C1C9178B3F12D3 /* NexagoLiveActivities */ = {
+			isa = PBXGroup;
+			children = (
+				B12881B2F9B86F3220FD8C58 /* NexagoLiveActivities.xcconfig */,
+				24BB2CF63F3507F681DA5166 /* PixPaymentAttributes.swift */,
+				61ECF4DB67D1CB20B4B33EAF /* PixPaymentLiveActivity.swift */,
+				CC29D479D5CA50B9480F1435 /* NexagoLiveActivitiesBundle.swift */,
+				6373BBF8491C1D026E695030 /* Info.plist */,
+			);
+			name = NexagoLiveActivities;
+			path = NexagoLiveActivities;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		23ABFBB2728B8EB090E11601 /* NexagoLiveActivities */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5AE8BB41FA9BB0910E375660 /* Build configuration list for PBXNativeTarget "NexagoLiveActivities" */;
+			buildPhases = (
+				58B6BA378C2CBAA0059B435E /* Sources */,
+				400A043E81497C4DBE66E954 /* Frameworks */,
+				BF1A6E99D4652BC35F2CD152 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NexagoLiveActivities;
+			productName = NexagoLiveActivities;
+			productReference = D87165308CC02317D1C1DC26 /* NexagoLiveActivities.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		331C8080294A63A400263BE5 /* RunnerTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 331C8087294A63A400263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */;
@@ -215,12 +306,14 @@
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
+				83B81AA71DF7906656C3921F /* Embed Foundation Extensions */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				E7C1A5D12F0A000100C636F1 /* [Crashlytics] Upload dSYMs */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				94BAF5537AB06242E0550E5B /* PBXTargetDependency */,
 			);
 			name = Runner;
 			packageProductDependencies = (
@@ -268,6 +361,7 @@
 			targets = (
 				97C146ED1CF9000F007C117D /* Runner */,
 				331C8080294A63A400263BE5 /* RunnerTests */,
+				23ABFBB2728B8EB090E11601 /* NexagoLiveActivities */,
 			);
 		};
 /* End PBXProject section */
@@ -290,6 +384,13 @@
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
 				9A4FFFC51CDD54231A135480 /* GoogleService-Info.plist in Resources */,
 				B8F2A1022EC4000100C636F1 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BF1A6E99D4652BC35F2CD152 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -401,6 +502,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		58B6BA378C2CBAA0059B435E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				34292DCDB2E84AD848FC5114 /* PixPaymentAttributes.swift in Sources */,
+				0A89393B1A3DBF2A9F119E0A /* PixPaymentLiveActivity.swift in Sources */,
+				783E8B02A4E51062A20BCC49 /* NexagoLiveActivitiesBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		97C146EA1CF9000F007C117D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -408,6 +519,8 @@
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
+				B932D3069A96CA1C5F544FB1 /* PixPaymentAttributes.swift in Sources */,
+				7BC0333202AB2411B4E6EE86 /* LiveActivityChannel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -418,6 +531,12 @@
 			isa = PBXTargetDependency;
 			target = 97C146ED1CF9000F007C117D /* Runner */;
 			targetProxy = 331C8085294A63A400263BE5 /* PBXContainerItemProxy */;
+		};
+		94BAF5537AB06242E0550E5B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = NexagoLiveActivities;
+			target = 23ABFBB2728B8EB090E11601 /* NexagoLiveActivities */;
+			targetProxy = F033F1366E46F7433CD6F908 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -513,6 +632,11 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.25;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					ActivityKit,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = br.com.nexago.nexagoApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -573,6 +697,55 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Runner";
+			};
+			name = Profile;
+		};
+		4AF20D897061D21C4E131D7B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B12881B2F9B86F3220FD8C58 /* NexagoLiveActivities.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 2S4HRY66UA;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NexagoLiveActivities/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = br.com.nexago.nexagoApp.LiveActivities;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		567612A757A6B0188020F895 /* Profile */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B12881B2F9B86F3220FD8C58 /* NexagoLiveActivities.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 2S4HRY66UA;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NexagoLiveActivities/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = br.com.nexago.nexagoApp.LiveActivities;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Profile;
 		};
@@ -709,6 +882,11 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.25;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					ActivityKit,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = br.com.nexago.nexagoApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -741,6 +919,11 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.25;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					ActivityKit,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = br.com.nexago.nexagoApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -754,6 +937,31 @@
 			};
 			name = Release;
 		};
+		A0C3D4279E14FAF3D3CF5EC7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B12881B2F9B86F3220FD8C58 /* NexagoLiveActivities.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 2S4HRY66UA;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NexagoLiveActivities/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = br.com.nexago.nexagoApp.LiveActivities;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -763,6 +971,16 @@
 				331C8088294A63A400263BE5 /* Debug */,
 				331C8089294A63A400263BE5 /* Release */,
 				331C808A294A63A400263BE5 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5AE8BB41FA9BB0910E375660 /* Build configuration list for PBXNativeTarget "NexagoLiveActivities" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A0C3D4279E14FAF3D3CF5EC7 /* Release */,
+				4AF20D897061D21C4E131D7B /* Debug */,
+				567612A757A6B0188020F895 /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -16,6 +16,8 @@ export interface ArenaCoupon {
   maxRedemptionsTotal: number | null;
   maxRedemptionsPerAthlete: number;
   redemptionsCount: number;
+  /** Divulgado no app: aparece em "cupons disponíveis" na reserva. Ausente (servidor antigo) = `false`. */
+  showInApp?: boolean;
 }
 
 export type CouponDisplayStatus = 'ativo' | 'agendado' | 'expirado' | 'inativo';

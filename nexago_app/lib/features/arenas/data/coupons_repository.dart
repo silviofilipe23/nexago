@@ -1,6 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../domain/arena_coupon.dart';
+import '../domain/available_coupon.dart';
 import '../../../core/firebase/functions_region.dart';
 
 class CouponsException implements Exception {
@@ -38,6 +39,31 @@ class CouponsRepository {
           .toList();
     } on FirebaseFunctionsException catch (e) {
       throw CouponsException(_mapFunctionsMessage(e));
+    }
+  }
+
+  /// Cupons que a arena divulga no app e que o atleta logado ainda pode usar.
+  /// É atalho do checkout: qualquer falha (sem rede, callable ainda não
+  /// publicada) vira lista vazia e o campo de digitar segue funcionando.
+  Future<List<AvailableCoupon>> listAvailableCoupons(String arenaId) async {
+    final id = arenaId.trim();
+    if (id.isEmpty) return const [];
+    try {
+      final raw = await _functions
+          .httpsCallable('listAvailableArenaCoupons')
+          .call(<String, dynamic>{'arenaId': id});
+      final data = raw.data;
+      if (data is! Map) return const [];
+      final list = data['coupons'];
+      if (list is! List) return const [];
+      return [
+        for (final m in list.whereType<Map>())
+          if (AvailableCoupon.fromMap(Map<String, dynamic>.from(m))
+              case final coupon?)
+            coupon,
+      ];
+    } on FirebaseFunctionsException {
+      return const [];
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../../core/formatting/app_currency_format.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../domain/available_coupon.dart';
 import 'booking_confirm_option_row.dart';
 
 /// Campo de cupom de desconto no checkout — espelha `arena-payment.component.ts`
@@ -25,6 +26,8 @@ class BookingConfirmCouponField extends StatefulWidget {
     required this.enabled,
     required this.onApply,
     required this.onRemove,
+    this.available = const [],
+    this.onPickAvailable,
   });
 
   final TextEditingController controller;
@@ -35,6 +38,11 @@ class BookingConfirmCouponField extends StatefulWidget {
   final bool enabled;
   final VoidCallback onApply;
   final VoidCallback onRemove;
+
+  /// Cupons que a arena divulga e o atleta pode usar: viram chips que
+  /// aplicam com um toque.
+  final List<AvailableCoupon> available;
+  final ValueChanged<String>? onPickAvailable;
 
   static const openRowKey = Key('booking-confirm-coupon-open');
 
@@ -59,6 +67,11 @@ class _BookingConfirmCouponFieldState extends State<BookingConfirmCouponField> {
         key: BookingConfirmCouponField.openRowKey,
         icon: Icons.local_offer_outlined,
         label: 'Tenho um cupom',
+        trailing: switch (widget.available.length) {
+          0 => null,
+          1 => '1 disponível',
+          final n => '$n disponíveis',
+        },
         enabled: widget.enabled,
         onTap: () => setState(() => _open = true),
       );
@@ -159,6 +172,30 @@ class _BookingConfirmCouponFieldState extends State<BookingConfirmCouponField> {
               ),
             ],
           ),
+        if (code == null &&
+            widget.available.isNotEmpty &&
+            widget.onPickAvailable != null) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final c in widget.available)
+                ActionChip(
+                  key: ValueKey('booking-confirm-coupon-${c.code}'),
+                  avatar: Icon(
+                    Icons.local_offer_outlined,
+                    size: 16,
+                    color: context.themeColors.brandText,
+                  ),
+                  label: Text('${c.code} · ${c.discountLabel}'),
+                  onPressed: enabled && !applying
+                      ? () => widget.onPickAvailable!(c.code)
+                      : null,
+                ),
+            ],
+          ),
+        ],
         if (errorText != null) ...[
           SizedBox(height: 8),
           Text(

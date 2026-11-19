@@ -10,6 +10,7 @@ import 'arena_court.dart';
 import 'arena_peak_rule.dart';
 import 'arena_promotion.dart';
 import 'arena_slot.dart';
+import 'available_coupon.dart';
 import 'arenas_providers.dart';
 import 'slots_query.dart';
 
@@ -68,6 +69,14 @@ final arenaCouponsProvider =
   },
 );
 
+/// Cupons divulgados no app que o atleta pode usar (checkout da reserva).
+final availableArenaCouponsProvider =
+    FutureProvider.autoDispose.family<List<AvailableCoupon>, String>(
+  (ref, arenaId) {
+    return ref.watch(couponsRepositoryProvider).listAvailableCoupons(arenaId);
+  },
+);
+
 /// Quadras da arena (`arenas/{arenaId}/courts`).
 final courtsStreamProvider =
     StreamProvider.autoDispose.family<List<ArenaCourt>, String>((ref, arenaId) {
@@ -75,7 +84,7 @@ final courtsStreamProvider =
 });
 
 /// Slots do dia para arena + quadra (coleção `arenaSlots`).
-final slotsStreamProvider =
-    StreamProvider.autoDispose.family<List<ArenaSlot>, SlotsQuery>((ref, query) {
+final slotsStreamProvider = StreamProvider.autoDispose
+    .family<List<ArenaSlot>, SlotsQuery>((ref, query) {
   return ref.watch(slotsRepositoryProvider).watchSlots(query);
 });

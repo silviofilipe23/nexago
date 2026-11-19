@@ -74,17 +74,17 @@ final _cases = [
   _Case(
     'aluguel futuro',
     _rental(AthleteAgendaBookingStage.future, 'Em 2 dias'),
-    ['ALUGUEL', 'EM 2 DIAS', 'Arena Sol', 'Quadra 2 · Beach tennis'],
+    ['RESERVA', 'EM 2 DIAS', 'Arena Sol', 'Quadra 2 · Beach tennis'],
   ),
   _Case(
     'aluguel finalizado',
     _rental(AthleteAgendaBookingStage.past, 'Finalizado'),
-    ['ALUGUEL', 'FINALIZADO', 'Arena Sol', 'Quadra 2 · Beach tennis'],
+    ['RESERVA', 'FINALIZADO', 'Arena Sol', 'Quadra 2 · Beach tennis'],
   ),
   _Case(
     'aluguel cancelado',
     _rental(AthleteAgendaBookingStage.canceled, 'Cancelado'),
-    ['ALUGUEL', 'CANCELADO', 'Arena Sol', 'Quadra 2 · Beach tennis'],
+    ['RESERVA', 'CANCELADO', 'Arena Sol', 'Quadra 2 · Beach tennis'],
   ),
   _Case(
     'torneio',

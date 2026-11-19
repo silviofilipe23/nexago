@@ -130,7 +130,6 @@ void main() {
           body: AgendaHeader(
             eyebrow: 'TER, 10 NOV',
             title: 'Agenda',
-            monthModeActive: false,
             unreadNotificationCount: 0,
             searchVisible: false,
             onSearchTap: () {},
@@ -157,7 +156,6 @@ void main() {
           body: AgendaHeader(
             eyebrow: 'TER, 10 NOV',
             title: 'Agenda',
-            monthModeActive: false,
             unreadNotificationCount: 0,
             searchVisible: false,
             onSearchTap: () {},

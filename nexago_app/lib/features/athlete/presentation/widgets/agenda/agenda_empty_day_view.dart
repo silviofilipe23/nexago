@@ -13,11 +13,15 @@ class AgendaEmptyDayView extends ConsumerWidget {
     required this.selectedDay,
     required this.onDropInTap,
     required this.onRestDayTap,
+    this.label,
   });
 
   final DateTime selectedDay;
   final VoidCallback onDropInTap;
   final VoidCallback onRestDayTap;
+
+  /// Selo acima do "Sem jogos marcados"; sem ele, o dia ("HOJE", "SEX").
+  final String? label;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,7 +30,8 @@ class AgendaEmptyDayView extends ConsumerWidget {
     final snapshot = nearbyAsync.valueOrNull;
     final nearbyCount = snapshot?.totalAvailableToday ?? 0;
     final proximityPhrase = snapshot?.proximityPhrase ?? 'perto de você';
-    final dayLabel = formatAgendaEmptyDayLabel(selectedDay, now: now);
+    final dayLabel =
+        label ?? formatAgendaEmptyDayLabel(selectedDay, now: now);
     final description = formatAgendaEmptyHeroDescription(
       nearbyCount,
       proximityPhrase,

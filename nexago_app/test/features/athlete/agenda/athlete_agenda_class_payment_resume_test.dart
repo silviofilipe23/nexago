@@ -92,6 +92,9 @@ Future<_FakeClassAgendaRepository> _pumpAgenda(
             ),
           ),
         ),
+        // As pendências leem as Cobranças (centros, contratos, torneios…);
+        // aqui só interessa a espera do pagamento.
+        athleteAgendaPendenciesProvider.overrideWith((ref) => const []),
         athleteUnreadNotificationsCountProvider.overrideWith((ref) => 0),
       ],
       child: router != null

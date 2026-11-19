@@ -7,7 +7,7 @@ class AgendaMonthLegend extends StatelessWidget {
   const AgendaMonthLegend({super.key});
 
   static const _labels = [
-    ('ALUGUEL', athleteAgendaRentalAccent),
+    ('RESERVA', athleteAgendaRentalAccent),
     ('TREINO', athleteAgendaClassSessionAccent),
     ('TORNEIO', athleteAgendaTournamentAccent),
     ('DESAFIO', athleteAgendaChallengeAccent),

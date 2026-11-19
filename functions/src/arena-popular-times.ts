@@ -8,6 +8,10 @@
  * desenho não é publicado (`byWeekday: null`) — pouca amostra engana e poderia revelar o
  * horário fixo de alguém.
  *
+ * Também grava `athletesCount`: quantos atletas distintos (dono da reserva + convidados que
+ * entraram) jogaram na arena no período — só o total, nunca quem. Reserva de balcão sem conta
+ * não entra. Sai mesmo abaixo do mínimo do desenho ("Quem joga aqui" do perfil).
+ *
  * Leitura pública pelas rules; escrita só por esta função (Admin SDK).
  */
 import {onSchedule} from "firebase-functions/v2/scheduler";
@@ -37,6 +41,8 @@ export interface PopularTimesBooking {
   startTime?: unknown;
   endTime?: unknown;
   status?: unknown;
+  athleteId?: unknown;
+  participantUids?: unknown;
 }
 
 export interface PopularTimesWindow {
@@ -54,6 +60,8 @@ export interface ArenaPopularTimes {
   fromDateKey: string;
   toDateKey: string;
   bookingsCount: number;
+  /** Atletas distintos com reserva válida no período (só o total). */
+  athletesCount: number;
   byWeekday: PopularTimesByWeekday | null;
 }
 
@@ -102,6 +110,15 @@ function hoursCovered(booking: PopularTimesBooking): number[] | null {
   return hours;
 }
 
+/** Quem jogou na reserva: o dono e os convidados que entraram (uids com conta). */
+function playersOf(booking: PopularTimesBooking): string[] {
+  const raw = [booking.athleteId, ...(Array.isArray(booking.participantUids) ? booking.participantUids : [])];
+  return raw
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.trim())
+    .filter((v) => v !== "");
+}
+
 function emptyWeek(): number[][] {
   return Array.from({length: 7}, () => new Array<number>(24).fill(0));
 }
@@ -113,6 +130,7 @@ export function buildArenaPopularTimes(
   window: PopularTimesWindow,
 ): ArenaPopularTimes {
   const counts = emptyWeek();
+  const athletes = new Set<string>();
   let bookingsCount = 0;
   for (const booking of bookings) {
     if (!isActive(booking)) continue;
@@ -121,9 +139,16 @@ export function buildArenaPopularTimes(
     if (weekday == null || hours == null || hours.length === 0) continue;
     bookingsCount++;
     for (const h of hours) counts[weekday - 1][h]++;
+    for (const uid of playersOf(booking)) athletes.add(uid);
   }
 
-  const base = {arenaId, weeks: window.weeks, fromDateKey: window.fromDateKey, toDateKey: window.toDateKey};
+  const base = {
+    arenaId,
+    weeks: window.weeks,
+    fromDateKey: window.fromDateKey,
+    toDateKey: window.toDateKey,
+    athletesCount: athletes.size,
+  };
   if (bookingsCount < POPULAR_TIMES_MIN_BOOKINGS) {
     return {...base, bookingsCount, byWeekday: null};
   }

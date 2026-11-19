@@ -48,6 +48,7 @@ import 'widgets/arena_detail/arena_detail_info_sections.dart';
 import 'widgets/arena_detail/arena_detail_promotions.dart';
 import 'widgets/arena_detail/arena_detail_metrics_bar.dart';
 import 'widgets/arena_detail/arena_detail_other_offers.dart';
+import 'widgets/arena_detail/arena_detail_players_count.dart';
 import 'widgets/arena_detail/arena_detail_reviews_section.dart';
 
 /// Detalhe da arena (protótipo NexaGO — dark-first).
@@ -601,6 +602,7 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                               onOpen: _openEvent,
                             ),
                           ),
+                          ArenaDetailPlayersCount(arenaId: arena.id),
                           if (arena.amenities.hasAny) ...[
                             const SizedBox(height: 28),
                             ArenaDetailAmenityChips(

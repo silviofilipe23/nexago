@@ -23,6 +23,18 @@ void main() {
       expect(t.hoursFor(2), isNull);
     });
 
+    test('reads the athletes total, zero when missing or broken', () {
+      expect(
+        ArenaPopularTimes.fromMap({'athletesCount': 37}).athletesCount,
+        37,
+      );
+      expect(ArenaPopularTimes.fromMap({}).athletesCount, 0);
+      expect(
+        ArenaPopularTimes.fromMap({'athletesCount': -2}).athletesCount,
+        0,
+      );
+    });
+
     test('a summary without the drawing has nothing to show', () {
       final t =
           ArenaPopularTimes.fromMap({'bookingsCount': 3, 'byWeekday': null});

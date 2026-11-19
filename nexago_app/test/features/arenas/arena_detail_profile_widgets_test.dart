@@ -10,6 +10,9 @@ import 'package:nexago_app/features/arenas/domain/slots_providers.dart';
 import 'package:nexago_app/features/arenas/domain/arena_detail_hours_logic.dart';
 import 'package:nexago_app/features/arenas/domain/arena_detail_offers_logic.dart';
 import 'package:nexago_app/features/arenas/domain/arena_events_providers.dart';
+import 'package:nexago_app/features/arenas/domain/arena_popular_times.dart';
+import 'package:nexago_app/features/arenas/domain/arena_popular_times_providers.dart';
+import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_players_count.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_events_section.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_hours.dart';
 import 'package:nexago_app/features/organizer_public_profile/data/organizer_event_mapper.dart';
@@ -541,6 +544,57 @@ void main() {
       await tester.pump();
 
       expect(find.text('Torneios e ligas aqui'), findsNothing);
+    });
+  });
+
+  group('ArenaDetailPlayersCount', () {
+    Future<void> pumpCount(WidgetTester tester, ArenaPopularTimes? data) {
+      return _pump(
+        tester,
+        const ArenaDetailPlayersCount(arenaId: 'a1'),
+        overrides: [
+          arenaPopularTimesProvider('a1').overrideWith(
+            (ref) => Stream.value(data),
+          ),
+        ],
+      );
+    }
+
+    testWidgets('shows only the total of athletes', (tester) async {
+      await pumpCount(
+        tester,
+        const ArenaPopularTimes(bookingsCount: 90, athletesCount: 37),
+      );
+      await tester.pump();
+
+      expect(find.text('Quem joga aqui'), findsOneWidget);
+      expect(
+        find.text('37 atletas jogaram aqui nas últimas 8 semanas'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('singular for one athlete', (tester) async {
+      await pumpCount(
+        tester,
+        const ArenaPopularTimes(bookingsCount: 1, athletesCount: 1),
+      );
+      await tester.pump();
+
+      expect(
+        find.text('1 atleta jogou aqui nas últimas 8 semanas'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('hidden without athletes or without summary', (tester) async {
+      await pumpCount(tester, const ArenaPopularTimes(bookingsCount: 0));
+      await tester.pump();
+      expect(find.text('Quem joga aqui'), findsNothing);
+
+      await pumpCount(tester, null);
+      await tester.pump();
+      expect(find.text('Quem joga aqui'), findsNothing);
     });
   });
 }

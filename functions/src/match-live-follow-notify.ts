@@ -176,12 +176,17 @@ function normalize(snapshot: LiveMatchSnapshot): NormalizedScore {
   const bestOf = normalizeBestOf(snapshot.bestOf);
   const sets = Array.isArray(snapshot.sets) ? snapshot.sets : [];
   const rawIndex = snapshot.currentSetIndex;
+  const live = snapshot.liveScore;
+  // Placar agregado (`updateLiveMatchScore` grava só `liveScore`, sem `sets[]` nem
+  // `currentSetIndex`): o set em jogo é o próximo depois dos já vencidos — senão
+  // a partida inteira apareceria como "Set 1".
   const setIndex =
     typeof rawIndex === "number" && rawIndex >= 0 ?
       Math.trunc(rawIndex) :
-      Math.max(0, sets.length - 1);
+      sets.length === 0 && live ?
+        intOf(live.setsA) + intOf(live.setsB) :
+        Math.max(0, sets.length - 1);
 
-  const live = snapshot.liveScore;
   const games = gamesOf(
     snapshot,
     setIndex,
@@ -232,6 +237,50 @@ export function liveScoreSignature(snapshot: LiveMatchSnapshot): string {
   // em games; a de pontos fica igual, o sidecar guarda assinaturas antigas).
   if (s.games) base.push(s.games.state.currentGame.a, s.games.state.currentGame.b);
   return base.join("|");
+}
+
+/** O placar para o card de quem joga (Live Activity "próxima partida"). */
+export interface LiveScoreView {
+  wonA: number;
+  wonB: number;
+  /** Pontos do set; em games, os games do set; no super tie-break, os pontos dele. */
+  currentA: number;
+  currentB: number;
+  setIndex: number;
+  unit: "points" | "games";
+  /** Ponto do game em andamento ("40", "AD"; no tie-break, o número). `null` sem ele. */
+  gameA: string | null;
+  gameB: string | null;
+  tiebreak: "tb" | "super" | null;
+}
+
+/**
+ * A mesma normalização do fan-out, exposta para o card: as duas mesas, games,
+ * tie-break e super tie-break saem iguais ao que a notificação de quem segue diz.
+ */
+export function liveScoreView(snapshot: LiveMatchSnapshot): LiveScoreView {
+  const s = normalize(snapshot);
+  const base = {wonA: s.wonA, wonB: s.wonB, setIndex: s.setIndex};
+  const g = s.games;
+  if (!g) {
+    return {...base, currentA: s.currentA, currentB: s.currentB, unit: "points",
+      gameA: null, gameB: null, tiebreak: null};
+  }
+  const game = g.state.currentGame;
+  if (g.superTiebreak && g.tiebreak) {
+    return {...base, currentA: game.a, currentB: game.b, unit: "points",
+      gameA: null, gameB: null, tiebreak: "super"};
+  }
+  const points = g.hasGamePoints;
+  return {
+    ...base,
+    currentA: s.currentA,
+    currentB: s.currentB,
+    unit: "games",
+    gameA: !points ? null : g.tiebreak ? String(game.a) : g.labels.a,
+    gameB: !points ? null : g.tiebreak ? String(game.b) : g.labels.b,
+    tiebreak: g.tiebreak ? "tb" : null,
+  };
 }
 
 /** Quem fecha o set no próximo ponto, e se esse set também fecha a partida. */

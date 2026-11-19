@@ -29,20 +29,27 @@ struct NextMatchLiveActivity: Widget {
               .font(.system(size: 12))
               .foregroundStyle(PixPalette.muted)
               .lineLimit(1)
-            NextMatchStatusText(display: display, size: 15)
+            NextMatchStatusText(display: display, size: 15, showsScore: true)
           }
           .frame(maxWidth: .infinity, alignment: .leading)
         }
         DynamicIslandExpandedRegion(.bottom) {
-          NextMatchDayStrip(display: display)
-            // A borda da ilha é curva: sem folga, as pontas da linha somem.
-            .padding(.horizontal, 8)
-            .padding(.top, 6)
+          Group {
+            // Em jogo o placar ocupa o lugar da linha do dia.
+            if let score = display.score {
+              NextMatchScoreLine(display: display, score: score)
+            } else {
+              NextMatchDayStrip(display: display)
+            }
+          }
+          // A borda da ilha é curva: sem folga, as pontas somem.
+          .padding(.horizontal, 8)
+          .padding(.top, 6)
         }
       } compactLeading: {
         NextMatchCourtBadge(display: display, size: 22)
       } compactTrailing: {
-        NextMatchStatusText(display: display, size: 13)
+        NextMatchStatusText(display: display, size: 13, showsScore: true)
           .frame(maxWidth: 64)
       } minimal: {
         NextMatchCourtBadge(display: display, size: 22)
@@ -74,6 +81,8 @@ struct NextMatchDisplay {
   let state: NextMatchAttributes.ContentState
   let phase: NextMatchPhase
   let isLate: Bool
+  /// Em jogo e sem push há 3 min: o placar pode estar velho.
+  let isScoreStale: Bool
 
   init(_ context: ActivityViewContext<NextMatchAttributes>) {
     state = context.state
@@ -82,7 +91,11 @@ struct NextMatchDisplay {
     // agora cobre o card que já nasce atrasado (sem `staleDate`, ver a ponte).
     isLate = phase == .scheduled &&
       (context.state.scheduleTime.map { context.isStale || $0 <= Date() } ?? false)
+    isScoreStale = phase == .playing && context.isStale
   }
+
+  /// O placar, só quando o jogo está rolando.
+  var score: NextMatchScore? { phase == .playing ? state.score : nil }
 
   var tint: Color {
     if isLate { return lateAmber }
@@ -129,6 +142,13 @@ struct NextMatchDisplay {
   /// "Grupo A · Rodada 2 · previsto 15:40"
   var detailLine: String {
     var parts = [state.phaseLabel].filter { !$0.isEmpty }
+    if let score {
+      switch score.tiebreak {
+      case "super": parts.append("super tie-break")
+      case "tb": parts.append("\(score.set)º set · tie-break")
+      default: parts.append("\(score.set)º set")
+      }
+    }
     switch phase {
     case .scheduled:
       if let time = state.scheduleTime {
@@ -157,7 +177,7 @@ struct NextMatchDisplay {
     switch phase {
     case .scheduled: return "Na fila"
     case .called: return "Chamada"
-    case .playing: return "● Ao vivo"
+    case .playing: return isScoreStale ? "atualizando…" : "● Ao vivo"
     case .waiting: return "Aguarde"
     case .dayOver: return "Fim"
     }
@@ -230,9 +250,21 @@ struct NextMatchCourtBox: View {
 struct NextMatchStatusText: View {
   let display: NextMatchDisplay
   let size: CGFloat
+  /// Na ilha o placar ocupa o lugar do status ("18–15").
+  var showsScore = false
 
   var body: some View {
-    if let range = display.countdown {
+    if showsScore, let score = display.score {
+      // Em games o que mexe a cada ponto é o game ("40–15"); sem ele, os games.
+      Text(score.unit == "games" ? (score.game ?? "\(score.myPoints)–\(score.theirPoints)")
+        : "\(score.myPoints)–\(score.theirPoints)")
+        .font(.system(size: size, weight: .semibold, design: .monospaced))
+        .monospacedDigit()
+        .foregroundStyle(display.tint)
+        .opacity(display.isScoreStale ? 0.5 : 1)
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+    } else if let range = display.countdown {
       Text(timerInterval: range, countsDown: true)
         .font(.system(size: size, weight: .semibold, design: .monospaced))
         .monospacedDigit()
@@ -295,6 +327,117 @@ struct NextMatchDayStrip: View {
   }
 }
 
+/// O placar na tela bloqueada: o atleta em cima, sets e pontos do set em jogo.
+struct NextMatchScoreBoard: View {
+  let display: NextMatchDisplay
+  let score: NextMatchScore
+
+  private var columnLabel: String {
+    if score.tiebreak == "super" { return "SUPER" }
+    return score.unit == "games" ? "GAMES" : "SET"
+  }
+
+  private func row(_ name: String, sets: Int, points: Int, serving: Bool, mine: Bool) -> some View {
+    HStack(spacing: 10) {
+      HStack(spacing: 7) {
+        Text(name)
+          .font(.system(size: 14, weight: .semibold))
+          .foregroundStyle(.white)
+          .lineLimit(1)
+        if serving {
+          Circle().fill(lateAmber).frame(width: 7, height: 7)
+            .accessibilityLabel("saque")
+        }
+      }
+      Spacer(minLength: 6)
+      Text("\(sets)")
+        .font(.system(size: 13, design: .monospaced))
+        .foregroundStyle(PixPalette.muted)
+        .frame(width: 34)
+      Text("\(points)")
+        .font(.system(size: 21, weight: .semibold, design: .monospaced))
+        .monospacedDigit()
+        .foregroundStyle(mine ? display.tint : .white)
+        .frame(width: 42, alignment: .trailing)
+    }
+    .padding(.vertical, 3)
+  }
+
+  var body: some View {
+    VStack(spacing: 0) {
+      HStack(spacing: 10) {
+        if let game = score.game {
+          Text(score.tiebreak == nil ? "GAME \(game)" : "TIE-BREAK \(game)")
+            .foregroundStyle(display.tint)
+            .lineLimit(1)
+        }
+        Spacer()
+        Text("SETS").fixedSize().frame(width: 34)
+        Text(columnLabel).fixedSize().frame(width: 42, alignment: .trailing)
+      }
+      .font(.system(size: 9, weight: .semibold, design: .monospaced))
+      .foregroundStyle(PixPalette.muted.opacity(0.7))
+      .padding(.top, 5)
+      row("Você", sets: score.mySets, points: score.myPoints,
+          serving: score.serving == "me", mine: true)
+      Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+      row(display.state.opponent.isEmpty ? "Adversário" : display.state.opponent,
+          sets: score.theirSets, points: score.theirPoints,
+          serving: score.serving == "them", mine: false)
+    }
+    .padding(.horizontal, 12)
+    .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.04)))
+    // Placar velho não se passa por ao vivo.
+    .opacity(display.isScoreStale ? 0.5 : 1)
+  }
+}
+
+/// O placar numa linha, para a ilha expandida (o de duas linhas não cabe).
+struct NextMatchScoreLine: View {
+  let display: NextMatchDisplay
+  let score: NextMatchScore
+
+  private func stat(_ label: String, _ value: String, tinted: Bool = false) -> some View {
+    VStack(spacing: 3) {
+      Text(label)
+        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+        .foregroundStyle(PixPalette.muted.opacity(0.7))
+      Text(value)
+        .font(.system(size: 15, weight: .semibold, design: .monospaced))
+        .monospacedDigit()
+        .foregroundStyle(tinted ? display.tint : .white)
+        .lineLimit(1)
+    }
+    .frame(maxWidth: .infinity)
+  }
+
+  private var currentLabel: String {
+    if score.tiebreak == "super" { return "SUPER TB" }
+    return score.unit == "games" ? "GAMES" : "\(score.set)º SET"
+  }
+
+  private var servingLabel: String {
+    switch score.serving {
+    case "me": return "você"
+    case "them": return "eles"
+    default: return "—"
+    }
+  }
+
+  var body: some View {
+    HStack(spacing: 0) {
+      stat("SETS", "\(score.mySets)–\(score.theirSets)")
+      stat(currentLabel, "\(score.myPoints)–\(score.theirPoints)",
+           tinted: score.game == nil)
+      if let game = score.game {
+        stat(score.tiebreak == nil ? "GAME" : "TIE-BREAK", game, tinted: true)
+      }
+      stat("SAQUE", servingLabel)
+    }
+    .opacity(display.isScoreStale ? 0.5 : 1)
+  }
+}
+
 // MARK: - Tela bloqueada
 
 struct NextMatchLockScreenView: View {
@@ -309,15 +452,20 @@ struct NextMatchLockScreenView: View {
   }
 
   var body: some View {
+    // A tela bloqueada dá ~160 pt de altura: em jogo o placar ocupa o lugar
+    // do cabeçalho do torneio e da linha do dia.
+    let playing = display.score != nil
     VStack(alignment: .leading, spacing: 0) {
-      HStack(spacing: 6) {
-        Circle().fill(display.tint).frame(width: 6, height: 6)
-        Text(eyebrow)
-          .font(.system(size: 10, weight: .semibold, design: .monospaced))
-          .foregroundStyle(PixPalette.muted)
-          .lineLimit(1)
+      if !playing {
+        HStack(spacing: 6) {
+          Circle().fill(display.tint).frame(width: 6, height: 6)
+          Text(eyebrow)
+            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .foregroundStyle(PixPalette.muted)
+            .lineLimit(1)
+        }
+        .padding(.bottom, 8)
       }
-      .padding(.bottom, 8)
 
       HStack(spacing: 10) {
         NextMatchCourtBadge(display: display, size: 34)
@@ -327,7 +475,8 @@ struct NextMatchLockScreenView: View {
             .foregroundStyle(.white)
             .lineLimit(1)
             .minimumScaleFactor(0.8)
-          Text(display.subline)
+          // Em jogo os nomes estão no placar; aqui vai a fase e o set.
+          Text(display.score == nil ? display.subline : display.detailLine)
             .font(.system(size: 12.5))
             .foregroundStyle(Color.white.opacity(0.62))
             .lineLimit(1)
@@ -344,7 +493,12 @@ struct NextMatchLockScreenView: View {
         }
       }
 
-      if !display.detailLine.isEmpty {
+      if let score = display.score {
+        NextMatchScoreBoard(display: display, score: score)
+          .padding(.top, 10)
+      }
+
+      if !display.detailLine.isEmpty && display.score == nil {
         Text(display.detailLine)
           .font(.system(size: 12.5))
           .foregroundStyle(Color.white.opacity(0.62))
@@ -352,7 +506,7 @@ struct NextMatchLockScreenView: View {
           .padding(.top, 8)
       }
 
-      if !display.state.day.isEmpty {
+      if !display.state.day.isEmpty && !playing {
         NextMatchDayStrip(display: display)
           .padding(.top, 14)
       }

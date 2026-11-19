@@ -18,7 +18,11 @@
 
 import {TokenMessage} from "firebase-admin/messaging";
 import {dayKeyFromEventDate, eventTimeLabel} from "./event-timezone";
-import {snapshotFromMatchData} from "./match-live-follow-notify";
+import {
+  liveScoreSignature,
+  liveScoreView,
+  snapshotFromMatchData,
+} from "./match-live-follow-notify";
 import {
   isMatchCanceled,
   isMatchCompleted,
@@ -31,6 +35,12 @@ export const NEXT_MATCH_ACTIVITIES_COLLECTION = "nextMatchActivities";
 
 /** Itens da linha do dia no card (o resto não cabe na largura do iPhone). */
 export const NEXT_MATCH_MAX_DAY_ITEMS = 5;
+
+/**
+ * Sem push novo por esse tempo durante o jogo, o placar se declara
+ * desatualizado em vez de se passar por ao vivo (push perdido, mesa parada).
+ */
+export const NEXT_MATCH_SCORE_STALE_MS = 3 * 60 * 1000;
 
 /** Quanto o card de "fim do dia" fica na tela depois de encerrado. */
 export const NEXT_MATCH_DAY_OVER_DISMISS_MS = 30 * 60 * 1000;
@@ -67,6 +77,19 @@ export interface NextMatchLite {
   /** Jogo da chave para onde vai o vencedor / o perdedor (`matchNumber`). */
   winnerAdvanceMatchNumber: number | null;
   loserAdvanceMatchNumber: number | null;
+  /** Placar ao vivo, pela mesma leitura do fan-out de quem segue a partida. */
+  liveSetsA: number;
+  liveSetsB: number;
+  livePointsA: number;
+  livePointsB: number;
+  /** 0-based, como `currentSetIndex`. */
+  setIndex: number;
+  liveUnit: "points" | "games";
+  /** Ponto do game em andamento ("40", "AD"; tie-break: o número). */
+  liveGameA: string | null;
+  liveGameB: string | null;
+  liveTiebreak: "tb" | "super" | null;
+  servingTeamId: string;
 }
 
 /**
@@ -80,6 +103,23 @@ export interface NextMatchLite {
 export type NextMatchPhase = "scheduled" | "called" | "playing" | "waiting" | "dayOver";
 
 export type NextMatchDayKind = "win" | "loss" | "done" | "next" | "upcoming";
+
+/** O placar sob a ótica do atleta: "meu" lado primeiro, seja ele A ou B. */
+export interface NextMatchScore {
+  mySets: number;
+  theirSets: number;
+  /** Pontos (ou games) do set em jogo. */
+  myPoints: number;
+  theirPoints: number;
+  /** 1-based: "2º set". */
+  set: number;
+  serving: "me" | "them" | null;
+  /** "games" em beach tennis/tênis: `myPoints` são os games do set. */
+  unit: "points" | "games";
+  /** O game em andamento, meu lado primeiro: "40–15", "AD–40"; tie-break "5–4". */
+  game: string | null;
+  tiebreak: "tb" | "super" | null;
+}
 
 export interface NextMatchDayItem {
   kind: NextMatchDayKind;
@@ -97,6 +137,8 @@ export interface NextMatchContentState {
   scheduleTimeMs: number | null;
   day: NextMatchDayItem[];
   summary: string | null;
+  /** Só em `playing`: o card vira placar sem trocar de activity. */
+  score: NextMatchScore | null;
 }
 
 export interface BuildNextMatchStateInput {
@@ -143,7 +185,9 @@ export function nextMatchLiteFromData(
 ): NextMatchLite {
   let setsWonA = 0;
   let setsWonB = 0;
-  for (const set of snapshotFromMatchData(data).sets) {
+  const snapshot = snapshotFromMatchData(data);
+  const live = liveScoreView(snapshot);
+  for (const set of snapshot.sets) {
     if (set.a > set.b) setsWonA++;
     else if (set.b > set.a) setsWonB++;
   }
@@ -173,6 +217,16 @@ export function nextMatchLiteFromData(
     setsWonB,
     winnerAdvanceMatchNumber: intOrNull(data.winnerAdvanceMatchNumber),
     loserAdvanceMatchNumber: intOrNull(data.loserAdvanceMatchNumber),
+    liveSetsA: live.wonA,
+    liveSetsB: live.wonB,
+    livePointsA: live.currentA,
+    livePointsB: live.currentB,
+    setIndex: live.setIndex,
+    liveUnit: live.unit,
+    liveGameA: live.gameA,
+    liveGameB: live.gameB,
+    liveTiebreak: live.tiebreak,
+    servingTeamId: str(data.servingTeamId),
   };
 }
 
@@ -361,6 +415,28 @@ function phaseOf(next: NextMatchLite): NextMatchPhase {
   return "scheduled";
 }
 
+/** O placar do card sob a ótica do atleta (também o atalho do gatilho por ponto). */
+export function nextMatchScoreOf(m: NextMatchLite, teamIds: ReadonlySet<string>): NextMatchScore {
+  const iAmA = teamIds.has(m.teamAId);
+  const opponentId = iAmA ? m.teamBId : m.teamAId;
+  const serving = !m.servingTeamId ? null :
+    teamIds.has(m.servingTeamId) ? "me" :
+      m.servingTeamId === opponentId ? "them" : null;
+  return {
+    mySets: iAmA ? m.liveSetsA : m.liveSetsB,
+    theirSets: iAmA ? m.liveSetsB : m.liveSetsA,
+    myPoints: iAmA ? m.livePointsA : m.livePointsB,
+    theirPoints: iAmA ? m.livePointsB : m.livePointsA,
+    set: m.setIndex + 1,
+    serving,
+    unit: m.liveUnit,
+    game: m.liveGameA !== null && m.liveGameB !== null ?
+      (iAmA ? `${m.liveGameA}–${m.liveGameB}` : `${m.liveGameB}–${m.liveGameA}`) :
+      null,
+    tiebreak: m.liveTiebreak,
+  };
+}
+
 function doneItemOf(m: NextMatchLite, teamIds: ReadonlySet<string>): NextMatchDayItem {
   const iAmA = teamIds.has(m.teamAId);
   const mine = iAmA ? m.setsWonA : m.setsWonB;
@@ -496,6 +572,7 @@ export function buildNextMatchState(input: BuildNextMatchStateInput): NextMatchC
       scheduleTimeMs: null,
       day,
       summary: summaryOf(items),
+      score: null,
     };
   }
 
@@ -509,6 +586,7 @@ export function buildNextMatchState(input: BuildNextMatchStateInput): NextMatchC
     scheduleTimeMs: next.scheduleTime ? next.scheduleTime.getTime() : null,
     day,
     summary: null,
+    score: phaseOf(next) === "playing" ? nextMatchScoreOf(next, teamIds) : null,
   };
 }
 
@@ -526,6 +604,8 @@ export interface NextMatchMessageInput {
   /** Fase do último push (ou do início); decide se a chamada vibra. */
   previousPhase: string | null;
   nowMs: number;
+  /** Ponto comum do placar: prioridade baixa, não gasta o orçamento do iOS. */
+  lowPriority?: boolean;
 }
 
 /**
@@ -537,7 +617,7 @@ export interface NextMatchMessageInput {
  * anterior, por isso ele é repetido em todo push agendado.
  */
 export function buildNextMatchMessage(input: NextMatchMessageInput): TokenMessage {
-  const {fcmToken, liveActivityToken, state, previousPhase, nowMs} = input;
+  const {fcmToken, liveActivityToken, state, previousPhase, nowMs, lowPriority} = input;
   const ending = state.phase === "dayOver";
   const aps: Record<string, unknown> = {
     "timestamp": Math.floor(nowMs / 1000),
@@ -554,6 +634,8 @@ export function buildNextMatchMessage(input: NextMatchMessageInput): TokenMessag
     // Horário já passado não vai: activity que nasce/fica "stale" na hora o
     // iOS não desenha (visto no simulador). O card calcula o atraso sozinho.
     aps["stale-date"] = Math.floor(state.scheduleTimeMs / 1000);
+  } else if (state.phase === "playing") {
+    aps["stale-date"] = Math.floor((nowMs + NEXT_MATCH_SCORE_STALE_MS) / 1000);
   }
   if (state.phase === "called" && previousPhase !== "called") {
     const court = state.courtLabel ?? "quadra";
@@ -568,7 +650,7 @@ export function buildNextMatchMessage(input: NextMatchMessageInput): TokenMessag
     token: fcmToken,
     apns: {
       liveActivityToken,
-      headers: {"apns-priority": "10"},
+      headers: {"apns-priority": lowPriority ? "5" : "10"},
       payload: {aps},
     },
   };
@@ -633,4 +715,59 @@ export function nextMatchBracketMoved(
   const filled = ["teamAId", "teamBId"].some((k) => !str(before[k]) && !!str(after[k]));
   const completed = !isMatchCompleted(before.status) && isMatchCompleted(after.status);
   return filled || completed;
+}
+
+/**
+ * Duplas cujo placar mudou numa partida em andamento — o caminho frequente do
+ * gatilho (a cada ponto). Compara pela assinatura do fan-out, que ignora
+ * `liveScore.updatedAt` e inclui o ponto do game; mais quem saca.
+ */
+export function nextMatchScoreChanged(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): string[] {
+  if (!isMatchInProgress(after.status)) return [];
+  const moved =
+    liveScoreSignature(snapshotFromMatchData(before)) !==
+      liveScoreSignature(snapshotFromMatchData(after)) ||
+    str(before.servingTeamId) !== str(after.servingTeamId);
+  if (!moved) return [];
+  return [str(after.teamAId), str(after.teamBId)].filter(Boolean);
+}
+
+/**
+ * Virou o set (ou entrou no tie-break)? Vale para as duas mesas: a que grava
+ * `sets[]`/`currentSetIndex` e a do placar agregado (`liveScore`). Vai com
+ * prioridade alta; ponto comum vai com prioridade baixa.
+ */
+export function nextMatchSetMoved(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): boolean {
+  const b = liveScoreView(snapshotFromMatchData(before));
+  const a = liveScoreView(snapshotFromMatchData(after));
+  return b.wonA !== a.wonA || b.wonB !== a.wonB || b.setIndex !== a.setIndex ||
+    b.tiebreak !== a.tiebreak;
+}
+
+/**
+ * Atalho do gatilho por ponto: o card já está no placar DESTA partida, então
+ * basta trocar o placar no estado anterior — sem remontar o dia (dezenas de
+ * leituras a cada ponto). `null` quando não dá (outra partida, outra fase,
+ * estado ilegível): aí o gatilho remonta tudo.
+ */
+export function scoreOnlyState(
+  previousKey: string | null,
+  match: NextMatchLite,
+  teamIds: ReadonlySet<string>,
+): NextMatchContentState | null {
+  if (!previousKey || !isMatchInProgress(match.status)) return null;
+  let previous: NextMatchContentState;
+  try {
+    previous = JSON.parse(previousKey) as NextMatchContentState;
+  } catch {
+    return null;
+  }
+  if (previous.phase !== "playing" || previous.matchId !== match.id) return null;
+  return {...previous, score: nextMatchScoreOf(match, teamIds)};
 }

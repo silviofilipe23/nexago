@@ -30,6 +30,8 @@ struct NextMatchAttributes: ActivityAttributes {
     var day: [NextMatchDayItem]
     /// "2 vitórias · 1 derrota" (aguardando a próxima fase / fim do dia).
     var summary: String?
+    /// Só em `playing`: o card vira placar sem trocar de activity.
+    var score: NextMatchScore?
 
     init(from decoder: Decoder) throws {
       // Tolerante: campo que faltar no push vira o padrão em vez de descartar
@@ -44,6 +46,7 @@ struct NextMatchAttributes: ActivityAttributes {
       scheduleTimeMs = try c.decodeIfPresent(Double.self, forKey: .scheduleTimeMs)
       day = try c.decodeIfPresent([NextMatchDayItem].self, forKey: .day) ?? []
       summary = try c.decodeIfPresent(String.self, forKey: .summary)
+      score = try c.decodeIfPresent(NextMatchScore.self, forKey: .score)
     }
 
     var scheduleTime: Date? {
@@ -56,6 +59,25 @@ struct NextMatchAttributes: ActivityAttributes {
   var tournamentName: String
   /// "Masculino B" (pode vir vazio)
   var categoryName: String
+}
+
+/// O placar sob a ótica do atleta: "meu" lado primeiro.
+struct NextMatchScore: Codable, Hashable {
+  var mySets: Int
+  var theirSets: Int
+  /// Pontos (ou games) do set em jogo.
+  var myPoints: Int
+  var theirPoints: Int
+  /// 1-based: "2º set".
+  var set: Int
+  /// "me" | "them" | nil
+  var serving: String?
+  /// "points" | "games" (beach tennis/tênis: os pontos são os games do set).
+  var unit: String?
+  /// O game em andamento, meu lado primeiro: "40–15"; no tie-break, "5–4".
+  var game: String?
+  /// "tb" | "super" | nil
+  var tiebreak: String?
 }
 
 struct NextMatchDayItem: Codable, Hashable {

@@ -19,12 +19,6 @@ enum AthleteAgendaTimeTab { upcoming, past }
 
 enum AthleteAgendaBookingStage { past, current, future, canceled }
 
-enum AthleteAgendaNeedsYouKind {
-  rankingChallenge,
-  partnerInvite,
-  bookingConfirmation,
-}
-
 /// Payload tipado para navegação a partir de um item da agenda.
 class AthleteAgendaRentalPayload {
   const AthleteAgendaRentalPayload({
@@ -309,30 +303,6 @@ class AthleteAgendaDaySection {
   final String title;
   final String subtitle;
   final List<AthleteAgendaItem> items;
-}
-
-class AthleteAgendaNeedsYouItem {
-  const AthleteAgendaNeedsYouItem({
-    required this.id,
-    required this.kind,
-    required this.title,
-    required this.subtitle,
-    required this.meta,
-    required this.statusLabel,
-    this.inviteId,
-    this.bookingId,
-    this.isMock = false,
-  });
-
-  final String id;
-  final AthleteAgendaNeedsYouKind kind;
-  final String title;
-  final String subtitle;
-  final String meta;
-  final String statusLabel;
-  final String? inviteId;
-  final String? bookingId;
-  final bool isMock;
 }
 
 class AthleteAgendaTimelineRow {

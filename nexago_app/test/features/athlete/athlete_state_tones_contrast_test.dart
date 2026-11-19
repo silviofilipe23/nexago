@@ -52,7 +52,8 @@ import 'package:nexago_app/features/athlete/presentation/athlete_settings_page.d
 import 'package:nexago_app/features/athlete/presentation/public_profile/athlete_public_profile_page.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_empty_drop_ins_section.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_header.dart';
-import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_needs_you_section.dart';
+import 'package:nexago_app/features/athlete/domain/agenda/agenda_pendencies.dart';
+import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_pendencies_section.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/agenda/agenda_timeline_widgets.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/arena_search/arena_search_flexible_banner.dart';
 import 'package:nexago_app/features/athlete/presentation/widgets/athlete_home/athlete_home_daily_missions_section.dart';
@@ -601,7 +602,6 @@ final _screens = <_Screen>[
       AgendaHeader(
         eyebrow: 'TER · 20 OUT',
         title: 'Agenda',
-        monthModeActive: false,
         unreadNotificationCount: 3,
         searchVisible: false,
         onSearchTap: () {},
@@ -617,25 +617,14 @@ final _screens = <_Screen>[
     (tester, theme) => _pumpPiece(
       tester,
       theme,
-      AgendaNeedsYouSection(
-        items: const [
-          AthleteAgendaNeedsYouItem(
-            id: 'n1',
-            kind: AthleteAgendaNeedsYouKind.partnerInvite,
-            title: 'Convite de dupla',
-            subtitle: 'Enzo te chamou para a Copa VH',
-            meta: 'Expira em 2 dias',
-            statusLabel: 'AGUARDANDO',
-            inviteId: 'i1',
-          ),
+      const AgendaPendenciesSection(
+        items: [
+          AgendaInvitePendency(inviteId: 'i1', inviterName: 'Enzo'),
         ],
-        onAcceptChallenge: () {},
-        onDeclineChallenge: () {},
-        onBookingTap: (_) {},
       ),
     ),
-    find.byType(AgendaNeedsYouSection),
-    ['AGUARDANDO'],
+    find.byType(AgendaPendenciesSection),
+    ['RESPONDER'],
   ),
   _Screen(
     'Agenda: aula cancelada',

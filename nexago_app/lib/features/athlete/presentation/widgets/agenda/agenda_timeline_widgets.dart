@@ -465,7 +465,7 @@ class _RentalCard extends ConsumerWidget {
               Row(
                 children: [
                   _OutlinedKindBadge(
-                    label: 'ALUGUEL',
+                    label: 'RESERVA',
                     icon: Icons.add_circle_outline,
                     color: accent,
                   ),

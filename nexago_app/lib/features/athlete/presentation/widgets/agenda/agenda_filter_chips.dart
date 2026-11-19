@@ -35,7 +35,7 @@ class AgendaFilterChips extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           _Chip(
-            label: 'Aluguéis',
+            label: 'Reservas',
             count: counts.rentals,
             dotColor: athleteAgendaRentalAccent,
             selected: selected == AthleteAgendaFilter.rentals,

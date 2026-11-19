@@ -71,7 +71,7 @@ class AgendaTabs extends StatelessWidget {
                     ),
                     Expanded(
                       child: _TabSegment(
-                        label: 'Passados',
+                        label: 'Histórico',
                         count: pastCount,
                         selected: !isUpcoming,
                         onTap: () => onChanged(AthleteAgendaTimeTab.past),

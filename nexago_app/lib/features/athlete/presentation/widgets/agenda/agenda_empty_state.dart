@@ -8,14 +8,12 @@ class AgendaEmptyState extends StatelessWidget {
   const AgendaEmptyState({
     super.key,
     required this.filter,
-    required this.monthMode,
     required this.pastTab,
     required this.onPrimaryAction,
     this.searchQuery = '',
   });
 
   final AthleteAgendaFilter filter;
-  final bool monthMode;
   final bool pastTab;
   final VoidCallback onPrimaryAction;
   final String searchQuery;
@@ -25,7 +23,6 @@ class AgendaEmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     final copy = _copyForFilter(
       filter: filter,
-      monthMode: monthMode,
       pastTab: pastTab,
       searchQuery: searchQuery.trim(),
     );
@@ -94,19 +91,14 @@ class _AgendaEmptyCopy {
 
 _AgendaEmptyCopy _copyForFilter({
   required AthleteAgendaFilter filter,
-  required bool monthMode,
   required bool pastTab,
   required String searchQuery,
 }) {
-  final scope = monthMode ? 'neste mês' : 'neste dia';
-
   if (searchQuery.isNotEmpty) {
     return _AgendaEmptyCopy(
       icon: Icons.search_off_rounded,
       title: 'Nada encontrado para "$searchQuery"',
-      hint: pastTab
-          ? 'Tente outro termo ou altere o filtro.'
-          : 'Limpe a busca ou explore outras datas.',
+      hint: 'Tente outro termo ou altere o filtro.',
       showAction: !pastTab,
       actionLabel: 'Explorar',
       actionIcon: Icons.explore_outlined,
@@ -114,88 +106,61 @@ _AgendaEmptyCopy _copyForFilter({
   }
 
   if (pastTab) {
-    return switch (filter) {
-      AthleteAgendaFilter.rentals => _AgendaEmptyCopy(
-          icon: Icons.history_rounded,
-          title: 'Nenhum aluguel passado $scope',
-          hint: 'Altere o dia, o mês ou o filtro para ver outras reservas.',
-          showAction: false,
-          actionLabel: '',
-          actionIcon: Icons.history_rounded,
-        ),
-      AthleteAgendaFilter.trainings => _AgendaEmptyCopy(
-          icon: Icons.history_rounded,
-          title: 'Nenhum treino passado $scope',
-          hint: 'Altere o dia, o mês ou o filtro para ver outros treinos.',
-          showAction: false,
-          actionLabel: '',
-          actionIcon: Icons.history_rounded,
-        ),
-      AthleteAgendaFilter.tournaments => _AgendaEmptyCopy(
-          icon: Icons.history_rounded,
-          title: 'Nenhum torneio passado $scope',
-          hint: 'Altere o dia, o mês ou o filtro para ver outros torneios.',
-          showAction: false,
-          actionLabel: '',
-          actionIcon: Icons.history_rounded,
-        ),
-      AthleteAgendaFilter.challenges => _AgendaEmptyCopy(
-          icon: Icons.history_rounded,
-          title: 'Nenhum desafio passado $scope',
-          hint: 'Altere o dia, o mês ou o filtro para ver outros desafios.',
-          showAction: false,
-          actionLabel: '',
-          actionIcon: Icons.history_rounded,
-        ),
-      AthleteAgendaFilter.all => _AgendaEmptyCopy(
-          icon: Icons.history_rounded,
-          title: monthMode
-              ? 'Nenhum jogo passado neste mês'
-              : 'Nenhum jogo passado neste dia',
-          hint: 'Altere o dia ou o filtro para ver outros jogos.',
-          showAction: false,
-          actionLabel: '',
-          actionIcon: Icons.history_rounded,
-        ),
+    final what = switch (filter) {
+      AthleteAgendaFilter.rentals => 'Nenhuma reserva no histórico',
+      AthleteAgendaFilter.trainings => 'Nenhum treino no histórico',
+      AthleteAgendaFilter.tournaments => 'Nenhum torneio no histórico',
+      AthleteAgendaFilter.challenges => 'Nenhum desafio no histórico',
+      AthleteAgendaFilter.all => 'Nenhum jogo no histórico',
     };
+    return _AgendaEmptyCopy(
+      icon: Icons.history_rounded,
+      title: what,
+      hint: filter == AthleteAgendaFilter.all
+          ? 'Seus jogos, aulas e torneios aparecem aqui depois que acontecem.'
+          : 'Altere o filtro para ver outros jogos.',
+      showAction: false,
+      actionLabel: '',
+      actionIcon: Icons.history_rounded,
+    );
   }
 
   return switch (filter) {
-    AthleteAgendaFilter.rentals => _AgendaEmptyCopy(
+    AthleteAgendaFilter.rentals => const _AgendaEmptyCopy(
         icon: Icons.sports_tennis_rounded,
-        title: 'Nenhum aluguel $scope',
+        title: 'Nenhuma reserva marcada',
         hint: 'Reserve uma quadra e ela aparecerá na sua agenda.',
         showAction: true,
-        actionLabel: 'Agendar quadra',
+        actionLabel: 'Reservar quadra',
         actionIcon: Icons.calendar_month_outlined,
       ),
-    AthleteAgendaFilter.trainings => _AgendaEmptyCopy(
+    AthleteAgendaFilter.trainings => const _AgendaEmptyCopy(
         icon: Icons.fitness_center_rounded,
-        title: 'Nenhum treino $scope',
+        title: 'Nenhum treino marcado',
         hint: 'Suas aulas com professor aparecem aqui.',
         showAction: true,
         actionLabel: 'Ver treinos',
         actionIcon: Icons.fitness_center_rounded,
       ),
-    AthleteAgendaFilter.tournaments => _AgendaEmptyCopy(
+    AthleteAgendaFilter.tournaments => const _AgendaEmptyCopy(
         icon: Icons.emoji_events_outlined,
-        title: 'Nenhum torneio $scope',
+        title: 'Nenhum torneio marcado',
         hint: 'Inscreva-se em um torneio para acompanhar aqui.',
         showAction: true,
         actionLabel: 'Ver torneios',
         actionIcon: Icons.emoji_events_outlined,
       ),
-    AthleteAgendaFilter.challenges => _AgendaEmptyCopy(
+    AthleteAgendaFilter.challenges => const _AgendaEmptyCopy(
         icon: Icons.bolt_rounded,
-        title: 'Nenhum desafio $scope',
-        hint: 'Quando houver desafios de ranking, eles aparecerão aqui.',
-        showAction: true,
-        actionLabel: 'Explorar',
-        actionIcon: Icons.explore_outlined,
+        title: 'Nenhum jogo do Bora Jogar marcado',
+        hint: 'Seus jogos combinados no Bora Jogar aparecem aqui.',
+        showAction: false,
+        actionLabel: '',
+        actionIcon: Icons.bolt_rounded,
       ),
-    AthleteAgendaFilter.all => _AgendaEmptyCopy(
+    AthleteAgendaFilter.all => const _AgendaEmptyCopy(
         icon: Icons.event_busy_rounded,
-        title: monthMode ? 'Nada no mês com esse filtro' : 'Nenhum jogo neste dia',
+        title: 'Nada marcado com esse filtro',
         hint: 'Reserve uma quadra ou inscreva-se em um torneio.',
         showAction: true,
         actionLabel: 'Explorar',

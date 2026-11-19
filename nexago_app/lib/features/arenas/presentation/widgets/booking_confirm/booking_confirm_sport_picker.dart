@@ -15,12 +15,19 @@ class BookingConfirmSportPicker extends StatelessWidget {
     required this.selected,
     required this.onSelected,
     this.enabled = true,
+    this.missing = false,
   });
+
+  static const missingKey = Key('booking-confirm-sport-missing');
 
   final List<String>? options;
   final String? selected;
   final ValueChanged<String> onSelected;
   final bool enabled;
+
+  /// Tocaram em confirmar sem esporte: a tela rola até aqui e o pedido fica
+  /// em destaque até escolherem.
+  final bool missing;
 
   @override
   Widget build(BuildContext context) {
@@ -39,13 +46,24 @@ class BookingConfirmSportPicker extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        Text(
-          'Qual esporte você vai jogar? A arena usa isso pra preparar a quadra.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            height: 1.35,
+        if (missing)
+          Text(
+            'Escolha o esporte para confirmar a reserva.',
+            key: missingKey,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.themeColors.live,
+              fontWeight: FontWeight.w700,
+              height: 1.35,
+            ),
+          )
+        else
+          Text(
+            'Qual esporte você vai jogar? A arena usa isso pra preparar a quadra.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              height: 1.35,
+            ),
           ),
-        ),
         const SizedBox(height: 12),
         if (options == null)
           const SizedBox(
@@ -67,6 +85,7 @@ class BookingConfirmSportPicker extends StatelessWidget {
                 _SportChip(
                   label: courtSportLabel(code),
                   selected: code == selected,
+                  missing: missing,
                   enabled: enabled,
                   onTap: () {
                     HapticFeedback.selectionClick();
@@ -84,12 +103,14 @@ class _SportChip extends StatelessWidget {
   const _SportChip({
     required this.label,
     required this.selected,
+    required this.missing,
     required this.enabled,
     required this.onTap,
   });
 
   final String label;
   final bool selected;
+  final bool missing;
   final bool enabled;
   final VoidCallback onTap;
 
@@ -110,7 +131,9 @@ class _SportChip extends StatelessWidget {
           border: Border.all(
             color: selected
                 ? AppColors.brand.withValues(alpha: 0.9)
-                : theme.colorScheme.outline.withValues(alpha: 0.2),
+                : missing
+                    ? context.themeColors.live
+                    : theme.colorScheme.outline.withValues(alpha: 0.2),
             // Largura fixa: borda mais grossa no selecionado empurrava a linha de chips.
             width: 1.2,
           ),

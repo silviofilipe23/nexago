@@ -38,6 +38,7 @@ import 'booking_success_page.dart';
 import 'widgets/booking_confirm/booking_confirm_app_bar.dart';
 import 'widgets/booking_confirm/booking_confirm_cancellation_card.dart';
 import 'widgets/booking_confirm/booking_confirm_athlete_notes_field.dart';
+import 'widgets/booking_confirm/booking_confirm_cashback_note.dart';
 import 'widgets/booking_confirm/booking_confirm_coupon_field.dart';
 import 'widgets/booking_confirm/booking_confirm_hero_card.dart';
 import 'widgets/booking_confirm/booking_confirm_lesson_student_picker.dart';
@@ -83,6 +84,10 @@ class _ArenaBookingConfirmPageState
 
   /// Esporte escolhido (código do catálogo). Com um esporte só na quadra, vale ele sem toque.
   String? _sport;
+
+  /// Tocaram em confirmar sem esporte: o seletor fica em destaque.
+  bool _sportMissing = false;
+  final _sportPickerKey = GlobalKey();
 
   /// "Reservar como professor" escolhido. `null` = padrão do modo Professor
   /// (ligado: quem entrou como professor reserva como professor). Só vale
@@ -440,6 +445,55 @@ class _ArenaBookingConfirmPageState
     }
   }
 
+  /// Sem esporte escolhido: rola até o seletor e o deixa em destaque, em vez
+  /// de um aviso que some e não diz onde escolher.
+  void _showMissingSport() {
+    setState(() => _sportMissing = true);
+    final target = _sportPickerKey.currentContext;
+    if (target == null) return;
+    Scrollable.ensureVisible(
+      target,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      alignment: 0.2,
+    );
+  }
+
+  /// Política de cancelamento com o prazo em data e hora e o texto da forma
+  /// de pagamento escolhida. Sem horário legível, cai no texto genérico.
+  Widget _cancellationCard(
+    ArenaBookingConfirmArgs args,
+    AthleteCancelPolicy policy, {
+    required bool paysOnline,
+  }) {
+    final start = args.startsAt;
+    if (start == null) {
+      return BookingConfirmCancellationCard(
+        title: ArenaBookingCancellationPolicy.cancellationTitle(policy),
+        subtitle: ArenaBookingCancellationPolicy.cancellationSubtitle(
+          args.arenaName,
+          policy,
+        ),
+      );
+    }
+    final now = DateTime.now();
+    return BookingConfirmCancellationCard(
+      title: ArenaBookingCancellationPolicy.checkoutCancellationTitle(
+        bookingStart: start,
+        now: now,
+        policy: policy,
+        paysOnline: paysOnline,
+      ),
+      subtitle: ArenaBookingCancellationPolicy.checkoutCancellationSubtitle(
+        args.arenaName,
+        policy,
+        bookingStart: start,
+        now: now,
+        paysOnline: paysOnline,
+      ),
+    );
+  }
+
   /// Só manda `useWeatherCredit` com o card ligado e saldo na cotação.
   bool get _sendWeatherCredit =>
       _useWeatherCredit && (_quote?.hasWeatherCredit ?? false);
@@ -717,18 +771,31 @@ class _ArenaBookingConfirmPageState
                                 arenaName: args.arenaName,
                                 courtName: args.displayCourtName,
                                 courtSubtitle: args.courtSubtitle,
+                                sportLabel: sportOptions?.length == 1
+                                    ? courtSportLabel(sportOptions!.first)
+                                    : null,
+                                durationLabel: durationCompact,
+                                coverUrl: arena?.coverUrl,
+                                onChangeTime: _submitting ? null : _onBack,
                               ),
                             ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 22),
-                              child: BookingConfirmSportPicker(
-                                options: sportOptions,
-                                selected: sport,
-                                enabled: !_submitting,
-                                onSelected: (code) =>
-                                    setState(() => _sport = code),
+                            // Um esporte só vira texto no hero; enquanto
+                            // carrega, nada (o botão avisa se tocarem).
+                            if (sportOptions != null && sportOptions.length > 1)
+                              Padding(
+                                key: _sportPickerKey,
+                                padding: const EdgeInsets.only(top: 22),
+                                child: BookingConfirmSportPicker(
+                                  options: sportOptions,
+                                  selected: sport,
+                                  enabled: !_submitting,
+                                  missing: _sportMissing && sport == null,
+                                  onSelected: (code) => setState(() {
+                                    _sport = code;
+                                    _sportMissing = false;
+                                  }),
+                                ),
                               ),
-                            ),
                             if (offerProfessor)
                               Padding(
                                 padding: const EdgeInsets.only(top: 22),
@@ -770,98 +837,6 @@ class _ArenaBookingConfirmPageState
                                   ),
                                 ),
                               ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 18),
-                              child: BookingConfirmPriceSummary(
-                                courtLineLabel: courtLineLabel,
-                                courtAmountLabel: _quoting
-                                    ? 'Calculando…'
-                                    : formatBRL(
-                                        professorDiscount
-                                            ? quote
-                                                .amountBeforeProfessorDiscountReais
-                                            : athletePricing
-                                                ? quote
-                                                    .amountBeforeAthletePricingReais
-                                                : memberHours
-                                                    ? quote
-                                                        .amountBeforeMemberHoursReais
-                                                    : displayTotal,
-                                      ),
-                                discountLineLabel: professorDiscount
-                                    ? quote.professorDiscountLabel
-                                    : athletePricing
-                                        ? quote.athletePricingLineLabel
-                                        : null,
-                                discountAmountLabel: professorDiscount
-                                    ? quote.professorDiscountValueLabel
-                                    : athletePricing
-                                        ? quote.athletePricingValueLabel
-                                        : null,
-                                memberHoursLineLabel: memberHours
-                                    ? quote.planCoverageLineLabel
-                                    : null,
-                                memberHoursAmountLabel: memberHours
-                                    ? quote.planCoverageValueLabel
-                                    : null,
-                                weatherCreditAmountLabel: creditApplied > 0
-                                    ? '\u2212 ${formatBRL(creditApplied)}'
-                                    : null,
-                                totalLineLabel:
-                                    creditApplied > 0 ? 'A pagar' : 'Total',
-                                totalAmountLabel: professorDiscount ||
-                                        athletePricing ||
-                                        memberHours ||
-                                        creditApplied > 0
-                                    ? formatBRL(amountDue)
-                                    : null,
-                              ),
-                            ),
-                            if (memberNote != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 12),
-                                child: BookingConfirmMemberHoursNote(
-                                  title: memberNote.title,
-                                  message: memberNote.message,
-                                  warning: memberNote.warning,
-                                ),
-                              ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 14),
-                              child: BookingConfirmCouponField(
-                                controller: _couponController,
-                                applying: _couponApplying,
-                                appliedCode: _appliedCouponCode,
-                                discountReais: _couponDiscountReais,
-                                errorText: _couponError,
-                                enabled: !_submitting,
-                                onApply: () => _applyCoupon(args),
-                                onRemove: () => _removeCoupon(args),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 14),
-                              // A política da arena agora: é a que a
-                              // reserva vai guardar ao ser criada.
-                              child: BookingConfirmCancellationCard(
-                                title: ArenaBookingCancellationPolicy
-                                    .cancellationTitle(
-                                  cancelPolicy,
-                                ),
-                                subtitle: ArenaBookingCancellationPolicy
-                                    .cancellationSubtitle(
-                                  args.arenaName,
-                                  cancelPolicy,
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 10),
-                              child: BookingConfirmAthleteNotesField(
-                                controller: _athleteNotesController,
-                                enabled: !_submitting,
-                              ),
-                            ),
                             // Coberta pelo plano: nada a pagar, sem forma
                             // de pagamento.
                             if (!coveredByPlan) ...[
@@ -958,16 +933,98 @@ class _ArenaBookingConfirmPageState
                               ),
                             ],
                             Padding(
-                              padding: const EdgeInsets.only(top: 16),
-                              child: Center(
-                                child: TextButton(
-                                  onPressed: _submitting ? null : _onBack,
-                                  style: TextButton.styleFrom(
-                                    foregroundColor:
-                                        context.themeColors.brandText,
-                                  ),
-                                  child: const Text('Alterar horário'),
+                              padding: const EdgeInsets.only(top: 22),
+                              child: BookingConfirmPriceSummary(
+                                courtLineLabel: courtLineLabel,
+                                courtAmountLabel: _quoting
+                                    ? 'Calculando…'
+                                    : formatBRL(
+                                        professorDiscount
+                                            ? quote
+                                                .amountBeforeProfessorDiscountReais
+                                            : athletePricing
+                                                ? quote
+                                                    .amountBeforeAthletePricingReais
+                                                : memberHours
+                                                    ? quote
+                                                        .amountBeforeMemberHoursReais
+                                                    : displayTotal,
+                                      ),
+                                discountLineLabel: professorDiscount
+                                    ? quote.professorDiscountLabel
+                                    : athletePricing
+                                        ? quote.athletePricingLineLabel
+                                        : null,
+                                discountAmountLabel: professorDiscount
+                                    ? quote.professorDiscountValueLabel
+                                    : athletePricing
+                                        ? quote.athletePricingValueLabel
+                                        : null,
+                                memberHoursLineLabel: memberHours
+                                    ? quote.planCoverageLineLabel
+                                    : null,
+                                memberHoursAmountLabel: memberHours
+                                    ? quote.planCoverageValueLabel
+                                    : null,
+                                weatherCreditAmountLabel: creditApplied > 0
+                                    ? '\u2212 ${formatBRL(creditApplied)}'
+                                    : null,
+                                totalLineLabel:
+                                    creditApplied > 0 ? 'A pagar' : 'Total',
+                                totalAmountLabel: _quoting
+                                    ? 'Calculando…'
+                                    : formatBRL(amountDue),
+                              ),
+                            ),
+                            if (memberNote != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: BookingConfirmMemberHoursNote(
+                                  title: memberNote.title,
+                                  message: memberNote.message,
+                                  warning: memberNote.warning,
                                 ),
+                              ),
+                            // Cashback só existe pagando pelo app.
+                            if (!coveredByPlan &&
+                                !coveredByCredit &&
+                                !_quoting &&
+                                choice == _PaymentChoice.pix)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: BookingConfirmCashbackNote(
+                                  amountDueReais: amountDue,
+                                ),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 14),
+                              child: BookingConfirmCouponField(
+                                controller: _couponController,
+                                applying: _couponApplying,
+                                appliedCode: _appliedCouponCode,
+                                discountReais: _couponDiscountReais,
+                                errorText: _couponError,
+                                enabled: !_submitting,
+                                onApply: () => _applyCoupon(args),
+                                onRemove: () => _removeCoupon(args),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: BookingConfirmAthleteNotesField(
+                                controller: _athleteNotesController,
+                                enabled: !_submitting,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 14),
+                              // A política da arena agora: é a que a
+                              // reserva vai guardar ao ser criada.
+                              child: _cancellationCard(
+                                args,
+                                cancelPolicy,
+                                paysOnline: !coveredByPlan &&
+                                    choice == _PaymentChoice.pix,
                               ),
                             ),
                           ]),
@@ -994,13 +1051,14 @@ class _ArenaBookingConfirmPageState
                       onConfirm: () {
                         if (sport == null) {
                           HapticFeedback.heavyImpact();
-                          showAppSnackBar(
-                            context,
-                            sportOptions == null
-                                ? 'Carregando os esportes da quadra…'
-                                : 'Escolha o esporte que você vai jogar.',
-                            isError: sportOptions != null,
-                          );
+                          if (sportOptions == null) {
+                            showAppSnackBar(
+                              context,
+                              'Carregando os esportes da quadra…',
+                            );
+                            return;
+                          }
+                          _showMissingSport();
                           return;
                         }
                         HapticFeedback.mediumImpact();

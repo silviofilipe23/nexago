@@ -4,12 +4,17 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../../core/formatting/app_currency_format.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'booking_confirm_option_row.dart';
 
 /// Campo de cupom de desconto no checkout — espelha `arena-payment.component.ts`
 /// (Angular athlete): digitar código + "Aplicar"; quando aplicado, mostra um
 /// chip com o desconto e opção de remover. Erro de cupom nunca bloqueia a
 /// reserva, só aparece perto do campo (ver `_applyCoupon` na página de confirmação).
-class BookingConfirmCouponField extends StatelessWidget {
+///
+/// Começa recolhido na linha "Tenho um cupom": a maioria não tem cupom e o
+/// campo aberto convidava a sair do app para procurar um. Abre sozinho com
+/// cupom aplicado, erro ou código já digitado.
+class BookingConfirmCouponField extends StatefulWidget {
   const BookingConfirmCouponField({
     super.key,
     required this.controller,
@@ -31,10 +36,40 @@ class BookingConfirmCouponField extends StatelessWidget {
   final VoidCallback onApply;
   final VoidCallback onRemove;
 
+  static const openRowKey = Key('booking-confirm-coupon-open');
+
+  @override
+  State<BookingConfirmCouponField> createState() =>
+      _BookingConfirmCouponFieldState();
+}
+
+class _BookingConfirmCouponFieldState extends State<BookingConfirmCouponField> {
+  bool _open = false;
+
+  bool get _showField =>
+      _open ||
+      widget.appliedCode != null ||
+      widget.errorText != null ||
+      widget.controller.text.trim().isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
+    if (!_showField) {
+      return BookingConfirmOptionRow(
+        key: BookingConfirmCouponField.openRowKey,
+        icon: Icons.local_offer_outlined,
+        label: 'Tenho um cupom',
+        enabled: widget.enabled,
+        onTap: () => setState(() => _open = true),
+      );
+    }
+
     final theme = Theme.of(context);
-    final code = appliedCode;
+    final code = widget.appliedCode;
+    final controller = widget.controller;
+    final applying = widget.applying;
+    final enabled = widget.enabled;
+    final errorText = widget.errorText;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -52,8 +87,8 @@ class BookingConfirmCouponField extends StatelessWidget {
         if (code != null)
           _AppliedCouponChip(
             code: code,
-            discountReais: discountReais,
-            onRemove: onRemove,
+            discountReais: widget.discountReais,
+            onRemove: widget.onRemove,
           )
         else
           Row(
@@ -62,6 +97,8 @@ class BookingConfirmCouponField extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: controller,
+                  // Abriu pela linha: o teclado já sobe no campo.
+                  autofocus: _open,
                   enabled: enabled && !applying,
                   textCapitalization: TextCapitalization.characters,
                   style: theme.textTheme.bodyMedium?.copyWith(
@@ -107,7 +144,7 @@ class BookingConfirmCouponField extends StatelessWidget {
               SizedBox(
                 height: 52,
                 child: FilledButton(
-                  onPressed: enabled && !applying ? onApply : null,
+                  onPressed: enabled && !applying ? widget.onApply : null,
                   child: applying
                       ? SizedBox(
                           width: 18,
@@ -125,7 +162,7 @@ class BookingConfirmCouponField extends StatelessWidget {
         if (errorText != null) ...[
           SizedBox(height: 8),
           Text(
-            errorText!,
+            errorText,
             style: theme.textTheme.bodySmall?.copyWith(
               color: context.themeColors.live,
             ),

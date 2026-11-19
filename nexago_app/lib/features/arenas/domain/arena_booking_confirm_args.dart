@@ -48,6 +48,17 @@ class ArenaBookingConfirmArgs {
 
   String get dateKey => calendarDateKey(date);
 
+  /// Início da reserva no fuso do aparelho (dia de [date] + [startTime]);
+  /// `null` se o horário não for `HH:mm`.
+  DateTime? get startsAt {
+    final parts = startTime.split(':');
+    if (parts.length != 2) return null;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return null;
+    return DateTime(date.year, date.month, date.day, hour, minute);
+  }
+
   bool get isValid =>
       arenaId.isNotEmpty &&
       (courtId.isNotEmpty || (capacity && (sport ?? '').isNotEmpty)) &&
@@ -94,12 +105,20 @@ class ArenaBookingConfirmArgs {
     final dateStr = q['date'] ?? '';
     final start = q['startTime'] ?? '';
     final end = q['endTime'] ?? '';
-    final total = double.tryParse(q['totalReais'] ?? '') ?? double.tryParse(q['amountReais'] ?? '') ?? -1;
+    final total = double.tryParse(q['totalReais'] ?? '') ??
+        double.tryParse(q['amountReais'] ?? '') ??
+        -1;
 
-    if (arenaId.isEmpty || courtId.isEmpty || dateStr.length < 10 || start.isEmpty || end.isEmpty || total < 0) {
+    if (arenaId.isEmpty ||
+        courtId.isEmpty ||
+        dateStr.length < 10 ||
+        start.isEmpty ||
+        end.isEmpty ||
+        total < 0) {
       return null;
     }
-    final parsed = DateTime.tryParse(dateStr.length >= 10 ? dateStr.substring(0, 10) : dateStr);
+    final parsed = DateTime.tryParse(
+        dateStr.length >= 10 ? dateStr.substring(0, 10) : dateStr);
     if (parsed == null) return null;
 
     return ArenaBookingConfirmArgs(
@@ -107,8 +126,9 @@ class ArenaBookingConfirmArgs {
       arenaName: arenaName.isEmpty ? 'Arena' : arenaName,
       courtId: courtId,
       courtName: courtName.isEmpty ? 'Quadra' : courtName,
-      courtSubtitle:
-          courtSubtitle != null && courtSubtitle.isNotEmpty ? courtSubtitle : null,
+      courtSubtitle: courtSubtitle != null && courtSubtitle.isNotEmpty
+          ? courtSubtitle
+          : null,
       date: DateTime(parsed.year, parsed.month, parsed.day),
       startTime: start.length >= 5 ? start.substring(0, 5) : start,
       endTime: end.length >= 5 ? end.substring(0, 5) : end,

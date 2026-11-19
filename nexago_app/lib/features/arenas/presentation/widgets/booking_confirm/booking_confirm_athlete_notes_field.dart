@@ -4,9 +4,10 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/booking_athlete_notes.dart';
+import 'booking_confirm_option_row.dart';
 
-/// Recado opcional para a arena no checkout. Começa recolhido ("+ Recado para
-/// a arena") para não pesar a tela; aberto, mostra o campo com contador. O
+/// Recado opcional para a arena no checkout. Começa recolhido (linha "Recado para
+/// a arena", como o cupom) para não pesar a tela; aberto, mostra o campo com contador. O
 /// texto vai na reserva e aparece para a arena no detalhe.
 class BookingConfirmAthleteNotesField extends StatefulWidget {
   const BookingConfirmAthleteNotesField({
@@ -30,19 +31,12 @@ class _BookingConfirmAthleteNotesFieldState
   @override
   Widget build(BuildContext context) {
     if (!_expanded) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          key: const Key('booking-confirm-athlete-notes-open'),
-          onPressed:
-              widget.enabled ? () => setState(() => _expanded = true) : null,
-          style: TextButton.styleFrom(
-            foregroundColor: context.themeColors.brandText,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-          ),
-          icon: const Icon(Icons.add_rounded, size: 20),
-          label: const Text('Recado para a arena'),
-        ),
+      return BookingConfirmOptionRow(
+        key: const Key('booking-confirm-athlete-notes-open'),
+        icon: Icons.chat_bubble_outline_rounded,
+        label: 'Recado para a arena',
+        enabled: widget.enabled,
+        onTap: () => setState(() => _expanded = true),
       );
     }
 

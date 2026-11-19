@@ -94,6 +94,16 @@ function normalizeCode(raw: string): string {
             <p class="hint">Sem datas = cupom vale a partir de agora, sem prazo pra expirar.</p>
           </ar-panel-card>
 
+          <ar-panel-card title="Divulgação">
+            <div class="type-toggle">
+              <button type="button" class="type-btn" [class.active]="!showInApp()" (click)="showInApp.set(false)">Só quem tem o código</button>
+              <button type="button" class="type-btn" [class.active]="showInApp()" (click)="showInApp.set(true)">Mostrar no app</button>
+            </div>
+            <p class="hint">
+              {{ showInApp() ? 'O atleta vê o cupom na tela de confirmar reserva e aplica com um toque.' : 'O cupom não aparece em lista nenhuma: só funciona para quem recebeu o código.' }}
+            </p>
+          </ar-panel-card>
+
           <ar-panel-card title="Limite de usos">
             <div class="row-2">
               <div>
@@ -118,7 +128,9 @@ function normalizeCode(raw: string): string {
             </div>
           </ar-panel-card>
 
-          <div class="hint-box">O cliente digita o código na tela de reserva da quadra; o desconto entra automaticamente na cotação.</div>
+          <div class="hint-box">
+            {{ showInApp() ? 'O atleta vê o cupom na tela de reserva da quadra (ou digita o código); o desconto entra automaticamente na cotação.' : 'O cliente digita o código na tela de reserva da quadra; o desconto entra automaticamente na cotação.' }}
+          </div>
         </div>
       </div>
     </ar-panel-shell>
@@ -307,6 +319,7 @@ export class PanelCouponFormComponent {
   protected readonly validUntil = signal('');
   protected readonly maxTotal = signal('');
   protected readonly maxPerAthlete = signal('1');
+  protected readonly showInApp = signal(false);
 
   protected readonly canSave = computed(
     () => this.code().trim().length >= 3 && parseNumber(this.discountValue()) > 0 && !this.saving() && !this.loadingCoupon(),
@@ -338,6 +351,7 @@ export class PanelCouponFormComponent {
       this.validUntil.set(isoToInputValue(coupon.validUntil));
       this.maxTotal.set(coupon.maxRedemptionsTotal != null ? String(coupon.maxRedemptionsTotal) : '');
       this.maxPerAthlete.set(String(coupon.maxRedemptionsPerAthlete));
+      this.showInApp.set(coupon.showInApp === true);
       this.loadingCoupon.set(false);
     } catch (err) {
       this.errorMessage.set(err instanceof Error ? err.message : 'Não foi possível carregar o cupom.');
@@ -361,6 +375,7 @@ export class PanelCouponFormComponent {
         validUntil: inputValueToIso(this.validUntil()),
         maxRedemptionsTotal: this.maxTotal().trim() ? Math.floor(parseNumber(this.maxTotal())) : null,
         maxRedemptionsPerAthlete: this.maxPerAthlete().trim() ? Math.max(1, Math.floor(parseNumber(this.maxPerAthlete()))) : 1,
+        showInApp: this.showInApp(),
       };
       if (this.couponId) {
         await updateArenaCoupon(arenaFunctions(), { ...terms, couponId: this.couponId, active: this.active() });

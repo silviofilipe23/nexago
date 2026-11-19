@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/auth/auth_service.dart';
 import 'package:nexago_app/core/formatting/app_currency_format.dart';
@@ -30,6 +32,11 @@ import 'package:nexago_app/features/cashback/application/cashback_providers.dart
 import 'package:nexago_app/features/cashback/domain/cashback_models.dart';
 import 'package:nexago_app/features/cashback/domain/cashback_rules.dart';
 
+import 'package:nexago_app/features/arenas/data/coupons_repository.dart';
+import 'package:nexago_app/features/arenas/data/last_booking_payment_store.dart';
+import 'package:nexago_app/features/arenas/domain/available_coupon.dart';
+import 'package:nexago_app/features/arenas/domain/booking_payment_method.dart';
+
 import '../../core/theme/state_tone_contrast.dart';
 import '../weather/weather_test_fakes.dart';
 
@@ -52,10 +59,12 @@ final _args = ArenaBookingConfirmArgs(
 
 /// Cotação controlada pelo teste; criação da reserva pode falhar à vontade.
 class _FakeBookingService extends BookingService {
-  _FakeBookingService({this.createError})
+  _FakeBookingService({this.createError, this.createResult})
       : super(UnusedFirestore(), functions: FakeWeatherFunctions());
 
   final Object? createError;
+  final CreateBookingResult? createResult;
+  final List<String> createdModes = [];
   Completer<ArenaBookingQuote> pendingQuote = Completer()
     ..complete(const ArenaBookingQuote(amountReais: 70, lineItems: []));
 
@@ -66,8 +75,18 @@ class _FakeBookingService extends BookingService {
     bool asProfessor = false,
     bool useWeatherCredit = false,
     String paymentMode = 'onsite',
-  }) =>
-      pendingQuote.future;
+  }) {
+    if (couponCode == null) return pendingQuote.future;
+    quotedCoupons.add(couponCode);
+    return Future.value(const ArenaBookingQuote(
+      amountReais: 63,
+      lineItems: [],
+      couponApplied: true,
+      couponDiscountReais: 7,
+    ));
+  }
+
+  final List<String> quotedCoupons = [];
 
   @override
   Future<CreateBookingResult?> findResumablePixBooking({
@@ -88,7 +107,27 @@ class _FakeBookingService extends BookingService {
     String? professorStudentId,
     bool useWeatherCredit = false,
   }) async {
+    createdModes.add(paymentMode);
+    final result = createResult;
+    if (result != null && createError == null) return result;
     throw createError ?? StateError('não configurado');
+  }
+}
+
+/// Forma lembrada em memória (sem SharedPreferences nos testes).
+class _FakePaymentStore extends LastBookingPaymentStore {
+  _FakePaymentStore([this.stored]);
+
+  BookingPaymentMethod? stored;
+  final List<BookingPaymentMethod> saved = [];
+
+  @override
+  Future<BookingPaymentMethod?> load(String uid) async => stored;
+
+  @override
+  Future<void> save(String uid, BookingPaymentMethod method) async {
+    saved.add(method);
+    stored = method;
   }
 }
 
@@ -98,6 +137,8 @@ Future<void> _pumpConfirm(
   ThemeData? theme,
   List<String> sports = const ['Pickleball', 'Beach Tennis'],
   CashbackCheckoutContext? cashback,
+  LastBookingPaymentStore? paymentStore,
+  List<AvailableCoupon> availableCoupons = const [],
 }) async {
   tester.view.physicalSize = const Size(900, 3200);
   tester.view.devicePixelRatio = 1;
@@ -111,6 +152,16 @@ Future<void> _pumpConfirm(
         path: AppRoutes.arenaBookingConfirm,
         builder: (context, state) =>
             ArenaBookingConfirmPage(arenaId: state.pathParameters['arenaId']!),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaBookingSuccess,
+        builder: (context, state) =>
+            const Scaffold(body: Text('tela de sucesso')),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaBookingPix,
+        name: AppRouteNames.arenaBookingPix,
+        builder: (context, state) => const Scaffold(body: Text('tela do pix')),
       ),
     ],
   );
@@ -138,6 +189,10 @@ Future<void> _pumpConfirm(
         myArenaProfessorLinkProvider
             .overrideWith((ref, id) => Stream.value(null)),
         cashbackCheckoutContextProvider.overrideWithValue(cashback),
+        lastBookingPaymentStoreProvider
+            .overrideWithValue(paymentStore ?? _FakePaymentStore()),
+        availableArenaCouponsProvider
+            .overrideWith((ref, id) async => availableCoupons),
       ],
       child: MaterialApp.router(
         theme: theme ?? AppTheme.dark,
@@ -473,5 +528,155 @@ void main() {
       ),
     ));
     expect(find.byKey(BookingConfirmHeroCard.coverKey), findsOneWidget);
+  });
+
+  group('forma de pagamento lembrada (N1)', () {
+    Finder confirmButton(String label) => find.descendant(
+          of: find.byType(BookingConfirmStickyBar),
+          matching: find.text(label),
+        );
+
+    testWidgets('sem histórico: abre em "na arena", sem selo', (tester) async {
+      await _pumpConfirm(tester, _FakeBookingService());
+
+      expect(find.text('Último usado'), findsNothing);
+      expect(confirmButton('Confirmar reserva'), findsOneWidget);
+    });
+
+    testWidgets('última foi online: abre em "Pagar online" com o selo',
+        (tester) async {
+      await _pumpConfirm(
+        tester,
+        _FakeBookingService(),
+        paymentStore: _FakePaymentStore(BookingPaymentMethod.online),
+      );
+
+      expect(find.text('Último usado'), findsOneWidget);
+      expect(confirmButton('Confirmar e pagar'), findsOneWidget);
+
+      // Tocar em outra forma vale mais que a lembrada.
+      await tester.tap(find.text('Pagar na arena'));
+      await tester.pump();
+      expect(confirmButton('Confirmar reserva'), findsOneWidget);
+    });
+
+    testWidgets('reserva concluída na arena grava "onsite"', (tester) async {
+      final store = _FakePaymentStore(BookingPaymentMethod.online);
+      final service = _FakeBookingService(
+        createResult: const CreateBookingResult(
+          bookingId: 'b1',
+          amountReais: 70,
+          amountDueOnsiteReais: 70,
+        ),
+      );
+      await _pumpConfirm(tester, service, paymentStore: store);
+
+      await tester.tap(find.text('Pagar na arena'));
+      await tester.pump();
+      await _pickSport(tester);
+      await tester.tap(confirmButton('Confirmar reserva'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(service.createdModes, ['onsite']);
+      expect(store.saved, [BookingPaymentMethod.onsite]);
+      expect(find.text('tela de sucesso'), findsOneWidget);
+    });
+  });
+
+  group('LastBookingPaymentStore', () {
+    test('lê e grava por atleta', () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = LastBookingPaymentStore();
+
+      expect(await store.load('u1'), isNull);
+      await store.save('u1', BookingPaymentMethod.online);
+      expect(await store.load('u1'), BookingPaymentMethod.online);
+      expect(await store.load('u2'), isNull);
+    });
+
+    test('sem usuário não lê nem grava', () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = LastBookingPaymentStore();
+      await store.save('', BookingPaymentMethod.online);
+      expect(await store.load(''), isNull);
+    });
+  });
+
+  group('cupons disponíveis (N2)', () {
+    const coupons = [
+      AvailableCoupon(code: 'VERAO10', discountPercent: 10),
+      AvailableCoupon(code: 'AMIGO', fixedDiscountReais: 15),
+    ];
+
+    testWidgets('linha conta os disponíveis e o chip aplica com um toque',
+        (tester) async {
+      final service = _FakeBookingService();
+      await _pumpConfirm(tester, service, availableCoupons: coupons);
+
+      expect(find.text('2 disponíveis'), findsOneWidget);
+      await tester.tap(find.byKey(BookingConfirmCouponField.openRowKey));
+      await tester.pump();
+
+      expect(find.text('VERAO10 · 10% off'), findsOneWidget);
+      expect(find.text('AMIGO · ${formatBRL(15)} off'), findsOneWidget);
+
+      await tester.tap(find.text('VERAO10 · 10% off'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(service.quotedCoupons, ['VERAO10']);
+      expect(find.textContaining('Cupom VERAO10 aplicado'), findsOneWidget);
+      // Aplicado: os chips saem.
+      expect(find.text('AMIGO · ${formatBRL(15)} off'), findsNothing);
+    });
+
+    testWidgets('sem cupons divulgados: linha sem contador', (tester) async {
+      await _pumpConfirm(tester, _FakeBookingService());
+      expect(find.textContaining('disponíve'), findsNothing);
+    });
+
+    test('fromMap e rótulo do desconto', () {
+      expect(AvailableCoupon.fromMap({'code': ''}), isNull);
+      final c = AvailableCoupon.fromMap({
+        'code': 'P12',
+        'discountPercent': 12.5,
+        'fixedDiscountReais': null,
+        'validUntil': '2026-12-31T23:59:59.000Z',
+      })!;
+      expect(c.discountLabel, '12,5% off');
+      expect(c.validUntil, isNotNull);
+      expect(
+        const AvailableCoupon(code: 'X', fixedDiscountReais: 15).discountLabel,
+        '${formatBRL(15)} off',
+      );
+    });
+
+    test('repositório: callable fora do ar vira lista vazia', () async {
+      final functions = FakeWeatherFunctions(errors: {
+        'listAvailableArenaCoupons': FirebaseFunctionsException(
+          code: 'not-found',
+          message: 'NOT FOUND',
+        ),
+      });
+      final repo = CouponsRepository(functions: functions);
+      expect(await repo.listAvailableCoupons('a1'), isEmpty);
+    });
+
+    test('repositório: lê a lista e ignora item sem código', () async {
+      final functions = FakeWeatherFunctions(responses: {
+        'listAvailableArenaCoupons': {
+          'coupons': [
+            {'code': 'VERAO10', 'discountPercent': 10},
+            {'code': ''},
+          ],
+        },
+      });
+      final repo = CouponsRepository(functions: functions);
+      final list = await repo.listAvailableCoupons('a1');
+      expect(list.map((c) => c.code), ['VERAO10']);
+      expect(
+          functions.payloadOf('listAvailableArenaCoupons'), {'arenaId': 'a1'});
+    });
   });
 }

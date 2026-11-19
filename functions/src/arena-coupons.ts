@@ -28,7 +28,24 @@ export interface ArenaCouponDoc {
   maxRedemptionsTotal?: number;
   maxRedemptionsPerAthlete: number;
   redemptionsCount: number;
+  /**
+   * A arena divulga o cupom no app (lista "cupons disponíveis" no checkout).
+   * Padrão `false`: código distribuído à mão (grupo, parceiro) não vaza para
+   * todo atleta.
+   */
+  showInApp: boolean;
 }
+
+/** Cupom como o atleta vê na lista do checkout (sem contadores da arena). */
+export interface AvailableCouponView {
+  code: string;
+  discountPercent: number | null;
+  fixedDiscountReais: number | null;
+  validUntil: string | null;
+}
+
+/** Teto da lista do checkout: é atalho, não catálogo. */
+export const MAX_AVAILABLE_COUPONS = 10;
 
 export interface CouponPricingOutcome {
   couponApplied: boolean;
@@ -77,6 +94,7 @@ export function parseCouponDoc(id: string, data: Record<string, unknown>): Arena
     maxRedemptionsTotal,
     maxRedemptionsPerAthlete,
     redemptionsCount: typeof redemptionsCountRaw === "number" ? redemptionsCountRaw : 0,
+    showInApp: data["showInApp"] === true,
   };
 }
 
@@ -109,6 +127,38 @@ export function couponRedemptionLimitError(
     return "Você já utilizou este cupom o máximo de vezes permitido.";
   }
   return null;
+}
+
+/**
+ * Cupons que o atleta pode usar agora e que a arena divulga no app: ativos,
+ * na vigência, com uso sobrando no total e para ele. Ordem: maior desconto
+ * percentual, depois maior fixo; no máximo [MAX_AVAILABLE_COUPONS].
+ */
+export function availableCouponsForAthlete(
+  coupons: ArenaCouponDoc[],
+  athleteRedemptions: ReadonlyMap<string, number>,
+  now: Date,
+): AvailableCouponView[] {
+  return coupons
+    .filter((c) => c.showInApp)
+    .filter((c) => couponValidityError(c, now) == null)
+    .filter((c) =>
+      couponRedemptionLimitError(c, {
+        totalRedemptions: c.redemptionsCount,
+        athleteRedemptions: athleteRedemptions.get(c.id) ?? 0,
+      }) == null,
+    )
+    .sort((a, b) =>
+      (b.discountPercent ?? 0) - (a.discountPercent ?? 0) ||
+      (b.fixedDiscountReais ?? 0) - (a.fixedDiscountReais ?? 0),
+    )
+    .slice(0, MAX_AVAILABLE_COUPONS)
+    .map((c) => ({
+      code: c.code,
+      discountPercent: c.discountPercent ?? null,
+      fixedDiscountReais: c.fixedDiscountReais ?? null,
+      validUntil: c.validUntil ? c.validUntil.toDate().toISOString() : null,
+    }));
 }
 
 /** Desconto do cupom (percentual OU fixo, mesmo XOR de `promotions`) sobre o subtotal base. */
@@ -390,6 +440,7 @@ function serializeCoupon(c: ArenaCouponDoc) {
     maxRedemptionsTotal: c.maxRedemptionsTotal ?? null,
     maxRedemptionsPerAthlete: c.maxRedemptionsPerAthlete,
     redemptionsCount: c.redemptionsCount,
+    showInApp: c.showInApp,
   };
 }
 
@@ -501,6 +552,7 @@ export const createArenaCoupon = onCall({
     code,
     active: true,
     redemptionsCount: 0,
+    showInApp: data.showInApp === true,
     ...couponTermsToFields(terms),
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
@@ -602,6 +654,8 @@ export const updateArenaCoupon = onCall({
     tx.update(ref, {
       ...couponTermsToFields(terms),
       ...(typeof data.active === "boolean" ? {active: data.active} : {}),
+      // Cliente antigo não manda a chave: o cupom fica como estava.
+      ...(typeof data.showInApp === "boolean" ? {showInApp: data.showInApp} : {}),
       ...(terms.discountPercent == null ? {discountPercent: FieldValue.delete()} : {}),
       ...(terms.fixedDiscountReais == null ? {fixedDiscountReais: FieldValue.delete()} : {}),
       ...(terms.validFrom ? {} : {validFrom: FieldValue.delete()}),
@@ -613,4 +667,45 @@ export const updateArenaCoupon = onCall({
 
   logger.info("updateArenaCoupon: cupom editado", {arenaId, couponId});
   return {success: true};
+});
+
+/**
+ * Cupons divulgados no app que o atleta logado ainda pode usar nesta arena —
+ * a lista "cupons disponíveis" do checkout de reserva. Só lê; a validação de
+ * verdade continua na cotação/reserva (`resolveCouponForPricing`).
+ */
+export const listAvailableArenaCoupons = onCall({
+  region: CLIENT_FACING_REGIONS,
+}, async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
+  }
+  const data = (request.data ?? {}) as Record<string, unknown>;
+  const arenaId = typeof data.arenaId === "string" ? data.arenaId.trim() : "";
+  if (!arenaId) {
+    throw new HttpsError("invalid-argument", "arenaId é obrigatório.");
+  }
+
+  const db = getFirestore();
+  const snap = await couponsCollection(db, arenaId)
+    .where("showInApp", "==", true)
+    .where("active", "==", true)
+    .limit(50)
+    .get();
+  const coupons = snap.docs.map((doc) =>
+    parseCouponDoc(doc.id, doc.data() as Record<string, unknown>),
+  );
+  if (coupons.length === 0) return {coupons: []};
+
+  const redemptionSnaps = await db.getAll(
+    ...coupons.map((c) => couponRedemptionDocRef(db, arenaId, c.id, callerUid)),
+  );
+  const athleteRedemptions = new Map<string, number>();
+  redemptionSnaps.forEach((snapDoc, i) => {
+    const count = snapDoc.data()?.["count"];
+    athleteRedemptions.set(coupons[i].id, typeof count === "number" ? count : 0);
+  });
+
+  return {coupons: availableCouponsForAthlete(coupons, athleteRedemptions, new Date())};
 });

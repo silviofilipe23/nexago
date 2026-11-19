@@ -895,6 +895,7 @@ export {
   listArenaCoupons,
   deactivateArenaCoupon,
   updateArenaCoupon,
+  listAvailableArenaCoupons,
 } from "./arena-coupons";
 // --- Relatórios de ocupação de quadra (gestor de arena) ---
 export {getArenaOccupancyReport} from "./arena-occupancy-report";

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/layout/nexa_bottom_nav_bar.dart';
+import '../../../../core/live_activity/next_match_live_activity_service.dart';
 import '../../../../core/layout/nexa_bottom_nav_models.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -79,9 +80,19 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
   Timer? _holdTimer;
   Timer? _deadlineTimer;
 
+  /// A Live Activity da próxima partida é pedida uma vez por abertura do Focus.
+  bool _liveActivityRequested = false;
+
   @override
   void initState() {
     super.initState();
+    // Abrir o Focus no dia do torneio liga o card na tela bloqueada e na
+    // Dynamic Island (iOS). O servidor decide se há partida hoje.
+    ref.listenManual<AsyncValue<Map<String, String>>>(
+      tournamentUserTeamIdsByCategoryProvider(widget.tournamentId),
+      (_, next) => _startNextMatchLiveActivity(next.valueOrNull),
+      fireImmediately: true,
+    );
     _holdTimer = Timer(_bootMinimumHold, () {
       if (mounted) setState(() => _minimumHoldElapsed = true);
     });
@@ -95,6 +106,19 @@ class _FocusShellPageState extends ConsumerState<FocusShellPage> {
     _holdTimer?.cancel();
     _deadlineTimer?.cancel();
     super.dispose();
+  }
+
+  void _startNextMatchLiveActivity(Map<String, String>? teamIdsByCategory) {
+    if (_liveActivityRequested || teamIdsByCategory == null) return;
+    final teamIds = athleteTeamIdsForHighlight(teamIdsByCategory);
+    if (teamIds.isEmpty) return;
+    _liveActivityRequested = true;
+    unawaited(
+      ref.read(nextMatchLiveActivityServiceProvider).startForFocus(
+            tournamentId: widget.tournamentId,
+            teamIds: teamIds,
+          ),
+    );
   }
 
   /// Sair devolve o atleta à HOME, não ao detalhe do torneio: no dia de jogo a

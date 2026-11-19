@@ -2067,6 +2067,26 @@ service cloud.firestore {
           .hasOnly(['fcmToken', 'liveActivityToken', 'updatedAt']) &&
         pixLiveActivityShapeOk(request.resource.data);
     }
+    // Live Activity "minha próxima partida" (`functions/src/next-match-live-activity.ts`).
+    // Chave `{uid}_{tournamentId}`. Quem cria e mantém o estado é o servidor
+    // (callable `startNextMatchActivity` + gatilho das partidas): o atleta só
+    // lê o próprio doc, grava os tokens da activity e pode apagá-lo.
+    match /nextMatchActivities/{activityId} {
+      // `resource == null`: o app lê antes de gravar o token — ler um doc
+      // inexistente não pode ser negado.
+      allow read: if request.auth != null &&
+        (resource == null || resource.data.uid == request.auth.uid);
+      allow delete: if request.auth != null &&
+        resource.data.uid == request.auth.uid;
+      allow update: if request.auth != null &&
+        resource.data.uid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['fcmToken', 'liveActivityToken', 'updatedAt']) &&
+        request.resource.data.fcmToken is string &&
+        request.resource.data.fcmToken.size() <= 4096 &&
+        request.resource.data.liveActivityToken is string &&
+        request.resource.data.liveActivityToken.size() <= 512;
+    }
     match /arenaBookings/{bookingId} {
       // Leitura autenticada ampla: o preview do convite compartilhado
       // (/convite/:inviteId) relê a reserva ANTES de o convidado ter vínculo

@@ -16,6 +16,7 @@ import 'package:nexago_app/features/arenas/domain/arena_booking_confirm_args.dar
 import 'package:nexago_app/features/arenas/domain/arena_booking_quote.dart';
 import 'package:nexago_app/features/arenas/domain/arena_court.dart';
 import 'package:nexago_app/features/arenas/domain/arenas_providers.dart';
+import 'package:nexago_app/features/arenas/domain/booking_athlete_notes.dart';
 import 'package:nexago_app/features/arenas/domain/booking_providers.dart';
 import 'package:nexago_app/features/arenas/domain/slots_providers.dart';
 import 'package:nexago_app/features/arenas/presentation/arena_booking_confirm_page.dart';
@@ -34,9 +35,9 @@ import '../../core/theme/state_tone_contrast.dart';
 import '../weather/weather_test_fakes.dart';
 
 // Tela de confirmar reserva: correções (erro técnico na tela, botão liberado
-// com o preço desatualizado, laranja ilegível no tema claro, campo de
-// observações que não chegava em lugar nenhum) e a ordem dos blocos
-// (pagamento antes do recibo, Total sempre, prazo em data e hora).
+// com o preço desatualizado, laranja ilegível no tema claro), o recado para a
+// arena (antes "Observações", que não chegava em lugar nenhum) e a ordem dos
+// blocos (pagamento antes do recibo, Total sempre, prazo em data e hora).
 
 final _args = ArenaBookingConfirmArgs(
   arenaId: 'a1',
@@ -56,6 +57,10 @@ class _FakeBookingService extends BookingService {
       : super(UnusedFirestore(), functions: FakeWeatherFunctions());
 
   final Object? createError;
+
+  /// `athleteNotes` recebido na última criação (o que a página mandou).
+  String? sentAthleteNotes;
+  bool created = false;
   Completer<ArenaBookingQuote> pendingQuote = Completer()
     ..complete(const ArenaBookingQuote(amountReais: 70, lineItems: []));
 
@@ -87,7 +92,10 @@ class _FakeBookingService extends BookingService {
     bool asProfessor = false,
     String? professorStudentId,
     bool useWeatherCredit = false,
+    String? athleteNotes,
   }) async {
+    created = true;
+    sentAthleteNotes = athleteNotes;
     throw createError ?? StateError('não configurado');
   }
 }
@@ -156,6 +164,18 @@ FilledButton _cta(WidgetTester tester) => tester.widget<FilledButton>(
       ),
     );
 
+final _notesField =
+    find.byKey(const Key('booking-confirm-athlete-notes-field'));
+
+Future<void> _tapConfirm(WidgetTester tester) async {
+  await tester.tap(find.descendant(
+    of: find.byType(BookingConfirmStickyBar),
+    matching: find.text('Confirmar reserva'),
+  ));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 100));
+}
+
 /// Escolhe o primeiro esporte da quadra (sem esporte o botão só avisa).
 Future<void> _pickSport(WidgetTester tester) async {
   await tester.tap(find.text('Pickleball'));
@@ -167,11 +187,48 @@ void main() {
     await initializeDateFormatting('pt_BR');
   });
 
-  testWidgets('não mostra mais o campo de observações', (tester) async {
+  testWidgets('recado para a arena começa recolhido', (tester) async {
     await _pumpConfirm(tester, _FakeBookingService());
 
     expect(find.text('OBSERVAÇÕES (OPCIONAL)'), findsNothing);
-    expect(find.byType(TextField), findsNothing, reason: 'cupom recolhido');
+    expect(find.text('Recado para a arena'), findsOneWidget);
+    expect(_notesField, findsNothing);
+    expect(find.byType(TextField), findsNothing,
+        reason: 'cupom e recado recolhidos');
+  });
+
+  testWidgets('recado digitado vai junto na criação da reserva',
+      (tester) async {
+    final service = _FakeBookingService();
+    await _pumpConfirm(tester, service);
+    await _pickSport(tester);
+
+    await tester.tap(find.text('Recado para a arena'));
+    await tester.pump();
+    expect(_notesField, findsOneWidget);
+    expect(find.text('RECADO PARA A ARENA (OPCIONAL)'), findsOneWidget);
+
+    await tester.enterText(_notesField, '  Vamos chegar 10 min antes  ');
+    await _tapConfirm(tester);
+
+    expect(service.created, isTrue);
+    expect(service.sentAthleteNotes, '  Vamos chegar 10 min antes  ',
+        reason: 'o serviço apara e descarta vazio');
+  });
+
+  testWidgets('recado não passa de $kAthleteNotesMaxLength caracteres',
+      (tester) async {
+    await _pumpConfirm(tester, _FakeBookingService());
+    await tester.tap(find.text('Recado para a arena'));
+    await tester.pump();
+
+    await tester.enterText(_notesField, 'a' * (kAthleteNotesMaxLength + 20));
+    await tester.pump();
+
+    final field = tester.widget<TextField>(_notesField);
+    expect(field.controller!.text.length, kAthleteNotesMaxLength);
+    expect(find.text('$kAthleteNotesMaxLength/$kAthleteNotesMaxLength'),
+        findsOneWidget);
   });
 
   testWidgets('botão travado enquanto o preço é recalculado', (tester) async {
@@ -196,13 +253,7 @@ void main() {
       _FakeBookingService(createError: StateError('type Null is not a String')),
     );
     await _pickSport(tester);
-
-    await tester.tap(find.descendant(
-      of: find.byType(BookingConfirmStickyBar),
-      matching: find.text('Confirmar reserva'),
-    ));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    await _tapConfirm(tester);
 
     expect(
       find.text('Não foi possível reservar. Tente de novo em instantes.'),
@@ -231,6 +282,34 @@ void main() {
       expect(checked, contains(Icons.check_circle_rounded));
     });
   }
+
+  group('serviço: athleteNotes no payload do createArenaBooking', () {
+    Future<Map<String, dynamic>?> payloadFor(String? notes) async {
+      final functions = FakeWeatherFunctions(responses: {
+        'createArenaBooking': {'bookingId': 'b1', 'amountReais': 70.0},
+      });
+      await BookingService(UnusedFirestore(), functions: functions)
+          .createBookingAtomically(
+        args: _args,
+        athleteId: 'u1',
+        athleteNotes: notes,
+      );
+      return functions.payloadOf('createArenaBooking');
+    }
+
+    test('vai aparado', () async {
+      final payload = await payloadFor('  Traz bola?\n');
+      expect(payload?['athleteNotes'], 'Traz bola?');
+    });
+
+    test('vazio, só espaços ou nulo: a chave nem vai', () async {
+      for (final notes in [null, '', '   ']) {
+        final payload = await payloadFor(notes);
+        expect(payload?.containsKey('athleteNotes'), isFalse,
+            reason: 'notes=$notes');
+      }
+    });
+  });
 
   test('serviço: resposta quebrada vira frase amigável, sem o erro cru',
       () async {
@@ -265,6 +344,10 @@ void main() {
       expect(
         top(tester, 'RESUMO DE VALORES'),
         lessThan(top(tester, 'Tenho um cupom')),
+      );
+      expect(
+        top(tester, 'Tenho um cupom'),
+        lessThan(top(tester, 'Recado para a arena')),
       );
     });
 

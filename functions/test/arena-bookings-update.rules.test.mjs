@@ -278,6 +278,19 @@ test('carimbo de professor: dono e equipe NÃO forjam, trocam nem apagam; cancel
   assert((await stored()).bookedAs === 'professor');
 });
 
+test('recado do atleta (athleteNotes): dono e equipe NÃO criam, trocam nem apagam; cancelar segue', async () => {
+  await seedBooking(confirmed);
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), { athleteNotes: 'Chego atrasado' }));
+  await assertDeniedByRule(updateDoc(bookingAs(RECEPCAO), { athleteNotes: 'Chego atrasado' }));
+
+  await seedBooking({ ...confirmed, athleteNotes: 'Vamos chegar 10 min antes.' });
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), { athleteNotes: 'Outro recado' }));
+  await assertDeniedByRule(updateDoc(bookingAs(ATLETA), { athleteNotes: deleteField() }));
+  await assertDeniedByRule(updateDoc(bookingAs(RECEPCAO), { athleteNotes: deleteField() }));
+  await assertSucceeds(updateDoc(bookingAs(ATLETA), ownerCancel()));
+  assert((await stored()).athleteNotes === 'Vamos chegar 10 min antes.');
+});
+
 test('dono cancela de novo uma reserva já cancelada (mesmos valores reenviados)', async () => {
   await seedBooking({ ...confirmed, status: 'canceled', attendanceStatus: 'canceled' });
   await assertSucceeds(updateDoc(bookingAs(ATLETA), ownerCancel()));

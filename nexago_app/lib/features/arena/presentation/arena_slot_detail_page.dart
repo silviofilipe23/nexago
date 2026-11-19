@@ -704,6 +704,7 @@ class _BookedDetails extends ConsumerWidget {
         arenaBookingProfessorDiscountLabel(bookingAsync.valueOrNull);
     final athletePricingLabel =
         arenaBookingAthletePricingLabel(bookingAsync.valueOrNull);
+    final athleteNotes = arenaBookingAthleteNotes(bookingAsync.valueOrNull);
     final nameAsync = athleteUid != null && athleteUid.trim().isNotEmpty
         ? ref.watch(athleteDisplayLabelProvider(athleteUid))
         : AsyncValue<String>.data(
@@ -748,6 +749,14 @@ class _BookedDetails extends ConsumerWidget {
             if (sportLabel != null) ...[
               SizedBox(height: 12),
               _LabeledRow(label: 'Esporte', value: sportLabel),
+            ],
+            if (athleteNotes != null) ...[
+              SizedBox(height: 12),
+              _LabeledRow(
+                key: const Key('arena-slot-athlete-notes'),
+                label: 'Recado do atleta',
+                value: athleteNotes,
+              ),
             ],
             SizedBox(height: 12),
             _LabeledRow(

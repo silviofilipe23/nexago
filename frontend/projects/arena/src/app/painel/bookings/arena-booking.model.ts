@@ -52,6 +52,9 @@ export interface ArenaBooking {
   confirmedParticipants: number;
   canceledAt: Date | null;
   cancelReason: string | null;
+  /** Recado do atleta para a arena, digitado ao reservar pelo app (`athleteNotes`, gravado só
+   *  por `createArenaBooking`). `null` sem recado. Opcional para não quebrar fixtures antigas. */
+  athleteNotes?: string | null;
   createdAt: Date | null;
   couponCode: string | null;
   couponDiscountReais: number | null;
@@ -200,6 +203,7 @@ export function arenaBookingFromDoc(doc: QueryDocumentSnapshot): ArenaBooking {
     confirmedParticipants: typeof d['confirmedParticipants'] === 'number' ? d['confirmedParticipants'] : 1,
     canceledAt: toDate(d['canceledAt']),
     cancelReason: optionalTrimmed(d['cancelReason']),
+    athleteNotes: optionalTrimmed(d['athleteNotes']),
     createdAt: toDate(d['createdAt']),
     couponCode: optionalTrimmed(d['couponCode']),
     couponDiscountReais: typeof d['couponDiscountReais'] === 'number' ? d['couponDiscountReais'] : null,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/arena_amenities.dart';
 import '../../../domain/arena_amenities_labels.dart';
@@ -30,13 +29,17 @@ class ArenaDetailAmenityChips extends StatelessWidget {
               color: context.themeColors.surfaceCard,
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
-                color: AppColors.brand.withValues(alpha: 0.45),
+                color: context.themeColors.outline.withValues(alpha: 0.45),
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(item.icon, size: 16, color: AppColors.brand),
+                Icon(
+                  item.icon,
+                  size: 16,
+                  color: context.themeColors.onSurfaceMuted,
+                ),
                 SizedBox(width: 6),
                 Text(
                   item.label,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../core/ui/nexa_photo_viewer.dart';
 import '../../domain/store_models.dart';
 import '../store_copy.dart';
 import 'store_style.dart';
@@ -181,31 +182,13 @@ class StorePageDots extends StatelessWidget {
   final int index;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (var i = 0; i < count; i++)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            width: i == index ? 18 : 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: i == index
-                  ? AppColors.brand
-                  : AppColors.white.withValues(alpha: 0.45),
-              borderRadius: BorderRadius.circular(3),
-            ),
-          ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) =>
+      NexaPageDots(count: count, index: index);
 }
 
 /// Tela cheia: arrastar troca a foto, pinça amplia, arrastar pra baixo (sem
 /// zoom) fecha. Devolve o índice em que parou.
-class StorePhotoViewer extends StatefulWidget {
+class StorePhotoViewer extends StatelessWidget {
   const StorePhotoViewer({
     super.key,
     required this.photos,
@@ -216,133 +199,11 @@ class StorePhotoViewer extends StatefulWidget {
   final int initialIndex;
 
   @override
-  State<StorePhotoViewer> createState() => _StorePhotoViewerState();
-}
-
-class _StorePhotoViewerState extends State<StorePhotoViewer> {
-  static const double _dismissDistance = 120;
-
-  late final PageController _pages =
-      PageController(initialPage: widget.initialIndex);
-  late int _index = widget.initialIndex;
-  final Map<int, TransformationController> _zoom = {};
-  bool _zoomed = false;
-  double _drag = 0;
-
-  TransformationController _zoomFor(int i) => _zoom.putIfAbsent(i, () {
-        final c = TransformationController();
-        c.addListener(() {
-          final zoomed = c.value.getMaxScaleOnAxis() > 1.01;
-          if (i == _index && zoomed != _zoomed) {
-            setState(() => _zoomed = zoomed);
-          }
-        });
-        return c;
-      });
-
-  @override
-  void dispose() {
-    _pages.dispose();
-    for (final c in _zoom.values) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  void _close() => Navigator.of(context).pop(_index);
-
-  @override
   Widget build(BuildContext context) {
-    final progress = (_drag.abs() / (_dismissDistance * 2)).clamp(0.0, 1.0);
-    final top = MediaQuery.paddingOf(context).top;
-    return PopScope<int>(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _close();
-      },
-      child: Material(
-        color: Colors.black.withValues(alpha: 1 - progress),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            GestureDetector(
-              onVerticalDragUpdate:
-                  _zoomed ? null : (d) => setState(() => _drag += d.delta.dy),
-              onVerticalDragEnd: _zoomed
-                  ? null
-                  : (_) {
-                      if (_drag > _dismissDistance) {
-                        _close();
-                      } else {
-                        setState(() => _drag = 0);
-                      }
-                    },
-              child: Transform.translate(
-                offset: Offset(0, _drag),
-                child: PageView.builder(
-                  controller: _pages,
-                  physics:
-                      _zoomed ? const NeverScrollableScrollPhysics() : null,
-                  itemCount: widget.photos.length,
-                  onPageChanged: (i) => setState(() {
-                    _index = i;
-                    _zoomed = false;
-                  }),
-                  itemBuilder: (_, i) => InteractiveViewer(
-                    transformationController: _zoomFor(i),
-                    minScale: 1,
-                    maxScale: 4,
-                    child: Center(
-                      child: CachedNetworkImage(
-                        imageUrl: widget.photos[i].url,
-                        fit: BoxFit.contain,
-                        placeholder: (_, _) => const SizedBox.shrink(),
-                        errorWidget: (_, _, _) => const Icon(
-                          Icons.broken_image_outlined,
-                          color: Colors.white54,
-                          size: 40,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: top + 12,
-              left: 16,
-              child: Opacity(
-                opacity: 1 - progress,
-                child: IconButton(
-                  tooltip: StoreCopy.back,
-                  onPressed: _close,
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.white.withValues(alpha: 0.12),
-                    foregroundColor: Colors.white,
-                    fixedSize: const Size.square(StoreStyle.headerButton),
-                  ),
-                  icon: const Icon(Icons.close_rounded),
-                ),
-              ),
-            ),
-            if (widget.photos.length > 1)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: MediaQuery.paddingOf(context).bottom + 24,
-                child: IgnorePointer(
-                  child: Opacity(
-                    opacity: 1 - progress,
-                    child: StorePageDots(
-                      count: widget.photos.length,
-                      index: _index,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
+    return NexaPhotoViewer(
+      urls: [for (final photo in photos) photo.url],
+      initialIndex: initialIndex,
+      closeTooltip: StoreCopy.back,
     );
   }
 }

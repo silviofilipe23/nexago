@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../class_agreements/presentation/widgets/class_agreements_entry_points.dart';
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/deep_link/app_domains.dart';
+import '../../../core/errors/friendly_error_message.dart';
 import '../../../core/location/user_location_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -12,12 +15,15 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../../../core/ui/nexa_share.dart';
 import '../../athlete/domain/arena_review_providers.dart';
 import '../../athlete/domain/arena_reputation.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../domain/arena_detail_providers.dart';
 import '../domain/arena_list_item.dart';
 import '../domain/arena_detail_logic.dart';
+import '../domain/arena_detail_profile_logic.dart';
+import '../domain/arena_booking_cancellation_policy.dart';
 import '../domain/arenas_providers.dart';
 import '../../athlete/domain/arena_review.dart';
 import '../domain/nearby_arenas_logic.dart';
@@ -30,6 +36,8 @@ import 'widgets/arena_detail/arena_detail_bottom_cta.dart';
 import 'widgets/arena_detail/arena_detail_club_section.dart';
 import 'widgets/arena_detail/arena_detail_courts_section.dart';
 import 'widgets/arena_detail/arena_detail_hero.dart';
+import 'widgets/arena_detail/arena_detail_info_sections.dart';
+import 'widgets/arena_detail/arena_detail_promotions.dart';
 import 'widgets/arena_detail/arena_detail_metrics_bar.dart';
 import 'widgets/arena_detail/arena_detail_reviews_section.dart';
 
@@ -121,7 +129,11 @@ class ArenaDetailPage extends ConsumerWidget {
         backgroundColor: context.themeColors.canvas,
         body: AppErrorView(
           title: 'Não foi possível carregar',
-          message: e.toString().replaceFirst('Exception: ', ''),
+          message: friendlyErrorMessage(
+            e,
+            action: 'Não foi possível abrir a arena',
+            logReason: 'arena_detail:load',
+          ),
           onRetry: () => ref.invalidate(arenaByIdProvider(arenaId)),
         ),
       ),
@@ -184,9 +196,7 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
     }
 
     final location = ref.watch(userLocationProvider).valueOrNull;
-    final km = location != null
-        ? kmFromUserToArena(arena, location)
-        : null;
+    final km = location != null ? kmFromUserToArena(arena, location) : null;
     if (km != null) {
       final kmLabel = _kmFormat.format(km);
       return '$base · $kmLabel km';
@@ -197,7 +207,8 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
   Future<void> _toggleFavorite() async {
     final userId = ref.read(authProvider).valueOrNull?.uid;
     if (userId == null || userId.isEmpty) {
-      showAppSnackBar(context, 'Faça login para seguir arenas.', isError: true);
+      showAppSnackBar(context, 'Faça login para favoritar arenas.',
+          isError: true);
       return;
     }
     if (_favoritePending) return;
@@ -232,10 +243,67 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
       });
       showAppSnackBar(
         context,
-        'Não foi possível atualizar seguidores agora.',
+        'Não foi possível atualizar seus favoritos agora.',
         isError: true,
       );
     }
+  }
+
+  Future<void> _share() async {
+    final arena = widget.arena;
+    final url = AppShareLinks.arenaBooking(arena.id);
+    try {
+      await nexaShareText(
+        context,
+        arenaShareMessage(arena, url: url),
+        subject: arena.name,
+      );
+    } on Exception {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível abrir o compartilhar agora.',
+        isError: true,
+      );
+    }
+  }
+
+  /// Abre [url] fora do app; avisa com [failureMessage] se nada abrir.
+  Future<void> _openExternal(String url, String failureMessage) async {
+    final uri = Uri.parse(url);
+    var opened = false;
+    try {
+      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } on Exception {
+      opened = false;
+    }
+    if (!opened && mounted) {
+      showAppSnackBar(context, failureMessage, isError: true);
+    }
+  }
+
+  List<ArenaDetailRule> _rules(ArenaListItem arena) {
+    final policy = arena.athleteCancelPolicy;
+    final payment = arenaPaymentMethodsLabel(
+      online: arena.onlinePaymentEnabled,
+      onsite: arena.onsitePaymentEnabled,
+    );
+    return [
+      ArenaDetailRule(
+        icon: Icons.event_busy_outlined,
+        title: ArenaBookingCancellationPolicy.cancellationTitle(policy),
+        subtitle: ArenaBookingCancellationPolicy.cancellationSubtitle(
+          arena.name,
+          policy,
+        ),
+      ),
+      if (payment != null)
+        ArenaDetailRule(
+          icon: Icons.payments_outlined,
+          title: 'Formas de pagamento',
+          subtitle: payment,
+        ),
+    ];
   }
 
   @override
@@ -248,14 +316,21 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
 
     final favoriteIds =
         ref.watch(favoriteArenaIdsProvider).valueOrNull ?? const <String>[];
-    final isFavorite =
-        _favoriteOverride ?? favoriteIds.contains(arena.id);
+    final isFavorite = _favoriteOverride ?? favoriteIds.contains(arena.id);
 
-    final score = reputation?.score ?? arena.reputationScore;
     final rating = reputation?.ratingAverage ?? arena.ratingAverage;
     final reviewsCount = reputation?.reviewsCount ?? arena.reviewsCount;
     final totalCourts = today?.totalActiveCourts ?? 0;
     final freeCourts = today?.freeCourtsToday ?? 0;
+    final entryPrice = arenaEntryPricePerHour(
+      courts: [
+        for (final summary in today?.courts ?? const <ArenaCourtDaySummary>[])
+          summary.court,
+      ],
+      arenaFallbackPerHour: arena.pricePerHourReais,
+    );
+    final description = arena.description?.trim() ?? '';
+    final whatsAppUrl = arenaPartnerWhatsAppUrl(arena);
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -268,7 +343,8 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                 SliverToBoxAdapter(
                   child: ArenaDetailHero(
                     arenaId: arena.id,
-                    coverUrl: arena.coverUrl,
+                    photos: arenaGalleryUrls(arena),
+                    onShare: _share,
                     isBestPrice: widget.isBestPrice,
                     isFavorite: isFavorite,
                     isFavoritePending: _favoritePending,
@@ -313,11 +389,15 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                       ),
                       SizedBox(height: 16),
                       ArenaDetailMetricsBar(
-                        score: score,
                         rating: rating,
                         reviewsCount: reviewsCount,
+                        entryPricePerHour: entryPrice,
                         totalCourts: totalCourts,
                         freeCourtsToday: freeCourts,
+                      ),
+                      ArenaDetailPromotions(
+                        arenaId: arena.id,
+                        onOpenSlots: _openSlots,
                       ),
                       if (arena.amenities.hasAny) ...[
                         SizedBox(height: 20),
@@ -339,6 +419,28 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                       ArenaDetailClubSection(arenaId: arena.id),
                       // Vínculos ativos com "Aparecer no perfil da arena".
                       ArenaPublicProfessorsSection(arenaId: arena.id),
+                      if (description.isNotEmpty) ...[
+                        const SizedBox(height: 28),
+                        ArenaDetailAboutSection(description: description),
+                      ],
+                      const SizedBox(height: 28),
+                      ArenaDetailLocationSection(
+                        address: arenaFullAddress(arena),
+                        onDirections: arenaHasDirections(arena)
+                            ? () => _openExternal(
+                                  arenaDirectionsUrl(arena),
+                                  'Não foi possível abrir o mapa.',
+                                )
+                            : null,
+                        onWhatsApp: whatsAppUrl == null
+                            ? null
+                            : () => _openExternal(
+                                  whatsAppUrl,
+                                  'Não foi possível abrir o WhatsApp.',
+                                ),
+                      ),
+                      const SizedBox(height: 28),
+                      ArenaDetailRulesSection(rules: _rules(arena)),
                       SizedBox(height: 28),
                       if (widget.reviewsLoading && reviews.isEmpty)
                         Center(
@@ -379,7 +481,11 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
               ],
             ),
           ),
-          ArenaDetailBottomCta(onPressed: () => _openSlots()),
+          ArenaDetailBottomCta(
+            onPressed: () => _openSlots(),
+            entryPricePerHour: entryPrice,
+            freeSlotsToday: today?.totalFreeSlotsToday,
+          ),
         ],
       ),
     );

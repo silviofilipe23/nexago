@@ -5,7 +5,10 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/arenas/domain/arena_promotion.dart';
 import 'package:nexago_app/features/arenas/domain/slots_providers.dart';
+import 'package:nexago_app/features/arenas/domain/arena_detail_offers_logic.dart';
+import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_anchor_bar.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_bottom_cta.dart';
+import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_other_offers.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_hero.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_info_sections.dart';
 import 'package:nexago_app/features/arenas/presentation/widgets/arena_detail/arena_detail_metrics_bar.dart';
@@ -316,6 +319,93 @@ void main() {
       await tester.tap(find.byTooltip('Compartilhar arena'));
       expect(shared, 1);
       expect(find.textContaining(' / '), findsNothing);
+    });
+  });
+
+  group('ArenaDetailBottomCta with a picked time', () {
+    testWidgets('shows the pick and reserves it', (tester) async {
+      var reserved = 0;
+      var opened = 0;
+      await _pump(
+        tester,
+        ArenaDetailBottomCta(
+          onPressed: () => opened++,
+          entryPricePerHour: 90,
+          selection: ArenaDetailBookingSelection(
+            title: 'sex, 8 nov · 19:00–20:00',
+            subtitle: 'Quadra 2 · 1h · R\$ 90',
+            onReserve: () => reserved++,
+          ),
+        ),
+      );
+
+      expect(find.text('sex, 8 nov · 19:00–20:00'), findsOneWidget);
+      expect(find.text('Ver horários'), findsNothing);
+      await tester.tap(find.text('Reservar'));
+      expect(reserved, 1);
+      expect(opened, 0);
+    });
+  });
+
+  group('ArenaDetailOtherOffers', () {
+    testWidgets('lists each offer and reports the tapped kind', (tester) async {
+      ArenaOfferKind? tapped;
+      await _pump(
+        tester,
+        ArenaDetailOtherOffers(arenaId: 'a1', onTap: (k) => tapped = k),
+        overrides: [
+          arenaDetailOtherOffersProvider('a1').overrideWithValue(const [
+            ArenaOfferSummary(
+              kind: ArenaOfferKind.schedulePlan,
+              kicker: 'HORÁRIO FIXO',
+              title: 'Plano mensal',
+              subtitle: 'a partir de R\$ 320/mês',
+            ),
+            ArenaOfferSummary(
+              kind: ArenaOfferKind.club,
+              kicker: 'CLUBINHO',
+              title: 'qui, 14 · 19:00',
+              subtitle: '3 vagas · R\$ 25',
+            ),
+          ]),
+        ],
+      );
+
+      expect(find.text('Outras formas de jogar'), findsOneWidget);
+      expect(find.text('Plano mensal'), findsOneWidget);
+      await tester.tap(find.text('qui, 14 · 19:00'));
+      expect(tapped, ArenaOfferKind.club);
+    });
+
+    testWidgets('renders nothing without offers', (tester) async {
+      await _pump(
+        tester,
+        ArenaDetailOtherOffers(arenaId: 'a1', onTap: (_) {}),
+        overrides: [
+          arenaDetailOtherOffersProvider('a1').overrideWithValue(const []),
+        ],
+      );
+
+      expect(find.text('Outras formas de jogar'), findsNothing);
+    });
+  });
+
+  group('ArenaDetailAnchorBar', () {
+    testWidgets('each shortcut calls its section', (tester) async {
+      final calls = <String>[];
+      await _pump(
+        tester,
+        ArenaDetailAnchorBar(
+          anchors: [
+            ArenaDetailAnchor(label: 'Horários', onTap: () => calls.add('h')),
+            ArenaDetailAnchor(label: 'Quadras', onTap: () => calls.add('q')),
+          ],
+        ),
+      );
+
+      await tester.tap(find.text('Quadras'));
+      await tester.tap(find.text('Horários'));
+      expect(calls, ['q', 'h']);
     });
   });
 }

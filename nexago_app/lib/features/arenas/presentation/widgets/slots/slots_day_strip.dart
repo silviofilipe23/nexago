@@ -15,7 +15,11 @@ class SlotsDayStrip extends StatefulWidget {
     required this.onSelect,
     required this.sameDay,
     required this.dateOnly,
+    this.horizontalPadding = 16,
   });
+
+  /// Margem lateral da faixa (o perfil da arena alinha pela margem dele).
+  final double horizontalPadding;
 
   final DateTime startDay;
   final DateTime selectedDay;
@@ -34,7 +38,6 @@ class SlotsDayStrip extends StatefulWidget {
 class _SlotsDayStripState extends State<SlotsDayStrip> {
   static const _itemWidth = 56.0;
   static const _separatorWidth = 8.0;
-  static const _horizontalPadding = 16.0;
 
   final ScrollController _scrollController = ScrollController();
 
@@ -91,7 +94,7 @@ class _SlotsDayStripState extends State<SlotsDayStrip> {
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
+        padding: EdgeInsets.symmetric(horizontal: widget.horizontalPadding),
         itemCount: widget.daysCount,
         separatorBuilder: (_, __) => SizedBox(width: _separatorWidth),
         itemBuilder: (context, index) {

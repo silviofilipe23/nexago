@@ -37,6 +37,7 @@ import '../domain/slots_providers.dart';
 import 'booking_success_page.dart';
 import 'widgets/booking_confirm/booking_confirm_app_bar.dart';
 import 'widgets/booking_confirm/booking_confirm_cancellation_card.dart';
+import 'widgets/booking_confirm/booking_confirm_cashback_note.dart';
 import 'widgets/booking_confirm/booking_confirm_coupon_field.dart';
 import 'widgets/booking_confirm/booking_confirm_hero_card.dart';
 import 'widgets/booking_confirm/booking_confirm_lesson_student_picker.dart';
@@ -81,6 +82,10 @@ class _ArenaBookingConfirmPageState
 
   /// Esporte escolhido (código do catálogo). Com um esporte só na quadra, vale ele sem toque.
   String? _sport;
+
+  /// Tocaram em confirmar sem esporte: o seletor fica em destaque.
+  bool _sportMissing = false;
+  final _sportPickerKey = GlobalKey();
 
   /// "Reservar como professor" escolhido. `null` = padrão do modo Professor
   /// (ligado: quem entrou como professor reserva como professor). Só vale
@@ -434,6 +439,20 @@ class _ArenaBookingConfirmPageState
     }
   }
 
+  /// Sem esporte escolhido: rola até o seletor e o deixa em destaque, em vez
+  /// de um aviso que some e não diz onde escolher.
+  void _showMissingSport() {
+    setState(() => _sportMissing = true);
+    final target = _sportPickerKey.currentContext;
+    if (target == null) return;
+    Scrollable.ensureVisible(
+      target,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      alignment: 0.2,
+    );
+  }
+
   /// Política de cancelamento com o prazo em data e hora e o texto da forma
   /// de pagamento escolhida. Sem horário legível, cai no texto genérico.
   Widget _cancellationCard(
@@ -749,19 +768,26 @@ class _ArenaBookingConfirmPageState
                                 sportLabel: sportOptions?.length == 1
                                     ? courtSportLabel(sportOptions!.first)
                                     : null,
+                                durationLabel: durationCompact,
+                                coverUrl: arena?.coverUrl,
+                                onChangeTime: _submitting ? null : _onBack,
                               ),
                             ),
                             // Um esporte só vira texto no hero; enquanto
                             // carrega, nada (o botão avisa se tocarem).
                             if (sportOptions != null && sportOptions.length > 1)
                               Padding(
+                                key: _sportPickerKey,
                                 padding: const EdgeInsets.only(top: 22),
                                 child: BookingConfirmSportPicker(
                                   options: sportOptions,
                                   selected: sport,
                                   enabled: !_submitting,
-                                  onSelected: (code) =>
-                                      setState(() => _sport = code),
+                                  missing: _sportMissing && sport == null,
+                                  onSelected: (code) => setState(() {
+                                    _sport = code;
+                                    _sportMissing = false;
+                                  }),
                                 ),
                               ),
                             if (offerProfessor)
@@ -953,6 +979,17 @@ class _ArenaBookingConfirmPageState
                                   warning: memberNote.warning,
                                 ),
                               ),
+                            // Cashback só existe pagando pelo app.
+                            if (!coveredByPlan &&
+                                !coveredByCredit &&
+                                !_quoting &&
+                                choice == _PaymentChoice.pix)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: BookingConfirmCashbackNote(
+                                  amountDueReais: amountDue,
+                                ),
+                              ),
                             Padding(
                               padding: const EdgeInsets.only(top: 14),
                               child: BookingConfirmCouponField(
@@ -975,19 +1012,6 @@ class _ArenaBookingConfirmPageState
                                 cancelPolicy,
                                 paysOnline: !coveredByPlan &&
                                     choice == _PaymentChoice.pix,
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 16),
-                              child: Center(
-                                child: TextButton(
-                                  onPressed: _submitting ? null : _onBack,
-                                  style: TextButton.styleFrom(
-                                    foregroundColor:
-                                        context.themeColors.brandText,
-                                  ),
-                                  child: const Text('Alterar horário'),
-                                ),
                               ),
                             ),
                           ]),
@@ -1014,13 +1038,14 @@ class _ArenaBookingConfirmPageState
                       onConfirm: () {
                         if (sport == null) {
                           HapticFeedback.heavyImpact();
-                          showAppSnackBar(
-                            context,
-                            sportOptions == null
-                                ? 'Carregando os esportes da quadra…'
-                                : 'Escolha o esporte que você vai jogar.',
-                            isError: sportOptions != null,
-                          );
+                          if (sportOptions == null) {
+                            showAppSnackBar(
+                              context,
+                              'Carregando os esportes da quadra…',
+                            );
+                            return;
+                          }
+                          _showMissingSport();
                           return;
                         }
                         HapticFeedback.mediumImpact();

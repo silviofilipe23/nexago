@@ -22,6 +22,14 @@ import 'package:nexago_app/features/arenas/presentation/arena_booking_confirm_pa
 import 'package:nexago_app/features/arenas/presentation/widgets/booking_confirm/booking_confirm_sticky_bar.dart';
 import 'package:nexago_app/features/professor_links/application/professor_links_providers.dart';
 
+import 'package:nexago_app/features/arenas/presentation/widgets/booking_confirm/booking_confirm_cashback_note.dart';
+import 'package:nexago_app/features/arenas/presentation/widgets/booking_confirm/booking_confirm_coupon_field.dart';
+import 'package:nexago_app/features/arenas/presentation/widgets/booking_confirm/booking_confirm_hero_card.dart';
+import 'package:nexago_app/features/arenas/presentation/widgets/booking_confirm/booking_confirm_sport_picker.dart';
+import 'package:nexago_app/features/cashback/application/cashback_providers.dart';
+import 'package:nexago_app/features/cashback/domain/cashback_models.dart';
+import 'package:nexago_app/features/cashback/domain/cashback_rules.dart';
+
 import '../../core/theme/state_tone_contrast.dart';
 import '../weather/weather_test_fakes.dart';
 
@@ -89,6 +97,7 @@ Future<void> _pumpConfirm(
   _FakeBookingService service, {
   ThemeData? theme,
   List<String> sports = const ['Pickleball', 'Beach Tennis'],
+  CashbackCheckoutContext? cashback,
 }) async {
   tester.view.physicalSize = const Size(900, 3200);
   tester.view.devicePixelRatio = 1;
@@ -128,6 +137,7 @@ Future<void> _pumpConfirm(
         ),
         myArenaProfessorLinkProvider
             .overrideWith((ref, id) => Stream.value(null)),
+        cashbackCheckoutContextProvider.overrideWithValue(cashback),
       ],
       child: MaterialApp.router(
         theme: theme ?? AppTheme.dark,
@@ -161,7 +171,7 @@ void main() {
     await _pumpConfirm(tester, _FakeBookingService());
 
     expect(find.text('OBSERVAÇÕES (OPCIONAL)'), findsNothing);
-    expect(find.byType(TextField), findsOneWidget, reason: 'só o cupom');
+    expect(find.byType(TextField), findsNothing, reason: 'cupom recolhido');
   });
 
   testWidgets('botão travado enquanto o preço é recalculado', (tester) async {
@@ -254,7 +264,7 @@ void main() {
       );
       expect(
         top(tester, 'RESUMO DE VALORES'),
-        lessThan(top(tester, 'CUPOM DE DESCONTO (OPCIONAL)')),
+        lessThan(top(tester, 'Tenho um cupom')),
       );
     });
 
@@ -308,5 +318,160 @@ void main() {
       expect(find.textContaining('(Pix ou cartão)'), findsOneWidget);
       expect(find.textContaining('Cancele pelo app até lá'), findsNothing);
     });
+  });
+
+  group('extras recolhidos e hero', () {
+    const cashbackOn = CashbackConfig(
+      enabled: true,
+      ratePercent: 2,
+      maxShareOfFee: 0.5,
+      minCashCents: 500,
+      expiryMonths: 6,
+      expiryWarningDays: 15,
+    );
+
+    Future<void> confirm(WidgetTester tester) async {
+      await tester.tap(find.descendant(
+        of: find.byType(BookingConfirmStickyBar),
+        matching: find.text('Confirmar reserva'),
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    testWidgets('cupom começa como linha e abre o campo ao tocar',
+        (tester) async {
+      await _pumpConfirm(tester, _FakeBookingService());
+
+      expect(find.text('CUPOM DE DESCONTO (OPCIONAL)'), findsNothing);
+      await tester.tap(find.byKey(BookingConfirmCouponField.openRowKey));
+      await tester.pump();
+
+      expect(find.text('CUPOM DE DESCONTO (OPCIONAL)'), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('Aplicar'), findsOneWidget);
+    });
+
+    testWidgets('"Alterar horário" fica no hero, com a duração na data',
+        (tester) async {
+      await _pumpConfirm(tester, _FakeBookingService());
+
+      final hero = find.byType(BookingConfirmHeroCard);
+      expect(
+        find.descendant(
+          of: hero,
+          matching: find.byKey(BookingConfirmHeroCard.changeTimeKey),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Alterar horário'), findsOneWidget);
+      expect(
+        find.descendant(of: hero, matching: find.textContaining('· 1H')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('sem esporte: rola até o seletor e destaca, sem snackbar',
+        (tester) async {
+      await _pumpConfirm(tester, _FakeBookingService());
+      expect(find.byKey(BookingConfirmSportPicker.missingKey), findsNothing);
+
+      await confirm(tester);
+
+      expect(find.byKey(BookingConfirmSportPicker.missingKey), findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+
+      await tester.tap(find.text('Pickleball'));
+      await tester.pump();
+      expect(find.byKey(BookingConfirmSportPicker.missingKey), findsNothing);
+    });
+
+    testWidgets('cashback com saldo aparece no recibo só pagando pelo app',
+        (tester) async {
+      await _pumpConfirm(
+        tester,
+        _FakeBookingService(),
+        cashback: const CashbackCheckoutContext(
+          config: cashbackOn,
+          availableCents: 1200,
+        ),
+      );
+      expect(find.byKey(BookingConfirmCashbackNote.noteKey), findsNothing);
+
+      await tester.tap(find.text('Pagar online'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.byKey(BookingConfirmCashbackNote.noteKey), findsOneWidget);
+      expect(
+        find.text('Você tem ${formatBRL(12)} de cashback para usar neste '
+            'pagamento, na próxima etapa.'),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('cashbackNoteText', () {
+    const on = CashbackConfig(
+      enabled: true,
+      ratePercent: 2,
+      maxShareOfFee: 0.5,
+      minCashCents: 500,
+      expiryMonths: 6,
+      expiryWarningDays: 15,
+    );
+
+    test('desligado ou carregando: nada', () {
+      expect(cashbackNoteText(checkout: null, amountDueReais: 70), isNull);
+      expect(
+        cashbackNoteText(
+          checkout: const CashbackCheckoutContext(
+            config: CashbackConfig.fallback,
+            availableCents: 1000,
+          ),
+          amountDueReais: 70,
+        ),
+        isNull,
+      );
+    });
+
+    test('sem saldo: "ganhe até 2%"', () {
+      expect(
+        cashbackNoteText(
+          checkout:
+              const CashbackCheckoutContext(config: on, availableCents: 0),
+          amountDueReais: 70,
+        ),
+        'Ganhe até 2% de volta neste pagamento',
+      );
+    });
+
+    test('saldo maior que a cobrança deixa o mínimo em dinheiro', () {
+      expect(
+        cashbackNoteText(
+          checkout:
+              const CashbackCheckoutContext(config: on, availableCents: 10000),
+          amountDueReais: 70,
+        ),
+        'Você tem ${formatBRL(65)} de cashback para usar neste pagamento, '
+        'na próxima etapa.',
+      );
+    });
+  });
+
+  testWidgets('hero com capa mostra a faixa da foto', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: BookingConfirmHeroCard(
+          dateKey: '2030-11-08',
+          timeRange: '19:00 - 20:00',
+          arenaName: 'Arena CFC',
+          courtName: 'Quadra 2',
+          coverUrl: 'https://example.com/capa.jpg',
+          onChangeTime: () {},
+        ),
+      ),
+    ));
+    expect(find.byKey(BookingConfirmHeroCard.coverKey), findsOneWidget);
   });
 }

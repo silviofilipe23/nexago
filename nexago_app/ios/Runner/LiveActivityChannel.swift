@@ -219,7 +219,13 @@ private enum NextMatchLiveActivityController {
   ) -> ActivityContent<NextMatchAttributes.ContentState> {
     // Horário já passado não vira `staleDate`: activity que nasce "stale" o iOS
     // não desenha. O card mostra o atraso comparando com o relógio.
-    let scheduled = NextMatchPhase(wire: state.phase) == .scheduled ? state.scheduleTime : nil
+    let phase = NextMatchPhase(wire: state.phase)
+    if phase == .playing {
+      // Placar: sem push novo em 3 min (mesmo valor do servidor), ele se
+      // declara desatualizado em vez de se passar por ao vivo.
+      return ActivityContent(state: state, staleDate: Date().addingTimeInterval(3 * 60))
+    }
+    let scheduled = phase == .scheduled ? state.scheduleTime : nil
     let stale = scheduled.flatMap { $0 > Date() ? $0 : nil }
     return ActivityContent(state: state, staleDate: stale)
   }

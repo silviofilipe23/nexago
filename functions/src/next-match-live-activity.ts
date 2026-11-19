@@ -39,9 +39,12 @@ import {
   buildNextMatchState,
   nextMatchBracketMoved,
   nextMatchChangeTeamIds,
+  nextMatchScoreChanged,
+  nextMatchSetMoved,
   nextMatchLiteFromData,
   nextMatchStateKey,
   pickNextMatch,
+  scoreOnlyState,
 } from "./next-match-live-activity-state";
 import {isInvalidFcmTokenError} from "./notification-delivery";
 import {findCategoryIndex} from "./tournament-category-capacity";
@@ -258,6 +261,8 @@ interface ActivityDoc {
   dayKey: string;
   fcmToken: string;
   liveActivityToken: string;
+  /** O estado do último push — base do atalho por ponto. */
+  stateKey: string | null;
 }
 
 function activityFrom(
@@ -277,7 +282,18 @@ function activityFrom(
     dayKey,
     fcmToken,
     liveActivityToken,
+    stateKey: typeof data.stateKey === "string" ? data.stateKey : null,
   };
+}
+
+/** Como a escrita na partida mexeu no card. */
+interface ChangeKind {
+  /** Só o placar mudou (o caminho de todo ponto). */
+  scoreOnly: boolean;
+  /** Virou o set / entrou no tie-break: prioridade alta. */
+  setMoved: boolean;
+  /** A partida que mudou, já lida — o atalho por ponto usa direto. */
+  match: NextMatchLite;
 }
 
 interface Claim {
@@ -289,8 +305,8 @@ interface Claim {
 
 /**
  * Grava o estado novo e devolve o que havia antes; `null` quando não há o que
- * mandar. O doc é a trava: escritas em lote (agendamento dinâmico) disparam
- * vários gatilhos juntos.
+ * mandar. O doc é a trava: escritas em lote (agendamento dinâmico) e pontos
+ * seguidos disparam vários gatilhos juntos.
  *
  * - Mesmo estado: outra execução já mandou este push.
  * - Estado lido ANTES do que já foi gravado: uma execução que leu dados mais
@@ -345,6 +361,7 @@ async function refreshActivity(
   db: Firestore,
   projectId: string,
   activity: ActivityDoc,
+  change: ChangeKind,
 ): Promise<void> {
   const readAtMs = Date.now();
   if (activity.dayKey !== dayKeyFromEventDate(new Date(readAtMs))) {
@@ -352,9 +369,14 @@ async function refreshActivity(
     await activity.ref.delete();
     return;
   }
-  const {state} = await computeState(
+  // Ponto marcado com o card já no placar desta partida: troca só o placar,
+  // sem remontar o dia. Todo ponto vai (prioridade baixa), nenhum fica retido.
+  const fast = change.scoreOnly ?
+    scoreOnlyState(activity.stateKey, change.match, new Set(activity.teamIds)) :
+    null;
+  const state = fast ?? (await computeState(
     db, projectId, activity.tournamentId, activity.teamIds, activity.dayKey,
-  );
+  )).state;
   // Sem partida nenhuma no dia (cancelada, movida de dia): não encerra o card
   // por isso — pode ser uma edição de passagem do organizador, e "end" não tem
   // volta. O dia seguinte limpa o doc.
@@ -369,6 +391,7 @@ async function refreshActivity(
       state,
       previousPhase: claim.previousPhase,
       nowMs: readAtMs,
+      lowPriority: change.scoreOnly && !change.setMoved && claim.previousPhase === "playing",
     }));
   } catch (err: unknown) {
     if (isInvalidFcmTokenError((err as {code?: string})?.code ?? "")) {
@@ -410,8 +433,15 @@ export const onMatchChangedNextMatchActivity = onDocumentUpdated(
     const before = event.data?.before.data() as Record<string, unknown> | undefined;
     const after = event.data?.after.data() as Record<string, unknown> | undefined;
     if (!before || !after) return;
-    const teamIds = nextMatchChangeTeamIds(before, after);
+    const changed = nextMatchChangeTeamIds(before, after);
+    const scored = changed.length > 0 ? [] : nextMatchScoreChanged(before, after);
+    const teamIds = changed.length > 0 ? changed : scored;
     if (teamIds.length === 0) return;
+    const change: ChangeKind = {
+      scoreOnly: changed.length === 0,
+      setMoved: nextMatchSetMoved(before, after),
+      match: nextMatchLiteFromData(event.params.matchId, after),
+    };
     const tournamentId = String(after.tournamentId ?? "").trim();
     if (!tournamentId) return;
 
@@ -423,7 +453,7 @@ export const onMatchChangedNextMatchActivity = onDocumentUpdated(
 
     const projectId = getFirebaseProjectId();
     const results = await Promise.allSettled(
-      activities.map((a) => refreshActivity(db, projectId, a)),
+      activities.map((a) => refreshActivity(db, projectId, a, change)),
     );
     results.forEach((r, i) => {
       if (r.status === "rejected") {

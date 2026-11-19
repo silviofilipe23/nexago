@@ -2,6 +2,7 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
   NEXT_MATCH_DAY_OVER_DISMISS_MS,
+  NEXT_MATCH_SCORE_STALE_MS,
   NEXT_MATCH_MAX_DAY_ITEMS,
   NextMatchContentState,
   NextMatchLite,
@@ -11,6 +12,10 @@ import {
   matchOnEventDay,
   nextMatchBracketMoved,
   nextMatchChangeTeamIds,
+  nextMatchScoreChanged,
+  nextMatchSetMoved,
+  nextMatchStateKey,
+  scoreOnlyState,
   nextMatchLiteFromData,
   phaseLabelOf,
   pickNextMatch,
@@ -54,6 +59,16 @@ function match(over: Partial<NextMatchLite> = {}): NextMatchLite {
     setsWonB: 0,
     winnerAdvanceMatchNumber: null,
     loserAdvanceMatchNumber: null,
+    liveSetsA: 0,
+    liveSetsB: 0,
+    livePointsA: 0,
+    livePointsB: 0,
+    setIndex: 0,
+    liveUnit: "points",
+    liveGameA: null,
+    liveGameB: null,
+    liveTiebreak: null,
+    servingTeamId: "",
     ...over,
   };
 }
@@ -207,8 +222,38 @@ describe("buildNextMatchState", () => {
           {kind: "upcoming", label: "17:00"},
         ],
         summary: null,
+        score: null,
       }),
     );
+  });
+
+  it("CONTRATO: em jogo, o placar vai sob a ótica do atleta (ele pode ser o time B)", () => {
+    const live = match({
+      teamAId: "team-rafa",
+      teamBId: ME,
+      status: "In Progress",
+      liveSetsA: 0,
+      liveSetsB: 1,
+      livePointsA: 15,
+      livePointsB: 18,
+      setIndex: 1,
+      servingTeamId: ME,
+    });
+    const state = buildNextMatchState(input([live]));
+    assert.equal(state?.phase, "playing");
+    assert.equal(
+      JSON.stringify(state?.score),
+      JSON.stringify({
+        mySets: 1, theirSets: 0, myPoints: 18, theirPoints: 15, set: 2, serving: "me",
+        unit: "points", game: null, tiebreak: null,
+      }),
+    );
+  });
+
+  it("fora de jogo não há placar; saque desconhecido vira null", () => {
+    assert.equal(buildNextMatchState(input([match()]))?.score, null);
+    const live = match({status: "In Progress", servingTeamId: ""});
+    assert.equal(buildNextMatchState(input([live]))?.score?.serving, null);
   });
 
   it("chamada de quadra e partida em andamento mudam a fase", () => {
@@ -435,6 +480,27 @@ describe("buildNextMatchMessage", () => {
     assert.equal(apsOf(called, "scheduled")["stale-date"], undefined);
   });
 
+  it("em jogo: placar desatualiza sozinho se o próximo push não vier", () => {
+    const playing = {...scheduled, phase: "playing" as const};
+    assert.equal(
+      apsOf(playing)["stale-date"],
+      Math.floor((NOW + NEXT_MATCH_SCORE_STALE_MS) / 1000),
+    );
+  });
+
+  it("ponto comum vai com prioridade baixa; mudança de fase, alta", () => {
+    const playing = {...scheduled, phase: "playing" as const};
+    const low = buildNextMatchMessage({
+      fcmToken: "f", liveActivityToken: "l", state: playing, previousPhase: "playing",
+      nowMs: NOW, lowPriority: true,
+    });
+    assert.equal(low.apns?.headers?.["apns-priority"], "5");
+    const high = buildNextMatchMessage({
+      fcmToken: "f", liveActivityToken: "l", state: playing, previousPhase: "called", nowMs: NOW,
+    });
+    assert.equal(high.apns?.headers?.["apns-priority"], "10");
+  });
+
   it("fim do dia encerra a activity e sai da tela em 30 min", () => {
     const over = {...scheduled, phase: "dayOver" as const, matchId: null, summary: "1 vitória"};
     const aps = apsOf(over);
@@ -481,5 +547,128 @@ describe("nextMatchBracketMoved", () => {
     assert.equal(nextMatchBracketMoved(base, {...base, teamBId: "c"}), true);
     assert.equal(nextMatchBracketMoved(base, {...base, status: "Completed"}), true);
     assert.equal(nextMatchBracketMoved(base, {...base, sets: [{a: 1, b: 0}]}), false);
+  });
+});
+
+const BT = {
+  kind: "sets_games", bestOf: 3, gamesPerSet: 6, winByGames: 2, tiebreakAtGames: 6,
+  tiebreakTo: 7, noAd: true, decidingSet: "super_tiebreak", superTiebreakTo: 10,
+};
+
+describe("placar em games (beach tennis)", () => {
+  const doc = (over: Record<string, unknown>) => ({
+    tournamentId: "t1", teamAId: "team-rafa", teamBId: ME, status: "In Progress",
+    scoringProfile: BT, bestOf: 3, ...over,
+  });
+  const scoreOf = (over: Record<string, unknown>) =>
+    buildNextMatchState({
+      matches: [nextMatchLiteFromData("m1", {...doc(over), dayKey: DAY})],
+      categoryMatches: [],
+      teamIds: MINE,
+      dayKey: DAY,
+      teamNames: NAMES,
+    })?.score;
+
+  it("games do set e o ponto do game, do meu lado (sou o time B)", () => {
+    const score = scoreOf({sets: [{a: 4, b: 5}], currentSetIndex: 0, currentGame: {a: 3, b: 1}});
+    assert.equal(score?.unit, "games");
+    assert.equal(score?.myPoints, 5);
+    assert.equal(score?.theirPoints, 4);
+    assert.equal(score?.game, "15–40");
+    assert.equal(score?.tiebreak, null);
+  });
+
+  it("tie-break no 6-6: o game vira a contagem do tie-break", () => {
+    const score = scoreOf({sets: [{a: 6, b: 6}], currentSetIndex: 0, currentGame: {a: 4, b: 5}});
+    assert.equal(score?.tiebreak, "tb");
+    assert.equal(score?.game, "5–4");
+  });
+
+  it("super tie-break: os pontos dele no lugar dos games", () => {
+    const score = scoreOf({
+      sets: [{a: 6, b: 3}, {a: 2, b: 6}, {a: 0, b: 0}],
+      currentSetIndex: 2,
+      currentGame: {a: 7, b: 8},
+    });
+    assert.equal(score?.tiebreak, "super");
+    assert.equal(score?.unit, "points");
+    assert.equal(score?.myPoints, 8);
+    assert.equal(score?.theirPoints, 7);
+  });
+
+  it("placar agregado (só liveScore): o set em jogo vem dos sets já vencidos", () => {
+    const lite = nextMatchLiteFromData("m1", {
+      status: "In Progress", teamAId: "a", teamBId: "b",
+      liveScore: {setsA: 1, setsB: 0, currentGamesA: 2, currentGamesB: 3},
+    });
+    assert.equal(lite.setIndex, 1);
+  });
+});
+
+describe("placar ao vivo: o que acorda o card", () => {
+  const base = {
+    teamAId: "a",
+    teamBId: "b",
+    status: "In Progress",
+    sets: [{a: 10, b: 8}],
+    currentSetIndex: 0,
+  };
+
+  it("ponto marcado em partida em andamento acorda as duas duplas", () => {
+    assert.deepEqual(
+      nextMatchScoreChanged(base, {...base, sets: [{a: 11, b: 8}]}).sort(),
+      ["a", "b"],
+    );
+  });
+
+  it("partida parada, placar igual ou só o carimbo do liveScore não acordam ninguém", () => {
+    assert.deepEqual(nextMatchScoreChanged(base, {...base}), []);
+    const scheduled = {...base, status: "Scheduled"};
+    assert.deepEqual(nextMatchScoreChanged(scheduled, {...scheduled, sets: [{a: 1, b: 0}]}), []);
+    const live = {...base, sets: [], liveScore: {setsA: 0, setsB: 0, currentGamesA: 2, currentGamesB: 1, updatedAt: 1}};
+    assert.deepEqual(
+      nextMatchScoreChanged(live, {...live, liveScore: {...live.liveScore, updatedAt: 2}}),
+      [],
+    );
+  });
+
+  it("virada de set vale para as duas mesas", () => {
+    assert.equal(
+      nextMatchSetMoved(base, {...base, sets: [{a: 21, b: 18}, {a: 0, b: 0}], currentSetIndex: 1}),
+      true,
+    );
+    assert.equal(nextMatchSetMoved(base, {...base, sets: [{a: 11, b: 8}]}), false);
+    const agg = (setsA: number, gamesA: number) => ({
+      ...base, sets: [], currentSetIndex: undefined,
+      liveScore: {setsA, setsB: 0, currentGamesA: gamesA, currentGamesB: 0},
+    });
+    assert.equal(nextMatchSetMoved(agg(0, 5), agg(1, 0)), true);
+    assert.equal(nextMatchSetMoved(agg(0, 4), agg(0, 5)), false);
+  });
+});
+
+describe("atalho por ponto", () => {
+  const live = match({status: "In Progress", livePointsA: 12, livePointsB: 9});
+  const playing = buildNextMatchState({
+    matches: [live], categoryMatches: [live], teamIds: MINE, dayKey: DAY, teamNames: NAMES,
+  }) as NextMatchContentState;
+
+  it("troca só o placar do estado anterior quando o card já está nesta partida", () => {
+    const next = scoreOnlyState(
+      nextMatchStateKey(playing),
+      {...live, livePointsA: 13},
+      MINE,
+    );
+    assert.equal(next?.score?.myPoints, 13);
+    assert.deepEqual(next?.day, playing.day);
+    assert.equal(next?.opponent, playing.opponent);
+  });
+
+  it("outra partida, outra fase ou estado ilegível: remonta tudo (null)", () => {
+    const key = nextMatchStateKey(playing);
+    assert.equal(scoreOnlyState(key, {...live, id: "outra"}, MINE), null);
+    assert.equal(scoreOnlyState(key, {...live, status: "Completed"}, MINE), null);
+    assert.equal(scoreOnlyState("{", live, MINE), null);
+    assert.equal(scoreOnlyState(null, live, MINE), null);
   });
 });

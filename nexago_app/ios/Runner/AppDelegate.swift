@@ -118,8 +118,8 @@ private enum InterfaceStyleChannel {
 }
 
 /// Widget "Próximo jogo" da tela de início: o Dart grava o snapshot da Agenda
-/// (`saveAgendaSnapshot`) no App Group que a extensão `NexagoWidgets` lê e
-/// pede o redesenho. Mesmo JSON do widget Android. Lado Dart:
+/// (`saveAgendaSnapshot`) no App Group que a extensão `NexagoLiveActivities`
+/// lê e pede o redesenho. Mesmo JSON do widget Android. Lado Dart:
 /// `lib/core/home_widget/agenda_widget_channel.dart`.
 private enum HomeWidgetChannel {
   static let appGroup = "group.br.com.nexago.nexagoApp"

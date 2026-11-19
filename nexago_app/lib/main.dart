@@ -22,6 +22,9 @@ import 'core/map/mapbox_config.dart';
 import 'core/notifications/notification_navigation.dart';
 import 'core/notifications/notification_providers.dart';
 import 'core/notifications/notification_service.dart';
+import 'core/quick_actions/athlete_quick_actions_logic.dart';
+import 'core/quick_actions/athlete_quick_actions_providers.dart';
+import 'core/quick_actions/quick_actions_navigation.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/native_interface_style.dart';
@@ -51,7 +54,8 @@ Future<void> main() async {
   // Pare o app (q) e rode `flutter run` de novo; prefira Hot reload (r).
   // Após adicionar shared_preferences, faça um cold start (não só hot restart).
   if (Firebase.apps.isEmpty) {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform);
   }
 
   // Observabilidade: captura crashes/erros não tratados. Em debug a coleta fica
@@ -101,6 +105,7 @@ class NexagoApp extends ConsumerStatefulWidget {
 
 class _NexagoAppState extends ConsumerState<NexagoApp> {
   ProviderSubscription<AsyncValue<User?>>? _authSub;
+  ProviderSubscription<List<QuickActionItem>?>? _quickActionsSub;
   StreamSubscription<Uri>? _deepLinkSub;
   late final AppLifecycleListener _lifecycleListener;
 
@@ -111,10 +116,34 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
       onResume: () => unawaited(
         ref.read(notificationServiceProvider).clearDeliveredNotifications(),
       ),
+      // O menu do ícone fica gravado com o app fechado: recalcular ao sair
+      // tira dele a reserva que já passou. Precisa ser aqui e síncrono — com
+      // o app oculto não há frame para um `invalidate` rodar.
+      onHide: () => _publishQuickActions(
+        ref.refresh(athleteQuickActionsProvider),
+      ),
+    );
+    _quickActionsSub = ref.listenManual<List<QuickActionItem>?>(
+      athleteQuickActionsProvider,
+      (_, items) => _publishQuickActions(items),
+      fireImmediately: true,
     );
     Future<void>(() async {
       final notifications = ref.read(notificationServiceProvider);
       final router = ref.read(goRouterProvider);
+
+      // Quick Actions (toque longo no ícone) antes de tudo: o nativo guarda o
+      // toque do cold start até o Dart buscar, e nada abaixo (push, token,
+      // tópicos — rede sem timeout) pode atrasar o atleta até o destino.
+      final quickActions = ref.read(quickActionsChannelProvider);
+      Future<void> handleQuickAction() async {
+        final tap = await quickActions.takePendingAction();
+        if (tap == null || !mounted) return;
+        await navigateFromQuickAction(tap, router, ref: ref);
+      }
+
+      quickActions.listen(() => unawaited(handleQuickAction()));
+      unawaited(handleQuickAction());
       void handleNotificationTap(Map<String, dynamic> data) {
         debugPrint('Notification tap payload: $data');
         if (!mounted) return;
@@ -135,7 +164,8 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
       // Partida a frio não passa pelo `onResume`.
       await notifications.clearDeliveredNotifications();
 
-      await notifications.syncUserToken(ref.read(authProvider).valueOrNull?.uid);
+      await notifications
+          .syncUserToken(ref.read(authProvider).valueOrNull?.uid);
       await _syncFollowedMatchTopics(
         previousUid: '',
         nextUid: ref.read(authProvider).valueOrNull?.uid.trim() ?? '',
@@ -190,6 +220,12 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
     }
   }
 
+  /// `null` = menu ainda não montável (dados carregando): mantém o gravado.
+  void _publishQuickActions(List<QuickActionItem>? items) {
+    if (items == null) return;
+    unawaited(ref.read(quickActionsChannelProvider).setItems(items));
+  }
+
   void _handleDeepLink(Uri uri) {
     navigateFromDeepLink(
       uri: uri,
@@ -203,6 +239,7 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
     _lifecycleListener.dispose();
     _deepLinkSub?.cancel();
     _authSub?.close();
+    _quickActionsSub?.close();
     super.dispose();
   }
 

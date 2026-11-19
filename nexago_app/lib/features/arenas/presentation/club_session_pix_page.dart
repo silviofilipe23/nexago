@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/formatting/app_currency_format.dart';
+import '../../../core/live_activity/pix_live_activity_models.dart';
+import '../../../core/live_activity/pix_live_activity_service.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/feedback/feedback_page.dart';
 import '../../../core/validation/cpf_cnpj.dart';
@@ -193,6 +195,7 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
         _loadingPix = false;
       });
       _scheduleExpiry(pix.expiresAt);
+      _startPixLiveActivity(pix);
     } on ArenaClubException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -242,6 +245,40 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
     }
   }
 
+  /// Card do Pix na Dynamic Island / tela bloqueada (iOS). Extra: nunca
+  /// atrasa nem quebra o pagamento.
+  void _startPixLiveActivity(ClubJoinPixResult pix) {
+    final session =
+        ref.read(clubSessionProvider(widget.sessionId)).valueOrNull;
+    final date = DateTime.tryParse(session?.date ?? '');
+    final context = pixLiveActivityClubContext(
+      arenaName: session?.arenaName ?? '',
+      date: session?.startAt ?? date ?? pix.expiresAt,
+      startTime: session?.startTime ?? '',
+    );
+    unawaited(
+      ref.read(pixLiveActivityServiceProvider).start(
+            PixLiveActivityRequest(
+              paymentId: pix.paymentId,
+              kind: PixLiveActivityKind.club,
+              amountReais: pix.chargedReais,
+              summary: context.summary,
+              detail: context.detail,
+              createdAt: DateTime.now(),
+              expiresAt: pix.expiresAt,
+            ),
+          ),
+    );
+  }
+
+  void _endPixLiveActivity(PixLiveActivityOutcome outcome) {
+    final paymentId = _pix?.paymentId;
+    if (paymentId == null) return;
+    unawaited(
+      ref.read(pixLiveActivityServiceProvider).end(paymentId, outcome),
+    );
+  }
+
   void _scheduleExpiry(DateTime expiresAt) {
     _expiryTimer?.cancel();
     final remaining = expiresAt.difference(DateTime.now());
@@ -256,6 +293,7 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
 
   void _onPixExpired() {
     if (_confirmed || _expired) return;
+    _endPixLiveActivity(PixLiveActivityOutcome.expired);
     setState(() {
       _expired = true;
       _pix = null;
@@ -264,6 +302,7 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
 
   Future<void> _giveUp() async {
     if (_cancelling) return;
+    _endPixLiveActivity(PixLiveActivityOutcome.dismissed);
     setState(() => _cancelling = true);
     try {
       await ref
@@ -294,6 +333,7 @@ class _ClubSessionPixPageState extends ConsumerState<ClubSessionPixPage> {
       if (participant == null || _confirmed) return;
       if (participant.isConfirmed) {
         _expiryTimer?.cancel();
+        _endPixLiveActivity(PixLiveActivityOutcome.paid);
         setState(() => _confirmed = true);
       } else if (_pix != null &&
           (participant.status == 'expired' ||

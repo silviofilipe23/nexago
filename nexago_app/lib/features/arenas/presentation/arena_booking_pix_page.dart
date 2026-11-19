@@ -28,6 +28,8 @@ import '../../tournaments/presentation/widgets/tournament_registration/registrat
 import '../data/payment_service.dart';
 import '../domain/arena_booking_pix_amounts.dart';
 import '../domain/arena_booking_pix_args.dart';
+import '../../../core/live_activity/pix_live_activity_models.dart';
+import '../../../core/live_activity/pix_live_activity_service.dart';
 import '../domain/booking_providers.dart';
 import '../domain/payment_providers.dart';
 import 'booking_success_page.dart';
@@ -262,6 +264,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
         _loadingCharge = false;
       });
       _scheduleExpiry(pix.expiresAt);
+      _startPixLiveActivity(pix);
     } on PaymentException catch (e) {
       if (!mounted) return;
       setState(() => _loadingCharge = false);
@@ -375,7 +378,51 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
     }
     setState(() => _paymentFailed = true);
     _expiryTimer?.cancel();
+    _endPixLiveActivity(
+      _deadlinePassed
+          ? PixLiveActivityOutcome.expired
+          : PixLiveActivityOutcome.dismissed,
+    );
     await _cancelPendingIfNeeded();
+  }
+
+  bool get _deadlinePassed {
+    final deadline = _deadline;
+    return deadline != null && !DateTime.now().isBefore(deadline);
+  }
+
+  /// Card do Pix na Dynamic Island / tela bloqueada (iOS). Extra: nunca
+  /// atrasa nem quebra o pagamento.
+  void _startPixLiveActivity(ArenaBookingPixPaymentResult pix) {
+    final confirm = widget.args.confirmArgs;
+    final context = pixLiveActivityBookingContext(
+      arenaName: confirm.arenaName,
+      courtName: confirm.courtName,
+      date: confirm.date,
+      startTime: confirm.startTime,
+      endTime: confirm.endTime,
+    );
+    unawaited(
+      ref.read(pixLiveActivityServiceProvider).start(
+            PixLiveActivityRequest(
+              paymentId: pix.paymentId,
+              kind: PixLiveActivityKind.booking,
+              amountReais: pix.chargedReais,
+              summary: context.summary,
+              detail: context.detail,
+              createdAt: DateTime.now(),
+              expiresAt: pix.expiresAt,
+            ),
+          ),
+    );
+  }
+
+  void _endPixLiveActivity(PixLiveActivityOutcome outcome) {
+    final paymentId = _pix?.paymentId;
+    if (paymentId == null) return;
+    unawaited(
+      ref.read(pixLiveActivityServiceProvider).end(paymentId, outcome),
+    );
   }
 
   /// Devolve se o servidor soltou o horário. Recusa (cartão aprovado, em
@@ -422,6 +469,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
     if (ps != 'paid' && ps != 'partial') return;
     _navigatedSuccess = true;
     _expiryTimer?.cancel();
+    _endPixLiveActivity(PixLiveActivityOutcome.paid);
     // Cartão aprovado com o checkout ainda na frente: fecha para o atleta ver
     // a confirmação.
     if (_card != null) {

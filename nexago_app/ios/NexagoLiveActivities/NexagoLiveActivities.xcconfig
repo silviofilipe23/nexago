@@ -1,0 +1,4 @@
+// Extensão das Live Activities: só precisa da versão do app (FLUTTER_BUILD_NAME /
+// FLUTTER_BUILD_NUMBER no Info.plist) — a App Store exige que bata com a do app.
+// Não inclui o xcconfig dos Pods: a extensão não linka nenhum plugin.
+#include? "../Flutter/Generated.xcconfig"

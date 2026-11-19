@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/formatting/app_currency_format.dart';
+import '../../../core/live_activity/pix_live_activity_models.dart';
+import '../../../core/live_activity/pix_live_activity_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -343,6 +345,7 @@ class _TournamentRegistrationPixPageState
         _loadingCharge = false;
       });
       _rescheduleExpiries();
+      _startPixLiveActivity(pix);
     } on PaymentException catch (e) {
       if (!mounted) return;
       setState(() => _loadingCharge = false);
@@ -486,12 +489,62 @@ class _TournamentRegistrationPixPageState
     if (_navigatedBack || _paymentFailed || _cancelling) return;
     setState(() => _paymentFailed = true);
     _expiryTimer?.cancel();
+    _endPixLiveActivity(
+      _deadlinePassed
+          ? PixLiveActivityOutcome.expired
+          : PixLiveActivityOutcome.dismissed,
+    );
     // Checkout aberto numa cobrança que vai morrer: fecha antes de o atleta
     // digitar o cartão à toa.
     if (_card != null) {
       unawaited(ref.read(paymentServiceProvider).closeHostedCheckout());
     }
     await _cancelPendingIfNeeded();
+  }
+
+  DateTime? get _currentDeadline => _effectiveDeadline(
+        ref
+            .read(
+              tournamentRegistrationSnapshotProvider(
+                widget.args.registrationId,
+              ),
+            )
+            .valueOrNull,
+      );
+
+  bool get _deadlinePassed {
+    final deadline = _currentDeadline;
+    return deadline != null && !DateTime.now().isBefore(deadline);
+  }
+
+  /// Card do Pix na Dynamic Island / tela bloqueada (iOS). Conta até o prazo
+  /// efetivo (o menor entre a vaga e a cobrança), o mesmo do relógio da tela.
+  void _startPixLiveActivity(ArenaBookingPixPaymentResult pix) {
+    final context = pixLiveActivityRegistrationContext(
+      tournamentName: widget.args.tournamentName,
+      categoryName: widget.args.categoryName,
+    );
+    unawaited(
+      ref.read(pixLiveActivityServiceProvider).start(
+            PixLiveActivityRequest(
+              paymentId: pix.paymentId,
+              kind: PixLiveActivityKind.registration,
+              amountReais: pix.chargedReais,
+              summary: context.summary,
+              detail: context.detail,
+              createdAt: DateTime.now(),
+              expiresAt: _currentDeadline ?? pix.expiresAt,
+            ),
+          ),
+    );
+  }
+
+  void _endPixLiveActivity(PixLiveActivityOutcome outcome) {
+    final paymentId = _pix?.paymentId;
+    if (paymentId == null) return;
+    unawaited(
+      ref.read(pixLiveActivityServiceProvider).end(paymentId, outcome),
+    );
   }
 
   Future<void> _cancelPendingIfNeeded() async {
@@ -513,6 +566,7 @@ class _TournamentRegistrationPixPageState
     if (uid == null || uid.isEmpty) return;
 
     final confirmed = snap.isPaid || snap.athleteSharePaid(uid);
+    if (confirmed) _endPixLiveActivity(PixLiveActivityOutcome.paid);
     // Cartão aprovado com o checkout ainda na frente: fecha para o atleta ver
     // a confirmação.
     if (confirmed && _card != null) {

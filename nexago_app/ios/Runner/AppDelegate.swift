@@ -55,6 +55,7 @@ import UserNotifications
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     InterfaceStyleChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
+    LiveActivityChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
   }
 }
 

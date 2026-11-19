@@ -38,6 +38,7 @@ import {
   recordSchedulePlanAppPaymentReversal,
 } from "./booking-app-payment";
 import {getFirebaseProjectId} from "./firebase-paths";
+import {notifyPixLiveActivityForAsaasEvent} from "./pix-live-activity";
 import {WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT} from "./notification-delivery";
 import {CLIENT_FACING_REGIONS} from "./function-regions";
 import {STORE_ORDER_PAYMENT_REF_PREFIX} from "./store-checkout";
@@ -219,6 +220,15 @@ export const asaasWebhook = onRequest({
     }
   } catch (e) {
     logger.error(`asaasWebhook failed paymentId=${paymentId} event=${event}`, e);
+  }
+
+  // Live Activity do Pix no iPhone (pago / expirou). Vale para qualquer origem:
+  // a chave é o id da cobrança. Separado do despacho pelo mesmo motivo do
+  // estorno abaixo — uma falha num não pode impedir o outro.
+  try {
+    await notifyPixLiveActivityForAsaasEvent(db, paymentId, event);
+  } catch (e) {
+    logger.error(`asaasWebhook: live activity do Pix falhou paymentId=${paymentId}`, e);
   }
 
   // Estorno: desfaz o cashback do pagamento (lote e saldo usado). Separado do

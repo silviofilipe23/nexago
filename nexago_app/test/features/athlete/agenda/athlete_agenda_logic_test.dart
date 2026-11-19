@@ -210,13 +210,13 @@ void main() {
       expect(upcoming.any((i) => i.id == 'past-rental-${DateTime(2025, 5, 26, 10).millisecondsSinceEpoch}'), true);
     });
 
-    test('upcoming tab + day mode lists the latest time first', () {
-      // Reserva das 18h já jogada e a das 21h ainda por vir: a das 21h vem
-      // no topo, sem o atleta rolar por cima do que já passou.
+    test('upcoming tab + day mode lists the day in chronological order', () {
+      // A lista do dia é desenhada como linha do tempo (coluna de horário e
+      // conector vertical): 18h vem antes de 21h, como num relógio.
       final now = DateTime(2025, 5, 26, 19);
       final items = [
-        pastRentalAt(DateTime(2025, 5, 26, 18)),
         rentalAt(DateTime(2025, 5, 26, 21)),
+        pastRentalAt(DateTime(2025, 5, 26, 18)),
       ];
 
       final upcoming = filterAgendaItems(
@@ -229,7 +229,27 @@ void main() {
         now: now,
       );
 
-      expect(upcoming.map((i) => i.startsAt.hour).toList(), [21, 18]);
+      expect(upcoming.map((i) => i.startsAt.hour).toList(), [18, 21]);
+    });
+
+    test('past tab keeps the most recent first', () {
+      final now = DateTime(2025, 5, 26, 15);
+      final items = [
+        pastRentalAt(DateTime(2025, 5, 10, 10)),
+        pastRentalAt(DateTime(2025, 5, 20, 10)),
+      ];
+
+      final past = filterAgendaItems(
+        items: items,
+        filter: AthleteAgendaFilter.all,
+        viewMode: AthleteAgendaViewMode.day,
+        selectedDay: baseDay,
+        visibleMonth: startOfMonth(baseDay),
+        timeTab: AthleteAgendaTimeTab.past,
+        now: now,
+      );
+
+      expect(past.map((i) => i.startsAt.day).toList(), [20, 10]);
     });
 
     test('past tab lists all past items regardless of selected day', () {
@@ -676,6 +696,117 @@ void main() {
       expect(counts.all, 3);
       expect(counts.rentals, 2);
       expect(counts.tournaments, 1);
+    });
+  });
+  group('torneio de vários dias', () {
+    // Torneio de sábado (31/05) a segunda (02/06): ocupa os três dias.
+    AthleteAgendaItem weekendTournament() => AthleteAgendaItem(
+      id: 'tournament-weekend',
+      kind: AthleteAgendaItemKind.tournament,
+      startsAt: DateTime(2025, 5, 31),
+      endsAt: DateTime(2025, 6, 2, 23, 59, 59),
+      title: 'Open da Orla',
+      subtitle: 'Cat. B',
+      statusLabel: 'INSCRITO',
+      accentColor: athleteAgendaTournamentAccent,
+      tournament: const AthleteAgendaTournamentPayload(
+        tournamentId: 't-weekend',
+        registrationId: 'r-weekend',
+        isLive: false,
+      ),
+    );
+
+    test('agendaItemOccursOn cobre do primeiro ao último dia', () {
+      final item = weekendTournament();
+      expect(agendaItemOccursOn(item, DateTime(2025, 5, 30)), isFalse);
+      expect(agendaItemOccursOn(item, DateTime(2025, 5, 31)), isTrue);
+      expect(agendaItemOccursOn(item, DateTime(2025, 6, 1, 15)), isTrue);
+      expect(agendaItemOccursOn(item, DateTime(2025, 6, 2)), isTrue);
+      expect(agendaItemOccursOn(item, DateTime(2025, 6, 3)), isFalse);
+    });
+
+    test('reserva que termina noutro dia continua só no dia em que começa',
+        () {
+      final late = rentalAt(DateTime(2025, 5, 26, 23));
+      expect(agendaItemOccursOn(late, DateTime(2025, 5, 26)), isTrue);
+      expect(agendaItemOccursOn(late, DateTime(2025, 5, 27)), isFalse);
+    });
+
+    test('visão do dia mostra o torneio no 2º e no 3º dia', () {
+      final item = weekendTournament();
+      for (final day in [DateTime(2025, 6, 1), DateTime(2025, 6, 2)]) {
+        final dayItems = filterAgendaItems(
+          items: [item],
+          filter: AthleteAgendaFilter.all,
+          viewMode: AthleteAgendaViewMode.day,
+          selectedDay: day,
+          visibleMonth: startOfMonth(day),
+          timeTab: AthleteAgendaTimeTab.upcoming,
+          now: DateTime(2025, 6, 1, 9),
+        );
+        expect(dayItems, hasLength(1), reason: 'dia ${day.day}');
+      }
+    });
+
+    test('visão do mês seguinte inclui o torneio que atravessa a virada', () {
+      final item = weekendTournament();
+      final june = filterAgendaItems(
+        items: [item],
+        filter: AthleteAgendaFilter.all,
+        viewMode: AthleteAgendaViewMode.month,
+        selectedDay: DateTime(2025, 6, 1),
+        visibleMonth: DateTime(2025, 6),
+        timeTab: AthleteAgendaTimeTab.upcoming,
+        now: DateTime(2025, 6, 1, 9),
+      );
+      expect(june, hasLength(1));
+
+      final markers = buildAgendaMonthDayMarkers(
+        visibleMonth: DateTime(2025, 6),
+        selectedDay: DateTime(2025, 6, 1),
+        items: june,
+        now: DateTime(2025, 6, 1, 9),
+      );
+      expect(markers[0].tournamentDots, 1);
+      expect(markers[1].tournamentDots, 1);
+      expect(markers[2].tournamentDots, 0);
+
+      final rows = buildAgendaMonthSummaryRows(
+        visibleMonth: DateTime(2025, 6),
+        items: june,
+        now: DateTime(2025, 6, 1, 9),
+      );
+      expect(rows.firstWhere((r) => r.date.day == 2).isFree, isFalse);
+      expect(
+        countFreeDaysInMonth(
+          DateTime(2025, 6),
+          june,
+          now: DateTime(2025, 6, 1, 9),
+        ),
+        28,
+      );
+    });
+
+    test('faixa de dias marca o torneio em todos os dias do evento', () {
+      final item = weekendTournament();
+      final selected = DateTime(2025, 6, 2);
+      final stripItems = filterAgendaItemsForWeekStrip(
+        items: [item],
+        selectedDay: selected,
+        now: DateTime(2025, 6, 2, 9),
+      );
+      expect(stripItems, hasLength(1));
+
+      final strip = buildWeekDayStrip(
+        selectedDay: selected,
+        items: stripItems,
+        now: DateTime(2025, 6, 2, 9),
+      );
+      // Janela: 31/05 a 06/06 (2 dias antes do selecionado).
+      expect(
+        strip.map((d) => d.tournamentDots).toList(),
+        [1, 1, 1, 0, 0, 0, 0],
+      );
     });
   });
 }

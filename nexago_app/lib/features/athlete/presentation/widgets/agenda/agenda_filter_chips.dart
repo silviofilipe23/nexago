@@ -57,14 +57,19 @@ class AgendaFilterChips extends StatelessWidget {
             selected: selected == AthleteAgendaFilter.tournaments,
             onTap: () => onSelected(AthleteAgendaFilter.tournaments),
           ),
-          const SizedBox(width: 8),
-          _Chip(
-            label: 'Desafios',
-            count: counts.challenges,
-            dotColor: athleteAgendaChallengeAccent,
-            selected: selected == AthleteAgendaFilter.challenges,
-            onTap: () => onSelected(AthleteAgendaFilter.challenges),
-          ),
+          // Desafio de ranking ainda não existe; o chip filtra os jogos do
+          // Bora Jogar. Sem nenhum no período, ele só levaria a um vazio.
+          if (counts.challenges > 0 ||
+              selected == AthleteAgendaFilter.challenges) ...[
+            const SizedBox(width: 8),
+            _Chip(
+              label: 'Desafios',
+              count: counts.challenges,
+              dotColor: athleteAgendaChallengeAccent,
+              selected: selected == AthleteAgendaFilter.challenges,
+              onTap: () => onSelected(AthleteAgendaFilter.challenges),
+            ),
+          ],
         ],
       ),
     );

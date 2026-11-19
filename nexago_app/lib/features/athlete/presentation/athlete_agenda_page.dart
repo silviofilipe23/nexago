@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/errors/friendly_error_message.dart';
 import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -27,6 +28,7 @@ import 'widgets/agenda/agenda_empty_state.dart';
 import 'widgets/agenda/agenda_filter_chips.dart';
 import 'widgets/agenda/agenda_header.dart';
 import 'widgets/agenda/agenda_month_view.dart';
+import 'widgets/agenda/agenda_needs_you_section.dart';
 import 'widgets/agenda/agenda_tabs.dart';
 import 'widgets/agenda/agenda_timeline_widgets.dart';
 import 'widgets/athlete_home/athlete_account_sheet.dart';
@@ -200,6 +202,7 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
     // a espera de pagamento do [_onResume].
     ref.watch(myClassChargesProvider);
     final waitlistView = ref.watch(myWaitlistViewProvider);
+    final needsYouItems = ref.watch(athleteAgendaNeedsYouProvider);
     final unreadNotifications = ref.watch(
       athleteUnreadNotificationsCountProvider,
     );
@@ -290,7 +293,11 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
             padding: EdgeInsets.only(top: topInset),
             child: AppErrorView(
               title: 'Não foi possível carregar agenda',
-              message: e.toString().replaceFirst('Exception: ', ''),
+              message: friendlyErrorMessage(
+                e,
+                action: 'Não foi possível carregar a agenda',
+                logReason: 'agenda:carregar',
+              ),
               onRetry: () => ref.invalidate(myBookingsStreamProvider),
             ),
           ),
@@ -363,6 +370,21 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                         const SliverToBoxAdapter(
                           child: AgendaReviewPromptCard(),
                         ),
+                        // Convites de dupla esperando resposta.
+                        if (needsYouItems.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: AgendaNeedsYouSection(
+                              items: needsYouItems,
+                              // Desafio de ranking ainda não existe no app:
+                              // o provider não gera esse tipo de pendência.
+                              onAcceptChallenge: () {},
+                              onDeclineChallenge: () {},
+                              onBookingTap: (bookingId) => context.pushNamed(
+                                AppRouteNames.bookingDetailsById,
+                                pathParameters: {'bookingId': bookingId},
+                              ),
+                            ),
+                          ),
                         SliverToBoxAdapter(
                           child: AgendaTabs(
                             selected: _timeTab,
@@ -382,7 +404,8 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                         if (!isEmptyDayHero)
                           SliverToBoxAdapter(
                             child: Padding(
-                              padding: const EdgeInsets.only(top: 12, bottom: 8),
+                              padding:
+                                  const EdgeInsets.only(top: 12, bottom: 8),
                               child: AgendaFilterChips(
                                 selected: _filter,
                                 counts: filterCounts,

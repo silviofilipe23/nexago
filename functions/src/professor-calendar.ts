@@ -39,10 +39,14 @@ export interface FeedEvent {
   endTime?: string;
   startAt?: Date;
   endAt?: Date;
+  /** Dia inteiro, de [fromKey] a [toKey] (`YYYY-MM-DD`, inclusivos): torneio no feed do atleta. */
+  allDay?: {fromKey: string; toKey: string};
   summary: string;
   location: string;
   description: string;
   canceled: boolean;
+  /** Ainda não garantido (reserva esperando o Pix): `STATUS:TENTATIVE`. */
+  tentative?: boolean;
 }
 
 function str(v: unknown): string {
@@ -72,13 +76,25 @@ const local = (date: string, time: string) => `${date.replace(/-/g, "")}T${time.
 const utc = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
 export function buildProfessorIcs(events: FeedEvent[], now: Date, name = "Aulas nexaGO"): string {
+  return buildCalendarIcs(events, now, {name, product: "Agenda do professor"});
+}
+
+const dateOnly = (key: string) => key.replace(/-/g, "");
+
+/** Monta o `.ics` (RFC 5545). [product] entra no PRODID; [name] é o nome do calendário. */
+export function buildCalendarIcs(events: FeedEvent[], now: Date, opts: {name: string; product: string}): string {
+  const {name, product} = opts;
   const lines = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//nexaGO//Agenda do professor//PT-BR", "CALSCALE:GREGORIAN",
+    "BEGIN:VCALENDAR", "VERSION:2.0", `PRODID:-//nexaGO//${product}//PT-BR`, "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH", `X-WR-CALNAME:${icsText(name)}`, `X-WR-TIMEZONE:${EVENT_TIME_ZONE}`,
   ];
   for (const e of events) {
     lines.push("BEGIN:VEVENT", `UID:${e.uid}@nexago`, `DTSTAMP:${utc(now)}`);
-    if (e.startAt && e.endAt) {
+    if (e.allDay) {
+      // DTEND de dia inteiro é exclusivo: o dia seguinte ao último.
+      lines.push(`DTSTART;VALUE=DATE:${dateOnly(e.allDay.fromKey)}`);
+      lines.push(`DTEND;VALUE=DATE:${dateOnly(addDaysToDateKey(e.allDay.toKey, 1))}`);
+    } else if (e.startAt && e.endAt) {
       lines.push(`DTSTART:${utc(e.startAt)}`, `DTEND:${utc(e.endAt)}`);
     } else if (e.date && e.startTime) {
       lines.push(`DTSTART;TZID=${EVENT_TIME_ZONE}:${local(e.date, e.startTime)}`);
@@ -92,7 +108,8 @@ export function buildProfessorIcs(events: FeedEvent[], now: Date, name = "Aulas 
     lines.push(`SUMMARY:${icsText(e.summary)}`);
     if (e.location) lines.push(`LOCATION:${icsText(e.location)}`);
     if (e.description) lines.push(`DESCRIPTION:${icsText(e.description)}`);
-    lines.push(`STATUS:${e.canceled ? "CANCELLED" : "CONFIRMED"}`, "END:VEVENT");
+    const status = e.canceled ? "CANCELLED" : e.tentative ? "TENTATIVE" : "CONFIRMED";
+    lines.push(`STATUS:${status}`, "END:VEVENT");
   }
   lines.push("END:VCALENDAR");
   return lines.map(fold).join("\r\n") + "\r\n";

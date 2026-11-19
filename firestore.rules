@@ -2934,6 +2934,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Token do feed .ics da Agenda do atleta (athlete-calendar.ts): só functions.
+    match /athleteCalendarFeeds/{uid} {
+      allow read, write: if false;
+    }
+
     match /users/{userId}/followers/{followerId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null &&

@@ -707,7 +707,11 @@ String professorWebcalUrl(String feedUrl) =>
 String professorGoogleCalendarUrl(String feedUrl) =>
     'https://calendar.google.com/calendar/r?cid=${Uri.encodeComponent(feedUrl)}';
 
-/// Outlook na web: "Assinar" por URL.
-String professorOutlookCalendarUrl(String feedUrl) =>
+/// Outlook na web: "Assinar" por URL. [name] é o nome do calendário lá
+/// (o feed do atleta usa "Agenda nexaGO").
+String professorOutlookCalendarUrl(
+  String feedUrl, {
+  String name = 'Aulas nexaGO',
+}) =>
     'https://outlook.live.com/calendar/0/addfromweb?url='
-    '${Uri.encodeComponent(feedUrl)}&name=${Uri.encodeComponent('Aulas nexaGO')}';
+    '${Uri.encodeComponent(feedUrl)}&name=${Uri.encodeComponent(name)}';

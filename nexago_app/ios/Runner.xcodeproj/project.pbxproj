@@ -16,6 +16,7 @@
 		34292DCDB2E84AD848FC5114 /* PixPaymentAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24BB2CF63F3507F681DA5166 /* PixPaymentAttributes.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		48503A92F2EBFF59CC15DB5D /* NexagoLiveActivities.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D87165308CC02317D1C1DC26 /* NexagoLiveActivities.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		61EBFC990BAF0543BC7C0578 /* NextMatchLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66B9A8C3AE14F02E35365E27 /* NextMatchLiveActivity.swift */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		77938645A9C798A1E07AD52A /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F69535595520F186E2916B0B /* WidgetKit.framework */; };
 		783E8B02A4E51062A20BCC49 /* NexagoLiveActivitiesBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC29D479D5CA50B9480F1435 /* NexagoLiveActivitiesBundle.swift */; };
@@ -28,6 +29,8 @@
 		9A4FFFC51CDD54231A135480 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = CA0A50CA6C58DB13AC5D2CDE /* GoogleService-Info.plist */; };
 		B8F2A1022EC4000100C636F1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B8F2A1012EC4000100C636F1 /* PrivacyInfo.xcprivacy */; };
 		B932D3069A96CA1C5F544FB1 /* PixPaymentAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24BB2CF63F3507F681DA5166 /* PixPaymentAttributes.swift */; };
+		B9BCE578ECC45D17AE219D81 /* NextMatchAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99FEBC7AD4EE77A0CA2B52A8 /* NextMatchAttributes.swift */; };
+		F9C23D740B999B039ABF0E00 /* NextMatchAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99FEBC7AD4EE77A0CA2B52A8 /* NextMatchAttributes.swift */; };
 		FCBE9B32B11F88B4BD9FA839 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 23535E3903C2CE05F890504B /* Pods_Runner.framework */; };
 /* End PBXBuildFile section */
 
@@ -87,6 +90,7 @@
 		613509F3BE9BA1C9F9269A20 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		61ECF4DB67D1CB20B4B33EAF /* PixPaymentLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PixPaymentLiveActivity.swift; sourceTree = "<group>"; };
 		6373BBF8491C1D026E695030 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		66B9A8C3AE14F02E35365E27 /* NextMatchLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextMatchLiveActivity.swift; sourceTree = "<group>"; };
 		6A883155D2A6D9C0A8534CD8 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -102,6 +106,7 @@
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		99FEBC7AD4EE77A0CA2B52A8 /* NextMatchAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextMatchAttributes.swift; sourceTree = "<group>"; };
 		B0BAEEFFD215F2B9D86A8846 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		B12881B2F9B86F3220FD8C58 /* NexagoLiveActivities.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = NexagoLiveActivities.xcconfig; sourceTree = "<group>"; };
 		B8F2A1012EC4000100C636F1 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -252,6 +257,8 @@
 				61ECF4DB67D1CB20B4B33EAF /* PixPaymentLiveActivity.swift */,
 				CC29D479D5CA50B9480F1435 /* NexagoLiveActivitiesBundle.swift */,
 				6373BBF8491C1D026E695030 /* Info.plist */,
+				99FEBC7AD4EE77A0CA2B52A8 /* NextMatchAttributes.swift */,
+				66B9A8C3AE14F02E35365E27 /* NextMatchLiveActivity.swift */,
 			);
 			name = NexagoLiveActivities;
 			path = NexagoLiveActivities;
@@ -509,6 +516,8 @@
 				34292DCDB2E84AD848FC5114 /* PixPaymentAttributes.swift in Sources */,
 				0A89393B1A3DBF2A9F119E0A /* PixPaymentLiveActivity.swift in Sources */,
 				783E8B02A4E51062A20BCC49 /* NexagoLiveActivitiesBundle.swift in Sources */,
+				B9BCE578ECC45D17AE219D81 /* NextMatchAttributes.swift in Sources */,
+				61EBFC990BAF0543BC7C0578 /* NextMatchLiveActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -521,6 +530,7 @@
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				B932D3069A96CA1C5F544FB1 /* PixPaymentAttributes.swift in Sources */,
 				7BC0333202AB2411B4E6EE86 /* LiveActivityChannel.swift in Sources */,
+				F9C23D740B999B039ABF0E00 /* NextMatchAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -56,6 +56,7 @@ import UserNotifications
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     InterfaceStyleChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
     LiveActivityChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
+    NextMatchLiveActivityChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "NexaQuickActions") {
       QuickActionsChannel.register(with: registrar)
     }

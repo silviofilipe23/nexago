@@ -150,3 +150,148 @@ private enum PixLiveActivityController {
     }
   }
 }
+
+// MARK: - Próxima partida (Modo Focus)
+
+/// Ponte da Live Activity "minha próxima partida"
+/// (`lib/core/live_activity/next_match_live_activity_service.dart`). Canal
+/// próprio: o Flutter aceita um handler só por canal, e dividir o do Pix
+/// faria um serviço roubar os tokens do outro.
+///
+/// - `isSupported` → o atleta deixou Live Activities ligadas?
+/// - `startNextMatch({tournamentId, tournamentName, categoryName, state})` →
+///   `state` é o JSON do servidor (`NextMatchContentState`); reabrir o Focus
+///   com o card vivo só atualiza o card;
+/// - `resumeNextMatch` → volta a observar o token dos cards vivos;
+/// - Swift → Dart: `onPushToken({tournamentId, token})`.
+enum NextMatchLiveActivityChannel {
+  private static var channel: FlutterMethodChannel?
+
+  static func register(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "nexago/live_activity_next_match",
+      binaryMessenger: messenger
+    )
+    self.channel = channel
+    channel.setMethodCallHandler { call, result in
+      guard #available(iOS 16.2, *) else {
+        result(call.method == "isSupported" ? false : nil)
+        return
+      }
+      NextMatchLiveActivityController.handle(call, result: result)
+    }
+  }
+
+  fileprivate static func sendPushToken(tournamentId: String, token: String) {
+    DispatchQueue.main.async {
+      channel?.invokeMethod(
+        "onPushToken",
+        arguments: ["tournamentId": tournamentId, "token": token]
+      )
+    }
+  }
+}
+
+@available(iOS 16.2, *)
+private enum NextMatchLiveActivityController {
+  private static var tokenTasks: [String: Task<Void, Never>] = [:]
+
+  static func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "isSupported":
+      result(ActivityAuthorizationInfo().areActivitiesEnabled)
+    case "startNextMatch":
+      start(call.arguments as? [String: Any] ?? [:], result: result)
+    case "resumeNextMatch":
+      for activity in Activity<NextMatchAttributes>.activities {
+        observePushToken(of: activity, tournamentId: activity.attributes.tournamentId)
+      }
+      result(nil)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  /// O horário previsto é o `staleDate`: passou dele sem a partida começar, o
+  /// card mostra o atraso sozinho.
+  private static func content(
+    _ state: NextMatchAttributes.ContentState
+  ) -> ActivityContent<NextMatchAttributes.ContentState> {
+    // Horário já passado não vira `staleDate`: activity que nasce "stale" o iOS
+    // não desenha. O card mostra o atraso comparando com o relógio.
+    let scheduled = NextMatchPhase(wire: state.phase) == .scheduled ? state.scheduleTime : nil
+    let stale = scheduled.flatMap { $0 > Date() ? $0 : nil }
+    return ActivityContent(state: state, staleDate: stale)
+  }
+
+  private static func start(_ args: [String: Any], result: @escaping FlutterResult) {
+    guard
+      let tournamentId = (args["tournamentId"] as? String)?
+        .trimmingCharacters(in: .whitespaces),
+      !tournamentId.isEmpty,
+      let stateJson = args["state"] as? String,
+      let state = try? JSONDecoder().decode(
+        NextMatchAttributes.ContentState.self,
+        from: Data(stateJson.utf8)
+      )
+    else {
+      result(FlutterError(code: "bad_args", message: "startNextMatch sem torneio/estado", details: nil))
+      return
+    }
+    guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+      result(nil)
+      return
+    }
+
+    let activities = Activity<NextMatchAttributes>.activities
+    // Reabrir o Focus: o card vivo recebe o estado fresco, sem nascer outro.
+    // Só serve um card VIVO: um encerrado (limite de 8h do iOS, ou "fim do
+    // dia" ainda na tela) continua na lista, e atualizá-lo não faz nada.
+    let alive = activities.first {
+      $0.attributes.tournamentId == tournamentId &&
+        ($0.activityState == .active || $0.activityState == .stale)
+    }
+    if let existing = alive {
+      let fresh = content(state)
+      Task { await existing.update(fresh) }
+      observePushToken(of: existing, tournamentId: tournamentId)
+      result(existing.id)
+      return
+    }
+    // Um card por vez: o de outro torneio (ou um já encerrado) sai.
+    for other in activities {
+      tokenTasks.removeValue(forKey: other.attributes.tournamentId)?.cancel()
+      Task { await other.end(nil, dismissalPolicy: .immediate) }
+    }
+
+    let attributes = NextMatchAttributes(
+      tournamentId: tournamentId,
+      tournamentName: args["tournamentName"] as? String ?? "",
+      categoryName: args["categoryName"] as? String ?? ""
+    )
+    do {
+      let activity = try Activity.request(
+        attributes: attributes,
+        content: content(state),
+        pushType: .token
+      )
+      observePushToken(of: activity, tournamentId: tournamentId)
+      result(activity.id)
+    } catch {
+      result(FlutterError(code: "start_failed", message: error.localizedDescription, details: nil))
+    }
+  }
+
+  private static func observePushToken(
+    of activity: Activity<NextMatchAttributes>,
+    tournamentId: String
+  ) {
+    tokenTasks[tournamentId]?.cancel()
+    tokenTasks[tournamentId] = Task {
+      for await data in activity.pushTokenUpdates {
+        let token = data.map { String(format: "%02x", $0) }.joined()
+        NextMatchLiveActivityChannel.sendPushToken(tournamentId: tournamentId, token: token)
+      }
+    }
+  }
+}

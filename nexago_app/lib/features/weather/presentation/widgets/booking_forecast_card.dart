@@ -6,6 +6,7 @@ import '../../../../core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../application/weather_providers.dart';
 import '../../domain/weather_booking_rules.dart';
+import '../../domain/weather_models.dart';
 import '../weather_ui.dart';
 import 'weather_forecast_strip.dart';
 
@@ -37,7 +38,58 @@ class BookingForecastCard extends ConsumerWidget {
     if (forecast == null) return const SizedBox.shrink();
     if (forecast.availableFrom case final from?) return _TooEarly(from);
     if (forecast.hours.isEmpty) return const SizedBox.shrink();
+    return _ForecastBody(forecast: forecast, game: game);
+  }
+}
 
+/// Horário escolhido no perfil da arena, ainda sem reserva: mesma previsão e
+/// mesmo cartão da reserva, pela callable `getArenaSlotWeatherForecast`.
+class SlotForecastCard extends ConsumerWidget {
+  const SlotForecastCard({
+    super.key,
+    required this.arenaId,
+    required this.dateKey,
+    required this.startTime,
+    required this.endTime,
+    required this.game,
+    required this.now,
+  });
+
+  final String arenaId;
+  final String dateKey;
+  final String startTime;
+  final String endTime;
+  final ({DateTime start, DateTime end}) game;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final availableFrom = weatherForecastAvailableFrom(game.start);
+    if (now.isBefore(availableFrom)) return _TooEarly(availableFrom);
+
+    final forecast = ref
+        .watch(slotWeatherForecastProvider((
+          arenaId: arenaId,
+          dateKey: dateKey,
+          startTime: startTime,
+          endTime: endTime,
+        )))
+        .valueOrNull;
+    if (forecast == null) return const SizedBox.shrink();
+    if (forecast.availableFrom case final from?) return _TooEarly(from);
+    if (forecast.hours.isEmpty) return const SizedBox.shrink();
+    return _ForecastBody(forecast: forecast, game: game);
+  }
+}
+
+class _ForecastBody extends StatelessWidget {
+  const _ForecastBody({required this.forecast, required this.game});
+
+  final BookingWeatherForecast forecast;
+  final ({DateTime start, DateTime end}) game;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.themeColors;
     final theme = Theme.of(context);
     final hours = forecast.hours;

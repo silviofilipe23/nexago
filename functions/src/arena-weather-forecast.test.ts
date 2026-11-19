@@ -1,6 +1,12 @@
 import {beforeEach, describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {clearWeatherForecastCache, fetchArenaWeather, weatherDaysAround, type FetchLike} from "./arena-weather-forecast";
+import {
+  clearWeatherForecastCache,
+  fetchArenaWeather,
+  slotWeatherForecast,
+  weatherDaysAround,
+  type FetchLike,
+} from "./arena-weather-forecast";
 
 const ARENA = {latitude: -16.8231, longitude: -49.2439};
 const NOW = Date.UTC(2026, 9, 29, 15); // 29/10 12:00 em São Paulo
@@ -121,5 +127,31 @@ describe("fetchArenaWeather", () => {
     assert.equal(urls.length, 1);
     await fetchArenaWeather(ARENA, "2026-10-31", {fetchImpl, nowMs: NOW + 11 * 60_000, apiKey: "k"});
     assert.equal(urls.length, 2);
+  });
+});
+
+describe("slotWeatherForecast", () => {
+  it("mais de 14 dias antes só diz quando a previsão chega, sem buscar", async () => {
+    const {fetchImpl, urls} = fakeFetch({});
+    const out = await slotWeatherForecast(ARENA, "2026-11-20", {start: 19 * 60, end: 20 * 60},
+      {fetchImpl, nowMs: NOW, apiKey: ""});
+    assert.deepEqual(out, {forecast: null, availableFrom: "2026-11-06"});
+    assert.equal(urls.length, 0);
+  });
+
+  it("dentro do horizonte devolve as horas de 2h antes a 2h depois do jogo", async () => {
+    const {fetchImpl} = fakeFetch({openMeteo: openMeteoDay("2026-10-31")});
+    const out = await slotWeatherForecast(ARENA, "2026-10-31", {start: 19 * 60, end: 20 * 60},
+      {fetchImpl, nowMs: NOW, apiKey: ""});
+    assert.equal(out.availableFrom, null);
+    assert.equal(out.forecast?.source, "open-meteo");
+    assert.deepEqual(out.forecast?.hours.map((h) => h.time), ["17:00", "18:00"]);
+  });
+
+  it("arena sem coordenadas devolve tudo vazio", async () => {
+    const {fetchImpl} = fakeFetch({});
+    const out = await slotWeatherForecast({}, "2026-10-31", {start: 19 * 60, end: 20 * 60},
+      {fetchImpl, nowMs: NOW, apiKey: ""});
+    assert.deepEqual(out, {forecast: null, availableFrom: null});
   });
 });

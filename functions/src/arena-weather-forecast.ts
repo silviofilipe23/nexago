@@ -15,7 +15,9 @@ import {
   addDaysToDateKey,
   parseOpenMeteoHourly,
   parseWeatherApiHourly,
+  WEATHER_FORECAST_HORIZON_DAYS,
   weatherDisplayDayOffsets,
+  weatherDisplayHours,
   type WeatherForecastDay,
   type WeatherHour,
 } from "./arena-weather-model";
@@ -160,6 +162,39 @@ export async function weatherDaysAround(
     if (other) days.push({offset, hours: other.hours});
   }
   return days;
+}
+
+/** Previsão de um horário para quem joga: 2h antes do início a 2h depois do fim. */
+export interface SlotWeatherForecast {
+  forecast: {hours: WeatherHour[]; source: WeatherSource; fetchedAt: string} | null;
+  /** Mais de [WEATHER_FORECAST_HORIZON_DAYS] dias antes: a partir de quando a previsão chega. */
+  availableFrom: string | null;
+}
+
+/**
+ * Previsão de um horário na arena (reserva feita ou só escolhida no perfil). Longe demais
+ * devolve só `availableFrom`; arena sem coordenadas ou provedor fora devolve tudo `null`.
+ */
+export async function slotWeatherForecast(
+  arena: Record<string, unknown> | undefined,
+  dateKey: string,
+  win: {start: number; end: number},
+  options: {fetchImpl?: FetchLike; nowMs?: number; apiKey?: string} = {},
+): Promise<SlotWeatherForecast> {
+  const now = options.nowMs ?? Date.now();
+  const availableFrom = addDaysToDateKey(dateKey, -WEATHER_FORECAST_HORIZON_DAYS);
+  if (spNow(new Date(now)).dateKey < availableFrom) return {forecast: null, availableFrom};
+  const weather = await fetchArenaWeather(arena, dateKey, options);
+  if (!weather) return {forecast: null, availableFrom: null};
+  const days = await weatherDaysAround(arena, dateKey, win, weather.hours, options);
+  return {
+    forecast: {
+      hours: weatherDisplayHours(days, win),
+      source: weather.source,
+      fetchedAt: new Date(now).toISOString(),
+    },
+    availableFrom: null,
+  };
 }
 
 /** Só para testes. */

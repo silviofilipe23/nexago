@@ -13,8 +13,6 @@ enum AthleteAgendaItemKind {
 
 enum AthleteAgendaFilter { all, rentals, trainings, tournaments, challenges }
 
-enum AthleteAgendaViewMode { day, month }
-
 enum AthleteAgendaTimeTab { upcoming, past }
 
 enum AthleteAgendaBookingStage { past, current, future, canceled }
@@ -214,39 +212,6 @@ class AthleteAgendaDaySummary {
   }
 }
 
-class AthleteAgendaWeekDay {
-  const AthleteAgendaWeekDay({
-    required this.date,
-    required this.weekdayLabel,
-    required this.dayNumber,
-    required this.isToday,
-    required this.isPast,
-    required this.isSelected,
-    required this.rentalDots,
-    required this.trainingDots,
-    required this.tournamentDots,
-    required this.challengeDots,
-    required this.eventCount,
-  });
-
-  final DateTime date;
-  final String weekdayLabel;
-  final int dayNumber;
-  final bool isToday;
-  final bool isPast;
-  final bool isSelected;
-  final int rentalDots;
-  final int trainingDots;
-  final int tournamentDots;
-  final int challengeDots;
-
-  /// Total de eventos no dia.
-  final int eventCount;
-
-  int get totalDots =>
-      rentalDots + trainingDots + tournamentDots + challengeDots;
-}
-
 class AthleteAgendaMonthDay {
   const AthleteAgendaMonthDay({
     required this.date,
@@ -268,26 +233,6 @@ class AthleteAgendaMonthDay {
   final int trainingDots;
   final int tournamentDots;
   final int challengeDots;
-  final int eventCount;
-}
-
-class AthleteAgendaMonthSummaryRow {
-  const AthleteAgendaMonthSummaryRow({
-    required this.date,
-    required this.title,
-    required this.subtitle,
-    required this.description,
-    required this.accentColor,
-    required this.isFree,
-    required this.eventCount,
-  });
-
-  final DateTime date;
-  final String title;
-  final String subtitle;
-  final String description;
-  final Color accentColor;
-  final bool isFree;
   final int eventCount;
 }
 

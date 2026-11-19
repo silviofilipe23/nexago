@@ -3,6 +3,7 @@ import FirebaseMessaging
 import Flutter
 import UIKit
 import UserNotifications
+import WidgetKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -57,6 +58,7 @@ import UserNotifications
     InterfaceStyleChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
     LiveActivityChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
     NextMatchLiveActivityChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
+    HomeWidgetChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "NexaQuickActions") {
       QuickActionsChannel.register(with: registrar)
     }
@@ -110,6 +112,36 @@ private enum InterfaceStyleChannel {
       for window in windowScene.windows {
         window.overrideUserInterfaceStyle = style
       }
+    }
+  }
+}
+
+/// Widget "Próximo jogo" da tela de início: o Dart grava o snapshot da Agenda
+/// (`saveAgendaSnapshot`) no App Group que a extensão `NexagoWidgets` lê e
+/// pede o redesenho. Mesmo JSON do widget Android. Lado Dart:
+/// `lib/core/home_widget/agenda_widget_channel.dart`.
+private enum HomeWidgetChannel {
+  static let appGroup = "group.br.com.nexago.nexagoApp"
+  static let key = "agenda_snapshot"
+
+  static func register(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(name: "nexago/home_widget", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "saveAgendaSnapshot" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      guard let json = (call.arguments as? [String: Any])?["json"] as? String else {
+        result(FlutterError(code: "bad_args", message: "json ausente", details: nil))
+        return
+      }
+      guard let defaults = UserDefaults(suiteName: appGroup) else {
+        result(FlutterError(code: "no_app_group", message: "App Group indisponível", details: nil))
+        return
+      }
+      defaults.set(json, forKey: key)
+      WidgetCenter.shared.reloadAllTimelines()
+      result(nil)
     }
   }
 }

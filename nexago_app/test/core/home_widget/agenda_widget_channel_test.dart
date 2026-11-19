@@ -44,8 +44,18 @@ void main() {
     expect(calls.first.arguments, {'json': '{"v":1}'});
   });
 
-  test('no iOS ainda não grava (falta o App Group da extensão)', () async {
+  test('no iOS também grava (App Group lido pela extensão do widget)',
+      () async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+
+    await AgendaWidgetChannel().saveSnapshot('{"v":1}');
+
+    expect(calls.single.method, 'saveAgendaSnapshot');
+    expect(calls.single.arguments, {'json': '{"v":1}'});
+  });
+
+  test('em outras plataformas não grava', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
 
     await AgendaWidgetChannel().saveSnapshot('{"v":1}');
 

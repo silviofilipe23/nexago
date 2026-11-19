@@ -56,6 +56,9 @@ import UserNotifications
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     InterfaceStyleChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
     LiveActivityChannel.register(messenger: engineBridge.applicationRegistrar.messenger())
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "NexaQuickActions") {
+      QuickActionsChannel.register(with: registrar)
+    }
   }
 }
 
@@ -107,5 +110,111 @@ private enum InterfaceStyleChannel {
         window.overrideUserInterfaceStyle = style
       }
     }
+  }
+}
+
+/// Quick Actions: o menu do toque longo no ícone do app (Tela de Início e Dock).
+///
+/// O Dart monta os itens e grava com `setItems` (todos dinâmicos). O toque
+/// fica guardado em `pending` até o Dart buscar com `takePendingAction`: no
+/// cold start ele chega antes do Dart estar pronto. Com o app vivo, o nativo
+/// também avisa por `actionAvailable`.
+///
+/// Registra como plugin no ciclo de vida da cena do Flutter em vez de
+/// sobrescrever o `SceneDelegate`: o `FlutterSceneDelegate` implementa esses
+/// métodos sem declarar no header, e um override sem `super` engole o ciclo
+/// de vida do engine. Lado Dart: `lib/core/quick_actions/quick_actions_channel.dart`.
+final class QuickActionsChannel: NSObject, FlutterPlugin, FlutterSceneLifeCycleDelegate {
+  private let channel: FlutterMethodChannel
+  private var pending: UIApplicationShortcutItem?
+
+  private init(channel: FlutterMethodChannel) {
+    self.channel = channel
+  }
+
+  static func register(with registrar: FlutterPluginRegistrar) {
+    let channel = FlutterMethodChannel(
+      name: "nexago/quick_actions",
+      binaryMessenger: registrar.messenger()
+    )
+    let instance = QuickActionsChannel(channel: channel)
+    registrar.addMethodCallDelegate(instance, channel: channel)
+    registrar.addApplicationDelegate(instance)
+    registrar.addSceneDelegate(instance)
+  }
+
+  func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "setItems":
+      let raw = call.arguments as? [[String: Any]] ?? []
+      UIApplication.shared.shortcutItems = raw.compactMap(Self.shortcutItem(from:))
+      result(nil)
+    case "takePendingAction":
+      guard let item = pending else {
+        result(nil)
+        return
+      }
+      pending = nil
+      let payload = item.userInfo?.compactMapValues { $0 as? String } ?? [:]
+      result(["type": item.type, "payload": payload])
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private static func shortcutItem(from raw: [String: Any]) -> UIApplicationShortcutItem? {
+    guard let type = raw["type"] as? String, let title = raw["title"] as? String else {
+      return nil
+    }
+    let icon = (raw["icon"] as? String).map { UIApplicationShortcutIcon(systemImageName: $0) }
+    let payload = (raw["payload"] as? [String: String] ?? [:])
+      .mapValues { $0 as NSString as NSSecureCoding }
+    return UIApplicationShortcutItem(
+      type: type,
+      localizedTitle: title,
+      localizedSubtitle: raw["subtitle"] as? String,
+      icon: icon,
+      userInfo: payload
+    )
+  }
+
+  private func receive(_ item: UIApplicationShortcutItem) {
+    pending = item
+    channel.invokeMethod("actionAvailable", arguments: nil)
+  }
+
+  // Cold start: o toque que abriu o app vem nas opções de conexão da cena.
+  func scene(
+    _ scene: UIScene,
+    willConnectTo session: UISceneSession,
+    options connectionOptions: UIScene.ConnectionOptions?
+  ) -> Bool {
+    if let item = connectionOptions?.shortcutItem {
+      receive(item)
+    }
+    // Não consome a conexão: outros plugins também precisam dela.
+    return false
+  }
+
+  // App em segundo plano.
+  func windowScene(
+    _ windowScene: UIWindowScene,
+    performActionFor shortcutItem: UIApplicationShortcutItem,
+    completionHandler: @escaping (Bool) -> Void
+  ) -> Bool {
+    receive(shortcutItem)
+    completionHandler(true)
+    return true
+  }
+
+  // Sem cena (não usado hoje, mas o iOS chama aqui se a cena sair do Info.plist).
+  func application(
+    _ application: UIApplication,
+    performActionFor shortcutItem: UIApplicationShortcutItem,
+    completionHandler: @escaping (Bool) -> Void
+  ) -> Bool {
+    receive(shortcutItem)
+    completionHandler(true)
+    return true
   }
 }

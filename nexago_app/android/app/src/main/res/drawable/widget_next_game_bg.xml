@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fundo do widget "Próximo jogo": o card escuro do app (#0B0B0C). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FF0B0B0C" />
+    <corners android:radius="24dp" />
+</shape>

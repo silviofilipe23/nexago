@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Botão laranja da marca no estado vazio do widget. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FFFF6A1A" />
+    <corners android:radius="10dp" />
+</shape>

@@ -23,6 +23,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../../../core/validation/cpf_cnpj.dart';
+import '../../athlete/domain/athlete_profile.dart';
+import '../../athlete/domain/athlete_profile_providers.dart';
 import '../data/booking_service.dart';
 import '../data/last_booking_payment_store.dart';
 import '../data/payment_service.dart';
@@ -37,6 +40,8 @@ import '../domain/arenas_providers.dart';
 import '../domain/booking_payment_method.dart';
 import '../domain/booking_professor_mode.dart';
 import '../domain/booking_providers.dart';
+import '../domain/booking_split.dart';
+import '../domain/booking_split_providers.dart';
 import '../domain/slots_providers.dart';
 import 'booking_success_page.dart';
 import 'widgets/booking_confirm/booking_confirm_app_bar.dart';
@@ -47,10 +52,12 @@ import 'widgets/booking_confirm/booking_confirm_coupon_field.dart';
 import 'widgets/booking_confirm/booking_confirm_hero_card.dart';
 import 'widgets/booking_confirm/booking_confirm_lesson_student_picker.dart';
 import 'widgets/booking_confirm/booking_confirm_member_hours_note.dart';
+import 'widgets/booking_confirm/booking_confirm_option_row.dart';
 import 'widgets/booking_confirm/booking_confirm_price_summary.dart';
 import 'widgets/booking_confirm/booking_confirm_professor_option.dart';
 import 'widgets/booking_confirm/booking_confirm_sport_picker.dart';
 import 'widgets/booking_confirm/booking_confirm_sticky_bar.dart';
+import 'widgets/booking_split/booking_split_sheet.dart';
 
 /// Confirmação da reserva (paridade com `ArenaBookConfirmComponent` no web).
 class ArenaBookingConfirmPage extends ConsumerStatefulWidget {
@@ -113,6 +120,10 @@ class _ArenaBookingConfirmPageState
   /// Forma de pagamento da cotação com crédito (no Pix o servidor deixa um
   /// mínimo para cobrar): `onsite` ou `pix`.
   String _quotePaymentMode = 'onsite';
+
+  /// "Dividir com os jogadores" (só no Pix): quem paga quanto. `null` = o
+  /// atleta paga a reserva inteira.
+  BookingSplitDraft? _splitDraft;
 
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
 
@@ -338,25 +349,7 @@ class _ArenaBookingConfirmPageState
       );
     } on BookingException catch (e) {
       if (!mounted) return;
-      if (e.isProfessorDenied) {
-        // O vínculo não deixa agora: volta para reserva de atleta, que segue
-        // valendo — a mensagem do servidor já diz o motivo.
-        setState(() => _asProfessor = false);
-        showAppSnackBar(context, e.message, isError: true);
-        return;
-      }
-      if (e.isBlockedAthlete) {
-        final uri = Uri(
-          path: AppRoutes.arenaBookingBlocked.replaceAll(
-            ':arenaId',
-            widget.arenaId,
-          ),
-          queryParameters: <String, String>{'message': e.message},
-        );
-        context.go(uri.toString());
-        return;
-      }
-      showAppSnackBar(context, e.message, isError: e.isSlotConflict);
+      _onBookingException(e);
     } on PaymentException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.message, isError: true);
@@ -368,6 +361,188 @@ class _ArenaBookingConfirmPageState
           e,
           action: 'Não foi possível iniciar o pagamento',
           logReason: 'booking:pix-start',
+        ),
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  /// Recusa da criação da reserva, igual em todas as formas de pagamento.
+  void _onBookingException(BookingException e) {
+    if (e.isProfessorDenied) {
+      // O vínculo não deixa agora: volta para reserva de atleta, que segue
+      // valendo — a mensagem do servidor já diz o motivo.
+      setState(() => _asProfessor = false);
+      showAppSnackBar(context, e.message, isError: true);
+      return;
+    }
+    if (e.isBlockedAthlete) {
+      final uri = Uri(
+        path: AppRoutes.arenaBookingBlocked.replaceAll(
+          ':arenaId',
+          widget.arenaId,
+        ),
+        queryParameters: <String, String>{'message': e.message},
+      );
+      context.go(uri.toString());
+      return;
+    }
+    showAppSnackBar(context, e.message, isError: e.isSlotConflict);
+  }
+
+  /// Abre a folha "Dividir com os jogadores" sobre o valor a pagar agora.
+  Future<void> _openSplitSheet(double totalReais) async {
+    final user = ref.read(authServiceProvider).currentUser;
+    if (user == null) {
+      showAppSnackBar(context, 'Faça login para dividir.', isError: true);
+      return;
+    }
+    final profile = await _loadOwnProfile();
+    if (!mounted) return;
+    final name = [profile?.name, user.displayName]
+        .whereType<String>()
+        .map((s) => s.trim())
+        .firstWhere((s) => s.isNotEmpty, orElse: () => 'Você');
+    final draft = await showBookingSplitSheet(
+      context,
+      totalReais: totalReais,
+      selfUid: user.uid,
+      selfName: name,
+      selfPhotoUrl: profile?.avatarUrl ?? user.photoURL,
+      needsOwnCpf: !CpfCnpjValidator.isValid(profile?.cpfCnpj ?? ''),
+      initial: _splitDraft,
+    );
+    if (!mounted || draft == null) return;
+    setState(() => _splitDraft = draft.isEmpty ? null : draft);
+  }
+
+  /// Perfil do atleta (CPF e nome) sem travar a folha se o Firestore demorar.
+  Future<AthleteProfile?> _loadOwnProfile() async {
+    try {
+      return await ref
+          .read(athleteProfileProvider.future)
+          .timeout(const Duration(seconds: 3));
+    } on Exception {
+      return null;
+    }
+  }
+
+  /// CPF digitado na folha: a fatia de quem reserva também é um Pix, e o
+  /// servidor lê o CPF salvo no perfil.
+  Future<void> _saveOwnCpf(String digits) async {
+    final profile = await _loadOwnProfile();
+    if (profile == null || profile.cpfCnpj == digits) return;
+    await ref
+        .read(athleteProfileRepositoryProvider)
+        .saveProfile(profile.copyWith(cpfCnpj: digits));
+  }
+
+  /// Cria a reserva no Pix e já divide, num toque — o mesmo do portal
+  /// (`submitSplit`). Dividida, a reserva nasce confirmada e cada um recebe o
+  /// Pix da sua parte; a tela do Pix acompanha quem já pagou. Se a divisão
+  /// falhar, a reserva fica aguardando pagamento e a próxima tentativa a
+  /// retoma ([BookingService.findResumablePixBooking]).
+  Future<void> _confirmWithSplit(
+    ArenaBookingConfirmArgs args, {
+    required BookingSplitDraft draft,
+    required String sport,
+    required bool asProfessor,
+    String? lessonStudentId,
+    bool rememberChoice = false,
+  }) async {
+    final user = ref.read(authServiceProvider).currentUser;
+    if (user == null) {
+      showAppSnackBar(context, 'Faça login para dividir.', isError: true);
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      final bookingService = ref.read(bookingServiceProvider);
+      final resumed = await bookingService.findResumablePixBooking(
+        athleteId: user.uid,
+        args: args,
+      );
+      final created = resumed ??
+          await bookingService.createBookingAtomically(
+            args: args,
+            athleteId: user.uid,
+            paymentMode: 'pix',
+            paymentFraction: 1.0,
+            couponCode: _appliedCouponCode,
+            sport: sport,
+            asProfessor: asProfessor,
+            professorStudentId: lessonStudentId,
+            useWeatherCredit: _sendWeatherCredit,
+            athleteNotes: _athleteNotesController.text,
+          );
+      if (resumed == null) _clearLessonStudent();
+      if (rememberChoice) {
+        _rememberPayment(user.uid, BookingPaymentMethod.online);
+      }
+      if (resumed == null) {
+        await tryAwardReserveTodayMission(ref, dateKey: args.dateKey);
+      }
+      if (!mounted) return;
+
+      // O crédito de chuva cobriu tudo: nada a dividir.
+      if (created.isCoveredByWeatherCredit) {
+        _goToBookingSuccess(args, created);
+        return;
+      }
+
+      final totalReais = created.amountToPayNowReais > 0
+          ? created.amountToPayNowReais
+          : created.amountReais;
+      final shares = draft.sharesFor(totalReais);
+      if (shares == null) {
+        showAppSnackBar(
+          context,
+          'O valor da reserva ficou em ${formatBRL(totalReais)}. Ajuste a '
+          'divisão e confirme de novo.',
+          isError: true,
+        );
+        return;
+      }
+      final ownCpf = draft.ownCpf ?? '';
+      if (ownCpf.isNotEmpty) await _saveOwnCpf(ownCpf);
+
+      await ref.read(bookingSplitRepositoryProvider).split(
+            bookingId: created.bookingId,
+            shares: shares,
+          );
+      if (!mounted) return;
+      // Dividida, a reserva já está confirmada: voltar não pode cair nesta
+      // tela de novo (reservaria o mesmo horário outra vez).
+      context.pushReplacementNamed(
+        AppRouteNames.arenaBookingPix,
+        pathParameters: <String, String>{'arenaId': widget.arenaId},
+        extra: ArenaBookingPixArgs(
+          bookingId: created.bookingId,
+          confirmArgs: args,
+          amountToPayNowReais: totalReais,
+          amountDueOnsiteReais: created.amountDueOnsiteReais,
+          paymentFraction: created.paymentFraction,
+          weatherCreditAppliedReais: created.weatherCreditAppliedReais,
+          split: true,
+          splitPayerNames: draft.payerNames,
+        ),
+      );
+    } on BookingException catch (e) {
+      if (!mounted) return;
+      _onBookingException(e);
+    } on Exception catch (e) {
+      if (!mounted) return;
+      // CPF faltando, prazo curto, reserva que já não espera pagamento: o
+      // servidor manda a frase pronta e ela aparece como veio.
+      showAppSnackBar(
+        context,
+        friendlyErrorMessage(
+          e,
+          action: 'Não foi possível dividir o pagamento',
+          logReason: 'booking:split',
         ),
         isError: true,
       );
@@ -426,25 +601,7 @@ class _ArenaBookingConfirmPageState
       _goToBookingSuccess(args, created);
     } on BookingException catch (e) {
       if (!mounted) return;
-      if (e.isProfessorDenied) {
-        // O vínculo não deixa agora: volta para reserva de atleta, que segue
-        // valendo — a mensagem do servidor já diz o motivo.
-        setState(() => _asProfessor = false);
-        showAppSnackBar(context, e.message, isError: true);
-        return;
-      }
-      if (e.isBlockedAthlete) {
-        final uri = Uri(
-          path: AppRoutes.arenaBookingBlocked.replaceAll(
-            ':arenaId',
-            widget.arenaId,
-          ),
-          queryParameters: <String, String>{'message': e.message},
-        );
-        context.go(uri.toString());
-        return;
-      }
-      showAppSnackBar(context, e.message, isError: e.isSlotConflict);
+      _onBookingException(e);
     } catch (e) {
       if (!mounted) return;
       showAppSnackBar(
@@ -779,21 +936,32 @@ class _ArenaBookingConfirmPageState
         ? quote!.amountDueAfterWeatherCreditReais
         : displayTotal;
     final coveredByCredit = creditApplied > 0 && amountDue <= 0;
+    // Dividir só existe no Pix, com algo a pagar.
+    final canSplit = !coveredByPlan &&
+        !coveredByCredit &&
+        !isPaymentConfigLoading &&
+        onlineEnabled &&
+        choice == _PaymentChoice.pix;
+    final splitDraft = canSplit ? _splitDraft : null;
     final stickyAmount = amountDue;
     final stickyMeta = coveredByPlan
         ? 'coberta pelo seu plano'
         : coveredByCredit
             ? 'coberto pelo crédito na arena'
-            : choice == _PaymentChoice.pix
-                ? 'Pix ou cartão na próxima etapa'
-                : creditApplied > 0
-                    ? 'a pagar na arena'
-                    : 'total na arena';
+            : splitDraft != null
+                ? 'Pix de cada jogador · ${splitDraft.summaryLabel}'
+                : choice == _PaymentChoice.pix
+                    ? 'Pix ou cartão na próxima etapa'
+                    : creditApplied > 0
+                        ? 'a pagar na arena'
+                        : 'total na arena';
     final stickyCta = coveredByPlan
         ? 'Confirmar reserva'
-        : choice == _PaymentChoice.pix && !coveredByCredit
-            ? 'Confirmar e pagar'
-            : 'Confirmar reserva';
+        : splitDraft != null
+            ? 'Confirmar e dividir'
+            : choice == _PaymentChoice.pix && !coveredByCredit
+                ? 'Confirmar e pagar'
+                : 'Confirmar reserva';
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -998,6 +1166,22 @@ class _ArenaBookingConfirmPageState
                                           ),
                               ),
                             ],
+                            if (canSplit)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 10),
+                                child: BookingConfirmOptionRow(
+                                  key: const Key('booking-confirm-split-row'),
+                                  icon: Icons.group_add_outlined,
+                                  label: splitDraft == null
+                                      ? 'Dividir com os jogadores'
+                                      : 'Dividido: ${splitDraft.summaryLabel}',
+                                  trailing: splitDraft == null
+                                      ? null
+                                      : 'Pix de cada um',
+                                  enabled: !_submitting && !_quoting,
+                                  onTap: () => _openSplitSheet(amountDue),
+                                ),
+                              ),
                             Padding(
                               padding: const EdgeInsets.only(top: 22),
                               child: BookingConfirmPriceSummary(
@@ -1055,7 +1239,8 @@ class _ArenaBookingConfirmPageState
                             if (!coveredByPlan &&
                                 !coveredByCredit &&
                                 !_quoting &&
-                                choice == _PaymentChoice.pix)
+                                choice == _PaymentChoice.pix &&
+                                splitDraft == null)
                               Padding(
                                 padding: const EdgeInsets.only(top: 12),
                                 child: BookingConfirmCashbackNote(
@@ -1148,6 +1333,15 @@ class _ArenaBookingConfirmPageState
                             lessonStudentId: lessonStudentId,
                             coveredByPlan: true,
                             onsiteEnabled: onsiteEnabled,
+                          );
+                        } else if (splitDraft != null) {
+                          _confirmWithSplit(
+                            args,
+                            draft: splitDraft,
+                            sport: sport,
+                            asProfessor: asProfessor,
+                            lessonStudentId: lessonStudentId,
+                            rememberChoice: onsiteEnabled && onlineEnabled,
                           );
                         } else if (choice == _PaymentChoice.pix) {
                           _confirmWithPix(

@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/auth/auth_providers.dart';
+import '../../../core/errors/friendly_error_message.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -13,6 +15,7 @@ import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/feedback/feedback_page.dart';
 import '../../../core/ui/feedback/show_feedback_page.dart';
+import '../../../core/ui/nexa_share.dart';
 import '../../../core/validation/cpf_cnpj.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../cashback/application/cashback_providers.dart';
@@ -31,6 +34,8 @@ import '../domain/arena_booking_pix_args.dart';
 import '../../../core/live_activity/pix_live_activity_models.dart';
 import '../../../core/live_activity/pix_live_activity_service.dart';
 import '../domain/booking_providers.dart';
+import '../domain/booking_split.dart';
+import '../domain/booking_split_providers.dart';
 import '../domain/payment_providers.dart';
 import 'booking_success_page.dart';
 import 'widgets/booking_pix/booking_pix_amount_section.dart';
@@ -42,6 +47,7 @@ import 'widgets/booking_pix/booking_pix_generate_bar.dart';
 import 'widgets/booking_pix/booking_pix_qr_card.dart';
 import 'widgets/booking_pix/booking_pix_save_cpf_tile.dart';
 import 'widgets/booking_pix/booking_pix_waiting_card.dart';
+import 'widgets/booking_split/booking_split_tracking.dart';
 
 class ArenaBookingPixPage extends ConsumerStatefulWidget {
   const ArenaBookingPixPage({
@@ -156,7 +162,9 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
     _cpfController.addListener(_onCpfTextChanged);
     _squadCodeController.addListener(_onCpfTextChanged);
     final initialExpiry = widget.args.paymentExpiresAt;
-    if (initialExpiry != null) {
+    // Dividida: a reserva já está confirmada e cada fatia tem o próprio
+    // prazo — o relógio de 5 min do Pix inteiro não pode cancelá-la.
+    if (initialExpiry != null && !widget.args.split) {
       _scheduleExpiry(initialExpiry);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => _prefillCpf());
@@ -470,6 +478,10 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
     _navigatedSuccess = true;
     _expiryTimer?.cancel();
     _endPixLiveActivity(PixLiveActivityOutcome.paid);
+    if (_isSplit(data)) {
+      _goSplitSuccess();
+      return;
+    }
     // Cartão aprovado com o checkout ainda na frente: fecha para o atleta ver
     // a confirmação.
     if (_card != null) {
@@ -531,6 +543,161 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
     );
   }
 
+  /// A reserva foi dividida: pela tela que a dividiu ou pelo doc (ao reabrir).
+  bool _isSplit(Map<String, dynamic>? data) =>
+      widget.args.split || data?['hasSplitShares'] == true;
+
+  /// Sucesso da reserva dividida: confirmada desde a divisão; o recibo diz
+  /// quanto entrou no Pix e quanto ficou para pagar na arena.
+  void _goSplitSuccess() {
+    _navigatedSuccess = true;
+    _expiryTimer?.cancel();
+    final confirm = widget.args.confirmArgs;
+    final shares = ref
+            .read(bookingPaymentSharesProvider(widget.args.bookingId))
+            .valueOrNull ??
+        const <BookingPaymentShare>[];
+    final progress = BookingSplitProgress(shares);
+    final allPaid = progress.total > 0 && progress.paid == progress.total;
+    final total = splitSumReais(shares.map((s) => s.amountReais));
+    final amountLabel = allPaid
+        ? 'Pago no Pix por ${progress.total} pessoas: ${formatBRL(progress.paidReais)}'
+        : 'Dividido entre ${progress.total} pessoas · ${progress.label}';
+    final paymentLabel = progress.coveredReais > 0
+        ? '${formatBRL(progress.coveredReais)} de quem não pagou a tempo fica '
+            'para você pagar na arena.'
+        : progress.pending > 0
+            ? 'Cada um paga a sua parte no Pix. Quem não pagar a tempo fica '
+                'para você pagar na arena.'
+            : null;
+    final uri = Uri(
+      path:
+          AppRoutes.arenaBookingSuccess.replaceAll(':arenaId', widget.arenaId),
+      queryParameters: <String, String>{
+        'date': confirm.dateKey,
+        'startTime': confirm.startTime,
+        'endTime': confirm.endTime,
+        'amountReais': total.toString(),
+        'payment': allPaid ? 'pix_ok' : 'split',
+        'bookingId': widget.args.bookingId,
+        'arenaName': confirm.arenaName,
+        'courtName': confirm.displayCourtName,
+      },
+    );
+    context.go(
+      uri.toString(),
+      extra: BookingSuccessArgs(
+        arenaId: widget.arenaId,
+        arenaName: confirm.arenaName,
+        courtName: confirm.displayCourtName,
+        dateKey: confirm.dateKey,
+        startTime: confirm.startTime,
+        endTime: confirm.endTime,
+        dateLabel: _dateFmt.format(confirm.date),
+        timeRangeLabel: '${confirm.startTime} – ${confirm.endTime}',
+        bookingIds: <String>[widget.args.bookingId],
+        amountReais: total,
+        paymentApproved: allPaid,
+        amountLabel: amountLabel,
+        paymentLabel: paymentLabel,
+      ),
+    );
+  }
+
+  Future<void> _copySharePix(String code) async {
+    await Clipboard.setData(ClipboardData(text: code));
+    if (!mounted) return;
+    showAppSnackBar(context, 'Código PIX copiado.');
+  }
+
+  Future<void> _shareSharePix(BookingPaymentShare share) async {
+    final code = share.pixCopyPaste;
+    if (code == null) return;
+    final confirm = widget.args.confirmArgs;
+    try {
+      await nexaShareText(
+        context,
+        bookingShareMessage(
+          arenaName: confirm.arenaName,
+          amountReais: share.amountReais,
+          pixCopyPaste: code,
+          whenLabel: '${_dateFmt.format(confirm.date)}, ${confirm.startTime}',
+        ),
+      );
+    } on Exception catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        friendlyErrorMessage(
+          e,
+          action: 'Não foi possível compartilhar',
+          logReason: 'booking:split-share',
+        ),
+        isError: true,
+      );
+    }
+  }
+
+  Widget _buildSplitBody(BuildContext context) {
+    final sharesAsync =
+        ref.watch(bookingPaymentSharesProvider(widget.args.bookingId));
+    final selfUid = ref.watch(authProvider).valueOrNull?.uid;
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            child: sharesAsync.when(
+              data: (shares) => BookingSplitTracking(
+                shares: shares,
+                selfUid: selfUid,
+                payerNames: widget.args.splitPayerNames,
+                onCopyPix: _copySharePix,
+                onSharePix: _shareSharePix,
+              ),
+              loading: () => const Padding(
+                padding: EdgeInsets.only(top: 48),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (e, _) => _PixErrorCard(
+                message: friendlyErrorMessage(
+                  e,
+                  action: 'Não foi possível carregar quem já pagou',
+                  logReason: 'booking:split-shares',
+                ),
+                onRetry: () => ref.invalidate(
+                  bookingPaymentSharesProvider(widget.args.bookingId),
+                ),
+              ),
+            ),
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: FilledButton(
+              key: const Key('booking-split-done'),
+              onPressed: _goSplitSuccess,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.black,
+                minimumSize: const Size.fromHeight(52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: const Text(
+                'Concluir',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   void _onBack() {
     if (context.canPop()) {
       context.pop();
@@ -551,10 +718,14 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
 
     // Crédito de chuva (na criação ou no doc, ao retomar): o servidor cobra o
     // resto integral e ignora o pedido de 50% — a tela nem oferece o sinal.
-    final docCredit = ref
+    final bookingData = ref
         .watch(arenaBookingDocProvider(widget.args.bookingId))
         .valueOrNull
-        ?.data()?['weatherCreditReais'];
+        ?.data();
+    final docCredit = bookingData?['weatherCreditReais'];
+    final split = _isSplit(bookingData);
+    // Reaberta já dividida (o doc diz): sem relógio do Pix inteiro.
+    if (split) _expiryTimer?.cancel();
     final weatherCreditReais = widget.args.weatherCreditAppliedReais > 0
         ? widget.args.weatherCreditAppliedReais
         : (docCredit is num && docCredit > 0 ? docCredit.toDouble() : 0.0);
@@ -575,11 +746,15 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
       backgroundColor: context.themeColors.canvas,
       appBar: BookingPixAppBar(
         onBack: _onBack,
-        title: registrationChargePageTitle(_liveMethod),
+        title: split
+            ? 'Pagamento dividido'
+            : registrationChargePageTitle(_liveMethod),
       ),
       body: _paymentFailed
           ? _buildFailedBody(context)
-          : Column(
+          : split
+              ? _buildSplitBody(context)
+              : Column(
               children: [
                 Expanded(
                   child: SingleChildScrollView(

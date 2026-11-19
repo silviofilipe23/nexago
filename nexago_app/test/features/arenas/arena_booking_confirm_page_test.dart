@@ -36,6 +36,14 @@ import 'package:nexago_app/features/cashback/domain/cashback_rules.dart';
 import 'package:nexago_app/features/arenas/data/coupons_repository.dart';
 import 'package:nexago_app/features/arenas/data/last_booking_payment_store.dart';
 import 'package:nexago_app/features/arenas/domain/available_coupon.dart';
+import 'package:cloud_functions/cloud_functions.dart' as fns;
+import 'package:nexago_app/core/profiles/users_repository.dart';
+import 'package:nexago_app/features/arenas/data/booking_split_repository.dart';
+import 'package:nexago_app/features/arenas/domain/booking_split_providers.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile_providers.dart';
+import 'presentation/booking_split_sheet_test.dart'
+    show FakeSplitUsersRepository, joana;
 import 'package:nexago_app/features/arenas/domain/booking_payment_method.dart';
 
 import '../../core/theme/state_tone_contrast.dart';
@@ -122,6 +130,28 @@ class _FakeBookingService extends BookingService {
   }
 }
 
+/// Callable da divisão em memória: guarda as fatias pedidas ou falha.
+class _FakeSplitRepository extends BookingSplitRepository {
+  _FakeSplitRepository({this.error})
+      : super(firestore: UnusedFirestore(), functions: FakeWeatherFunctions());
+
+  final Object? error;
+  final List<List<({String athleteId, double amountReais})>> calls = [];
+  String? bookingId;
+
+  @override
+  Future<List<String>> split({
+    required String bookingId,
+    required List<({String athleteId, double amountReais})> shares,
+  }) async {
+    this.bookingId = bookingId;
+    calls.add(shares);
+    final e = error;
+    if (e != null) throw e;
+    return ['s1', 's2'];
+  }
+}
+
 /// Forma lembrada em memória (sem SharedPreferences nos testes).
 class _FakePaymentStore extends LastBookingPaymentStore {
   _FakePaymentStore([this.stored]);
@@ -147,6 +177,7 @@ Future<void> _pumpConfirm(
   CashbackCheckoutContext? cashback,
   LastBookingPaymentStore? paymentStore,
   List<AvailableCoupon> availableCoupons = const [],
+  BookingSplitRepository? splitRepository,
 }) async {
   tester.view.physicalSize = const Size(900, 3200);
   tester.view.devicePixelRatio = 1;
@@ -201,6 +232,20 @@ Future<void> _pumpConfirm(
             .overrideWithValue(paymentStore ?? _FakePaymentStore()),
         availableArenaCouponsProvider
             .overrideWith((ref, id) async => availableCoupons),
+        bookingSplitRepositoryProvider
+            .overrideWithValue(splitRepository ?? _FakeSplitRepository()),
+        usersRepositoryProvider
+            .overrideWithValue(FakeSplitUsersRepository(const [joana])),
+        athleteProfileProvider.overrideWith(
+          (ref) => Stream.value(const AthleteProfile(
+            id: 'u1',
+            name: 'Silvio',
+            sport: 'beach_tennis',
+            level: 'C',
+            city: 'Goiânia',
+            cpfCnpj: '52998224725',
+          )),
+        ),
       ],
       child: MaterialApp.router(
         theme: theme ?? AppTheme.dark,
@@ -760,6 +805,120 @@ void main() {
       expect(list.map((c) => c.code), ['VERAO10']);
       expect(
           functions.payloadOf('listAvailableArenaCoupons'), {'arenaId': 'a1'});
+    });
+  });
+
+  group('dividir com os jogadores', () {
+    const created = CreateBookingResult(
+      bookingId: 'b1',
+      amountReais: 63,
+      amountToPayNowReais: 63,
+      paymentMode: 'pix',
+    );
+
+    final splitRow = find.byKey(const Key('booking-confirm-split-row'));
+
+    /// Pagar online → abre a folha → inclui a Joana → usa a divisão.
+    Future<void> splitWithJoana(WidgetTester tester) async {
+      await tester.tap(find.text('Pagar online'));
+      await tester.pump();
+      await _pickSport(tester);
+      await tester.tap(splitRow);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('booking-split-search')),
+        'jo',
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      await tester.tap(find.text('Joana'));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('booking-split-submit')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('linha só aparece pagando online', (tester) async {
+      await _pumpConfirm(tester, _FakeBookingService());
+      expect(splitRow, findsNothing, reason: 'abre em "na arena"');
+
+      await tester.tap(find.text('Pagar online'));
+      await tester.pump();
+
+      expect(splitRow, findsOneWidget);
+      expect(find.text('Dividir com os jogadores'), findsOneWidget);
+    });
+
+    testWidgets(
+        'dividida: cria no Pix, divide sobre o valor final e vai '
+        'acompanhar', (tester) async {
+      final service = _FakeBookingService(createResult: created);
+      final split = _FakeSplitRepository();
+      await _pumpConfirm(tester, service, splitRepository: split);
+
+      await splitWithJoana(tester);
+
+      expect(find.text('Dividido: Você + 1 jogador'), findsOneWidget);
+      expect(find.text('Confirmar e dividir'), findsOneWidget);
+      expect(find.byType(BookingConfirmCashbackNote), findsNothing,
+          reason: 'a parte dividida não usa cashback');
+
+      await tester.tap(find.text('Confirmar e dividir'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+
+      expect(service.createdModes, ['pix']);
+      expect(split.bookingId, 'b1');
+      // Folha montada sobre R\$ 70; a reserva saiu R\$ 63 — divisão igual
+      // refeita sobre o valor que o servidor devolveu.
+      expect(split.calls.single, [
+        (athleteId: 'u1', amountReais: 31.5),
+        (athleteId: 'joana', amountReais: 31.5),
+      ]);
+      expect(find.text('tela do pix'), findsOneWidget);
+    });
+
+    testWidgets('CPF faltando: a frase do servidor aparece, sem o erro cru',
+        (tester) async {
+      const cpfMessage = 'Joana ainda não tem CPF cadastrado no NexaGO e por '
+          'isso não pode receber a cobrança PIX.';
+      final service = _FakeBookingService(createResult: created);
+      await _pumpConfirm(
+        tester,
+        service,
+        splitRepository: _FakeSplitRepository(
+          error: fns.FirebaseFunctionsException(
+            code: 'failed-precondition',
+            message: cpfMessage,
+          ),
+        ),
+      );
+
+      await splitWithJoana(tester);
+      await tester.tap(find.text('Confirmar e dividir'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(
+        find.text('Não foi possível dividir o pagamento. $cpfMessage'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('firebase_functions'), findsNothing);
+      expect(find.text('tela do pix'), findsNothing);
+    });
+
+    testWidgets('"Não dividir" volta ao Pix da reserva inteira',
+        (tester) async {
+      await _pumpConfirm(tester, _FakeBookingService());
+      await splitWithJoana(tester);
+
+      await tester.tap(splitRow);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Não dividir'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dividir com os jogadores'), findsOneWidget);
+      expect(find.text('Confirmar e pagar'), findsOneWidget);
     });
   });
 }

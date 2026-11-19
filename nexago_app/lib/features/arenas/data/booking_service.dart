@@ -5,6 +5,7 @@ import 'dart:async';
 import '../../arena/domain/arena_manager_booking.dart';
 import '../domain/arena_booking_confirm_args.dart';
 import '../domain/arena_booking_quote.dart';
+import '../domain/booking_athlete_notes.dart';
 import '../domain/my_booking_item.dart';
 import '../domain/pending_pix_booking_match.dart';
 import '../../../core/errors/friendly_error_message.dart';
@@ -318,6 +319,10 @@ class BookingService {
     /// Desconta o crédito de chuva do atleta nesta arena. Coberta por inteiro,
     /// a resposta vem com `paymentMode: 'weather_credit'` e a reserva já paga.
     bool useWeatherCredit = false,
+
+    /// Recado do atleta para a arena (opcional, até [kAthleteNotesMaxLength]
+    /// caracteres). Vazio ou só espaços não vai no payload.
+    String? athleteNotes,
   }) async {
     if (athleteId.isEmpty) {
       throw BookingException('Faça login para confirmar a reserva.');
@@ -351,6 +356,8 @@ class BookingService {
         if (studentId.isNotEmpty) payload['professorStudentId'] = studentId;
       }
       if (useWeatherCredit) payload['useWeatherCredit'] = true;
+      final notes = normalizeAthleteNotes(athleteNotes);
+      if (notes != null) payload['athleteNotes'] = notes;
 
       final result =
           await _functions.httpsCallable('createArenaBooking').call(payload);

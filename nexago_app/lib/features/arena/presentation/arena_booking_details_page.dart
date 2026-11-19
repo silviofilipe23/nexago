@@ -31,6 +31,7 @@ import 'widgets/arena_athlete_contact.dart';
 import 'widgets/arena_booking_detail_actions.dart';
 import 'widgets/arena_booking_detail_header.dart';
 import 'widgets/arena_booking_detail_history.dart';
+import 'widgets/arena_booking_athlete_notes_card.dart';
 import 'widgets/arena_booking_journey_section.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 
@@ -171,6 +172,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
         : const AsyncData(ArenaAthleteBlockInfo(isBlocked: false));
 
     final athleteName = nameAsync.valueOrNull ?? 'Atleta';
+    final athleteNotes = arenaBookingAthleteNotes(data);
     // Reserva de balcão sem conta no app só tem o nome digitado.
     final whoLabel = athleteId.isNotEmpty
         ? athleteName
@@ -186,6 +188,10 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
             booking: resolvedBooking,
             whoLabel: whoLabel,
           ),
+          if (athleteNotes != null) ...[
+            const SizedBox(height: 14),
+            ArenaBookingAthleteNotesCard(notes: athleteNotes),
+          ],
           SizedBox(height: 14),
           ArenaBookingDetailAthletes(
             arenaId: historyArenaId,

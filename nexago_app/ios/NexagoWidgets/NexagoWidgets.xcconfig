@@ -1,4 +1,0 @@
-// Extensão dos widgets da tela de início: só precisa da versão do app
-// (FLUTTER_BUILD_NAME / FLUTTER_BUILD_NUMBER no Info.plist) — a App Store exige
-// que bata com a do app. Não inclui o xcconfig dos Pods: não linka plugin.
-#include? "../Flutter/Generated.xcconfig"

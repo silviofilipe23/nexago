@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Lado nativo: `MainActivity.kt` (Android) e `HomeWidgetChannel` no
 /// `AppDelegate.swift` (iOS), que grava no App Group lido pela extensão
-/// `NexagoWidgets`.
+/// `NexagoLiveActivities` (onde mora o `NextGameWidget`).
 const agendaWidgetChannelName = 'nexago/home_widget';
 
 /// Ponte com o widget "Próximo jogo" da tela inicial: grava o snapshot da

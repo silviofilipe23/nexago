@@ -16,6 +16,7 @@
 		34292DCDB2E84AD848FC5114 /* PixPaymentAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24BB2CF63F3507F681DA5166 /* PixPaymentAttributes.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		48503A92F2EBFF59CC15DB5D /* NexagoLiveActivities.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D87165308CC02317D1C1DC26 /* NexagoLiveActivities.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5C7993B9DBAA9A7DFE7A560A /* NextGameSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC04FC3CE1CD9907CB12947C /* NextGameSnapshot.swift */; };
 		61EBFC990BAF0543BC7C0578 /* NextMatchLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66B9A8C3AE14F02E35365E27 /* NextMatchLiveActivity.swift */; };
 		6DE19A96316F0BBF9869AF84 /* BookingAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C53BB7C2DFD8264F79DC844 /* BookingAttributes.swift */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
@@ -33,6 +34,7 @@
 		B932D3069A96CA1C5F544FB1 /* PixPaymentAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24BB2CF63F3507F681DA5166 /* PixPaymentAttributes.swift */; };
 		B9BCE578ECC45D17AE219D81 /* NextMatchAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99FEBC7AD4EE77A0CA2B52A8 /* NextMatchAttributes.swift */; };
 		BF32C8B055D1594F7DC5438A /* BookingLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 233D3BD70614516192FAA314 /* BookingLiveActivity.swift */; };
+		DE59FEC77C75F017CC2CCD41 /* NextGameWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBF7089A2714E34167DA0DC /* NextGameWidget.swift */; };
 		F9C23D740B999B039ABF0E00 /* NextMatchAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99FEBC7AD4EE77A0CA2B52A8 /* NextMatchAttributes.swift */; };
 		FCBE9B32B11F88B4BD9FA839 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 23535E3903C2CE05F890504B /* Pods_Runner.framework */; };
 /* End PBXBuildFile section */
@@ -118,10 +120,13 @@
 		BFF702AD2FCEA3BB55DB6A3B /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		CA0A50CA6C58DB13AC5D2CDE /* GoogleService-Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Runner/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		CC29D479D5CA50B9480F1435 /* NexagoLiveActivitiesBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NexagoLiveActivitiesBundle.swift; sourceTree = "<group>"; };
+		CFBF7089A2714E34167DA0DC /* NextGameWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextGameWidget.swift; sourceTree = "<group>"; };
 		D87165308CC02317D1C1DC26 /* NexagoLiveActivities.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NexagoLiveActivities.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		DB5354ABB7211707FD3AFE06 /* NexagoLiveActivities.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = NexagoLiveActivities.entitlements; sourceTree = "<group>"; };
 		E51D55A778F7C38D6D02CD7F /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 		E7A1B0022EC5000100C636F1 /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
 		E7A1B0032EC5000100C636F1 /* RunnerDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RunnerDebug.entitlements; sourceTree = "<group>"; };
+		EC04FC3CE1CD9907CB12947C /* NextGameSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NextGameSnapshot.swift; sourceTree = "<group>"; };
 		F69535595520F186E2916B0B /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/WidgetKit.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
@@ -266,6 +271,9 @@
 				66B9A8C3AE14F02E35365E27 /* NextMatchLiveActivity.swift */,
 				3C53BB7C2DFD8264F79DC844 /* BookingAttributes.swift */,
 				233D3BD70614516192FAA314 /* BookingLiveActivity.swift */,
+				EC04FC3CE1CD9907CB12947C /* NextGameSnapshot.swift */,
+				CFBF7089A2714E34167DA0DC /* NextGameWidget.swift */,
+				DB5354ABB7211707FD3AFE06 /* NexagoLiveActivities.entitlements */,
 			);
 			name = NexagoLiveActivities;
 			path = NexagoLiveActivities;
@@ -527,6 +535,8 @@
 				61EBFC990BAF0543BC7C0578 /* NextMatchLiveActivity.swift in Sources */,
 				6DE19A96316F0BBF9869AF84 /* BookingAttributes.swift in Sources */,
 				BF32C8B055D1594F7DC5438A /* BookingLiveActivity.swift in Sources */,
+				5C7993B9DBAA9A7DFE7A560A /* NextGameSnapshot.swift in Sources */,
+				DE59FEC77C75F017CC2CCD41 /* NextGameWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -641,7 +651,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
-				CURRENT_PROJECT_VERSION = 125;
+				CURRENT_PROJECT_VERSION = 126;
 				DEVELOPMENT_TEAM = 2S4HRY66UA;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
@@ -725,6 +735,7 @@
 			baseConfigurationReference = B12881B2F9B86F3220FD8C58 /* NexagoLiveActivities.xcconfig */;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = NexagoLiveActivities/NexagoLiveActivities.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2S4HRY66UA;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -749,6 +760,7 @@
 			baseConfigurationReference = B12881B2F9B86F3220FD8C58 /* NexagoLiveActivities.xcconfig */;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = NexagoLiveActivities/NexagoLiveActivities.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2S4HRY66UA;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -891,7 +903,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/RunnerDebug.entitlements;
-				CURRENT_PROJECT_VERSION = 125;
+				CURRENT_PROJECT_VERSION = 126;
 				DEVELOPMENT_TEAM = 2S4HRY66UA;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
@@ -928,7 +940,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
-				CURRENT_PROJECT_VERSION = 125;
+				CURRENT_PROJECT_VERSION = 126;
 				DEVELOPMENT_TEAM = 2S4HRY66UA;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
@@ -962,6 +974,7 @@
 			baseConfigurationReference = B12881B2F9B86F3220FD8C58 /* NexagoLiveActivities.xcconfig */;
 			buildSettings = {
 				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = NexagoLiveActivities/NexagoLiveActivities.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 2S4HRY66UA;
 				GENERATE_INFOPLIST_FILE = NO;

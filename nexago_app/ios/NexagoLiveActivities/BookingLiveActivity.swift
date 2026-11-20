@@ -17,33 +17,38 @@ struct BookingLiveActivity: Widget {
       let display = BookingDisplay(context)
       let attributes = context.attributes
       return DynamicIsland {
+        // Ao lado da câmera só cabe a marca; anel e texto vão juntos na faixa
+        // de baixo, que tem a largura toda (na região da direita o título
+        // cortava: "Em quadra at…").
         DynamicIslandExpandedRegion(.leading) {
-          BookingRing(attributes: attributes, display: display, showsTime: true)
-            .frame(width: 64, height: 64)
-            .padding(.leading, 4)
-        }
-        DynamicIslandExpandedRegion(.trailing) {
-          VStack(alignment: .leading, spacing: 3) {
-            Text(display.islandTitle(attributes))
-              .font(.system(size: 17, weight: .bold))
-              .foregroundStyle(.white)
-              .lineLimit(1)
-              .minimumScaleFactor(0.8)
-            Text(attributes.arenaName)
-              .font(.system(size: 12))
-              .foregroundStyle(PixPalette.muted)
-              .lineLimit(1)
-            Text(attributes.courtName)
-              .font(.system(size: 12))
-              .foregroundStyle(PixPalette.muted)
-              .lineLimit(1)
-          }
-          .frame(maxWidth: .infinity, alignment: .leading)
+          NexaBrandMark()
+            .padding(.leading, 6)
         }
         DynamicIslandExpandedRegion(.bottom) {
-          BookingSteps(display: display)
-            .padding(.horizontal, 8)
-            .padding(.top, 6)
+          VStack(spacing: 10) {
+            HStack(spacing: 12) {
+              BookingRing(attributes: attributes, display: display, showsTime: true)
+                .frame(width: 60, height: 60)
+              VStack(alignment: .leading, spacing: 2) {
+                Text(display.islandTitle(attributes))
+                  .font(.system(size: 17, weight: .bold))
+                  .foregroundStyle(.white)
+                  .lineLimit(1)
+                  .minimumScaleFactor(0.8)
+                Text(attributes.arenaName)
+                  .font(.system(size: 13))
+                  .foregroundStyle(PixPalette.muted)
+                  .lineLimit(1)
+                Text(attributes.courtName)
+                  .font(.system(size: 13))
+                  .foregroundStyle(PixPalette.muted)
+                  .lineLimit(1)
+              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            BookingSteps(display: display)
+          }
+          .padding(.horizontal, 8)
         }
       } compactLeading: {
         BookingRing(attributes: attributes, display: display, showsTime: false)
@@ -136,6 +141,24 @@ struct BookingDisplay {
 
 // MARK: - Peças
 
+/// Assinatura discreta da Nexa no canto da ilha expandida: o "N" laranja
+/// (`Assets.xcassets/NexaMark`) e o nome em cinza.
+struct NexaBrandMark: View {
+  var body: some View {
+    HStack(spacing: 5) {
+      Image("NexaMark")
+        .resizable()
+        .scaledToFit()
+        .frame(width: 14, height: 14)
+      Text("nexaGO")
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(PixPalette.muted)
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("nexaGO")
+  }
+}
+
 /// Anel que esvazia sozinho até o início (Chegar) ou até o fim (Em quadra).
 struct BookingRing: View {
   let attributes: BookingAttributes
@@ -163,7 +186,7 @@ struct BookingRing: View {
             .multilineTextAlignment(.center)
             .lineLimit(1)
             .foregroundStyle(.white)
-            .frame(width: 54)
+            .frame(width: 50)
         }
       } else {
         Circle()

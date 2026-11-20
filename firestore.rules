@@ -2067,6 +2067,35 @@ service cloud.firestore {
           .hasOnly(['fcmToken', 'liveActivityToken', 'updatedAt']) &&
         pixLiveActivityShapeOk(request.resource.data);
     }
+    // Live Activity da reserva de quadra (`functions/src/booking-live-activity.ts`).
+    // Chave `{uid}_{bookingId}`: a chave leva o dono, ninguém ocupa o doc de outra
+    // pessoa. O app cria ao iniciar o card (fase "upcoming") e depois só troca
+    // os tokens; a fase é do servidor (varredura de início/fim).
+    function bookingLiveActivityShapeOk(d) {
+      return d.keys().hasOnly(['uid', 'bookingId', 'fcmToken', 'liveActivityToken',
+          'startAt', 'endAt', 'phase', 'phaseChangedAt', 'createdAt', 'updatedAt']) &&
+        d.uid is string &&
+        d.bookingId is string && d.bookingId.size() > 0 && d.bookingId.size() <= 128 &&
+        d.fcmToken is string && d.fcmToken.size() <= 4096 &&
+        d.liveActivityToken is string && d.liveActivityToken.size() <= 512 &&
+        d.startAt is timestamp && d.endAt is timestamp && d.startAt < d.endAt;
+    }
+    match /bookingLiveActivities/{activityId} {
+      allow read: if request.auth != null &&
+        (resource == null || resource.data.uid == request.auth.uid);
+      allow delete: if request.auth != null &&
+        resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.uid == request.auth.uid &&
+        activityId == request.auth.uid + '_' + request.resource.data.bookingId &&
+        request.resource.data.phase == 'upcoming' &&
+        bookingLiveActivityShapeOk(request.resource.data);
+      allow update: if request.auth != null &&
+        resource.data.uid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['fcmToken', 'liveActivityToken', 'updatedAt']) &&
+        bookingLiveActivityShapeOk(request.resource.data);
+    }
     // Live Activity "minha próxima partida" (`functions/src/next-match-live-activity.ts`).
     // Chave `{uid}_{tournamentId}`. Quem cria e mantém o estado é o servidor
     // (callable `startNextMatchActivity` + gatilho das partidas): o atleta só

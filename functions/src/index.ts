@@ -880,6 +880,10 @@ export {
 // Live Activity do Pix no iPhone: urgência dos 2 min, expiração e limpeza (1 min).
 export {sweepPixLiveActivities} from "./pix-live-activity";
 export {
+  onArenaBookingChangedLiveActivity,
+  sweepBookingLiveActivities,
+} from "./booking-live-activity";
+export {
   onMatchChangedNextMatchActivity,
   startNextMatchActivity,
 } from "./next-match-live-activity";

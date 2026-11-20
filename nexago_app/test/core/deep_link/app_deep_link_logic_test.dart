@@ -65,6 +65,28 @@ void main() {
       );
     });
 
+    test('nexago://reserva/:id abre o detalhe da reserva (Live Activity)', () {
+      expect(
+        resolveAppDeepLinkPath(Uri.parse('nexago://reserva/bk-1')),
+        '/booking/bk-1/details',
+      );
+    });
+
+    test('nexago://reserva/:id/placar abre o lançar placar (fim de jogo)', () {
+      expect(
+        resolveAppDeepLinkPath(Uri.parse('nexago://reserva/bk-1/placar')),
+        '/reservar/placar/bk-1',
+      );
+    });
+
+    test('reserva sem id ou por https não vira rota do app', () {
+      expect(resolveAppDeepLinkPath(Uri.parse('nexago://reserva')), isNull);
+      expect(
+        resolveAppDeepLinkPath(Uri.parse('https://atleta.nexago.com.br/reserva/bk-1')),
+        isNull,
+      );
+    });
+
     test('nexago://agenda abre a Agenda (toque no widget Próximo jogo)', () {
       expect(
           resolveAppDeepLinkPath(Uri.parse('nexago://agenda')), '/my-bookings');

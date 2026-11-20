@@ -301,3 +301,195 @@ private enum NextMatchLiveActivityController {
     }
   }
 }
+
+// MARK: - Reserva de quadra (L3)
+
+/// Ponte da Live Activity da reserva
+/// (`lib/core/live_activity/booking_live_activity_service.dart`). Canal
+/// próprio, como os outros: um handler só por canal no Flutter.
+///
+/// - `isSupported`;
+/// - `startBooking(args)` → reaproveita o card vivo da mesma reserva e
+///   aposenta o de outra;
+/// - `endBooking({bookingId})` → tira o card na hora; devolve se havia um;
+/// - `resumeBooking` → volta a observar o token dos cards vivos;
+/// - Swift → Dart: `onPushToken({bookingId, token})`.
+enum BookingLiveActivityChannel {
+  private static var channel: FlutterMethodChannel?
+
+  static func register(messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "nexago/live_activity_booking",
+      binaryMessenger: messenger
+    )
+    self.channel = channel
+    channel.setMethodCallHandler { call, result in
+      guard #available(iOS 16.2, *) else {
+        result(call.method == "isSupported" || call.method == "endBooking" ? false : nil)
+        return
+      }
+      BookingLiveActivityController.handle(call, result: result)
+    }
+  }
+
+  fileprivate static func sendPushToken(bookingId: String, token: String) {
+    DispatchQueue.main.async {
+      channel?.invokeMethod("onPushToken", arguments: ["bookingId": bookingId, "token": token])
+    }
+  }
+}
+
+@available(iOS 16.2, *)
+private enum BookingLiveActivityController {
+  private static var tokenTasks: [String: Task<Void, Never>] = [:]
+
+  static func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "isSupported":
+      result(ActivityAuthorizationInfo().areActivitiesEnabled)
+    case "startBooking":
+      start(call.arguments as? [String: Any] ?? [:], result: result)
+    case "endBooking":
+      end(call.arguments as? [String: Any] ?? [:], result: result)
+    case "resumeBooking":
+      for activity in Activity<BookingAttributes>.activities {
+        observePushToken(of: activity, bookingId: activity.attributes.bookingId)
+      }
+      result(nil)
+    case "settleBooking":
+      settle()
+      result(nil)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  /// Etapa do card vivo pelo relógio (app aberto): começou → "em quadra";
+  /// acabou → "fim de jogo", que fica até 30 min depois do fim. Com push o
+  /// servidor faz o mesmo; sem push, é isto que anda.
+  private static func settle() {
+    let now = Date()
+    let linger: TimeInterval = 30 * 60
+    for activity in Activity<BookingAttributes>.activities where isAlive(activity) {
+      let a = activity.attributes
+      let phase = BookingPhase(wire: activity.content.state.phase)
+      if now >= a.endAt {
+        guard phase != .finished && phase != .canceled else { continue }
+        let until = a.endAt.addingTimeInterval(linger)
+        Task {
+          await activity.end(
+            ActivityContent(state: .init(phase: BookingPhase.finished.rawValue), staleDate: nil),
+            dismissalPolicy: until > now ? .after(until) : .immediate
+          )
+        }
+      } else if now >= a.startAt && phase == .upcoming {
+        Task {
+          await activity.update(
+            ActivityContent(state: .init(phase: BookingPhase.onCourt.rawValue), staleDate: a.endAt)
+          )
+        }
+      }
+    }
+  }
+
+  private static func isAlive(_ activity: Activity<BookingAttributes>) -> Bool {
+    activity.activityState == .active || activity.activityState == .stale
+  }
+
+  private static func start(_ args: [String: Any], result: @escaping FlutterResult) {
+    guard
+      let bookingId = (args["bookingId"] as? String)?.trimmingCharacters(in: .whitespaces),
+      !bookingId.isEmpty,
+      let startMs = (args["startAtMs"] as? NSNumber)?.doubleValue,
+      let endMs = (args["endAtMs"] as? NSNumber)?.doubleValue,
+      endMs > startMs
+    else {
+      result(FlutterError(code: "bad_args", message: "startBooking sem reserva/horário", details: nil))
+      return
+    }
+    guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+      result(nil)
+      return
+    }
+    let startAt = Date(timeIntervalSince1970: startMs / 1000)
+    let endAt = Date(timeIntervalSince1970: endMs / 1000)
+    let now = Date()
+    guard endAt > now else {
+      result(nil)
+      return
+    }
+
+    let activities = Activity<BookingAttributes>.activities
+    let courtName = args["courtName"] as? String ?? "Quadra"
+    // Reabrir o app com o card vivo: não nasce outro — a menos que a reserva
+    // tenha sido remarcada (horário/quadra são atributos fixos do card).
+    if let existing = activities.first(where: { $0.attributes.bookingId == bookingId && isAlive($0) }),
+       existing.attributes.startAt == startAt,
+       existing.attributes.endAt == endAt,
+       existing.attributes.courtName == courtName {
+      observePushToken(of: existing, bookingId: bookingId)
+      result(existing.id)
+      return
+    }
+    // Um card de reserva por vez: o de outra reserva (ou um encerrado) sai.
+    for other in activities {
+      tokenTasks.removeValue(forKey: other.attributes.bookingId)?.cancel()
+      Task { await other.end(nil, dismissalPolicy: .immediate) }
+    }
+
+    let attributes = BookingAttributes(
+      bookingId: bookingId,
+      arenaName: args["arenaName"] as? String ?? "Arena",
+      courtName: courtName,
+      startAt: startAt,
+      endAt: endAt,
+      startLabel: args["startLabel"] as? String ?? "",
+      endLabel: args["endLabel"] as? String ?? "",
+      confirmed: (args["confirmed"] as? NSNumber)?.intValue ?? 1,
+      totalSlots: (args["totalSlots"] as? NSNumber)?.intValue ?? 4,
+      createdAt: now
+    )
+    // O `staleDate` é a próxima virada pelo relógio (início ou fim), sempre no
+    // futuro: activity que nasce "stale" o iOS não desenha.
+    let stale = startAt > now ? startAt : endAt
+    let content = ActivityContent(
+      state: BookingAttributes.ContentState(phase: BookingPhase.upcoming.rawValue),
+      staleDate: stale
+    )
+    do {
+      let activity = try Activity.request(attributes: attributes, content: content, pushType: .token)
+      observePushToken(of: activity, bookingId: bookingId)
+      result(activity.id)
+    } catch {
+      result(FlutterError(code: "start_failed", message: error.localizedDescription, details: nil))
+    }
+  }
+
+  private static func end(_ args: [String: Any], result: @escaping FlutterResult) {
+    guard let bookingId = args["bookingId"] as? String, !bookingId.isEmpty else {
+      result(false)
+      return
+    }
+    tokenTasks.removeValue(forKey: bookingId)?.cancel()
+    let matching = Activity<BookingAttributes>.activities.filter { $0.attributes.bookingId == bookingId }
+    for activity in matching {
+      Task {
+        await activity.end(
+          ActivityContent(state: .init(phase: BookingPhase.canceled.rawValue), staleDate: nil),
+          dismissalPolicy: .immediate
+        )
+      }
+    }
+    result(!matching.isEmpty)
+  }
+
+  private static func observePushToken(of activity: Activity<BookingAttributes>, bookingId: String) {
+    tokenTasks[bookingId]?.cancel()
+    tokenTasks[bookingId] = Task {
+      for await data in activity.pushTokenUpdates {
+        let token = data.map { String(format: "%02x", $0) }.joined()
+        BookingLiveActivityChannel.sendPushToken(bookingId: bookingId, token: token)
+      }
+    }
+  }
+}

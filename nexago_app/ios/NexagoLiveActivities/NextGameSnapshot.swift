@@ -78,6 +78,10 @@ enum NextGameFormat {
 
   private static let ptBR = Locale(identifier: "pt_BR")
 
+  /// Até onde vai uma timeline com contagem: depois disso o widget pede outra
+  /// (≈ 8 recargas por dia, dentro do orçamento do WidgetKit).
+  static let timelineHorizon: TimeInterval = 3 * 60 * 60
+
   /// Quando o widget precisa se redesenhar: ao entrar na janela da contagem,
   /// no início (vira "Agora") e no fim (passa ao seguinte).
   static func nextRefresh(_ entries: [NextGameEntry], now: Date) -> Date? {
@@ -85,6 +89,49 @@ enum NextGameFormat {
     return [first.startsAt.addingTimeInterval(-countdownWindow), first.startsAt, first.endsAt]
       .filter { $0 > now }
       .min()
+  }
+
+  /// Se a contagem aparece para este compromisso neste instante.
+  static func showsCountdown(_ entry: NextGameEntry, now: Date) -> Bool {
+    let untilStart = entry.startsAt.timeIntervalSince(now)
+    return !entry.allDay && untilStart > 0 && untilStart <= countdownWindow
+  }
+
+  /// Pontos da timeline até [timelineHorizon]: agora, as viradas e, enquanto a
+  /// contagem aparece, cada minuto cheio — a contagem é "1h52", sem segundos.
+  static func timelineDates(_ snapshot: NextGameSnapshot?, now: Date) -> [Date] {
+    let limit = now.addingTimeInterval(timelineHorizon)
+    var dates: Set<Date> = [now]
+    var cursor = now
+    while let snapshot,
+          let next = nextRefresh(snapshot.upcoming(now: cursor), now: cursor),
+          next <= limit {
+      dates.insert(next)
+      cursor = next.addingTimeInterval(1)
+    }
+    if let snapshot {
+      let calendar = Calendar(identifier: .gregorian)
+      var minute = calendar.nextDate(
+        after: now,
+        matching: DateComponents(second: 0),
+        matchingPolicy: .nextTime
+      ) ?? now
+      while minute <= limit {
+        if let first = snapshot.upcoming(now: minute).first, showsCountdown(first, now: minute) {
+          dates.insert(minute)
+        }
+        minute = minute.addingTimeInterval(60)
+      }
+    }
+    return dates.sorted()
+  }
+
+  /// "1h52" ou "38 min" até [start] — minutos arredondados para cima, como a
+  /// Agenda do app ("começa em 1 min" até o último segundo).
+  static func countdown(until start: Date, now: Date) -> String {
+    let minutes = max(1, Int((start.timeIntervalSince(now) / 60).rounded(.up)))
+    if minutes < 60 { return "\(minutes) min" }
+    return "\(minutes / 60)h\(String(format: "%02d", minutes % 60))"
   }
 
   /// "Hoje", "Amanhã" ou o dia da semana ("Sex").

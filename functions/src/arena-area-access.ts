@@ -13,15 +13,16 @@
  *     É responsabilidade de cada arquivo chamador manter (ou não) o bypass
  *     que já tinha antes desta migração; ver comentário em cada call site.
  *  3. Membro de equipe ATIVO (`arenas/{arenaId}/staff/{uid}`, `status ===
- *     'active'`) E arena com titularidade de plano pago (`arenaEntitledTier`
- *     em `['pro', 'elite']` — `parceiro` já chega normalizado como `elite`)
+ *     'active'`) E arena com as funções de equipe liberadas (`arenaFeatureTier`
+ *     em `['pro', 'elite']` — `parceiro` já chega normalizado como `elite`;
+ *     com `ARENA_FEATURES_UNLOCKED` ligada, toda arena passa)
  *     E a matriz do cargo (`arena-staff-roles.ts`) cobre a área pro modo
  *     pedido.
  *  4. Qualquer outro caso — nega.
  */
 import {HttpsError} from "firebase-functions/v2/https";
 import type {Firestore} from "firebase-admin/firestore";
-import {arenaEntitledTier} from "./arena-entitlement";
+import {arenaFeatureTier} from "./arena-entitlement";
 import {
   arenaRoleCanRead,
   arenaRoleCanWrite,
@@ -62,6 +63,7 @@ export function decideArenaAreaAccess(
   area: ArenaArea,
   mode: ArenaAreaAccessMode,
   nowMs: number,
+  unlocked?: boolean,
 ): boolean {
   const managerUserId = typeof arenaData.managerUserId === "string" ?
     arenaData.managerUserId.trim() :
@@ -71,7 +73,7 @@ export function decideArenaAreaAccess(
   if (!staffData) return false;
   if (staffData.status !== "active") return false;
 
-  const tier = arenaEntitledTier(arenaData, nowMs);
+  const tier = arenaFeatureTier(arenaData, nowMs, unlocked);
   if (tier !== "pro" && tier !== "elite") return false;
 
   const role = staffData.role;

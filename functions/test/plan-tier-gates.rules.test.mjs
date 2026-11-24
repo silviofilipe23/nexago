@@ -89,9 +89,9 @@ test('parceiro (legado) segue nos gates Pro+ (promotions create)', async () => {
   );
 });
 
-test('starter nao tem caps Pro (promotions create)', async () => {
+test('funcoes liberadas: starter cria promocao (caps Pro)', async () => {
   const db = managerCtx().firestore();
-  await assertFails(
+  await assertSucceeds(
     setDoc(doc(db, 'arenas', 'arena-starter', 'promotions', 'p1'), {
       createdAt: new Date(),
     }),
@@ -112,18 +112,24 @@ test('pro abaixo do teto (4 < 5) pode criar quadra', async () => {
   );
 });
 
-test('pro no teto de 5 nao pode criar quadra', async () => {
+test('funcoes liberadas: pro com 5 quadras cria mais uma', async () => {
   const db = managerCtx().firestore();
-  await assertFails(
+  await assertSucceeds(
     setDoc(doc(db, 'arenas', 'arena-pro-cheia', 'courts', 'c1'), {}),
   );
 });
 
-test('starter no teto de 2 nao pode criar quadra', async () => {
+test('funcoes liberadas: starter com 2 quadras cria mais uma', async () => {
   const db = managerCtx().firestore();
-  await assertFails(
+  await assertSucceeds(
     setDoc(doc(db, 'arenas', 'arena-starter', 'courts', 'c1'), {}),
   );
+});
+
+test('funcoes liberadas: quem nao e da arena continua sem criar quadra nem promocao', async () => {
+  const db = testEnv.authenticatedContext('intruso-uid').firestore();
+  await assertFails(setDoc(doc(db, 'arenas', 'arena-starter', 'courts', 'c9'), {}));
+  await assertFails(setDoc(doc(db, 'arenas', 'arena-starter', 'promotions', 'p9'), { createdAt: new Date() }));
 });
 
 // Campos de plano definem preco (taxa 5% vs 8%, saque sem tarifa) e capabilities.

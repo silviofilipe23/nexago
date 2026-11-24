@@ -136,7 +136,7 @@ describe("getArenaOccupancyReportCore", () => {
     );
   });
 
-  it("rejeita arena sem entitlement Pro/Parceiro (gate de plano)", async () => {
+  it("funções liberadas: arena sem plano pago também gera o relatório", async () => {
     const fake = new FakeFirestore();
     fake.seedDoc("arenas/arena1", {
       managerUserId: "owner1",
@@ -144,15 +144,13 @@ describe("getArenaOccupancyReportCore", () => {
       planStatus: "none",
     });
 
-    await assertHttpsError(
-      getArenaOccupancyReportCore(
-        db(fake),
-        "owner1",
-        {arenaId: "arena1", dateFrom: "2026-07-01", dateTo: "2026-07-31"},
-        Date.now(),
-      ),
-      "failed-precondition",
+    const report = await getArenaOccupancyReportCore(
+      db(fake),
+      "owner1",
+      {arenaId: "arena1", dateFrom: "2026-07-01", dateTo: "2026-07-31"},
+      Date.now(),
     );
+    assert.equal(report.totalBookings, 0);
   });
 
   it("rejeita intervalo de datas inválido antes de checar plano/gestor", async () => {

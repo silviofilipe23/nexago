@@ -728,7 +728,19 @@ service cloud.firestore {
     //  - demais (none/refund/chargeback): não.
     // planStatus/planTier/planActiveUntil só são gravados pelas Cloud Functions
     // (o gestor não se auto-promove), então é seguro confiar neles aqui.
+    // Fase "tudo liberado" (24/11/2026): toda arena usa todas as funções, sem
+    // trava por plano; a Nexa ganha só nos pagamentos pela plataforma. Chave
+    // única das rules: `false` volta aos gates por plano abaixo. Espelhos:
+    // storage.rules, `ARENA_FEATURES_UNLOCKED` (functions e portal) e
+    // `kArenaFeaturesUnlocked` (app). Só libera o PLANO: quem chama continua
+    // exigindo dono/equipe/área (arenaCanWrite, canManageArenaProducts, ...).
+    function arenaFeaturesUnlocked() {
+      return true;
+    }
     function arenaEntitled(arenaId, tiers) {
+      return arenaFeaturesUnlocked() || arenaPaidEntitled(arenaId, tiers);
+    }
+    function arenaPaidEntitled(arenaId, tiers) {
       let a = get(/databases/$(database)/documents/arenas/$(arenaId)).data;
       let status = a.get('planStatus', 'none');
       let until = a.get('planActiveUntil', null);
@@ -743,7 +755,8 @@ service cloud.firestore {
     // Elite/Parceiro (legado) ilimitado. courtsCount é mantido por Cloud
     // Function (arena-courts-count.ts) — as rules não contam documentos.
     function arenaCanAddCourt(arenaId) {
-      return arenaEntitled(arenaId, ['parceiro', 'elite']) ||
+      return arenaFeaturesUnlocked() ||
+        arenaEntitled(arenaId, ['parceiro', 'elite']) ||
         (arenaEntitled(arenaId, ['pro']) &&
           get(/databases/$(database)/documents/arenas/$(arenaId)).data.get('courtsCount', 0) < 5) ||
         get(/databases/$(database)/documents/arenas/$(arenaId)).data.get('courtsCount', 0) < 2;

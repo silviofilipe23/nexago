@@ -274,7 +274,7 @@ probe('reverse comanda item transaction', async () => {
 
 // Contraprova do gate: sem titularidade Pro a comanda fica read-only. Sem
 // isto, um seed sem planTier faria todos os probes acima falharem em silêncio.
-test('item create bloqueado sem titularidade Pro', async () => {
+test('funções liberadas: item create aceito sem titularidade Pro', async () => {
   await testEnv.clearFirestore();
   await seedBase();
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
@@ -286,7 +286,7 @@ test('item create bloqueado sem titularidade Pro', async () => {
   });
 
   const db = managerCtx().firestore();
-  await assertFails(
+  await assertSucceeds(
     setDoc(doc(db, 'arenaComandas', COMANDA_ID, 'items', 'item-gated'), {
       productId: PRODUCT_ID,
       productName: 'Agua',

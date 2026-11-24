@@ -14,6 +14,13 @@ import {
 } from "./arena-staff-roles";
 
 const NOW = Date.UTC(2026, 6, 31);
+/** Assentos por plano (chave de funções liberadas desligada). */
+const LOCKED = false;
+
+test("funcoes liberadas: toda arena tem equipe ilimitada, com ou sem plano", () => {
+  assert.equal(maxArenaStaffSeats({}, NOW), Infinity);
+  assert.equal(maxArenaStaffSeats({planTier: "starter", planStatus: "active"}, NOW), Infinity);
+});
 
 test("isArenaStaffRole aceita so os quatro cargos", () => {
   assert.equal(isArenaStaffRole("gestor"), true);
@@ -26,30 +33,30 @@ test("isArenaStaffRole aceita so os quatro cargos", () => {
 });
 
 test("sem plano nao tem assento", () => {
-  assert.equal(maxArenaStaffSeats({}, NOW), 0);
+  assert.equal(maxArenaStaffSeats({}, NOW, LOCKED), 0);
 });
 
 test("starter ativo nao tem assento", () => {
   assert.equal(
-    maxArenaStaffSeats({planTier: "starter", planStatus: "active"}, NOW),
+    maxArenaStaffSeats({planTier: "starter", planStatus: "active"}, NOW, LOCKED),
     0,
   );
 });
 
 test("pro ativo tem 5 assentos", () => {
-  assert.equal(maxArenaStaffSeats({planTier: "pro", planStatus: "active"}, NOW), 5);
+  assert.equal(maxArenaStaffSeats({planTier: "pro", planStatus: "active"}, NOW, LOCKED), 5);
 });
 
 test("elite ativo e ilimitado", () => {
   assert.equal(
-    maxArenaStaffSeats({planTier: "elite", planStatus: "active"}, NOW),
+    maxArenaStaffSeats({planTier: "elite", planStatus: "active"}, NOW, LOCKED),
     Infinity,
   );
 });
 
 test("parceiro (id legado) e tratado como elite", () => {
   assert.equal(
-    maxArenaStaffSeats({planTier: "parceiro", planStatus: "active"}, NOW),
+    maxArenaStaffSeats({planTier: "parceiro", planStatus: "active"}, NOW, LOCKED),
     Infinity,
   );
 });
@@ -60,7 +67,7 @@ test("pro vencido fora da carencia perde os assentos", () => {
     planStatus: "overdue",
     planActiveUntil: Timestamp.fromMillis(NOW - 30 * 24 * 60 * 60 * 1000),
   };
-  assert.equal(maxArenaStaffSeats(venceuHa30Dias, NOW), 0);
+  assert.equal(maxArenaStaffSeats(venceuHa30Dias, NOW, LOCKED), 0);
 });
 
 test("pro vencido dentro da carencia mantem os assentos", () => {
@@ -69,7 +76,7 @@ test("pro vencido dentro da carencia mantem os assentos", () => {
     planStatus: "overdue",
     planActiveUntil: Timestamp.fromMillis(NOW - 24 * 60 * 60 * 1000),
   };
-  assert.equal(maxArenaStaffSeats(venceuOntem, NOW), 5);
+  assert.equal(maxArenaStaffSeats(venceuOntem, NOW, LOCKED), 5);
 });
 
 test("normalizeInviteEmail apara e minusculiza", () => {

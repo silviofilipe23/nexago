@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/layout/nexa_page_header.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_home_tab.dart';
+import '../domain/arena_plan.dart';
 import '../domain/arena_shell_providers.dart';
 import 'plan/widgets/arena_plan_status_banner.dart';
 import 'widgets/arena_business_tab.dart';
@@ -69,7 +70,10 @@ class ArenaDashboardPage extends ConsumerWidget {
                         children: [
                           const ArenaHomeTabsBar(),
                           // Margem própria só em cima: fica abaixo das abas.
-                          const ArenaPlanStatusBanner(),
+                          // Fase "tudo liberado": sem cobrança de plano,
+                          // não há atraso nem cancelamento para avisar.
+                          if (!kArenaFeaturesUnlocked)
+                            const ArenaPlanStatusBanner(),
                           const SizedBox(height: 18),
                           FadeSlideIn(
                             key: ValueKey(tab),

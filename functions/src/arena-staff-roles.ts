@@ -17,10 +17,10 @@
  * frontend sem nenhum bloco de regra ou callable equivalente — não
  * adicionar.
  */
-import {arenaEntitledTier} from "./arena-entitlement";
+import {arenaFeatureTier} from "./arena-entitlement";
 
 /**
- * Mesmo formato de campos de plano exigido por `arenaEntitledTier` em
+ * Mesmo formato de campos de plano exigido por `arenaFeatureTier` em
  * `./arena-entitlement`. O tipo original não é exportado por aquele módulo;
  * duplicado aqui por compatibilidade estrutural, sem alterar o módulo
  * original.
@@ -44,14 +44,16 @@ export function isArenaStaffRole(value: unknown): value is ArenaStaffRole {
     (ARENA_STAFF_ROLES as readonly string[]).includes(value);
 }
 
-/** Assentos de equipe por titularidade de plano. Sem plano e Starter não têm
- *  equipe (o catálogo vende Starter como "1 admin"); Pro tem 5; Elite é
- *  ilimitado. `parceiro` já chega aqui normalizado como `elite`. */
+/** Assentos de equipe pelo tier de funções (`arenaFeatureTier`). Sem plano e
+ *  Starter não têm equipe (o catálogo vende Starter como "1 admin"); Pro tem 5;
+ *  Elite é ilimitado. `parceiro` já chega aqui normalizado como `elite`. Com as
+ *  funções liberadas, toda arena tem equipe ilimitada. */
 export function maxArenaStaffSeats(
   arena: ArenaPlanFields,
   nowMs: number,
+  unlocked?: boolean,
 ): number {
-  switch (arenaEntitledTier(arena, nowMs)) {
+  switch (arenaFeatureTier(arena, nowMs, unlocked)) {
     case "elite":
       return Infinity;
     case "pro":

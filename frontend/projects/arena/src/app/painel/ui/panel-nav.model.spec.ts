@@ -80,8 +80,8 @@ describe('panel-nav.model', () => {
   });
 
   it('acha a rota ativa mesmo quando o cargo não vê o item', () => {
-    // 'planos' é owner-only; a detecção varre NAV_ITEMS inteiro de propósito,
+    // 'equipe' é owner-only; a detecção varre NAV_ITEMS inteiro de propósito,
     // senão o realce some quando a rota atual está fora do que o cargo vê.
-    expect(findActiveId('/painel/planos')).toBe('planos');
+    expect(findActiveId('/painel/equipe')).toBe('equipe');
   });
 });

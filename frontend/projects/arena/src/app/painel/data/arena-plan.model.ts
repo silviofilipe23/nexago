@@ -72,10 +72,25 @@ export function arenaPlanEntitledAt(planStatus: ArenaPlanStatus, now: Date): boo
   }
 }
 
+/** Fase "tudo liberado" (decisão do dono em 24/11/2026): toda arena usa todas as funções,
+ *  sem trava nem cobrança por plano; a Nexa ganha só nos pagamentos que passam pela
+ *  plataforma. Chave única do portal: `false` volta aos gates por plano. Espelhos:
+ *  `ARENA_FEATURES_UNLOCKED` em `functions/src/arena-entitlement.ts`, `kArenaFeaturesUnlocked`
+ *  no app e `arenaFeaturesUnlocked()` nas rules. Só libera funções e limites; a taxa por
+ *  reserva segue o plano pago, no servidor. */
+export const ARENA_FEATURES_UNLOCKED = true;
+
+/** Tier que decide funções e limites: com a chave ligada, o conjunto mais completo
+ *  (Elite) para toda arena; sem ela, o plano titular. */
+function featureTier(tier: ArenaPlanTier | null, entitled: boolean, unlocked: boolean): ArenaPlanTier | null {
+  if (unlocked) return 'elite';
+  return entitled ? tier : null;
+}
+
 /** Sem titularidade (sem plano, atraso fora da carência, cancelamento já expirado), cai
  *  para o comportamento de "sem plano": nenhuma capability paga. */
-export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boolean): ReadonlySet<ArenaCapability> {
-  const effectiveTier = entitled ? tier : null;
+export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boolean, unlocked = ARENA_FEATURES_UNLOCKED): ReadonlySet<ArenaCapability> {
+  const effectiveTier = featureTier(tier, entitled, unlocked);
   switch (effectiveTier) {
     case 'elite':
       return new Set<ArenaCapability>([
@@ -111,8 +126,8 @@ export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boole
 
 /** Máximo de quadras por plano (`null` = ilimitado). Sem titularidade cai pro teto de
  *  "sem plano". Espelha `maxCourtsFor` (Flutter) e a rule `arenaCanAddCourt`. */
-export function maxCourtsFor(tier: ArenaPlanTier | null, entitled: boolean): number | null {
-  const effectiveTier = entitled ? tier : null;
+export function maxCourtsFor(tier: ArenaPlanTier | null, entitled: boolean, unlocked = ARENA_FEATURES_UNLOCKED): number | null {
+  const effectiveTier = featureTier(tier, entitled, unlocked);
   if (effectiveTier === 'elite') return null;
   if (effectiveTier === 'pro') return 5;
   return 2;
@@ -122,8 +137,8 @@ export function maxCourtsFor(tier: ArenaPlanTier | null, entitled: boolean): num
  *  Sem plano/Starter (teto 2) sobem para o Pro (teto 5); Pro sobe para o Elite. Espelha
  *  `nextCourtsTierFor` em `arena_plan.dart` — o upsell não pode vender o plano que a
  *  arena já tem. */
-export function nextCourtsTierFor(tier: ArenaPlanTier | null, entitled: boolean): ArenaPlanTier | null {
-  const effectiveTier = entitled ? tier : null;
+export function nextCourtsTierFor(tier: ArenaPlanTier | null, entitled: boolean, unlocked = ARENA_FEATURES_UNLOCKED): ArenaPlanTier | null {
+  const effectiveTier = featureTier(tier, entitled, unlocked);
   if (effectiveTier === 'elite') return null;
   return effectiveTier === 'pro' ? 'elite' : 'pro';
 }
@@ -131,8 +146,8 @@ export function nextCourtsTierFor(tier: ArenaPlanTier | null, entitled: boolean)
 /** Máximo de horários fixos (mensalista) ativos por plano (`null` = ilimitado). Espelha
  *  `maxRecurringBookingsFor` (Flutter) e o gate em `functions/src/arena-recurring-booking.ts`
  *  — aqui é só uma dica de UI; a Cloud Function é quem de fato barra a criação. */
-export function maxRecurringActiveFor(tier: ArenaPlanTier | null, entitled: boolean): number | null {
-  const effectiveTier = entitled ? tier : null;
+export function maxRecurringActiveFor(tier: ArenaPlanTier | null, entitled: boolean, unlocked = ARENA_FEATURES_UNLOCKED): number | null {
+  const effectiveTier = featureTier(tier, entitled, unlocked);
   return effectiveTier === 'pro' || effectiveTier === 'elite' ? null : 3;
 }
 

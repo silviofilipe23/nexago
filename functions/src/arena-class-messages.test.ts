@@ -36,13 +36,13 @@ async function rejects(p: Promise<unknown>, code: string) {
 }
 
 describe("chat das Aulas da arena", () => {
-  it("régua da gestão: dono, recepção (agenda) e financeiro veem; revogado e plano vencido, não", () => {
+  it("régua da gestão: dono, recepção (agenda) e financeiro veem; revogado, não (plano não importa com funções liberadas)", () => {
     const t = NOW.getTime();
     assert.equal(staffSeesArenaStudents(PRO, "owner", undefined, t), true);
     assert.equal(staffSeesArenaStudents(PRO, "rec", {status: "active", role: "recepcao"}, t), true);
     assert.equal(staffSeesArenaStudents(PRO, "fin", {status: "active", role: "financeiro"}, t), true);
     assert.equal(staffSeesArenaStudents(PRO, "old", {status: "revoked", role: "recepcao"}, t), false);
-    assert.equal(staffSeesArenaStudents({...PRO, planStatus: "none"}, "rec", {status: "active", role: "recepcao"}, t), false);
+    assert.equal(staffSeesArenaStudents({...PRO, planStatus: "none"}, "rec", {status: "active", role: "recepcao"}, t), true);
     assert.equal(staffSeesArenaStudents(PRO, "x", undefined, t), false);
   });
 

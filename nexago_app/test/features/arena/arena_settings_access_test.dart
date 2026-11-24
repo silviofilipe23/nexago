@@ -47,11 +47,13 @@ void main() {
           // em `loading` (sem Firestore fake neste app) — o que importa aqui
           // é o filtro por cargo, não o carregamento desses dados.
           managedArenaDetailProvider.overrideWith((ref) => Stream.value(null)),
-          arenaFollowersCountProvider('a1').overrideWith((ref) => Stream.value(0)),
+          arenaFollowersCountProvider('a1')
+              .overrideWith((ref) => Stream.value(0)),
           arenaSettingsTemplateProvider.overrideWith(
             (ref) async => ArenaSettingsScheduleState.initial(),
           ),
-          arenaManagedCourtsProvider.overrideWith((ref) => Stream.value(const [])),
+          arenaManagedCourtsProvider
+              .overrideWith((ref) => Stream.value(const [])),
           // Profissionais (dono + gestor): os vínculos do protótipo.
           arenaProfessionalLinksProvider('a1').overrideWith(
             (ref) => Stream.value(prototypeArenaLinks()),
@@ -99,11 +101,14 @@ void main() {
     expect(find.text('Pagamentos'), findsNothing);
   });
 
-  testWidgets('dono ve tudo, inclusive Plano e Equipe', (tester) async {
+  testWidgets(
+      'dono ve tudo, inclusive Equipe; Plano some com funções liberadas',
+      (tester) async {
     await pumpSettings(tester, overridesForRole(null, owner: true));
-    for (final t in ['Quadras', 'Relatórios', 'Plano', 'Pagamentos', 'Equipe']) {
+    for (final t in ['Quadras', 'Relatórios', 'Pagamentos', 'Equipe']) {
       expect(find.text(t), findsOneWidget);
     }
+    expect(find.text('Plano'), findsNothing);
   });
 
   testWidgets('gestor ve Profissionais com os pedidos para analisar',

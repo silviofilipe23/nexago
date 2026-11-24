@@ -234,22 +234,20 @@ describe("addAppOrderItemCore", () => {
     );
   });
 
-  it("rejeita arena sem plano Pro/Parceiro (paridade com a regra do lançamento pelo balcão)", async () => {
+  it("funções liberadas: arena sem plano pago também recebe pedido pelo app", async () => {
     const fake = new FakeFirestore();
     seedEntitledArena(fake, "arena1", {planTier: "essencial", planStatus: "active"});
     seedBooking(fake, "booking1");
     seedComanda(fake, "comanda1");
     seedProduct(fake, "product1");
 
-    await assertHttpsError(
-      addAppOrderItemCore(
-        db(fake),
-        "ath1",
-        {arenaId: "arena1", comandaId: "comanda1", productId: "product1", quantity: 1},
-        now,
-      ),
-      "failed-precondition",
+    await addAppOrderItemCore(
+      db(fake),
+      "ath1",
+      {arenaId: "arena1", comandaId: "comanda1", productId: "product1", quantity: 1},
+      now,
     );
+    assert.equal(fake.store.get("arenaComandas/comanda1")!.itemsCount, 1);
   });
 
   it("rejeita usuário não autenticado (sem uid) antes de qualquer leitura — validado no wrapper onCall", async () => {

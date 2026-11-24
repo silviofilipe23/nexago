@@ -130,7 +130,14 @@ service firebase.storage {
         firestore.get(staff).data.get('role', '') in roles &&
         arenaEntitled(arenaId);
     }
+    // Fase "tudo liberado": espelho de `arenaFeaturesUnlocked()` em firestore.rules.
+    function arenaFeaturesUnlocked() {
+      return true;
+    }
     function arenaEntitled(arenaId) {
+      return arenaFeaturesUnlocked() || arenaPaidEntitled(arenaId);
+    }
+    function arenaPaidEntitled(arenaId) {
       let a = firestore.get(/databases/(default)/documents/arenas/$(arenaId)).data;
       let status = a.get('planStatus', 'none');
       let until = a.get('planActiveUntil', null);

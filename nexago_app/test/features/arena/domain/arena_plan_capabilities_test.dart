@@ -12,36 +12,60 @@ void main() {
     });
   });
 
+  group('Funções liberadas (fase sem cobrança por plano)', () {
+    test('a chave está ligada', () {
+      expect(kArenaFeaturesUnlocked, isTrue);
+    });
+
+    test('toda arena tem todas as funções, com ou sem plano', () {
+      expect(
+        capabilitiesFor(null, entitled: false),
+        ArenaCapability.values.toSet(),
+      );
+      expect(
+        capabilitiesFor(ArenaPlanTier.starter, entitled: true),
+        ArenaCapability.values.toSet(),
+      );
+    });
+
+    test('sem limite de quadras nem de horários fixos', () {
+      expect(maxCourtsFor(null, entitled: false), isNull);
+      expect(maxRecurringBookingsFor(null, entitled: false), isNull);
+      expect(nextCourtsTierFor(null, entitled: false), isNull);
+    });
+  });
+
   group('capabilitiesFor — Clubinho', () {
     test('Sem plano NÃO tem clubinho (nem nenhuma capability Pro)', () {
-      final caps = capabilitiesFor(null, entitled: true);
+      final caps = capabilitiesFor(null, entitled: true, unlocked: false);
       expect(caps, isNot(contains(ArenaCapability.clubinho)));
       expect(caps, isEmpty);
     });
 
     test('Pro e Elite têm clubinho', () {
       expect(
-        capabilitiesFor(ArenaPlanTier.pro, entitled: true),
+        capabilitiesFor(ArenaPlanTier.pro, entitled: true, unlocked: false),
         contains(ArenaCapability.clubinho),
       );
       expect(
-        capabilitiesFor(ArenaPlanTier.elite, entitled: true),
+        capabilitiesFor(ArenaPlanTier.elite, entitled: true, unlocked: false),
         contains(ArenaCapability.clubinho),
       );
     });
 
-    test('sem titularidade cai para sem plano: Pro/Elite perdem clubinho',
-        () {
-      expect(capabilitiesFor(ArenaPlanTier.pro, entitled: false), isEmpty);
+    test('sem titularidade cai para sem plano: Pro/Elite perdem clubinho', () {
       expect(
-        capabilitiesFor(ArenaPlanTier.elite, entitled: false),
+          capabilitiesFor(ArenaPlanTier.pro, entitled: false, unlocked: false),
+          isEmpty);
+      expect(
+        capabilitiesFor(ArenaPlanTier.elite, entitled: false, unlocked: false),
         isEmpty,
       );
     });
 
     test('tier null (arena sem plano) não tem capability nenhuma', () {
-      expect(capabilitiesFor(null, entitled: true), isEmpty);
-      expect(capabilitiesFor(null, entitled: false), isEmpty);
+      expect(capabilitiesFor(null, entitled: true, unlocked: false), isEmpty);
+      expect(capabilitiesFor(null, entitled: false, unlocked: false), isEmpty);
     });
   });
 
@@ -49,23 +73,23 @@ void main() {
     test('Pro e Elite têm aulas; sem plano, Starter e sem titularidade não',
         () {
       expect(
-        capabilitiesFor(ArenaPlanTier.pro, entitled: true),
+        capabilitiesFor(ArenaPlanTier.pro, entitled: true, unlocked: false),
         contains(ArenaCapability.aulas),
       );
       expect(
-        capabilitiesFor(ArenaPlanTier.elite, entitled: true),
+        capabilitiesFor(ArenaPlanTier.elite, entitled: true, unlocked: false),
         contains(ArenaCapability.aulas),
       );
       expect(
-        capabilitiesFor(ArenaPlanTier.starter, entitled: true),
+        capabilitiesFor(ArenaPlanTier.starter, entitled: true, unlocked: false),
         isNot(contains(ArenaCapability.aulas)),
       );
       expect(
-        capabilitiesFor(null, entitled: true),
+        capabilitiesFor(null, entitled: true, unlocked: false),
         isNot(contains(ArenaCapability.aulas)),
       );
       expect(
-        capabilitiesFor(ArenaPlanTier.pro, entitled: false),
+        capabilitiesFor(ArenaPlanTier.pro, entitled: false, unlocked: false),
         isNot(contains(ArenaCapability.aulas)),
       );
     });
@@ -74,14 +98,14 @@ void main() {
   group('capabilitiesFor — titularidade por tier', () {
     test('elite titular tem todas as capabilities', () {
       expect(
-        capabilitiesFor(ArenaPlanTier.elite, entitled: true),
+        capabilitiesFor(ArenaPlanTier.elite, entitled: true, unlocked: false),
         containsAll(ArenaCapability.values),
       );
     });
 
     test('starter titular não tem capabilities Pro', () {
       expect(
-        capabilitiesFor(ArenaPlanTier.starter, entitled: true),
+        capabilitiesFor(ArenaPlanTier.starter, entitled: true, unlocked: false),
         isEmpty,
       );
     });
@@ -89,7 +113,8 @@ void main() {
 
   group('capabilitiesFor — pacote por tier', () {
     test('Pro: operação completa, sem multiUnidade', () {
-      final caps = capabilitiesFor(ArenaPlanTier.pro, entitled: true);
+      final caps =
+          capabilitiesFor(ArenaPlanTier.pro, entitled: true, unlocked: false);
       expect(caps, {
         ArenaCapability.pdvComandas,
         ArenaCapability.estoque,
@@ -103,8 +128,10 @@ void main() {
     });
 
     test('Elite: tudo do Pro + multiUnidade (todas as capabilities)', () {
-      final pro = capabilitiesFor(ArenaPlanTier.pro, entitled: true);
-      final elite = capabilitiesFor(ArenaPlanTier.elite, entitled: true);
+      final pro =
+          capabilitiesFor(ArenaPlanTier.pro, entitled: true, unlocked: false);
+      final elite =
+          capabilitiesFor(ArenaPlanTier.elite, entitled: true, unlocked: false);
       expect(elite.containsAll(pro), isTrue);
       expect(elite, contains(ArenaCapability.multiUnidade));
       // Se nascer uma capability nova, este teste obriga a decidir o tier dela.
@@ -114,50 +141,61 @@ void main() {
 
   group('maxCourtsFor', () {
     test('limite de quadras 2/5/ilimitado', () {
-      expect(maxCourtsFor(ArenaPlanTier.starter, entitled: true), 2);
-      expect(maxCourtsFor(ArenaPlanTier.pro, entitled: true), 5);
-      expect(maxCourtsFor(ArenaPlanTier.elite, entitled: true), isNull);
-      expect(maxCourtsFor(ArenaPlanTier.pro, entitled: false), 2);
-      expect(maxCourtsFor(null, entitled: false), 2);
+      expect(
+          maxCourtsFor(ArenaPlanTier.starter, entitled: true, unlocked: false),
+          2);
+      expect(
+          maxCourtsFor(ArenaPlanTier.pro, entitled: true, unlocked: false), 5);
+      expect(maxCourtsFor(ArenaPlanTier.elite, entitled: true, unlocked: false),
+          isNull);
+      expect(
+          maxCourtsFor(ArenaPlanTier.pro, entitled: false, unlocked: false), 2);
+      expect(maxCourtsFor(null, entitled: false, unlocked: false), 2);
     });
   });
 
   group('nextCourtsTierFor', () {
     test('sem plano e Starter (teto 2) sobem para o Pro', () {
-      expect(nextCourtsTierFor(null, entitled: false), ArenaPlanTier.pro);
+      expect(nextCourtsTierFor(null, entitled: false, unlocked: false),
+          ArenaPlanTier.pro);
       expect(
-        nextCourtsTierFor(ArenaPlanTier.starter, entitled: true),
+        nextCourtsTierFor(ArenaPlanTier.starter,
+            entitled: true, unlocked: false),
         ArenaPlanTier.pro,
       );
     });
 
     test('Pro no teto de 5 sobe para o Elite, nunca para o próprio Pro', () {
       expect(
-        nextCourtsTierFor(ArenaPlanTier.pro, entitled: true),
+        nextCourtsTierFor(ArenaPlanTier.pro, entitled: true, unlocked: false),
         ArenaPlanTier.elite,
       );
     });
 
     test('Elite não tem teto, então não há próximo degrau', () {
-      expect(nextCourtsTierFor(ArenaPlanTier.elite, entitled: true), isNull);
+      expect(
+          nextCourtsTierFor(ArenaPlanTier.elite,
+              entitled: true, unlocked: false),
+          isNull);
     });
 
     test('sem titularidade cai para o degrau de "sem plano" (Pro)', () {
       expect(
-        nextCourtsTierFor(ArenaPlanTier.elite, entitled: false),
+        nextCourtsTierFor(ArenaPlanTier.elite,
+            entitled: false, unlocked: false),
         ArenaPlanTier.pro,
       );
     });
 
     test('o degrau sugerido sempre cabe mais quadras que o atual', () {
       for (final tier in [null, ...ArenaPlanTier.values]) {
-        final current = maxCourtsFor(tier, entitled: true);
-        final next = nextCourtsTierFor(tier, entitled: true);
+        final current = maxCourtsFor(tier, entitled: true, unlocked: false);
+        final next = nextCourtsTierFor(tier, entitled: true, unlocked: false);
         if (current == null) {
           expect(next, isNull, reason: 'sem teto não precisa de upsell');
           continue;
         }
-        final nextMax = maxCourtsFor(next, entitled: true);
+        final nextMax = maxCourtsFor(next, entitled: true, unlocked: false);
         expect(
           nextMax == null || nextMax > current,
           isTrue,

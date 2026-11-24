@@ -41,13 +41,42 @@ export function arenaEntitledTier(arena: ArenaPlanFields, nowMs: number): ArenaP
   return null;
 }
 
-/** A arena tem titularidade Pro-ou-superior? (gates de operação: comandas, estoque, clubinho, métricas, torneios.) */
-export function isArenaEntitledPro(arena: ArenaPlanFields, nowMs: number): boolean {
-  const tier = arenaEntitledTier(arena, nowMs);
+/**
+ * Fase "tudo liberado" (decisão do dono em 24/11/2026): toda arena usa todas as
+ * funções, sem trava nem cobrança por plano; a Nexa ganha só nos pagamentos que
+ * passam pela plataforma. Chave única do servidor: desligar volta aos gates por
+ * plano. Espelhos: `arenaFeaturesUnlocked()` em firestore.rules e storage.rules,
+ * `kArenaFeaturesUnlocked` no app e `ARENA_FEATURES_UNLOCKED` no portal.
+ *
+ * Só as FUNÇÕES seguem esta chave. Taxa por reserva (`arena-fees.ts`) e tarifa
+ * de saque continuam lendo o plano pago real (`arenaEntitledTier`).
+ */
+export const ARENA_FEATURES_UNLOCKED = true;
+
+/**
+ * Tier que decide as funções liberadas (gates de operação, equipe, limites).
+ * Com a chave ligada, toda arena tem o conjunto mais completo (Elite); sem
+ * ela, é o plano pago real. Nunca use para taxa ou cobrança.
+ */
+export function arenaFeatureTier(
+  arena: ArenaPlanFields,
+  nowMs: number,
+  unlocked: boolean = ARENA_FEATURES_UNLOCKED,
+): ArenaPlanTier | null {
+  return unlocked ? "elite" : arenaEntitledTier(arena, nowMs);
+}
+
+/** A arena tem as funções Pro-ou-superior? (gates de operação: comandas, estoque, clubinho, métricas, torneios.) */
+export function isArenaEntitledPro(
+  arena: ArenaPlanFields,
+  nowMs: number,
+  unlocked: boolean = ARENA_FEATURES_UNLOCKED,
+): boolean {
+  const tier = arenaFeatureTier(arena, nowMs, unlocked);
   return tier === "pro" || tier === "elite";
 }
 
-/** Tarifa fixa do saque PIX conforme o plano titular da arena (Elite isento). */
+/** Tarifa fixa do saque PIX conforme o plano PAGO da arena (Elite isento). Não segue a chave de funções liberadas. */
 export function resolveArenaWithdrawalFeeReais(arena: ArenaPlanFields, nowMs: number): number {
   return arenaEntitledTier(arena, nowMs) === "elite" ? 0 : ARENA_WITHDRAWAL_FEE_REAIS;
 }

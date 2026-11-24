@@ -352,15 +352,19 @@ test('gestor ainda edita campos comuns do perfil', async () => {
   );
 });
 
-test('membro de arena sem plano perde tudo', async () => {
-  await assertFails(
+test('funções liberadas: membro de arena sem plano opera a área do cargo', async () => {
+  await assertSucceeds(
     setDoc(
       doc(ctx(RECEPCAO), 'arenaComandas/comanda-sem-plano'),
       comandaPayload(RECEPCAO, 'arena-sem-plano', 103),
     ),
   );
-  await assertFails(
+  await assertSucceeds(
     setDoc(doc(ctx(MANUTENCAO), 'arenas/arena-sem-plano/courts/q1'), { name: 'Q1' }),
+  );
+  // Plano não importa, cargo sim: recepção não mexe em quadra.
+  await assertFails(
+    setDoc(doc(ctx(RECEPCAO), 'arenas/arena-sem-plano/courts/q2'), { name: 'Q2' }),
   );
 });
 

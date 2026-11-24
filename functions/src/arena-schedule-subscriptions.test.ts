@@ -144,7 +144,7 @@ describe("createSubscriptionCore", () => {
     assert.equal(fake.store.get(`arenas/${ARENA}/schedulePlans/p1`)!["occupiedCount"], 1);
   });
 
-  it("recusa plano lotado, duplicado e arena sem Pro", async () => {
+  it("recusa plano lotado e duplicado; arena sem Pro aceita (funções liberadas)", async () => {
     const {fake, db} = makeDb();
     seedArena(fake, {plan: {capacity: 1}});
     await createSubscriptionCore(db, request(), today(), Date.now());
@@ -158,7 +158,7 @@ describe("createSubscriptionCore", () => {
     const noPro = makeDb();
     seedArena(noPro.fake);
     noPro.fake.seedDoc(`arenas/${ARENA}`, {name: "Arena", managerUserId: MANAGER});
-    await rejects(createSubscriptionCore(noPro.db, request(), today(), Date.now()), "permission-denied");
+    await createSubscriptionCore(noPro.db, request(), today(), Date.now());
   });
 
   it("limite do horário nobre: horas-quadra de plano no nobre ÷ capacidade do nobre", async () => {

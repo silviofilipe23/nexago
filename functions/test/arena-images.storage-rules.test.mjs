@@ -99,12 +99,12 @@ test('gestor: o nome por envio é só `cover-` ou `logo-` seguido do instante', 
   }
 });
 
-test('nome por envio segue o mesmo gate: cargo, vínculo e plano', async () => {
+test('nome por envio segue o mesmo gate: cargo e vínculo (plano liberado)', async () => {
   for (const uid of [RECEPCAO, FINANCEIRO, MANUTENCAO, EX_GESTOR, ESTRANHO]) {
     await assertFails(put(storageAs(uid), 'arenas/arena-pro/cover-1731500000000'));
   }
-  await assertFails(put(storageAs(GESTOR), 'arenas/arena-starter/cover-1731500000000'));
-  await assertFails(put(storageAs(GESTOR), 'arenas/arena-vencida/logo-1731500000000'));
+  await assertSucceeds(put(storageAs(GESTOR), 'arenas/arena-starter/cover-1731500000000'));
+  await assertSucceeds(put(storageAs(GESTOR), 'arenas/arena-vencida/logo-1731500000000'));
   await assertSucceeds(put(storageAs(OWNER), 'arenas/arena-sem-plano/cover-1731500000000'));
 });
 
@@ -139,11 +139,11 @@ test('vínculo inativo, estranho e visitante não sobem', async () => {
   await assertFails(put(testEnv.unauthenticatedContext().storage(), 'arenas/arena-pro/cover'));
 });
 
-test('titularidade: sem plano, Starter e vencida fora da carência recusam o gestor', async () => {
+test('funções liberadas: sem plano, Starter e vencida também aceitam o gestor', async () => {
   const s = storageAs(GESTOR);
-  await assertFails(put(s, 'arenas/arena-sem-plano/cover'));
-  await assertFails(put(s, 'arenas/arena-starter/cover'));
-  await assertFails(put(s, 'arenas/arena-vencida/cover'));
+  await assertSucceeds(put(s, 'arenas/arena-sem-plano/cover'));
+  await assertSucceeds(put(s, 'arenas/arena-starter/cover'));
+  await assertSucceeds(put(s, 'arenas/arena-vencida/cover'));
   await assertSucceeds(put(s, 'arenas/arena-carencia/cover'));
   await assertSucceeds(put(s, 'arenas/arena-cancelando/cover'));
 });
@@ -200,12 +200,12 @@ test('foto de produto: vínculo inativo, estranho e visitante não sobem', async
   await assertFails(put(testEnv.unauthenticatedContext().storage(), 'arenas/arena-pro/products/p1.jpg'));
 });
 
-test('foto de produto, titularidade: sem plano, Starter e vencida fora da carência recusam a equipe', async () => {
+test('foto de produto, funções liberadas: sem plano, Starter e vencida também aceitam a equipe', async () => {
   for (const uid of [GESTOR, MANUTENCAO]) {
     const s = storageAs(uid);
-    await assertFails(put(s, 'arenas/arena-sem-plano/products/p1.jpg'));
-    await assertFails(put(s, 'arenas/arena-starter/products/p1.jpg'));
-    await assertFails(put(s, 'arenas/arena-vencida/products/p1.jpg'));
+    await assertSucceeds(put(s, 'arenas/arena-sem-plano/products/p1.jpg'));
+    await assertSucceeds(put(s, 'arenas/arena-starter/products/p1.jpg'));
+    await assertSucceeds(put(s, 'arenas/arena-vencida/products/p1.jpg'));
     await assertSucceeds(put(s, 'arenas/arena-carencia/products/p1.jpg'));
     await assertSucceeds(put(s, 'arenas/arena-cancelando/products/p1.jpg'));
   }

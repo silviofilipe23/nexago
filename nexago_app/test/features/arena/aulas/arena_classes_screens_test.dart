@@ -89,7 +89,7 @@ void main() {
       expect(find.text('AULAS AVULSAS'), findsOneWidget);
     });
 
-    testWidgets('sem plano e sem turmas mostra o paywall de Aulas',
+    testWidgets('sem plano e sem turmas não mostra paywall (funções liberadas)',
         (tester) async {
       await pumpAulas(
         tester,
@@ -97,8 +97,10 @@ void main() {
         plan: ArenaPlanStatus.none,
       );
 
-      expect(find.text('Planos Pro e Elite'), findsOneWidget);
-      expect(find.textContaining('turmas e aulas avulsas'), findsOneWidget);
+      expect(find.text('Planos Pro e Elite'), findsNothing);
+      // Sem o paywall a tela real monta (com animação de entrada): deixa os
+      // timers assentarem antes de desmontar.
+      await tester.pump(const Duration(milliseconds: 400));
     });
 
     testWidgets('tocar no cartão abre a chamada da aula', (tester) async {

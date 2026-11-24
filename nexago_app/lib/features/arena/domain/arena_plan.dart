@@ -35,6 +35,23 @@ extension ArenaBillingCycleX on ArenaBillingCycle {
   String get id => this == ArenaBillingCycle.yearly ? 'yearly' : 'monthly';
 }
 
+/// Fase "tudo liberado" (decisão do dono em 24/11/2026): toda arena usa todas
+/// as funções, sem trava nem cobrança por plano; a Nexa ganha só nos
+/// pagamentos que passam pela plataforma. Chave única do app: `false` volta aos
+/// gates por plano. Espelhos: `ARENA_FEATURES_UNLOCKED` (functions e portal) e
+/// `arenaFeaturesUnlocked()` (firestore.rules e storage.rules). Só libera
+/// funções e limites; a taxa por reserva segue o plano pago, no servidor.
+const bool kArenaFeaturesUnlocked = true;
+
+/// Tier que decide funções e limites: com a chave ligada, o conjunto mais
+/// completo (Elite) para toda arena; sem ela, o plano titular.
+ArenaPlanTier? _featureTier(
+  ArenaPlanTier? tier, {
+  required bool entitled,
+  required bool unlocked,
+}) =>
+    unlocked ? ArenaPlanTier.elite : (entitled ? tier : null);
+
 /// Recursos liberados por plano. Fonte única de verdade do gate no app —
 /// evita `if (tier == pro)` espalhado. O gate de segurança correspondente vive
 /// em `firestore.rules` (helper `arenaEntitled`); este aqui é UX/entitlement.
@@ -73,8 +90,10 @@ enum ArenaCapability {
 Set<ArenaCapability> capabilitiesFor(
   ArenaPlanTier? tier, {
   required bool entitled,
+  bool unlocked = kArenaFeaturesUnlocked,
 }) {
-  final effectiveTier = entitled ? tier : null;
+  final effectiveTier =
+      _featureTier(tier, entitled: entitled, unlocked: unlocked);
   return switch (effectiveTier) {
     ArenaPlanTier.elite => {
         ArenaCapability.pdvComandas,
@@ -102,8 +121,13 @@ Set<ArenaCapability> capabilitiesFor(
 /// Máximo de quadras por plano. `null` = ilimitado. Sem titularidade cai para
 /// o teto de "sem plano". Espelha o gate em `firestore.rules`
 /// (`arenaCanAddCourt`).
-int? maxCourtsFor(ArenaPlanTier? tier, {required bool entitled}) {
-  final effectiveTier = entitled ? tier : null;
+int? maxCourtsFor(
+  ArenaPlanTier? tier, {
+  required bool entitled,
+  bool unlocked = kArenaFeaturesUnlocked,
+}) {
+  final effectiveTier =
+      _featureTier(tier, entitled: entitled, unlocked: unlocked);
   return switch (effectiveTier) {
     ArenaPlanTier.elite => null,
     ArenaPlanTier.pro => 5,
@@ -115,8 +139,13 @@ int? maxCourtsFor(ArenaPlanTier? tier, {required bool entitled}) {
 /// não há teto (Elite). Sem plano/Starter (teto 2) sobem para o Pro (teto 5);
 /// Pro sobe para o Elite (ilimitado) — mandar uma arena Pro "assinar o Pro"
 /// vende o plano que ela já tem.
-ArenaPlanTier? nextCourtsTierFor(ArenaPlanTier? tier, {required bool entitled}) {
-  final effectiveTier = entitled ? tier : null;
+ArenaPlanTier? nextCourtsTierFor(
+  ArenaPlanTier? tier, {
+  required bool entitled,
+  bool unlocked = kArenaFeaturesUnlocked,
+}) {
+  final effectiveTier =
+      _featureTier(tier, entitled: entitled, unlocked: unlocked);
   return switch (effectiveTier) {
     ArenaPlanTier.elite => null,
     ArenaPlanTier.pro => ArenaPlanTier.elite,
@@ -127,8 +156,13 @@ ArenaPlanTier? nextCourtsTierFor(ArenaPlanTier? tier, {required bool entitled}) 
 /// Máximo de horários fixos (séries recorrentes) ativos por plano.
 /// `null` = ilimitado. Espelha o gate server-side em
 /// `functions/src/arena-recurring-booking.ts`.
-int? maxRecurringBookingsFor(ArenaPlanTier? tier, {required bool entitled}) {
-  final effectiveTier = entitled ? tier : null;
+int? maxRecurringBookingsFor(
+  ArenaPlanTier? tier, {
+  required bool entitled,
+  bool unlocked = kArenaFeaturesUnlocked,
+}) {
+  final effectiveTier =
+      _featureTier(tier, entitled: entitled, unlocked: unlocked);
   return switch (effectiveTier) {
     ArenaPlanTier.pro || ArenaPlanTier.elite => null,
     ArenaPlanTier.starter || null => 3,

@@ -1,5 +1,6 @@
 import type { ArenaArea } from '../data/arena-roles.model';
 import type { PanelIconName } from './icon.component';
+import { ARENA_FEATURES_UNLOCKED } from '../data/arena-plan.model';
 
 export const ARENA_NAV_GROUPS = ['operacao', 'vendas', 'dinheiro', 'publico', 'conta'] as const;
 export type ArenaNavGroup = (typeof ARENA_NAV_GROUPS)[number];
@@ -59,7 +60,10 @@ export const NAV_ITEMS: readonly PanelNavItem[] = [
   // Vínculos professor ↔ arena: dono e gestor (área `perfil` — o professor aparece na página pública).
   { id: 'profissionais', label: 'Profissionais', icon: 'person', route: '/painel/profissionais', badge: null, area: 'perfil', group: 'conta' },
   { id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe', badge: null, area: 'owner', group: 'conta' },
-  { id: 'planos', label: 'Planos', icon: 'card', route: '/painel/planos', badge: null, area: 'owner', group: 'conta' },
+  // Fase "tudo liberado": sem plano para assinar, o item some do menu (a rota continua).
+  ...(ARENA_FEATURES_UNLOCKED
+    ? []
+    : [{ id: 'planos', label: 'Planos', icon: 'card', route: '/painel/planos', badge: null, area: 'owner', group: 'conta' } as const]),
 ];
 
 export interface PanelNavSection {

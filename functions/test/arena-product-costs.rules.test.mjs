@@ -112,9 +112,9 @@ test('recepção lê o custo (lê estoque) mas não grava', async () => {
   );
 });
 
-test('arena sem plano não grava custo, como já não edita o catálogo', async () => {
+test('funções liberadas: arena sem plano grava custo, como edita o catálogo', async () => {
   const db = testEnv.authenticatedContext(OWNER).firestore();
-  await assertFails(
+  await assertSucceeds(
     setDoc(doc(db, 'arenas', 'arena-sem-plano', 'productCosts', 'agua'), {
       costCents: 450,
       updatedAt: serverTimestamp(),

@@ -15,6 +15,7 @@ import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../domain/arena_access_providers.dart';
 import '../domain/arena_business_providers.dart';
+import '../domain/arena_plan.dart';
 import '../domain/arena_providers.dart';
 import '../domain/arena_staff_role.dart';
 import '../domain/products/arena_product_logic.dart';
@@ -192,7 +193,8 @@ class _SettingsBody extends ConsumerWidget {
                     showAppSnackBar(context, 'Notificações em breve.'),
                 showDivider: !isLast,
               ),
-          if (isOwner)
+          // Fase "tudo liberado": sem plano para assinar, o atalho some.
+          if (isOwner && !kArenaFeaturesUnlocked)
             (isLast) => ArenaSettingsTile(
                   icon: Icons.workspace_premium_outlined,
                   title: 'Plano',

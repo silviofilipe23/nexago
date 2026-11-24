@@ -240,6 +240,10 @@ class _RegistrationUniformPageState
     }
     setState(() => _confirming = true);
     try {
+      // O autosave pode ter uma gravação no ar (rede lenta): sem esperar, ela
+      // chegaria ao servidor DEPOIS desta e gravaria o nome pela metade.
+      _uniformSaver.cancelPending();
+      await _uniformSaver.whenIdle();
       await _writeUniform(_uniform);
       _uniformSaver.markSaved(_uniform);
       if (!mounted) return;

@@ -7,7 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/tournament_partner_invite.dart';
 import '../domain/tournament_uniform_selection.dart';
+import '../../../core/firebase/fresh_connection_callable.dart';
 import '../../../core/firebase/functions_region.dart';
+
+/// Teto de cada tentativa de gravar o uniforme pelo SDK. A callable responde
+/// em ~0,1 s (~7 s no pior cold start medido); o padrão do SDK, 60 s, era o
+/// spinner que o atleta via girando antes do "DEADLINE_EXCEEDED".
+const Duration kRegistrationUniformTimeout = Duration(seconds: 15);
 
 class TournamentPartnerInviteException implements Exception {
   TournamentPartnerInviteException(this.message);
@@ -82,13 +88,20 @@ class TournamentPartnerInviteService {
     FirebaseFirestore? firestore,
     FirebaseFunctions? functions,
     FirebaseAuth? auth,
+    FreshConnectionCallable? freshCallable,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
         _functions = functions ?? nexagoFunctions,
-        _auth = auth ?? FirebaseAuth.instance;
+        _auth = auth ?? FirebaseAuth.instance,
+        _freshCallableOverride = freshCallable;
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
   final FirebaseAuth _auth;
+  final FreshConnectionCallable? _freshCallableOverride;
+
+  // Preguiçoso: `forCurrentApp` lê `Firebase.app()`, que não existe em teste.
+  FreshConnectionCallable get _freshCallable =>
+      _freshCallableOverride ?? FreshConnectionCallable.forCurrentApp();
 
   static const _collection = 'tournamentRegistrationInvites';
 
@@ -407,22 +420,49 @@ class TournamentPartnerInviteService {
   }
 
   /// Define/atualiza o uniforme do atleta na sua inscrição (pós-inscrição).
+  ///
+  /// Falha de TRANSPORTE no SDK ([_isTransportFailure]) ganha uma segunda
+  /// tentativa por conexão nova ([FreshConnectionCallable]) — a gravação é
+  /// idempotente. Ver o porquê na doc daquela classe.
   Future<void> setRegistrationUniform({
     required String registrationId,
     required TournamentUniformSelection uniform,
   }) async {
+    const name = 'setRegistrationUniform';
+    const fallback = 'Não foi possível salvar o uniforme.';
+    final payload = <String, dynamic>{
+      'registrationId': registrationId,
+      'uniform': uniform.toCallableMap(),
+    };
     try {
-      final callable = _functions.httpsCallable('setRegistrationUniform');
-      await callable.call(<String, dynamic>{
-        'registrationId': registrationId,
-        'uniform': uniform.toCallableMap(),
-      });
+      await _functions
+          .httpsCallable(
+            name,
+            options: HttpsCallableOptions(timeout: kRegistrationUniformTimeout),
+          )
+          .call(payload);
+      return;
     } on FirebaseFunctionsException catch (e) {
+      if (!_isTransportFailure(e.code)) {
+        throw TournamentPartnerInviteException(
+          callableErrorMessage(e.code, e.message, fallback),
+        );
+      }
+    }
+
+    try {
+      await _freshCallable.call(name, payload);
+    } on FreshCallableException catch (e) {
       throw TournamentPartnerInviteException(
-        e.message ?? 'Não foi possível salvar o uniforme.',
+        _isTransportFailure(e.code)
+            ? '$fallback Confira sua internet e tente de novo.'
+            : callableErrorMessage(e.code, e.message, fallback),
       );
     }
   }
+
+  static bool _isTransportFailure(String code) =>
+      code == 'deadline-exceeded' || code == 'unavailable';
 
   Future<TournamentPartnerInviteAcceptResult> acceptInvite(
     String inviteId, {

@@ -18,6 +18,10 @@ enum UniformSaveState { idle, saving, saved, failed }
 ///   escrita.
 /// - **Falha não some**: o estado vira [UniformSaveState.failed] e guarda o
 ///   valor, para [retry] regravar exatamente o que o atleta escolheu.
+/// - **Uma gravação por vez**: com uma no ar, a escolha mais nova espera numa
+///   fila de UM lugar e sai assim que ela termina — a última sempre vence.
+///   Sem isso, "SIL" e "SILVIO" viajavam juntos numa rede lenta e o que
+///   chegasse por último no servidor ficava, às vezes o nome pela metade.
 class UniformAutoSaver {
   UniformAutoSaver({
     required Future<void> Function(TournamentUniformSelection) save,
@@ -40,11 +44,41 @@ class UniformAutoSaver {
   /// Valor da gravação em voo ou da que falhou (alvo do [retry]).
   TournamentUniformSelection? _inFlight;
 
+  /// Há uma chamada ao servidor no ar.
+  bool _saving = false;
+
+  /// Escolha que chegou com uma gravação no ar — sai quando ela terminar.
+  TournamentUniformSelection? _queued;
+
+  /// Quem espera não haver gravação no ar ([whenIdle]).
+  final List<Completer<void>> _idleWaiters = [];
+
+  /// Resolve quando nada estiver no ar — nem a gravação atual, nem a da fila.
+  /// Quem grava por fora do autosave (o "Salvar e continuar") espera isto
+  /// antes, para o valor velho não chegar ao servidor depois do confirmado.
+  /// Falha da gravação também libera: quem espera decide o que fazer.
+  Future<void> whenIdle() {
+    if (!_saving) return Future<void>.value();
+    final waiter = Completer<void>();
+    _idleWaiters.add(waiter);
+    return waiter.future;
+  }
+
+  void _releaseIdleWaiters() {
+    final waiters = List.of(_idleWaiters);
+    _idleWaiters.clear();
+    for (final waiter in waiters) {
+      waiter.complete();
+    }
+  }
+
   /// Agenda a gravação da escolha atual.
   void schedule(TournamentUniformSelection value) {
     if (_disposed) return;
     _timer?.cancel();
-    if (_sameAsPersisted(value)) {
+    // Com uma gravação no ar, "igual ao gravado" não basta: ela vai
+    // sobrescrever o servidor com outro valor, então este precisa ir depois.
+    if (!_saving && _sameAsPersisted(value)) {
       _emit(UniformSaveState.saved);
       return;
     }
@@ -55,7 +89,7 @@ class UniformAutoSaver {
   void saveNow(TournamentUniformSelection value) {
     if (_disposed) return;
     _timer?.cancel();
-    if (_sameAsPersisted(value)) {
+    if (!_saving && _sameAsPersisted(value)) {
       _emit(UniformSaveState.saved);
       return;
     }
@@ -67,6 +101,7 @@ class UniformAutoSaver {
   void cancelPending() {
     _timer?.cancel();
     _timer = null;
+    _queued = null;
     _emit(UniformSaveState.idle);
   }
 
@@ -89,6 +124,7 @@ class UniformAutoSaver {
     _timer = null;
     _persisted = null;
     _inFlight = null;
+    _queued = null;
     _emit(UniformSaveState.idle);
   }
 
@@ -96,27 +132,47 @@ class UniformAutoSaver {
     _disposed = true;
     _timer?.cancel();
     _timer = null;
+    _queued = null;
+    _releaseIdleWaiters();
   }
 
   Future<void> _run(TournamentUniformSelection value) async {
     if (_disposed) return;
+    if (_saving) {
+      _queued = value;
+      return;
+    }
+    _saving = true;
     _inFlight = value;
     _emit(UniformSaveState.saving);
+    var failed = false;
     try {
       await _save(value);
-      if (_disposed) return;
-      // Outra escolha entrou enquanto esta gravava: quem manda é a última, e
-      // ela já tem a própria gravação agendada.
-      if (!identical(_inFlight, value) && !_sameSelection(_inFlight, value)) {
-        return;
-      }
       _persisted = value;
-      _inFlight = null;
-      _emit(UniformSaveState.saved);
     } catch (_) {
-      if (_disposed) return;
-      _emit(UniformSaveState.failed);
+      failed = true;
     }
+    _saving = false;
+    if (_disposed) {
+      _releaseIdleWaiters();
+      return;
+    }
+
+    final next = _queued;
+    _queued = null;
+    // Escolha mais nova na fila: vale mais gravá-la do que insistir na velha
+    // (que, se falhou, só volta pelo [retry] caso a nova também falhe).
+    if (next != null && !_sameAsPersisted(next)) {
+      await _run(next);
+      return;
+    }
+    _releaseIdleWaiters();
+    if (failed) {
+      _emit(UniformSaveState.failed);
+      return;
+    }
+    _inFlight = null;
+    _emit(UniformSaveState.saved);
   }
 
   bool _sameAsPersisted(TournamentUniformSelection value) =>

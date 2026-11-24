@@ -136,6 +136,150 @@ void main() {
     expect(saved, [a]);
   });
 
+  // Gravação lenta (cold start, ou a segunda tentativa por conexão nova)
+  // enquanto o atleta segue digitando o nome: sem fila, "SIL" e "SILVIO"
+  // viajavam juntos e o que chegasse POR ÚLTIMO no servidor ficava — às vezes
+  // o nome pela metade.
+  group('uma gravação por vez', () {
+    const sil = TournamentUniformSelection(sizeTop: 'M', jerseyName: 'SIL');
+    const silv = TournamentUniformSelection(sizeTop: 'M', jerseyName: 'SILV');
+    const silvio =
+        TournamentUniformSelection(sizeTop: 'M', jerseyName: 'SILVIO');
+
+    late List<TournamentUniformSelection> started;
+    late List<Completer<void>> inFlight;
+    late List<UniformSaveState> seen;
+
+    UniformAutoSaver buildSlow() {
+      started = [];
+      inFlight = [];
+      seen = [];
+      return UniformAutoSaver(
+        debounce: const Duration(milliseconds: 5),
+        save: (value) {
+          started.add(value);
+          final completer = Completer<void>();
+          inFlight.add(completer);
+          return completer.future;
+        },
+        onStateChange: seen.add,
+      );
+    }
+
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 20));
+
+    test('nova escolha espera a gravação em voo; só a última vai depois',
+        () async {
+      final saver = buildSlow();
+      addTearDown(saver.dispose);
+
+      saver.schedule(sil);
+      await settle();
+      expect(started, [sil]);
+
+      saver.schedule(silv);
+      await settle();
+      saver.schedule(silvio);
+      await settle();
+      expect(started, [sil], reason: 'nada sai enquanto uma está no ar');
+
+      inFlight.single.complete();
+      await settle();
+
+      expect(started, [sil, silvio], reason: 'SILV ficou para trás');
+      expect(seen.last, UniformSaveState.saving);
+
+      inFlight.last.complete();
+      await settle();
+      expect(seen.last, UniformSaveState.saved);
+    });
+
+    test('voltar ao valor em voo não regrava depois que ele confirma',
+        () async {
+      final saver = buildSlow();
+      addTearDown(saver.dispose);
+
+      saver.schedule(sil);
+      await settle();
+      saver.schedule(silvio);
+      saver.schedule(sil);
+      await settle();
+
+      inFlight.single.complete();
+      await settle();
+
+      expect(started, [sil]);
+      expect(seen.last, UniformSaveState.saved);
+    });
+
+    test('falha da gravação velha com uma nova na fila: tenta a nova',
+        () async {
+      final saver = buildSlow();
+      addTearDown(saver.dispose);
+
+      saver.schedule(sil);
+      await settle();
+      saver.schedule(silvio);
+      await settle();
+
+      inFlight.single.completeError(StateError('sem rede'));
+      await settle();
+      expect(started, [sil, silvio]);
+
+      inFlight.last.complete();
+      await settle();
+      expect(seen.last, UniformSaveState.saved);
+    });
+
+    // "Salvar e continuar" grava por fora do autosave: precisa esperar o que
+    // está no ar, senão o valor velho pode chegar DEPOIS do confirmado.
+    test('whenIdle espera a gravação em voo (e a fila) terminar', () async {
+      final saver = buildSlow();
+      addTearDown(saver.dispose);
+
+      saver.schedule(sil);
+      await settle();
+      saver.schedule(silvio);
+      await settle();
+
+      var idle = false;
+      unawaited(saver.whenIdle().then((_) => idle = true));
+      await settle();
+      expect(idle, isFalse);
+
+      inFlight.first.complete();
+      await settle();
+      expect(idle, isFalse, reason: 'SILVIO ainda está gravando');
+
+      inFlight.last.complete();
+      await settle();
+      expect(idle, isTrue);
+    });
+
+    test('whenIdle sem nada no ar resolve na hora', () async {
+      final saver = buildSlow();
+      addTearDown(saver.dispose);
+
+      await saver.whenIdle().timeout(const Duration(milliseconds: 50));
+    });
+
+    test('saveNow com gravação em voo também entra na fila', () async {
+      final saver = buildSlow();
+      addTearDown(saver.dispose);
+
+      saver.saveNow(sil);
+      await settle();
+      saver.saveNow(silvio);
+      await settle();
+      expect(started, [sil]);
+
+      inFlight.single.complete();
+      await settle();
+      expect(started, [sil, silvio]);
+    });
+  });
+
   test('dispose cancela o que estava agendado', () async {
     final saver = build();
 

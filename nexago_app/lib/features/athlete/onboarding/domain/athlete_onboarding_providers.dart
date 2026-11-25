@@ -13,6 +13,7 @@ import '../../../../core/observability/flow_error_log.dart';
 import '../../domain/athlete_profile_providers.dart';
 import '../../domain/athlete_referral_providers.dart';
 import '../data/account_photo_fetcher.dart';
+import '../data/generic_account_avatar.dart';
 import 'athlete_onboarding_draft.dart';
 
 /// Etapas de rede do "Concluir cadastro", na ordem em que rodam.
@@ -163,6 +164,9 @@ class AthleteOnboardingDraftNotifier extends Notifier<AthleteOnboardingDraft> {
     if (bytes == null || bytes.isEmpty) return;
     final contentType = imageContentTypeOf(bytes);
     if (contentType == null || state.avatarBytes != null) return;
+    // Conta Google sem foto devolve a inicial num fundo liso: não identifica
+    // ninguém, então o passo segue pedindo uma foto de verdade.
+    if (isGenericAccountAvatar(bytes)) return;
     state = state.copyWith(
       avatarBytes: bytes,
       avatarContentType: contentType,

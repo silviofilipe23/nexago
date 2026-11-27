@@ -43,6 +43,8 @@ import { OgConfirmDialogComponent } from '../ui/confirm-dialog.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgToggleRowComponent } from '../ui/toggle-row.component';
+import { describeGroupSizes, groupSizesFor, maxGroupCount, maxQualifiersPerGroup, planGroupsKnockout } from '../data/groups-knockout-plan';
+import { GroupsKnockoutSummaryComponent, type GroupFormatChoice } from './groups-knockout-summary.component';
 import { NxProcessingOverlayComponent } from '../../shared/loading/nx-processing-overlay.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
@@ -149,7 +151,7 @@ function sameOrder<T>(a: readonly T[], b: readonly T[]): boolean {
 @Component({
   selector: 'og-seeds',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgToggleRowComponent, NxProcessingOverlayComponent, NxSpinnerComponent, OgConfirmDialogComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgToggleRowComponent, NxProcessingOverlayComponent, NxSpinnerComponent, OgConfirmDialogComponent, GroupsKnockoutSummaryComponent],
   template: `
     <og-page-header title="Gerar chave" [subtitle]="headerSubtitle()">
       <button type="button" class="og-ghost-btn og-seeds-hdr-act" (click)="cancel()">Cancelar</button>
@@ -184,28 +186,32 @@ function sameOrder<T>(a: readonly T[], b: readonly T[]): boolean {
             @if (format() === 'groups_knockout') {
               <div class="og-field-grid" style="margin-top:14px">
                 <div class="og-seeds-stepper">
-                  <span class="lbl">Duplas por grupo</span>
+                  <span class="lbl">Grupos</span>
                   <div class="ctrl">
-                    <button type="button" (click)="bumpTeamsPerGroup(-1)" aria-label="Menos duplas por grupo">−</button>
-                    <span>{{ teamsPerGroup() }}</span>
-                    <button type="button" (click)="bumpTeamsPerGroup(1)" aria-label="Mais duplas por grupo">+</button>
+                    <button type="button" [disabled]="groupCount() <= 1" (click)="bumpGroupCount(-1)" aria-label="Menos grupos">−</button>
+                    <span>{{ groupCount() }}</span>
+                    <button type="button" [disabled]="groupCount() >= maxGroups()" (click)="bumpGroupCount(1)" aria-label="Mais grupos">+</button>
                   </div>
+                  <small class="og-seeds-stepper-note">{{ groupSizesLabel() }}</small>
                 </div>
                 <div class="og-seeds-stepper">
                   <span class="lbl">Classificam por grupo</span>
                   <div class="ctrl">
-                    <button type="button" (click)="bumpQualifiers(-1)" aria-label="Menos classificados por grupo">−</button>
+                    <button type="button" [disabled]="qualifiersPerGroup() <= 1" (click)="bumpQualifiers(-1)" aria-label="Menos classificados por grupo">−</button>
                     <span>{{ qualifiersPerGroup() }}</span>
-                    <button type="button" (click)="bumpQualifiers(1)" aria-label="Mais classificados por grupo">+</button>
+                    <button type="button" [disabled]="qualifiersPerGroup() >= maxQualifiers()" (click)="bumpQualifiers(1)" aria-label="Mais classificados por grupo">+</button>
                   </div>
+                  <small class="og-seeds-stepper-note">{{ qualifiersTotalLabel() }}</small>
                 </div>
               </div>
-              @if (!knockoutBalanced()) {
-                <p class="og-seeds-error">
-                  {{ groupCount() * qualifiersPerGroup() }} classificados ({{ groupCount() }} grupos × {{ qualifiersPerGroup() }}) não formam um
-                  mata-mata equilibrado — ajuste pra totais como 4, 8 ou 16.
-                </p>
-              }
+              <og-groups-knockout-summary
+                [teams]="eligible().length"
+                [groupCount]="groupCount()"
+                [qualifiersPerGroup]="qualifiersPerGroup()"
+                [courts]="courtsCount()"
+                [matchDurationMin]="matchDurationMin()"
+                (formatChosen)="applyGroupFormat($event)"
+              />
             }
             @if (format() === 'round_robin') {
               @if (eligible().length < rrMinTeams) {
@@ -756,6 +762,13 @@ function sameOrder<T>(a: readonly T[], b: readonly T[]): boolean {
       opacity: 0.5;
       cursor: default;
     }
+    .og-seeds-stepper-note {
+      display: block;
+      margin-top: 6px;
+      font-family: var(--nx-font-ui);
+      font-size: 11.5px;
+      color: var(--nx-text-dim);
+    }
     .og-seeds-stepper .ctrl span {
       font-family: var(--nx-font-mono);
       font-weight: 700;
@@ -1044,7 +1057,9 @@ export class SeedsComponent {
   protected readonly eligible = signal<TournamentInscription[]>([]);
   protected readonly format = signal<BracketFormat>('groups_knockout');
   protected readonly useSeeds = signal(true);
-  protected readonly teamsPerGroup = signal(4);
+  /** Quantos grupos o organizador pediu. O que vale é `groupCount`, que prende
+   *  este número ao que as inscritas comportam. */
+  private readonly groupCountChoice = signal(2);
   protected readonly qualifiersPerGroup = signal(2);
   protected readonly kocMaxTeamsPerRound = signal(KOC_LEGACY_MAX_TEAMS_PER_ROUND);
   protected readonly kocRoundDurationSec = signal(KOC_DEFAULT_ROUND_DURATION_SEC);
@@ -1109,21 +1124,31 @@ export class SeedsComponent {
     return `${t.name} · ${cat.name} · ${this.eligible().length} duplas confirmadas`;
   });
 
-  protected readonly groupCount = computed(() => {
-    const n = this.eligible().length;
-    if (n <= 0) return 1;
-    const per = Math.max(this.teamsPerGroup(), 2);
-    return Math.min(Math.max(Math.ceil(n / per), 1), n);
-  });
+  protected readonly maxGroups = computed(() => maxGroupCount(this.eligible().length));
+
+  protected readonly groupCount = computed(() => Math.min(Math.max(this.groupCountChoice(), 1), this.maxGroups()));
 
   protected readonly headCount = computed(() => this.groupCount());
 
-  /** Total de classificados precisa ser potência de 2 — mesma regra do servidor
-   *  (`isBalancedQualifierTotal`). O teste antigo de `total >> 1` aceitava
-   *  totais ímpares (3, 5…) por causa do arredondamento. */
-  protected readonly knockoutBalanced = computed(() => {
-    const total = this.groupCount() * this.qualifiersPerGroup();
-    return total >= 2 && (total & (total - 1)) === 0;
+  protected readonly maxQualifiers = computed(() => maxQualifiersPerGroup(this.eligible().length, this.groupCount()));
+
+  /** As contas do formato — a mesma fonte do painel de cálculos. Total de
+   *  classificados fora de potência de 2 (3 grupos × 2…) deixou de bloquear: o
+   *  servidor monta a chave com folgas pela classificação entre grupos. */
+  protected readonly groupsPlan = computed(() =>
+    planGroupsKnockout(this.eligible().length, this.groupCount(), this.qualifiersPerGroup()),
+  );
+
+  /** Quadras e duração de partida do torneio — só alimentam a estimativa de
+   *  duração do painel de cálculos. */
+  protected readonly courtsCount = computed(() => this.tournament()?.courtsCount ?? 0);
+  protected readonly matchDurationMin = computed(() => this.tournament()?.matchOps.defaultMatchDurationMin ?? 0);
+
+  protected readonly groupSizesLabel = computed(() => describeGroupSizes(groupSizesFor(this.eligible().length, this.groupCount())));
+
+  protected readonly qualifiersTotalLabel = computed(() => {
+    const total = this.groupsPlan().qualifiers;
+    return total === 1 ? '1 classificado no total' : `${total} classificados no total`;
   });
 
   /** Tamanho da tabela: C(n,2). É o número que decide se o formato cabe no dia. */
@@ -1160,7 +1185,7 @@ export class SeedsComponent {
     if (this.format() === 'king_of_court') return this.eligible().length >= KOC_MIN_TEAMS && this.kocPhases().length > 0;
     if (this.format() === 'double_elimination') return this.deCountOk();
     if (this.format() === 'round_robin') return this.eligible().length >= RR_MIN_TEAMS;
-    if (this.format() === 'groups_knockout') return this.knockoutBalanced() && this.groups().length > 0;
+    if (this.format() === 'groups_knockout') return this.groupsPlan().issue === null && this.groups().length > 0;
     return true;
   });
 
@@ -1177,11 +1202,10 @@ export class SeedsComponent {
     if (format === 'double_elimination' && !this.deCountOk()) return `Dupla eliminação aceita ${this.deCounts} duplas (há ${n}).`;
     if (format === 'round_robin' && n < RR_MIN_TEAMS) return `Todos contra todos precisa de ao menos ${RR_MIN_TEAMS} duplas.`;
     if (format === 'groups_knockout') {
-      if (!this.knockoutBalanced()) {
-        return `${this.groupCount() * this.qualifiersPerGroup()} classificados não formam um mata-mata equilibrado.`;
-      }
+      const plan = this.groupsPlan();
+      if (plan.issue !== null) return 'Ajuste os grupos e os classificados: o formato atual não forma um mata-mata.';
       if (this.groups().length === 0) return 'Monte a prévia dos grupos antes de publicar.';
-      return `${n} duplas · ${FORMAT_LABEL[format]} · ${this.groupCount()} grupos`;
+      return `${n} duplas · ${FORMAT_LABEL[format]} · ${this.groupCount()} grupos · ${plan.totalMatches} jogos`;
     }
     return `${n} duplas · ${FORMAT_LABEL[format]}`;
   });
@@ -1232,9 +1256,11 @@ export class SeedsComponent {
       const savedFormat = bracketFormatFromSaved(cat?.bracketFormat);
       if (savedFormat) this.format.set(savedFormat);
       if (cat) {
+        // A categoria guarda "duplas por grupo" (wizard de criação); a tela
+        // trabalha em nº de grupos. A largada é a mesma conta de sempre.
         const per = Math.max(2, cat.teamsPerGroup);
-        this.teamsPerGroup.set(per);
-        this.qualifiersPerGroup.set(Math.min(Math.max(1, cat.qualifiersPerGroup), per - 1));
+        this.groupCountChoice.set(Math.max(1, Math.ceil(eligible.length / per)));
+        this.qualifiersPerGroup.set(Math.min(Math.max(1, cat.qualifiersPerGroup), this.maxQualifiers()));
         this.kocMaxTeamsPerRound.set(kocClampMaxPerRound(cat.kocMaxTeamsPerRound));
         this.kocRoundDurationSec.set(cat.kocRoundDurationSec || KOC_DEFAULT_ROUND_DURATION_SEC);
         // Plano salvo só vale para a contagem com que foi montado; a tela
@@ -1400,16 +1426,28 @@ export class SeedsComponent {
     return phase ? `${Math.round(phase.durationSec / 60)} min` : '—';
   }
 
-  protected bumpTeamsPerGroup(delta: number): void {
-    this.teamsPerGroup.update((v) => Math.min(Math.max(v + delta, 2), 8));
-    // Reduzir o grupo pode deixar os classificados acima do teto (grupo de 2 não
-    // classifica 3) — re-clampa, senão o servidor rejeita com "group_too_small".
-    this.qualifiersPerGroup.update((q) => Math.min(q, Math.max(this.teamsPerGroup() - 1, 1)));
-    this.redraw();
+  protected bumpGroupCount(delta: number): void {
+    this.setGroupFormat(this.groupCount() + delta, this.qualifiersPerGroup());
   }
 
   protected bumpQualifiers(delta: number): void {
-    this.qualifiersPerGroup.update((v) => Math.min(Math.max(v + delta, 1), Math.max(this.teamsPerGroup() - 1, 1)));
+    this.qualifiersPerGroup.update((v) => Math.min(Math.max(v + delta, 1), this.maxQualifiers()));
+  }
+
+  /** Um clique numa sugestão (ou na correção do erro) troca os dois números. */
+  protected applyGroupFormat(choice: GroupFormatChoice): void {
+    this.setGroupFormat(choice.groupCount, choice.qualifiersPerGroup);
+  }
+
+  /** Mais grupos = grupos menores, e o teto de classificados desce junto (grupo
+   *  de 3 não classifica 3) — re-clampa, senão o servidor recusa com
+   *  "group_too_small". Trocar o nº de grupos refaz o sorteio da prévia. */
+  private setGroupFormat(groupCount: number, qualifiersPerGroup: number): void {
+    const before = this.groupCount();
+    this.groupCountChoice.set(Math.min(Math.max(groupCount, 1), this.maxGroups()));
+    this.qualifiersPerGroup.set(Math.min(Math.max(qualifiersPerGroup, 1), this.maxQualifiers()));
+    this.feedback.set(null);
+    if (this.groupCount() !== before) this.redraw();
   }
 
   /** Rostos da inscrição — todos os atletas do elenco (dupla = 2, equipe = até 5), igual à

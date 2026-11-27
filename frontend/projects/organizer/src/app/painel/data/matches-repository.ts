@@ -10,6 +10,7 @@ import { courtSidesFromRaw, medicalTimeoutFromRaw, statusOf, technicalTimeoutFro
 import { effectiveScoringProfile, scoringProfileFromRaw, setScoreText, type ScoringProfile } from '@nexago/sports';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
+import { knockoutPhaseLabel } from './groups-knockout-plan';
 import { fetchTeamNames } from './teams-repository';
 
 /** `artifacts/{projectId}/public/data/matches` — mesma coleção que o athlete lê em
@@ -404,16 +405,6 @@ export function bracketGroupSortOrder(m: TournamentMatch): number {
   const base = named[tLower];
   if (base != null) return base * 10 + m.roundNumber;
   return 60 * 10 + m.roundNumber;
-}
-
-/** Nome da fase pelo nº de jogos da coluna — só vale pra mata-mata balanceado (SE/crossover
- *  de grupos, onde byes existem como partidas na chave); DE usa rótulo por rodada. */
-function knockoutPhaseLabel(matchCount: number): string {
-  if (matchCount >= 16) return '32-avos';
-  if (matchCount === 8) return 'Oitavas';
-  if (matchCount === 4) return 'Quartas';
-  if (matchCount === 2) return 'Semifinais';
-  return 'Eliminatórias';
 }
 
 function bracketColumnHeaderLabel(matches: readonly TournamentMatch[]): string {

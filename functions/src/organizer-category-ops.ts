@@ -15,7 +15,6 @@ import {
   buildGroupsKnockoutMatches,
   buildRoundRobinMatches,
   buildSingleEliminationMatches,
-  isBalancedQualifierTotal,
   type MatchDraft,
 } from "./category-bracket-builders";
 import {
@@ -449,6 +448,9 @@ export function buildKocCategoryDocs(input: {
   return {config, plan, drafts, docs};
 }
 
+/** Um mata-mata precisa de pelo menos uma partida — dois classificados. */
+const MIN_KNOCKOUT_QUALIFIERS = 2;
+
 /** Formatos que a geração de chave sabe montar. Exportado porque é a própria
  *  fiação: o teste lê o MESMO conjunto que a callable consulta. */
 export const SUPPORTED_BRACKET_FORMATS: ReadonlySet<string> = new Set([
@@ -680,10 +682,11 @@ export async function runGenerateCategoryBracket(
 
   const resolvedGroups = resolveBracketGroups(format, teamIds, groupsPreview);
 
-  // Grupos + mata-mata: o nº total de classificados precisa formar um chaveamento
-  // limpo (2, 4, 8, 16… classificados). Senão o mata-mata fica com partidas vazias
-  // ou classificado sem confronto (totais ímpares como 3 e 5 passavam no teste
-  // antigo de `total >> 1` e publicavam chave quebrada).
+  // Grupos + mata-mata: qualquer total de classificados a partir de 2 forma
+  // chave. Potência de 2 (2, 4, 8, 16) cruza os grupos em vagas fixas; os demais
+  // (3 grupos × 2 = 6, 5 × 2 = 10…) viram eliminatória semeada pela
+  // classificação entre grupos, com folga para os melhores — ver
+  // `buildGroupsKnockoutMatches`. Antes só a potência de 2 passava.
   if (format === "groups_knockout") {
     // Os grupos do preview são a fonte dos jogos de grupo e da classificação —
     // precisam bater EXATAMENTE com as duplas elegíveis: dupla não paga/na fila
@@ -726,13 +729,13 @@ export async function runGenerateCategoryBracket(
       );
     }
     const totalQualifiers = resolvedGroups.length * qualifiersPerGroup;
-    if (!isBalancedQualifierTotal(totalQualifiers)) {
+    if (totalQualifiers < MIN_KNOCKOUT_QUALIFIERS) {
       throw new HttpsError(
         "failed-precondition",
-        `${totalQualifiers} classificados (${resolvedGroups.length} grupos × ` +
-          `${qualifiersPerGroup}) não formam um mata-mata equilibrado. Ajuste o ` +
-          "número de grupos ou de classificados (totais como 2, 4, 8 ou 16).",
-        {reason: "knockout_not_balanced", totalQualifiers},
+        `${totalQualifiers} classificado (${resolvedGroups.length} grupo × ` +
+          `${qualifiersPerGroup}) não forma um mata-mata. Aumente o número de ` +
+          "grupos ou de classificados por grupo.",
+        {reason: "knockout_too_small", totalQualifiers},
       );
     }
   }

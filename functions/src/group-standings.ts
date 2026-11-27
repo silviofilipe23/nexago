@@ -2,6 +2,7 @@ import {FieldValue, type Firestore} from "firebase-admin/firestore";
 import {
   isRankedQualifierSlot,
   type KnockoutQualifierSlot,
+  type RankedQualifierSlot,
 } from "./category-bracket-builders";
 import {isMatchCompleted} from "./match-status";
 import {effectiveScoringProfile} from "./sports/scoring";
@@ -341,6 +342,129 @@ export function rankQualifiersAcrossGroups(
   return ranked;
 }
 
+/** As duas vagas de uma partida do mata-mata, como estão gravadas na chave.
+ *  `null` = lado sem vaga de grupo (vazio, ou "Vencedor Jogo #N"). */
+export interface KnockoutSlotPair {
+  a: KnockoutQualifierSlot | null;
+  b: KnockoutQualifierSlot | null;
+}
+
+function rankedSlotKey(slot: RankedQualifierSlot): string {
+  return `${slot.place}:${slot.rank}`;
+}
+
+/** A pior vaga primeiro: colocação mais baixa e, na mesma colocação, pior campanha. */
+function worseSlotFirst(a: RankedQualifierSlot, b: RankedQualifierSlot): number {
+  return b.place - a.place || b.rank - a.rank;
+}
+
+/**
+ * Evita que o mata-mata comece repetindo um jogo da fase de grupos.
+ *
+ * A chave por campanha (total de classificados fora de potência de 2) é montada
+ * só pela classificação entre grupos, sem olhar de que grupo cada dupla veio —
+ * então "1º · 3ª melhor campanha × 2º · 3ª melhor campanha" pode ser 1º e 2º do
+ * MESMO grupo. Aqui, depois que os grupos terminam, a ordem de cada colocação é
+ * ajustada o mínimo necessário para desfazer esses reencontros.
+ *
+ * Só entram os confrontos CERTOS: partidas em que os dois lados já são vaga de
+ * grupo (a 1ª rodada, e o encontro direto entre duas duplas que folgam).
+ * Confronto que depende de resultado ("× Vencedor Jogo #12") fica de fora.
+ *
+ * A troca é sempre entre duplas da MESMA colocação e na MESMA situação de folga:
+ * um 2º só troca com outro 2º, e quem folga só troca com quem também folga.
+ * Ninguém ganha ou perde folga, nem muda de colocação — muda só o adversário.
+ * Entre as trocas possíveis vale a mais curta (campanha vizinha) e, no empate,
+ * a vizinha de baixo. Move-se a pior vaga do confronto; a melhor só se a pior
+ * não tiver com quem trocar. Reencontro sem saída fica como está.
+ *
+ * Devolve uma classificação NOVA, no mesmo formato de
+ * `rankQualifiersAcrossGroups`. Chave de vagas fixas não tem vaga por campanha,
+ * então passa intacta.
+ */
+export function avoidGroupRematches(
+  rankedByPlace: Map<number, string[]>,
+  pairs: KnockoutSlotPair[],
+  groups: GroupPreview[],
+): Map<number, string[]> {
+  const order = new Map(
+    [...rankedByPlace].map(([place, teamIds]) => [place, [...teamIds]]),
+  );
+  const groupOfTeam = new Map(
+    groups.flatMap((group) => group.teamIds.map((teamId) => [teamId.trim(), group.id])),
+  );
+
+  // Quem folga aparece duas vezes na chave: na partida de folga e na rodada
+  // seguinte. É o que separa "folga" de "joga a 1ª rodada".
+  const appearances = new Map<string, number>();
+  const slots = new Map<string, RankedQualifierSlot>();
+  const opponentOf = new Map<string, RankedQualifierSlot>();
+  const certain: Array<[RankedQualifierSlot, RankedQualifierSlot]> = [];
+  for (const pair of pairs) {
+    const sides = [pair.a, pair.b].filter(
+      (slot): slot is RankedQualifierSlot => slot !== null && isRankedQualifierSlot(slot),
+    );
+    for (const slot of sides) {
+      const key = rankedSlotKey(slot);
+      slots.set(key, slot);
+      appearances.set(key, (appearances.get(key) ?? 0) + 1);
+    }
+    if (sides.length === 2) {
+      certain.push([sides[0]!, sides[1]!]);
+      opponentOf.set(rankedSlotKey(sides[0]!), sides[1]!);
+      opponentOf.set(rankedSlotKey(sides[1]!), sides[0]!);
+    }
+  }
+  if (certain.length === 0) return order;
+
+  const teamAt = (slot: RankedQualifierSlot): string | undefined =>
+    order.get(slot.place)?.[slot.rank - 1];
+  const hasBye = (slot: RankedQualifierSlot): boolean =>
+    (appearances.get(rankedSlotKey(slot)) ?? 0) > 1;
+  const sameGroup = (a: string | undefined, b: string | undefined): boolean => {
+    const groupA = a === undefined ? undefined : groupOfTeam.get(a.trim());
+    return groupA !== undefined && groupA === (b === undefined ? undefined : groupOfTeam.get(b.trim()));
+  };
+  /** A dupla que hoje ocupa `slot` reencontra alguém do próprio grupo? */
+  const isRematch = (slot: RankedQualifierSlot): boolean => {
+    const opponent = opponentOf.get(rankedSlotKey(slot));
+    return opponent !== undefined && sameGroup(teamAt(slot), teamAt(opponent));
+  };
+  const swap = (a: RankedQualifierSlot, b: RankedQualifierSlot): void => {
+    const tier = order.get(a.place);
+    if (!tier) return;
+    [tier[a.rank - 1], tier[b.rank - 1]] = [tier[b.rank - 1]!, tier[a.rank - 1]!];
+  };
+
+  /** Troca `slot` com a vaga mais próxima da mesma colocação e mesma situação
+   *  de folga que não deixe NENHUMA das duas num reencontro. */
+  const trySwap = (slot: RankedQualifierSlot): boolean => {
+    const candidates = [...slots.values()]
+      .filter((other) =>
+        other.place === slot.place &&
+        other.rank !== slot.rank &&
+        hasBye(other) === hasBye(slot))
+      .sort((x, y) =>
+        Math.abs(x.rank - slot.rank) - Math.abs(y.rank - slot.rank) || y.rank - x.rank);
+    for (const other of candidates) {
+      swap(slot, other);
+      if (!isRematch(slot) && !isRematch(other)) return true;
+      swap(slot, other);
+    }
+    return false;
+  };
+
+  // Cada troca aceita desfaz um reencontro sem criar outro, então o total só
+  // cai — o laço termina em no máximo um passo por confronto certo.
+  for (let step = 0; step < certain.length; step++) {
+    const fixedOne = certain
+      .filter(([a]) => isRematch(a))
+      .some((match) => [...match].sort(worseSlotFirst).some(trySwap));
+    if (!fixedOne) break;
+  }
+  return order;
+}
+
 function parseQualifierSlot(raw: unknown): KnockoutQualifierSlot | null {
   if (!raw || typeof raw !== "object") return null;
   const slot = raw as Record<string, unknown>;
@@ -407,7 +531,20 @@ export async function tryFillKnockoutFromGroupStandings(
     );
   }
 
-  const rankedByPlace = rankQualifiersAcrossGroups(groups, groupMatches);
+  // A classificação entre grupos decide as vagas por campanha; antes de
+  // preencher, desfaz os confrontos que repetiriam um jogo da fase de grupos.
+  const knockoutPairs: KnockoutSlotPair[] = snap.docs
+    .map((doc) => doc.data())
+    .filter((data) => data.isGroupMatch !== true)
+    .map((data) => ({
+      a: parseQualifierSlot(data.teamAQualifier),
+      b: parseQualifierSlot(data.teamBQualifier),
+    }));
+  const rankedByPlace = avoidGroupRematches(
+    rankQualifiersAcrossGroups(groups, groupMatches),
+    knockoutPairs,
+    groups,
+  );
 
   let slotsFilled = 0;
   for (const doc of snap.docs) {

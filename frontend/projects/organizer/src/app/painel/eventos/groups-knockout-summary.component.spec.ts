@@ -68,6 +68,19 @@ describe('GroupsKnockoutSummaryComponent', () => {
     expect(el.querySelector('.og-gk-error')).toBeNull();
   });
 
+  it('chave por campanha: avisa que reencontro de grupo é desfeito por troca de vaga', async () => {
+    const el = await mount({ teams: 10, groupCount: 3, qualifiersPerGroup: 2 });
+    expect(text(el, '[data-note="rematch"]')).toContain('duplas da mesma colocação trocam de vaga');
+  });
+
+  it('cruzamento fixo e grupo único não têm o aviso de troca de vaga', async () => {
+    const fixed = await mount({ teams: 16, groupCount: 4, qualifiersPerGroup: 2 });
+    expect(fixed.querySelector('[data-note="rematch"]')).toBeNull();
+    TestBed.resetTestingModule();
+    const single = await mount({ teams: 5, groupCount: 1, qualifiersPerGroup: 3 });
+    expect(single.querySelector('[data-note="rematch"]')).toBeNull();
+  });
+
   it('mostra os confrontos da 1ª fase, com a folga marcada', async () => {
     const el = await mount({ teams: 10, groupCount: 3, qualifiersPerGroup: 2 });
     expect(rows(el, '.og-gk-pairing')).toEqual(['1º · melhor campanha folga', '2º · melhor campanha × 2º · 2ª melhor campanha', '1º · 2ª melhor campanha folga', '1º · 3ª melhor campanha × 2º · 3ª melhor campanha']);

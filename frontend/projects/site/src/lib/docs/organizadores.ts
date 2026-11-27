@@ -269,7 +269,7 @@ export const ORGANIZADORES: DocAudience = {
             'Elegíveis: duplas pagas + fora da espera + elenco completo. Mínimo de 2.',
             'Regerar uma chave com partidas em andamento ou concluídas APAGA os resultados — o painel exige confirmação explícita.',
             'Depois da chave gerada, o botão "Gerar chave" desaparece das telas.',
-            'Quando o total de classificados não fecha em 2, 4, 8 ou 16 (3 grupos × 2, por exemplo), o mata-mata sai com folgas na primeira fase para os melhores da classificação entre grupos.',
+            'Quando o total de classificados não fecha em 2, 4, 8 ou 16 (3 grupos × 2, por exemplo), o mata-mata sai com folgas na primeira fase para os melhores da classificação entre grupos. Se um confronto fosse repetir um jogo da fase de grupos, duplas da mesma colocação trocam de vaga.',
           ],
           keywords: ['chave', 'chaveamento', 'sorteio', 'grupos', 'cabeça de chave', 'seed', 'snake', 'eliminatória', 'dupla eliminatória', 'gerar chave'],
           screen: {

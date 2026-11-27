@@ -107,6 +107,9 @@ function formatLabel(choice: GroupFormatChoice): string {
             }
           </ol>
           <p class="og-gk-line dim">{{ seedingLabel() }}</p>
+          @if (rematchNote(); as note) {
+            <p class="og-gk-line dim" data-note="rematch">{{ note }}</p>
+          }
         </section>
 
         <section class="og-gk-card" data-block="total">
@@ -417,6 +420,18 @@ export class GroupsKnockoutSummaryComponent {
     const criteria = 'pela classificação entre grupos (aproveitamento, depois saldo médio por jogo)';
     if (plan.byes === 0) return `Chave montada ${criteria}.`;
     return `Folga para ${describeByeHolders(plan.byes, plan.groupCount)}, ${criteria}.`;
+  });
+
+  /**
+   * Na chave por campanha o servidor troca duplas da mesma colocação quando o
+   * confronto repetiria um jogo de grupo (`avoidGroupRematches`, em
+   * `functions/src/group-standings.ts`). Sem este aviso, a prévia dos
+   * confrontos pareceria uma promessa que a chave preenchida não cumpre.
+   */
+  protected readonly rematchNote = computed(() => {
+    const plan = this.plan();
+    if (plan.seeding !== 'ranked' || plan.groupCount < 2) return null;
+    return 'Se um confronto repetir um jogo da fase de grupos, duplas da mesma colocação trocam de vaga entre si — ninguém ganha nem perde folga.';
   });
 
   protected readonly totalMatchesLabel = computed(() => gamesLabel(this.plan().totalMatches));

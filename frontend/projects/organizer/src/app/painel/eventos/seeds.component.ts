@@ -133,6 +133,13 @@ function shuffled<T>(items: readonly T[]): T[] {
   return arr;
 }
 
+/** Teto de sorteios no "Embaralhar" para garantir uma ordem diferente da atual. */
+const SHUFFLE_MAX_ATTEMPTS = 20;
+
+function sameOrder<T>(a: readonly T[], b: readonly T[]): boolean {
+  return a.length === b.length && a.every((item, i) => item === b[i]);
+}
+
 /** Geração de chave real — espelha `organizer_category_generate_*` (Flutter): duplas elegíveis
  *  (pagas, fora da fila, dupla completa — o servidor re-filtra), ordem de seeds ajustável,
  *  formato (dos 3 suportados; default = `bracketFormat` salvo na categoria), prévia de grupos
@@ -351,18 +358,29 @@ function shuffled<T>(items: readonly T[]): T[] {
           </og-card>
 
           <og-card [kicker]="'Duplas elegíveis (' + eligible().length + ')'" title="Ordem de semeadura">
-            <button
-              card-action
-              type="button"
-              class="og-mini-btn og-seeds-sort-btn"
-              aria-label="Ordenar por nível"
-              [disabled]="!canSortByLevel()"
-              [title]="sortByLevelHint()"
-              (click)="sortByLevel()"
-            >
-              <og-icon name="trophy" [size]="14" /><span class="og-seeds-sort-long">Ordenar por nível</span
-              ><span class="og-seeds-sort-short">Por nível</span>
-            </button>
+            <div card-action class="og-seeds-list-actions">
+              <button
+                type="button"
+                class="og-mini-btn og-seeds-sort-btn"
+                aria-label="Embaralhar duplas"
+                [disabled]="!canShuffle()"
+                [title]="shuffleHint()"
+                (click)="shuffleTeams()"
+              >
+                <og-icon name="shuffle" [size]="14" /><span class="og-seeds-shuffle-label">Embaralhar</span>
+              </button>
+              <button
+                type="button"
+                class="og-mini-btn og-seeds-sort-btn"
+                aria-label="Ordenar por nível"
+                [disabled]="!canSortByLevel()"
+                [title]="sortByLevelHint()"
+                (click)="sortByLevel()"
+              >
+                <og-icon name="trophy" [size]="14" /><span class="og-seeds-sort-long">Ordenar por nível</span
+                ><span class="og-seeds-sort-short">Por nível</span>
+              </button>
+            </div>
             @if (eligible().length < minTeams) {
               <p class="og-seeds-empty">É necessário ao menos {{ minTeams }} duplas pagas (e completas) pra gerar a chave.</p>
             }
@@ -793,6 +811,10 @@ function shuffled<T>(items: readonly T[]): T[] {
       flex: 1;
       min-width: 0;
     }
+    .og-seeds-list-actions {
+      display: flex;
+      gap: 8px;
+    }
     .og-seeds-bar,
     .og-seeds-sort-short {
       display: none;
@@ -922,7 +944,8 @@ function shuffled<T>(items: readonly T[]): T[] {
       .og-seeds-sort-btn {
         white-space: nowrap;
       }
-      .og-seeds-sort-long {
+      .og-seeds-sort-long,
+      .og-seeds-shuffle-label {
         display: none;
       }
       .og-seeds-sort-short {
@@ -1063,6 +1086,16 @@ export class SeedsComponent {
     if (!this.useSeeds()) return 'Ligue "Respeitar ordem de seeds" para ordenar pela pontuação de nível.';
     if (!this.canSortByLevel()) return 'Nenhuma dupla tem nível informado.';
     return 'Ordena da maior para a menor pontuação de nível — você ainda pode ajustar arrastando ou com as setas.';
+  });
+
+  /** Embaralhar só muda algo quando a ordem da tela vale (seeds ligados) e há ao menos
+   *  duas duplas — sem seeds o publish já sorteia tudo sozinho. */
+  protected readonly canShuffle = computed(() => this.useSeeds() && this.eligible().length > 1);
+
+  protected readonly shuffleHint = computed(() => {
+    if (!this.useSeeds()) return 'Sem "Respeitar ordem de seeds" a chave já é sorteada ao publicar.';
+    if (!this.canShuffle()) return 'É preciso ao menos duas duplas para embaralhar.';
+    return 'Sorteia uma nova ordem para a lista — você ainda pode ajustar arrastando ou com as setas.';
   });
 
   protected readonly category = computed<OrganizerTournamentCategory | null>(
@@ -1426,6 +1459,22 @@ export class SeedsComponent {
       // `sort` do JS é estável (ES2019+): duplas empatadas mantêm a ordem atual da tela.
       [...list].sort((a, b) => compareTeamLevelDesc(scores.get(a.id) ?? fallback, scores.get(b.id) ?? fallback)),
     );
+    this.redraw();
+  }
+
+  /** Nova ordem aleatória para a lista de semeadura. Sorteia de novo quando o resultado
+   *  sai idêntico ao atual (com 2 duplas isso é 50% das vezes) — o clique sempre mostra
+   *  uma ordem diferente. Esgotado o teto (chance desprezível), gira a lista uma posição,
+   *  que com 2+ duplas nunca repete a ordem. */
+  protected shuffleTeams(): void {
+    if (!this.canShuffle()) return;
+    const current = this.eligible();
+    let next = shuffled(current);
+    for (let attempt = 1; attempt < SHUFFLE_MAX_ATTEMPTS && sameOrder(next, current); attempt++) {
+      next = shuffled(current);
+    }
+    if (sameOrder(next, current)) next = [...current.slice(1), current[0]!];
+    this.eligible.set(next);
     this.redraw();
   }
 

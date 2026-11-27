@@ -76,6 +76,28 @@ export function bulkConfirmBlockedByPartialShare(params: {
   );
 }
 
+/**
+ * Fechamento por parcelas no webhook do PIX/cartão: o elenco inteiro está coberto quando cada
+ * atleta pagou a parcela na plataforma OU teve baixa manual do organizador.
+ *
+ * Existe porque a baixa de UMA parcela não grava valor (`paidAmount`): se ela vem antes do
+ * pagamento do parceiro, a conta só de dinheiro nunca alcança a taxa e a inscrição fica "não
+ * paga" com todo mundo quitado. A declaração "Já paguei" (`sharePaidUids` sem baixa) fica de
+ * fora de propósito — fechar por ela é decisão de regra ainda em aberto.
+ */
+export function registrationCoveredByPaidOrConfirmedShares(params: {
+  athleteUids: string[];
+  teamSize: number;
+  /** Quem pagou a parcela pela plataforma, incluindo o pagador desta cobrança. */
+  platformPaidUids: string[];
+  organizerConfirmedUids: string[];
+}): boolean {
+  const covered = Array.from(
+    new Set([...params.platformPaidUids, ...params.organizerConfirmedUids]),
+  );
+  return isFreeRegistrationFullyConfirmed(params.athleteUids, covered, params.teamSize);
+}
+
 export type ShareRevertBlock = "notConfirmedByOrganizer" | "alreadyFullyPaid";
 
 export const SHARE_REVERT_BLOCK_MESSAGE: Record<ShareRevertBlock, string> = {

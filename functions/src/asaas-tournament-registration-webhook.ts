@@ -75,6 +75,10 @@ import {
   resolveCashbackForPayment,
 } from "./cashback-intent";
 import {refundHoldOfPayment} from "./cashback-reversal";
+import {
+  organizerConfirmedShareUidsFromRegistration,
+  registrationCoveredByPaidOrConfirmedShares,
+} from "./organizer-payment-share";
 import {reverseWalletCreditOfRefundedPayment} from "./asaas-tournament-registration-refund";
 
 const ASAAS_NEGATIVE_TERMINAL_STATUSES = new Set([
@@ -141,6 +145,33 @@ async function resolveSquadPerkCents(
     logger.error(`Asaas tournament registration: desconto do embaixador ilegível para ${paymentId}`, e);
   }
   return pending?.["asaasPaymentId"] === paymentId ? centsOf(pending["squadPerkCents"]) : 0;
+}
+
+/**
+ * Fecha a inscrição quando todo o elenco está coberto por parcela paga na plataforma ou por
+ * baixa manual do organizador. Só lê as cobranças pagas quando existe baixa de parcela — o
+ * caminho comum (todo mundo pela plataforma) já fecha pela conta de dinheiro.
+ */
+async function coveredByOrganizerConfirmedShares(params: {
+  registrationRef: DocumentReference;
+  regData: Record<string, unknown>;
+  athleteUids: string[];
+  teamSize: number;
+  /** Quem esta cobrança quita: o pendente dele só vira `paid` no lote logo abaixo. */
+  payingUids: string[];
+}): Promise<boolean> {
+  const organizerConfirmedUids = organizerConfirmedShareUidsFromRegistration(params.regData);
+  if (organizerConfirmedUids.length === 0) return false;
+  const paidPending = await params.registrationRef
+    .collection("pixPending")
+    .where("status", "==", "paid")
+    .get();
+  return registrationCoveredByPaidOrConfirmedShares({
+    athleteUids: params.athleteUids,
+    teamSize: params.teamSize,
+    platformPaidUids: [...params.payingUids, ...paidPending.docs.map((d) => d.id)],
+    organizerConfirmedUids,
+  });
 }
 
 function centsOf(v: unknown): number {
@@ -469,6 +500,17 @@ export async function processTournamentRegistrationAsaasNotification(
         amountType === "full" && participantUids.length > 0 ?
           participantUids :
           [payerUid];
+      // A conta de dinheiro não enxerga a baixa manual de parcela (ela não grava valor): com o
+      // parceiro baixado ANTES deste pagamento, a inscrição nunca fecharia.
+      if (!isPaid) {
+        isPaid = await coveredByOrganizerConfirmedShares({
+          registrationRef,
+          regData,
+          athleteUids: participantUids,
+          teamSize: regTeamSize,
+          payingUids: uidsToConfirm,
+        });
+      }
 
       // Doc de config indisponível não pode derrubar a confirmação: a reserva
       // de saldo ainda precisa ser capturada mesmo sem conseguir calcular o

@@ -4,6 +4,7 @@ import {
   bulkConfirmBlockedByPartialShare,
   organizerConfirmedShareUidsFromRegistration,
   planOrganizerShareConfirmation,
+  registrationCoveredByPaidOrConfirmedShares,
   shareRevertBlock,
 } from "./organizer-payment-share";
 
@@ -157,6 +158,56 @@ describe("shareRevertBlock", () => {
     assert.equal(
       shareRevertBlock({isPaid: true, organizerConfirmedShareUids: ["a"]}, "a"),
       "alreadyFullyPaid",
+    );
+  });
+});
+
+describe("registrationCoveredByPaidOrConfirmedShares", () => {
+  it("dupla: parcela paga na plataforma + baixa do organizador fecha", () => {
+    assert.equal(
+      registrationCoveredByPaidOrConfirmedShares({
+        athleteUids: ["a", "b"],
+        teamSize: 2,
+        platformPaidUids: ["a"],
+        organizerConfirmedUids: ["b"],
+      }),
+      true,
+    );
+  });
+
+  it("dupla: parceira sem pagar e sem baixa não fecha", () => {
+    assert.equal(
+      registrationCoveredByPaidOrConfirmedShares({
+        athleteUids: ["a", "b"],
+        teamSize: 2,
+        platformPaidUids: ["a"],
+        organizerConfirmedUids: [],
+      }),
+      false,
+    );
+  });
+
+  it("elenco incompleto não fecha, mesmo com todos os presentes cobertos", () => {
+    assert.equal(
+      registrationCoveredByPaidOrConfirmedShares({
+        athleteUids: ["a"],
+        teamSize: 2,
+        platformPaidUids: ["a"],
+        organizerConfirmedUids: [],
+      }),
+      false,
+    );
+  });
+
+  it("quarteto: cobre quem pagou na plataforma, quem teve baixa e o pagador atual", () => {
+    assert.equal(
+      registrationCoveredByPaidOrConfirmedShares({
+        athleteUids: ["a", "b", "c", "d"],
+        teamSize: 4,
+        platformPaidUids: ["a", "b", "d"],
+        organizerConfirmedUids: ["c"],
+      }),
+      true,
     );
   });
 });

@@ -124,6 +124,74 @@ describe("asaas-tournament-registration-webhook: cobrança do parceiro", () => {
   });
 });
 
+describe("asaas-tournament-registration-webhook: baixa manual da parcela do parceiro", () => {
+  /** Parcela do atleta A paga por PIX (metade da taxa). */
+  const sharePayment = {...fullPayment, value: ENTRY_FEE / 2};
+
+  function seedSharePending(fake: FakeFirestore): void {
+    fake.seedDoc(PENDING_A, {
+      status: "pending",
+      amountType: "share",
+      asaasPaymentId: "payA",
+      payerUid: "uidA",
+    });
+  }
+
+  it("fecha a inscrição quando a baixa do parceiro veio antes do PIX", async () => {
+    const {fake, db} = makeDb();
+    // O organizador deu baixa em B sem valor; depois A paga a parcela dele.
+    seedRegistration(fake, {
+      sharePaidUids: ["uidB"],
+      organizerConfirmedShareUids: ["uidB"],
+      paidAmount: 0,
+    });
+    seedSharePending(fake);
+    const {deps} = makeDeps();
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", sharePayment, processedRefOf(db), deps,
+    );
+
+    const reg = fake.store.get(REG_PATH)!;
+    assert.equal(reg["isPaid"], true);
+    // O valor pago segue sendo só o dinheiro que passou pela plataforma.
+    assert.equal(reg["paidAmount"], ENTRY_FEE / 2);
+  });
+
+  it("não fecha quando a parceira ainda não pagou nem teve baixa", async () => {
+    const {fake, db} = makeDb();
+    seedRegistration(fake);
+    seedSharePending(fake);
+    const {deps} = makeDeps();
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", sharePayment, processedRefOf(db), deps,
+    );
+
+    const reg = fake.store.get(REG_PATH)!;
+    assert.equal(reg["isPaid"], false);
+    assert.equal(reg["paidAmount"], ENTRY_FEE / 2);
+  });
+
+  it("declaração \"Já paguei\" da parceira, sem baixa, segue como hoje (regra em aberto)", async () => {
+    const {fake, db} = makeDb();
+    // B só declarou que pagou por fora: o fechamento nesse caso ainda é decisão do dono.
+    seedRegistration(fake, {
+      sharePaidUids: ["uidB"],
+      paymentChannel: "directOrganizer",
+      paidAmount: 0,
+    });
+    seedSharePending(fake);
+    const {deps} = makeDeps();
+
+    await processTournamentRegistrationAsaasNotification(
+      db, "pay1", sharePayment, processedRefOf(db), deps,
+    );
+
+    assert.equal(fake.store.get(REG_PATH)!["isPaid"], false);
+  });
+});
+
 describe("asaas-tournament-registration-webhook: pagamento duplicado", () => {
   it("marca o duplicado para estorno com o valor pago", async () => {
     const {fake, db} = makeDb();

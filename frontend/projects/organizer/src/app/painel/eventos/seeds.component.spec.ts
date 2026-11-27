@@ -121,6 +121,7 @@ interface Internals {
   onDrop(targetIndex: number, event: DragEvent): void;
   onDragStart(index: number, event: DragEvent): void;
   onDragEnd(): void;
+  shuffleTeams(): void;
 }
 
 describe('SeedsComponent — avatares dos atletas', () => {
@@ -277,6 +278,87 @@ describe('SeedsComponent — drag and drop da ordem de seeds', () => {
     internals.dragFrom.set(0);
     internals.onDrop(2, new DragEvent('drop', { bubbles: true, cancelable: true }));
     expect(internals.eligible().map((t) => t.teamId)).toEqual(['team-1', 'team-2', 'team-3']);
+  });
+});
+
+describe('SeedsComponent — embaralhar a lista de duplas', () => {
+  let fixture: ComponentFixture<SeedsComponent>;
+
+  async function mount(eligible: TournamentInscription[]): Promise<Internals> {
+    await TestBed.configureTestingModule({
+      imports: [SeedsComponent],
+      providers: [provideZonelessChangeDetection(), provideRouter([])],
+    }).compileComponents();
+    fixture = TestBed.createComponent(SeedsComponent);
+    fixture.componentRef.setInput('catId', 'femB');
+    await fixture.whenStable();
+    const internals = fixture.componentInstance as unknown as Internals;
+    internals.tournament.set(tournament());
+    internals.eligible.set(eligible);
+    internals.loading.set(false);
+    internals.useSeeds.set(true);
+    internals.redraw();
+    await fixture.whenStable();
+    return internals;
+  }
+
+  function teams(n: number): TournamentInscription[] {
+    return Array.from({ length: n }, (_, i) =>
+      inscription({ id: `i${i + 1}`, teamId: `team-${i + 1}`, teamName: `Dupla ${i + 1} / X` }),
+    );
+  }
+
+  function shuffleButton(): HTMLButtonElement {
+    const el = fixture.nativeElement as HTMLElement;
+    return el.querySelector('button[aria-label="Embaralhar duplas"]') as HTMLButtonElement;
+  }
+
+  it('mostra o botão de embaralhar ao lado de ordenar por nível', async () => {
+    await mount(teams(3));
+    expect(shuffleButton()).toBeTruthy();
+    expect(shuffleButton().disabled).toBeFalse();
+  });
+
+  it('embaralhar muda a ordem e mantém as mesmas duplas', async () => {
+    const internals = await mount(teams(6));
+    for (let round = 0; round < 20; round++) {
+      const before = internals.eligible().map((t) => t.teamId);
+      shuffleButton().click();
+      const after = internals.eligible().map((t) => t.teamId);
+      expect(after).not.toEqual(before);
+      expect([...after].sort()).toEqual([...before].sort());
+    }
+  });
+
+  it('com 2 duplas o embaralhar sempre troca as duas de lugar', async () => {
+    const internals = await mount(teams(2));
+    internals.shuffleTeams();
+    expect(internals.eligible().map((t) => t.teamId)).toEqual(['team-2', 'team-1']);
+  });
+
+  it('refaz a prévia dos grupos com a nova ordem', async () => {
+    const internals = await mount(teams(6));
+    internals.shuffleTeams();
+    await fixture.whenStable();
+    const heads = internals.eligible().slice(0, 2).map((t) => t.teamName);
+    const groupTitles = (fixture.nativeElement as HTMLElement).querySelectorAll('.og-seeds-group');
+    expect(groupTitles.length).toBe(2);
+    const firstOfEach = [...groupTitles].map((g) => g.querySelector('.og-seeds-group-team-name')?.textContent?.trim());
+    expect(firstOfEach).toEqual(heads);
+  });
+
+  it('fica travado sem "Respeitar ordem de seeds" — o publish já sorteia', async () => {
+    const internals = await mount(teams(3));
+    internals.useSeeds.set(false);
+    await fixture.whenStable();
+    expect(shuffleButton().disabled).toBeTrue();
+    internals.shuffleTeams();
+    expect(internals.eligible().map((t) => t.teamId)).toEqual(['team-1', 'team-2', 'team-3']);
+  });
+
+  it('fica travado com uma dupla só', async () => {
+    await mount(teams(1));
+    expect(shuffleButton().disabled).toBeTrue();
   });
 });
 

@@ -176,8 +176,17 @@ interface PhoneLinks {
                                não fechou — confirmação da inscrição inteira já cobre o resto.
                                O atleta DECLARAR que pagou (Já paguei) não é o mesmo que o
                                organizador ter conferido o recebimento — os dois passos são
-                               independentes, e é o organizador quem fecha o segundo. -->
-                          @if (showAthletePayment(r)) {
+                               independentes, e é o organizador quem fecha o segundo.
+                               Pix/cartão pelo app é outra coisa: o webhook já viu o dinheiro,
+                               então a parte aparece paga e não há o que confirmar nem desfazer. -->
+                          @if (showAthletePayment(r) && a.sharePaidOnline) {
+                            <span class="pay-row">
+                              <span class="pay-status ok">
+                                <og-icon name="check" [size]="12" />
+                                Pago pelo app (Pix ou cartão)
+                              </span>
+                            </span>
+                          } @else if (showAthletePayment(r)) {
                             <span class="pay-row">
                               <span class="pay-status" [class.ok]="a.organizerConfirmedShare">
                                 <og-icon [name]="a.organizerConfirmedShare ? 'check' : 'alert'" [size]="12" />

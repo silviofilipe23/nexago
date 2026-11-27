@@ -69,6 +69,9 @@ export function buildInscricaoRows(
   // No modo direto o atleta DECLARA que pagou; no modo app o dinheiro entrou de verdade.
   // A legenda da linha não pode dizer a mesma coisa nos dois casos.
   const direct = tournament?.paymentMode === 'directWithOrganizer';
+  // Pix/cartão pelo app e "Já paguei" nunca convivem no mesmo torneio (as callables barram o
+  // modo errado). Sem o torneio carregado não dá pra afirmar que o dinheiro entrou.
+  const paidThroughApp = tournament != null && !direct;
 
   const rows = inscriptions.map<InscricaoRow>((insc) => {
     const twins = twinLinks.get(insc.id) ?? [];
@@ -93,6 +96,8 @@ export function buildInscricaoRows(
               lgpdAccepted: accepted.has(p.uid),
               phone: contact?.phoneNumber ?? '',
               sharePaid: sharePaid.has(p.uid),
+              sharePaidOnline:
+                paidThroughApp && sharePaid.has(p.uid) && !organizerConfirmedShare.has(p.uid),
               organizerConfirmedShare: organizerConfirmedShare.has(p.uid),
               twinNote: twinNoteFor(insc, twins.filter((l) => l.uid === p.uid)),
             };
@@ -108,6 +113,7 @@ export function buildInscricaoRows(
               lgpdAccepted: false,
               phone: '',
               sharePaid: false,
+              sharePaidOnline: false,
               organizerConfirmedShare: false,
               twinNote: '',
             },

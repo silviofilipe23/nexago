@@ -55,6 +55,7 @@ function row(
       lgpdAccepted: true,
       phone: '',
       sharePaid: false,
+      sharePaidOnline: false,
       organizerConfirmedShare: false,
       twinNote: '',
     })),

@@ -73,6 +73,9 @@ export interface InscricaoAthlete {
   /** Já quitou a própria parte (`sharePaidUids`) — em pagamento pelo app é dinheiro recebido;
    *  no modo direto é declaração do atleta OU baixa manual deste atleta pelo organizador. */
   sharePaid: boolean;
+  /** A parte foi quitada pelo app (Pix ou cartão, visto pelo webhook) — torneio no modo app e
+   *  sem baixa manual. Já é dinheiro na conta: não há recebimento para o organizador conferir. */
+  sharePaidOnline: boolean;
   /** O organizador confirmou a parte deste atleta manualmente (`organizerConfirmedShareUids`) —
    *  só essa confirmação pode ser desfeita por atleta; a declaração do próprio atleta, não. */
   organizerConfirmedShare: boolean;

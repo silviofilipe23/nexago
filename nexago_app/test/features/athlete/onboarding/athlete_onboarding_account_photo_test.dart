@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image/image.dart' as img;
 import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/observability/analytics_service.dart';
 import 'package:nexago_app/core/router/app_router.dart';
@@ -36,6 +37,34 @@ Uint8List _pngBytes() => Uint8List.fromList(const [
       0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
       0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
     ]);
+
+/// Foto de verdade (cor varia pela imagem toda). O PNG 1×1 acima é liso e
+/// seria barrado como avatar genérico no pré-preenchimento.
+Uint8List _photoPng() {
+  final image = img.Image(width: 64, height: 64);
+  for (final p in image) {
+    p
+      ..r = p.x * 4
+      ..g = p.y * 4
+      ..b = (p.x * p.y) % 256;
+  }
+  return img.encodePng(image);
+}
+
+/// O avatar que o Google gera para conta sem foto: inicial branca, fundo liso.
+Uint8List _googleInitialAvatarPng() {
+  final image = img.Image(width: 128, height: 128);
+  img.fill(image, color: img.ColorRgb8(120, 144, 156));
+  img.drawString(
+    image,
+    'A',
+    font: img.arial48,
+    x: 50,
+    y: 40,
+    color: img.ColorRgb8(255, 255, 255),
+  );
+  return img.encodePng(image);
+}
 
 Uint8List _jpegBytes() =>
     Uint8List.fromList(const [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46]);
@@ -210,6 +239,35 @@ void main() {
       }
     });
 
+    test(
+        'avatar de inicial do Google (conta sem foto) não conta como foto: '
+        'o passo continua pedindo uma', () async {
+      final c = _container(fetcher: (_) async => _googleInitialAvatarPng());
+      await c.read(authProvider.future);
+
+      await c
+          .read(athleteOnboardingDraftProvider.notifier)
+          .prefillAvatarFromAccount();
+
+      final draft = c.read(athleteOnboardingDraftProvider);
+      expect(draft.avatarBytes, isNull);
+      expect(draft.avatarFromAccount, isFalse);
+      expect(draft.isPhotoValid, isFalse);
+    });
+
+    test('foto de verdade em PNG continua entrando', () async {
+      final c = _container(fetcher: (_) async => _photoPng());
+      await c.read(authProvider.future);
+
+      await c
+          .read(athleteOnboardingDraftProvider.notifier)
+          .prefillAvatarFromAccount();
+
+      final draft = c.read(athleteOnboardingDraftProvider);
+      expect(draft.avatarContentType, 'image/png');
+      expect(draft.avatarFromAccount, isTrue);
+    });
+
     test('conta sem foto (e-mail e senha) nem tenta baixar', () async {
       var calls = 0;
       // `MockUser` inventa uma foto quando `photoURL` é nulo; vazio é "sem foto".
@@ -264,7 +322,7 @@ void main() {
           goRouterProvider.overrideWithValue(router),
           twinAccountCheckServiceProvider.overrideWithValue(_FakeTwinCheck()),
           appSignOutProvider.overrideWithValue(() async {}),
-          accountPhotoFetcherProvider.overrideWithValue((_) async => _pngBytes()),
+          accountPhotoFetcherProvider.overrideWithValue((_) async => _photoPng()),
         ],
       );
       addTearDown(container.dispose);
@@ -300,7 +358,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(repo.uploaded, hasLength(1));
-      expect(repo.uploaded.single, _pngBytes());
+      expect(repo.uploaded.single, _photoPng());
       expect(repo.uploadedTypes.single, 'image/png');
       expect(repo.saves, 1);
     },

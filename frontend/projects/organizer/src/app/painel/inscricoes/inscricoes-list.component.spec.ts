@@ -19,6 +19,7 @@ function athlete(over: Partial<InscricaoAthlete> = {}): InscricaoAthlete {
     lgpdAccepted: true,
     phone: '',
     sharePaid: false,
+    sharePaidOnline: false,
     organizerConfirmedShare: false,
     twinNote: '',
     ...over,
@@ -388,6 +389,24 @@ describe('OgInscricoesListComponent', () => {
       expect(item.querySelector('.pay-status')?.textContent).toContain('Declarado pelo atleta');
       expect(item.querySelector('.pay-status')?.textContent).toContain('aguardando conferência');
       expect(item.querySelector('.pay-row button')?.textContent?.trim()).toBe('Confirmar recebimento');
+    });
+
+    /** Pix ou cartão pelo app: o webhook já viu o dinheiro. Mostrar "aguardando conferência"
+     *  e um botão de confirmar fazia o organizador conferir o que não tem o que conferir. */
+    it('atleta que pagou pelo app (Pix/cartão) aparece pago, sem botão', async () => {
+      const el = await openWith({
+        athletes: [
+          athlete({ uid: 'ana', sharePaid: true, sharePaidOnline: true }),
+          athlete({ uid: 'bia', name: 'Beatriz Costa' }),
+        ],
+      });
+      const item = el.querySelectorAll('.og-insc-athletes li')[0];
+      const status = item.querySelector('.pay-status');
+
+      expect(status?.textContent).toContain('Pago pelo app (Pix ou cartão)');
+      expect(status?.textContent).not.toContain('aguardando conferência');
+      expect(status?.classList).toContain('ok');
+      expect(item.querySelector('.pay-row button')).toBeNull();
     });
 
     it('confirmar recebimento de quem já declarou emite a mesma ação de confirmar', async () => {

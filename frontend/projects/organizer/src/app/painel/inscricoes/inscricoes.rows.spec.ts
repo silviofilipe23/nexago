@@ -201,6 +201,40 @@ describe('buildInscricaoRows', () => {
     ).toBe('1 de 4 declararam');
   });
 
+  // Pix/cartão pelo app passa pelo webhook: o dinheiro já está na conta, não há o que conferir.
+  // Só no modo direto a parte do atleta é uma declaração ("Já paguei") esperando o organizador.
+  describe('parte do atleta paga pelo app', () => {
+    const parcial = inscription({ sharePaidUids: ['u2'], sharePaidCount: 1 });
+
+    it('no modo app, quem quitou a parte conta como pago pelo app', () => {
+      const athletes = buildInscricaoRows([parcial], tournament(), new Map())[0]?.athletes;
+      expect(athletes?.map((a) => a.sharePaidOnline)).toEqual([false, true]);
+    });
+
+    it('no modo direto, a parte quitada é declaração, não pagamento pelo app', () => {
+      const athletes = buildInscricaoRows(
+        [parcial],
+        tournament({ paymentMode: 'directWithOrganizer' }),
+        new Map(),
+      )[0]?.athletes;
+      expect(athletes?.map((a) => a.sharePaidOnline)).toEqual([false, false]);
+    });
+
+    it('a baixa manual do organizador não vira pagamento pelo app', () => {
+      const athletes = buildInscricaoRows(
+        [inscription({ sharePaidUids: ['u2'], organizerConfirmedShareUids: ['u2'], sharePaidCount: 1 })],
+        tournament(),
+        new Map(),
+      )[0]?.athletes;
+      expect(athletes?.[1]?.sharePaidOnline).toBe(false);
+    });
+
+    it('sem o torneio carregado não afirma que o dinheiro entrou', () => {
+      const athletes = buildInscricaoRows([parcial], null, new Map())[0]?.athletes;
+      expect(athletes?.[1]?.sharePaidOnline).toBe(false);
+    });
+  });
+
   it('mostra a hora da inscrição, junto da data por extenso na gaveta', () => {
     const row = buildInscricaoRows(
       [inscription({ createdAt: new Date('2026-08-12T14:32:00-03:00') })],

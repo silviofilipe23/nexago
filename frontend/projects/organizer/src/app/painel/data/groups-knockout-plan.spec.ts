@@ -3,6 +3,7 @@ import {
   describeGroupSizes,
   estimateDurationMin,
   firstRoundPairings,
+  knockoutPhaseLabel,
   formatDuration,
   groupSizesFor,
   maxGroupCount,
@@ -135,10 +136,23 @@ describe('limites dos controles', () => {
     expect(maxGroupCount(0)).toBe(1);
   });
 
-  it('sempre sobra alguém eliminado no menor grupo', () => {
-    expect(maxQualifiersPerGroup(16, 4)).toBe(3);
-    expect(maxQualifiersPerGroup(10, 3)).toBe(2);
-    expect(maxQualifiersPerGroup(4, 2)).toBe(1);
+  it('classificados vão até o tamanho do menor grupo, como no servidor', () => {
+    expect(maxQualifiersPerGroup(16, 4)).toBe(4);
+    expect(maxQualifiersPerGroup(10, 3)).toBe(3);
+    expect(maxQualifiersPerGroup(4, 2)).toBe(2);
+    expect(maxQualifiersPerGroup(40, 2)).toBe(4);
+  });
+
+  it('2 duplas: um grupo com as duas classificadas segue publicável', () => {
+    expect(maxQualifiersPerGroup(2, 1)).toBe(2);
+    expect(planGroupsKnockout(2, 1, 2).issue).toBeNull();
+  });
+});
+
+describe('knockoutPhaseLabel', () => {
+  it('cada tamanho de fase tem um nome só — nada de rótulo repetido na mesma chave', () => {
+    const labels = [32, 16, 8, 4, 2].map(knockoutPhaseLabel);
+    expect(labels).toEqual(['64-avos', '32-avos', 'Oitavas', 'Quartas', 'Semifinais']);
   });
 });
 
@@ -161,6 +175,15 @@ describe('suggestGroupFormats', () => {
     const [first] = suggestGroupFormats(16);
     expect(first?.groupCount).toBe(4);
     expect(first?.qualifiersPerGroup).toBe(2);
+  });
+
+  it('toda sugestão elimina alguém em todos os grupos', () => {
+    for (let teams = 4; teams <= 40; teams++) {
+      for (const plan of suggestGroupFormats(teams)) {
+        const smallest = plan.groupSizes[plan.groupSizes.length - 1]!;
+        expect(plan.qualifiersPerGroup).withContext(`${teams} duplas`).toBeLessThan(smallest);
+      }
+    }
   });
 
   it('respeita o limite e não repete combinação', () => {
@@ -198,11 +221,12 @@ describe('firstRoundPairings — gabarito do servidor', () => {
     [2, 2, [['1º Grupo A', '2º Grupo B'], ['2º Grupo A', '1º Grupo B']]],
     [4, 2, [['1º Grupo A', '2º Grupo D'], ['1º Grupo B', '2º Grupo C'], ['1º Grupo C', '2º Grupo B'], ['1º Grupo D', '2º Grupo A']]],
     [8, 1, [['1º Grupo A', '1º Grupo H'], ['1º Grupo B', '1º Grupo G'], ['1º Grupo C', '1º Grupo F'], ['1º Grupo D', '1º Grupo E']]],
-    [3, 2, [['Melhor 1º', null], ['Melhor 2º', '2º melhor 2º'], ['2º melhor 1º', null], ['3º melhor 1º', '3º melhor 2º']]],
-    [3, 1, [['Melhor 1º', null], ['2º melhor 1º', '3º melhor 1º']]],
+    [3, 2, [['1º · melhor campanha', null], ['2º · melhor campanha', '2º · 2ª melhor campanha'], ['1º · 2ª melhor campanha', null], ['1º · 3ª melhor campanha', '2º · 3ª melhor campanha']]],
+    [3, 1, [['1º · melhor campanha', null], ['1º · 2ª melhor campanha', '1º · 3ª melhor campanha']]],
+    [1, 3, [['1º Grupo A', null], ['2º Grupo A', '3º Grupo A']]],
     [5, 2, [
-      ['Melhor 1º', null], ['3º melhor 2º', '4º melhor 2º'], ['4º melhor 1º', null], ['5º melhor 1º', null],
-      ['2º melhor 1º', null], ['2º melhor 2º', '5º melhor 2º'], ['3º melhor 1º', null], ['Melhor 2º', null],
+      ['1º · melhor campanha', null], ['2º · 3ª melhor campanha', '2º · 4ª melhor campanha'], ['1º · 4ª melhor campanha', null], ['1º · 5ª melhor campanha', null],
+      ['1º · 2ª melhor campanha', null], ['2º · 2ª melhor campanha', '2º · 5ª melhor campanha'], ['1º · 3ª melhor campanha', null], ['2º · melhor campanha', null],
     ]],
   ];
 

@@ -474,6 +474,9 @@ function summaryOf(items: NextMatchDayItem[]): string | null {
 const WINNER_OF = /vencedor\s+(?:do\s+)?jogo\s*#?\s*(\d+)/i;
 const LOSER_OF = /perdedor\s+(?:do\s+)?jogo\s*#?\s*(\d+)/i;
 const PLACE_IN_GROUP = /º\s*(?:lugar\s+)?(?:do\s+)?grupo\s+(\S+)/i;
+/** Vaga por classificação ENTRE grupos ("1º · 2ª melhor campanha") — o texto de
+ *  `rankedQualifierDescription`, em `category-bracket-builders.ts`. */
+const PLACE_BY_CAMPAIGN = /º\s*·\s*(?:\d+ª\s+)?melhor\s+campanha/i;
 
 function groupKey(poolId: string): string {
   return poolId.trim().toLowerCase().replace(/^grupo\s+/, "");
@@ -512,6 +515,9 @@ function slotCouldBeMine(
     if (winnerOf) return done.some((m) => m.matchNumber === Number(winnerOf) && won(m));
     const loserOf = description.match(LOSER_OF)?.[1];
     if (loserOf) return done.some((m) => m.matchNumber === Number(loserOf) && lost(m));
+    // Vaga por campanha não tem grupo dono: pode ser de qualquer dupla que
+    // jogou a fase de grupos da categoria, até todos os grupos terminarem.
+    if (PLACE_BY_CAMPAIGN.test(description)) return myGroups.size > 0;
     const group = description.match(PLACE_IN_GROUP)?.[1];
     return group ? myGroups.has(groupKey(group)) : false;
   });

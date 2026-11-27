@@ -32,14 +32,25 @@ function side(m: MatchDraft, s: "A" | "B"): string {
 }
 
 describe("rankedQualifierDescription", () => {
-  it("o primeiro do ranking é o 'Melhor', os demais levam o ordinal", () => {
-    assert.equal(rankedQualifierDescription({place: 1, rank: 1}), "Melhor 1º");
-    assert.equal(rankedQualifierDescription({place: 1, rank: 3}), "3º melhor 1º");
-    assert.equal(rankedQualifierDescription({place: 2, rank: 2}), "2º melhor 2º");
+  it("a colocação vem primeiro; a campanha leva o ordinal a partir da 2ª", () => {
+    assert.equal(rankedQualifierDescription({place: 1, rank: 1}), "1º · melhor campanha");
+    assert.equal(rankedQualifierDescription({place: 1, rank: 3}), "1º · 3ª melhor campanha");
+    assert.equal(rankedQualifierDescription({place: 2, rank: 2}), "2º · 2ª melhor campanha");
   });
 });
 
 describe("buildGroupsKnockoutMatches · total de classificados fora de potência de 2", () => {
+  it("grupo único × 3: vagas pela colocação no próprio grupo, com folga para o 1º", () => {
+    const groups = groupsOf([5]);
+    const knockout = knockoutOf(buildGroupsKnockoutMatches(groups[0]!.teamIds, groups, 3));
+    const semis = knockout.filter((m) => m.round === 1);
+    assert.deepEqual(semis.map((m) => [side(m, "A"), side(m, "B")]), [
+      ["1º Grupo A", ""],
+      ["2º Grupo A", "3º Grupo A"],
+    ]);
+    assert.deepEqual(semis[0]!.teamAQualifier, {poolId: "A", place: 1});
+  });
+
   it("3 grupos × 2: chave de 8 com folga para os dois melhores 1ºs", () => {
     const groups = groupsOf([3, 3, 3]);
     const matches = buildGroupsKnockoutMatches(groups.flatMap((g) => g.teamIds), groups, 2);
@@ -55,10 +66,10 @@ describe("buildGroupsKnockoutMatches · total de classificados fora de potência
     assert.equal(quarters.length, 4);
     // Ordem de seeding padrão de 8: [1,8] [4,5] [2,7] [3,6] — 7 e 8 não existem.
     assert.deepEqual(quarters.map((m) => [side(m, "A"), side(m, "B")]), [
-      ["Melhor 1º", ""],
-      ["Melhor 2º", "2º melhor 2º"],
-      ["2º melhor 1º", ""],
-      ["3º melhor 1º", "3º melhor 2º"],
+      ["1º · melhor campanha", ""],
+      ["2º · melhor campanha", "2º · 2ª melhor campanha"],
+      ["1º · 2ª melhor campanha", ""],
+      ["1º · 3ª melhor campanha", "2º · 3ª melhor campanha"],
     ]);
     assert.deepEqual(quarters[0]!.teamAQualifier, {place: 1, rank: 1});
     assert.equal(quarters[0]!.teamBQualifier, undefined);
@@ -69,7 +80,7 @@ describe("buildGroupsKnockoutMatches · total de classificados fora de potência
     const semis = knockout.filter((m) => m.round === 2 && m.matchType === "knockout");
     assert.equal(semis.length, 2);
     assert.deepEqual(semis[0]!.teamAQualifier, {place: 1, rank: 1});
-    assert.equal(side(semis[0]!, "A"), "Melhor 1º");
+    assert.equal(side(semis[0]!, "A"), "1º · melhor campanha");
     assert.equal(side(semis[0]!, "B"), `Vencedor Jogo #${quarters[1]!.matchNumber}`);
     assert.deepEqual(semis[1]!.teamAQualifier, {place: 1, rank: 2});
     assert.equal(side(semis[1]!, "B"), `Vencedor Jogo #${quarters[3]!.matchNumber}`);
@@ -109,8 +120,8 @@ describe("buildGroupsKnockoutMatches · total de classificados fora de potência
     const knockout = knockoutOf(buildGroupsKnockoutMatches(groups.flatMap((g) => g.teamIds), groups, 1));
     const semis = knockout.filter((m) => m.round === 1);
     assert.deepEqual(semis.map((m) => [side(m, "A"), side(m, "B")]), [
-      ["Melhor 1º", ""],
-      ["2º melhor 1º", "3º melhor 1º"],
+      ["1º · melhor campanha", ""],
+      ["1º · 2ª melhor campanha", "1º · 3ª melhor campanha"],
     ]);
     const final = knockout.find((m) => m.matchType === "Final")!;
     assert.deepEqual(final.teamAQualifier, {place: 1, rank: 1});
@@ -140,11 +151,12 @@ describe("gabarito dos confrontos da 1ª rodada (espelhado no portal)", () => {
     [2, 2, [["1º Grupo A", "2º Grupo B"], ["2º Grupo A", "1º Grupo B"]]],
     [4, 2, [["1º Grupo A", "2º Grupo D"], ["1º Grupo B", "2º Grupo C"], ["1º Grupo C", "2º Grupo B"], ["1º Grupo D", "2º Grupo A"]]],
     [8, 1, [["1º Grupo A", "1º Grupo H"], ["1º Grupo B", "1º Grupo G"], ["1º Grupo C", "1º Grupo F"], ["1º Grupo D", "1º Grupo E"]]],
-    [3, 2, [["Melhor 1º", null], ["Melhor 2º", "2º melhor 2º"], ["2º melhor 1º", null], ["3º melhor 1º", "3º melhor 2º"]]],
-    [3, 1, [["Melhor 1º", null], ["2º melhor 1º", "3º melhor 1º"]]],
+    [3, 2, [["1º · melhor campanha", null], ["2º · melhor campanha", "2º · 2ª melhor campanha"], ["1º · 2ª melhor campanha", null], ["1º · 3ª melhor campanha", "2º · 3ª melhor campanha"]]],
+    [3, 1, [["1º · melhor campanha", null], ["1º · 2ª melhor campanha", "1º · 3ª melhor campanha"]]],
+    [1, 3, [["1º Grupo A", null], ["2º Grupo A", "3º Grupo A"]]],
     [5, 2, [
-      ["Melhor 1º", null], ["3º melhor 2º", "4º melhor 2º"], ["4º melhor 1º", null], ["5º melhor 1º", null],
-      ["2º melhor 1º", null], ["2º melhor 2º", "5º melhor 2º"], ["3º melhor 1º", null], ["Melhor 2º", null],
+      ["1º · melhor campanha", null], ["2º · 3ª melhor campanha", "2º · 4ª melhor campanha"], ["1º · 4ª melhor campanha", null], ["1º · 5ª melhor campanha", null],
+      ["1º · 2ª melhor campanha", null], ["2º · 2ª melhor campanha", "2º · 5ª melhor campanha"], ["1º · 3ª melhor campanha", null], ["2º · melhor campanha", null],
     ]],
   ];
 

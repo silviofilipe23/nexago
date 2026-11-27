@@ -717,6 +717,15 @@ export async function runGenerateCategoryBracket(
         );
       }
     }
+    // O teste antigo de potência de 2 barrava de tabela um `qualifiersPerGroup`
+    // quebrado (1.5 × 4 = 6). Sem ele a checagem precisa ser explícita.
+    if (!Number.isInteger(qualifiersPerGroup) || qualifiersPerGroup < 1) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Classificados por grupo precisa ser um número inteiro a partir de 1.",
+        {reason: "invalid_qualifiers_per_group"},
+      );
+    }
     const tooFewTeams = resolvedGroups.find(
       (g) => g.teamIds.filter((id) => id.trim()).length < qualifiersPerGroup,
     );

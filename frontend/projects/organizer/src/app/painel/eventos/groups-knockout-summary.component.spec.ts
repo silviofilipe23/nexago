@@ -70,7 +70,13 @@ describe('GroupsKnockoutSummaryComponent', () => {
 
   it('mostra os confrontos da 1ª fase, com a folga marcada', async () => {
     const el = await mount({ teams: 10, groupCount: 3, qualifiersPerGroup: 2 });
-    expect(rows(el, '.og-gk-pairing')).toEqual(['Melhor 1º folga', 'Melhor 2º × 2º melhor 2º', '2º melhor 1º folga', '3º melhor 1º × 3º melhor 2º']);
+    expect(rows(el, '.og-gk-pairing')).toEqual(['1º · melhor campanha folga', '2º · melhor campanha × 2º · 2ª melhor campanha', '1º · 2ª melhor campanha folga', '1º · 3ª melhor campanha × 2º · 3ª melhor campanha']);
+  });
+
+  it('grupo único × 3: fala do próprio grupo, não de comparação entre grupos', async () => {
+    const el = await mount({ teams: 5, groupCount: 1, qualifiersPerGroup: 3 });
+    expect(text(el, '[data-block="knockout"]')).toContain('Folga na 1ª fase para o 1º colocado do grupo.');
+    expect(rows(el, '.og-gk-pairing')).toEqual(['1º Grupo A folga', '2º Grupo A × 3º Grupo A']);
   });
 
   it('cruzamento fixo quando o total é potência de 2', async () => {

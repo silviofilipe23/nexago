@@ -97,6 +97,7 @@ function roundRobinMatches(teams: number): number {
  * publicada usarem o mesmo nome.
  */
 export function knockoutPhaseLabel(matchCount: number): string {
+  if (matchCount >= 32) return '64-avos';
   if (matchCount >= 16) return '32-avos';
   if (matchCount === 8) return 'Oitavas';
   if (matchCount === 4) return 'Quartas';
@@ -151,12 +152,13 @@ export function maxGroupCount(teams: number): number {
   return Math.max(1, Math.floor(teams / MIN_TEAMS_PER_GROUP));
 }
 
-/** Classificados por grupo: sempre sobra alguém eliminado no MENOR grupo, senão
- *  a fase de grupos não elimina ninguém ali. */
+/** Classificados por grupo: no máximo o tamanho do MENOR grupo — a mesma regra
+ *  do servidor (`group_too_small`). Classificar o grupo inteiro é permitido: é o
+ *  que mantém publicável uma categoria de 2 duplas (1 grupo × 2). */
 export function maxQualifiersPerGroup(teams: number, groupCount: number): number {
-  const smallest = Math.min(...groupSizesFor(teams, groupCount), Number.POSITIVE_INFINITY);
-  if (!Number.isFinite(smallest)) return 1;
-  return Math.max(1, Math.min(MAX_QUALIFIERS_PER_GROUP, smallest - 1));
+  const sizes = groupSizesFor(teams, groupCount);
+  const smallest = sizes[sizes.length - 1] ?? 1;
+  return Math.max(1, Math.min(MAX_QUALIFIERS_PER_GROUP, smallest));
 }
 
 function knockoutPhases(bracketSize: number, byes: number): KnockoutPhase[] {
@@ -236,7 +238,9 @@ export function suggestGroupFormats(teams: number, limit = DEFAULT_SUGGESTION_LI
     const smallest = sizes[sizes.length - 1] ?? 0;
     const largest = sizes[0] ?? 0;
     if (smallest < minSize || largest > SUGGESTED_MAX_GROUP_SIZE) continue;
-    const maxQualifiers = Math.min(SUGGESTED_MAX_QUALIFIERS, maxQualifiersPerGroup(teams, groups));
+    // Sugestão sempre elimina alguém em todo grupo; classificar o grupo inteiro
+    // continua possível, mas só pelo stepper.
+    const maxQualifiers = Math.min(SUGGESTED_MAX_QUALIFIERS, smallest - 1);
     for (let qualifiers = 1; qualifiers <= maxQualifiers; qualifiers++) {
       const plan = planGroupsKnockout(teams, groups, qualifiers);
       if (plan.issue === null) candidates.push(plan);
@@ -280,7 +284,7 @@ function fixedSlotLabel(place: number, groupIndex: number): string {
 }
 
 function rankedSlotLabel(place: number, rank: number): string {
-  return rank === 1 ? `Melhor ${place}º` : `${rank}º melhor ${place}º`;
+  return rank === 1 ? `${place}º · melhor campanha` : `${place}º · ${rank}ª melhor campanha`;
 }
 
 /** Ordem de seeding padrão de uma chave de tamanho `size` (potência de 2). */
@@ -319,7 +323,9 @@ function crossoverPairings(groupCount: number, qualifiersPerGroup: number): Firs
 function rankedPairings(groupCount: number, qualifiersPerGroup: number): FirstRoundPairing[] {
   const seeds: string[] = [];
   for (let place = 1; place <= qualifiersPerGroup; place++) {
-    for (let rank = 1; rank <= groupCount; rank++) seeds.push(rankedSlotLabel(place, rank));
+    // Grupo único: a vaga é a colocação no próprio grupo, como no servidor.
+    if (groupCount === 1) seeds.push(fixedSlotLabel(place, 0));
+    else for (let rank = 1; rank <= groupCount; rank++) seeds.push(rankedSlotLabel(place, rank));
   }
   const slots = standardSeedSlots(nextPowerOfTwo(seeds.length)).map((seed) => seeds[seed - 1] ?? null);
   const pairs: FirstRoundPairing[] = [];

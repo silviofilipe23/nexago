@@ -99,7 +99,7 @@ function formatLabel(choice: GroupFormatChoice): string {
           <div class="og-gk-value">{{ knockoutMatchesLabel() }}</div>
           <p class="og-gk-line">{{ qualifiersLabel() }}</p>
           <ol class="og-gk-phases" aria-label="Fases do mata-mata">
-            @for (phase of phases(); track phase.label) {
+            @for (phase of phases(); track $index) {
               <li class="og-gk-phase">
                 <span class="og-gk-phase-name">{{ phase.label }}</span>
                 <span class="og-gk-phase-detail">{{ phase.detail }}</span>
@@ -410,6 +410,10 @@ export class GroupsKnockoutSummaryComponent {
   protected readonly seedingLabel = computed(() => {
     const plan = this.plan();
     if (plan.seeding === 'crossover') return 'Cruzamento fixo entre os grupos.';
+    if (plan.groupCount === 1) {
+      const holders = plan.byes === 1 ? 'o 1º colocado' : `os ${plan.byes} primeiros colocados`;
+      return `Folga na 1ª fase para ${holders} do grupo.`;
+    }
     const criteria = 'pela classificação entre grupos (aproveitamento, depois saldo médio por jogo)';
     if (plan.byes === 0) return `Chave montada ${criteria}.`;
     return `Folga para ${describeByeHolders(plan.byes, plan.groupCount)}, ${criteria}.`;

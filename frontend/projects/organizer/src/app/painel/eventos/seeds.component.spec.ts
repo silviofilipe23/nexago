@@ -421,9 +421,9 @@ describe('SeedsComponent — grupos + mata-mata: grupos, classificados e contas'
   it('não deixa passar do que as duplas comportam', async () => {
     const internals = await mount(6);
     internals.applyGroupFormat({ groupCount: 99, qualifiersPerGroup: 99 });
-    // 6 duplas: no máximo 3 grupos de 2, e grupo de 2 classifica 1.
+    // 6 duplas: no máximo 3 grupos de 2, e grupo de 2 classifica no máximo 2.
     expect(internals.groupCount()).toBe(3);
-    expect(internals.qualifiersPerGroup()).toBe(1);
+    expect(internals.qualifiersPerGroup()).toBe(2);
   });
 
   it('um grupo com um classificado não publica, e a tela oferece o formato mais próximo', async () => {

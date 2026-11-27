@@ -60,12 +60,20 @@ export function qualifierSlotDescription(slot: QualifierSlot): string {
   return `${slot.place}º Grupo ${slot.poolId}`;
 }
 
-/** "Melhor 1º", "2º melhor 1º", "3º melhor 2º"… — o que aparece no card da
- *  partida enquanto a fase de grupos não termina. */
+/**
+ * "1º · melhor campanha", "1º · 2ª melhor campanha", "2º · 3ª melhor campanha"…
+ * — o que aparece no card da partida enquanto a fase de grupos não termina.
+ *
+ * A COLOCAÇÃO vem primeiro, e é de propósito: o app (builds já na loja) lê o
+ * número antes do primeiro "º" como a colocação da vaga para orientar o
+ * confronto (`crossingSlotPlace`, em `focus_journey_view.dart`). "2º melhor 1º"
+ * seria lido como um 2º colocado. O ordinal da campanha é feminino ("2ª"), então
+ * nunca se confunde com o da colocação.
+ */
 export function rankedQualifierDescription(slot: RankedQualifierSlot): string {
   return slot.rank === 1 ?
-    `Melhor ${slot.place}º` :
-    `${slot.rank}º melhor ${slot.place}º`;
+    `${slot.place}º · melhor campanha` :
+    `${slot.place}º · ${slot.rank}ª melhor campanha`;
 }
 
 /**
@@ -75,12 +83,23 @@ export function rankedQualifierDescription(slot: RankedQualifierSlot): string {
  * ordem na chave e as folgas caem nos primeiros dela.
  */
 function rankedQualifierEntrants(
-  groupCount: number,
+  groupIds: string[],
   qualifiersPerGroup: number,
 ): KnockoutEntrant[] {
   const entrants: KnockoutEntrant[] = [];
   for (let place = 1; place <= qualifiersPerGroup; place++) {
-    for (let rank = 1; rank <= groupCount; rank++) {
+    // Grupo único: não há "entre grupos" para comparar. A vaga é a colocação
+    // no próprio grupo, com o texto de sempre ("1º Grupo A").
+    if (groupIds.length === 1) {
+      const qualifier: QualifierSlot = {poolId: groupIds[0]!, place};
+      entrants.push({
+        teamId: "",
+        qualifier,
+        description: qualifierSlotDescription(qualifier),
+      });
+      continue;
+    }
+    for (let rank = 1; rank <= groupIds.length; rank++) {
       const qualifier: RankedQualifierSlot = {place, rank};
       entrants.push({
         teamId: "",
@@ -139,11 +158,16 @@ export function crossoverFirstRoundPairings(
   return pairs;
 }
 
-/** Total de classificados que forma um mata-mata equilibrado: potência de 2
- *  (2, 4, 8, 16…). Substitui o antigo teste de `total >> 1` ser potência de 2,
- *  que aceitava totais ÍMPARES (3, 5, 9…) por causa do arredondamento e deixava
- *  publicar chaves com classificado sem confronto. Mesma regra no portal web
- *  (`seeds.component.ts`) e no app (`isBalancedKnockoutQualifierCount`). */
+/**
+ * O total de classificados fecha uma chave SEM folga? Potência de 2 (2, 4, 8,
+ * 16…). É o que separa os dois desenhos do mata-mata pós-grupos: fechou, cruza
+ * os grupos em vagas fixas; não fechou (3, 6, 10…), vira eliminatória semeada
+ * pela classificação entre grupos — ver `buildGroupsKnockoutMatches`.
+ *
+ * O teste antigo (`total >> 1` ser potência de 2) aceitava totais ÍMPARES por
+ * causa do arredondamento. O app ainda usa esta regra para BLOQUEAR o que não
+ * fecha (`isBalancedKnockoutQualifierCount`); o portal web já publica os dois.
+ */
 export function isBalancedQualifierTotal(totalQualifiers: number): boolean {
   return totalQualifiers >= 2 && (totalQualifiers & (totalQualifiers - 1)) === 0;
 }
@@ -241,7 +265,7 @@ export function buildGroupsKnockoutMatches(
         1,
         undefined,
         groupMatches.length + 1,
-        rankedQualifierEntrants(groupIds.length, safeQualifiers),
+        rankedQualifierEntrants(groupIds, safeQualifiers),
       ),
     ];
   }

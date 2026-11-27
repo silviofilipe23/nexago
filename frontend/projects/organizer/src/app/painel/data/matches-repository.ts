@@ -10,6 +10,7 @@ import { courtSidesFromRaw, medicalTimeoutFromRaw, statusOf, technicalTimeoutFro
 import { effectiveScoringProfile, scoringProfileFromRaw, setScoreText, type ScoringProfile } from '@nexago/sports';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
+import { knockoutPhaseLabel } from './groups-knockout-plan';
 import { fetchTeamNames } from './teams-repository';
 
 /** `artifacts/{projectId}/public/data/matches` — mesma coleção que o athlete lê em
@@ -35,6 +36,20 @@ export interface MatchLiveScore {
   setsB: number;
   currentGamesA: number;
   currentGamesB: number;
+}
+
+/** Id da dupla que deveria ocupar cada lado; `null` no lado que está certo. */
+export interface SeedingDrift {
+  teamAId: string | null;
+  teamBId: string | null;
+}
+
+function seedingDriftFrom(raw: unknown): SeedingDrift | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as Record<string, unknown>;
+  const teamAId = optionalStr(data['teamAId']);
+  const teamBId = optionalStr(data['teamBId']);
+  return teamAId || teamBId ? { teamAId, teamBId } : null;
 }
 
 export interface TournamentMatch {
@@ -102,6 +117,11 @@ export interface TournamentMatch {
    *  Ausente em toda partida de duelo — opcional de propósito, para que nenhuma
    *  fixture de duelo precise conhecer o formato. Ver `koc.ts`. */
   koc?: KocRoundState | null;
+  /** Vaga desatualizada: quem a classificação ATUAL dos grupos poria em cada
+   *  lado, quando não é quem está lá. O servidor grava (`qualifierDrift`) quando
+   *  um placar de grupo é corrigido depois que o mata-mata começou — ver
+   *  `seeding-drift.ts`. Ausente em toda partida sem divergência. */
+  seedingDrift?: SeedingDrift | null;
   matchStartedAt: Date | null;
   /** Fim real da partida (mesa/lançamento gravam ao completar) — o telão usa pra celebrar
    *  partidas recém-encerradas mesmo quando a TV recarregou no ponto do jogo. */
@@ -276,6 +296,7 @@ export interface RawMatch {
    *  telão de LED espelha a troca de lado do árbitro. Ausente quando nenhuma mesa publicou. */
   courtSides?: CourtSides | null;
   koc?: KocRoundState | null;
+  seedingDrift?: SeedingDrift | null;
   matchStartedAt: Date | null;
   matchEndedAt: Date | null;
   scoringProfile: ScoringProfile | null;
@@ -331,6 +352,7 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
     technicalTimeout: technicalTimeoutFromRaw(data['technicalTimeout']),
     courtSides: courtSidesFromRaw(data['courtSides']),
     koc,
+    seedingDrift: seedingDriftFrom(data['qualifierDrift']),
     matchStartedAt: toDate(data['matchStartedAt']),
     matchEndedAt: toDate(data['matchEndedAt']),
     scoringProfile: scoringProfileFromRaw(data['scoringProfile']),
@@ -404,16 +426,6 @@ export function bracketGroupSortOrder(m: TournamentMatch): number {
   const base = named[tLower];
   if (base != null) return base * 10 + m.roundNumber;
   return 60 * 10 + m.roundNumber;
-}
-
-/** Nome da fase pelo nº de jogos da coluna — só vale pra mata-mata balanceado (SE/crossover
- *  de grupos, onde byes existem como partidas na chave); DE usa rótulo por rodada. */
-function knockoutPhaseLabel(matchCount: number): string {
-  if (matchCount >= 16) return '32-avos';
-  if (matchCount === 8) return 'Oitavas';
-  if (matchCount === 4) return 'Quartas';
-  if (matchCount === 2) return 'Semifinais';
-  return 'Eliminatórias';
 }
 
 function bracketColumnHeaderLabel(matches: readonly TournamentMatch[]): string {
@@ -639,6 +651,7 @@ function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: s
     technicalTimeout: r.technicalTimeout ?? null,
     courtSides: r.courtSides ?? null,
     koc: r.koc,
+    seedingDrift: r.seedingDrift ?? null,
     matchStartedAt: r.matchStartedAt,
     matchEndedAt: r.matchEndedAt,
     scoringProfile: r.scoringProfile,

@@ -11,6 +11,7 @@ import {
   scorerMayAssignCourt,
   selectAutoScheduleCourts,
   shouldPropagateMatchAdvance,
+  shouldRefillKnockoutAfterGroupCorrection,
 } from "./organizer-match-ops";
 
 const COURTS = [
@@ -73,6 +74,35 @@ test("shouldPropagateMatchAdvance dispara ao concluir com vencedor", () => {
     ),
     true,
   );
+});
+
+test("correção só de placar num jogo de grupo encerrado refaz as vagas do mata-mata", () => {
+  const before = {status: "Completed", winnerId: "t1", isGroupMatch: true, sets: [{a: 21, b: 19}]};
+  const after = {...before, sets: [{a: 21, b: 10}]};
+  // Mesmo vencedor: o avanço normal não dispara…
+  assert.equal(shouldPropagateMatchAdvance(before, after), false);
+  // …mas o saldo mudou, e a classificação entre grupos depende dele.
+  assert.equal(shouldRefillKnockoutAfterGroupCorrection(before, after), true);
+});
+
+test("shouldRefillKnockoutAfterGroupCorrection ignora o que não é correção de placar de grupo", () => {
+  const group = {status: "Completed", winnerId: "t1", isGroupMatch: true, sets: [{a: 21, b: 19}]};
+  // Nada mudou no placar (ex.: só `updatedAt`).
+  assert.equal(shouldRefillKnockoutAfterGroupCorrection(group, {...group}), false);
+  // Acabou de encerrar: é o avanço normal que cuida.
+  assert.equal(shouldRefillKnockoutAfterGroupCorrection({...group, status: "In Progress"}, group), false);
+  // Vencedor mudou: também é o avanço normal que cuida.
+  assert.equal(
+    shouldRefillKnockoutAfterGroupCorrection(group, {...group, winnerId: "t2", sets: [{a: 19, b: 21}]}),
+    false,
+  );
+  // Jogo de mata-mata: a correção dele não muda classificação de grupo.
+  const knockout = {status: "Completed", winnerId: "t1", matchType: "knockout", sets: [{a: 21, b: 19}]};
+  assert.equal(shouldRefillKnockoutAfterGroupCorrection(knockout, {...knockout, sets: [{a: 21, b: 10}]}), false);
+  // Placar só em resultA/resultB também conta.
+  const legacy = {status: "Completed", winnerId: "t1", matchType: "group", resultA: "2", resultB: "0"};
+  assert.equal(shouldRefillKnockoutAfterGroupCorrection(legacy, {...legacy, resultB: "1"}), true);
+  assert.equal(shouldRefillKnockoutAfterGroupCorrection(undefined, group), false);
 });
 
 test("shouldPropagateMatchAdvance ignora rodada King of the Court", () => {

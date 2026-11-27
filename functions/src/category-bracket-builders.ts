@@ -18,6 +18,28 @@ export interface QualifierSlot {
   place: number;
 }
 
+/**
+ * Vaga decidida pela classificação ENTRE grupos: a `rank`-ésima melhor dupla
+ * entre as que terminaram em `place` no próprio grupo ("2º melhor 1º").
+ *
+ * Só existe quando `grupos × classificados` não é potência de 2 (3 grupos × 2,
+ * 5 × 2, 6 × 2…): aí o mata-mata precisa de folgas, e quem folga é quem foi
+ * melhor na fase de grupos — o que nenhuma vaga fixa "1º do Grupo A" sabe dizer
+ * antes dos jogos.
+ */
+export interface RankedQualifierSlot {
+  place: number;
+  rank: number;
+}
+
+export type KnockoutQualifierSlot = QualifierSlot | RankedQualifierSlot;
+
+export function isRankedQualifierSlot(
+  slot: KnockoutQualifierSlot,
+): slot is RankedQualifierSlot {
+  return typeof (slot as RankedQualifierSlot).rank === "number";
+}
+
 export interface MatchDraft {
   round: number;
   matchType: string;
@@ -28,14 +50,65 @@ export interface MatchDraft {
   matchNumber: number;
   winnerAdvance?: BracketAdvanceSlot;
   loserAdvance?: BracketAdvanceSlot;
-  teamAQualifier?: QualifierSlot;
-  teamBQualifier?: QualifierSlot;
+  teamAQualifier?: KnockoutQualifierSlot;
+  teamBQualifier?: KnockoutQualifierSlot;
   teamADescription?: string;
   teamBDescription?: string;
 }
 
 export function qualifierSlotDescription(slot: QualifierSlot): string {
   return `${slot.place}º Grupo ${slot.poolId}`;
+}
+
+/**
+ * "1º · melhor campanha", "1º · 2ª melhor campanha", "2º · 3ª melhor campanha"…
+ * — o que aparece no card da partida enquanto a fase de grupos não termina.
+ *
+ * A COLOCAÇÃO vem primeiro, e é de propósito: o app (builds já na loja) lê o
+ * número antes do primeiro "º" como a colocação da vaga para orientar o
+ * confronto (`crossingSlotPlace`, em `focus_journey_view.dart`). "2º melhor 1º"
+ * seria lido como um 2º colocado. O ordinal da campanha é feminino ("2ª"), então
+ * nunca se confunde com o da colocação.
+ */
+export function rankedQualifierDescription(slot: RankedQualifierSlot): string {
+  return slot.rank === 1 ?
+    `${slot.place}º · melhor campanha` :
+    `${slot.place}º · ${slot.rank}ª melhor campanha`;
+}
+
+/**
+ * Classificados em ordem de seed para o mata-mata com folgas: todos os 1ºs
+ * (do melhor ao pior), depois todos os 2ºs, e assim por diante. É a
+ * "classificação geral" da fase de grupos; `standardSeedSlots` espalha essa
+ * ordem na chave e as folgas caem nos primeiros dela.
+ */
+function rankedQualifierEntrants(
+  groupIds: string[],
+  qualifiersPerGroup: number,
+): KnockoutEntrant[] {
+  const entrants: KnockoutEntrant[] = [];
+  for (let place = 1; place <= qualifiersPerGroup; place++) {
+    // Grupo único: não há "entre grupos" para comparar. A vaga é a colocação
+    // no próprio grupo, com o texto de sempre ("1º Grupo A").
+    if (groupIds.length === 1) {
+      const qualifier: QualifierSlot = {poolId: groupIds[0]!, place};
+      entrants.push({
+        teamId: "",
+        qualifier,
+        description: qualifierSlotDescription(qualifier),
+      });
+      continue;
+    }
+    for (let rank = 1; rank <= groupIds.length; rank++) {
+      const qualifier: RankedQualifierSlot = {place, rank};
+      entrants.push({
+        teamId: "",
+        qualifier,
+        description: rankedQualifierDescription(qualifier),
+      });
+    }
+  }
+  return entrants;
 }
 
 /** Cruzamento padrão 2 grupos: 1A×2B, 1B×2A, 2A×1B, 2B×1A… */
@@ -85,11 +158,16 @@ export function crossoverFirstRoundPairings(
   return pairs;
 }
 
-/** Total de classificados que forma um mata-mata equilibrado: potência de 2
- *  (2, 4, 8, 16…). Substitui o antigo teste de `total >> 1` ser potência de 2,
- *  que aceitava totais ÍMPARES (3, 5, 9…) por causa do arredondamento e deixava
- *  publicar chaves com classificado sem confronto. Mesma regra no portal web
- *  (`seeds.component.ts`) e no app (`isBalancedKnockoutQualifierCount`). */
+/**
+ * O total de classificados fecha uma chave SEM folga? Potência de 2 (2, 4, 8,
+ * 16…). É o que separa os dois desenhos do mata-mata pós-grupos: fechou, cruza
+ * os grupos em vagas fixas; não fechou (3, 6, 10…), vira eliminatória semeada
+ * pela classificação entre grupos — ver `buildGroupsKnockoutMatches`.
+ *
+ * O teste antigo (`total >> 1` ser potência de 2) aceitava totais ÍMPARES por
+ * causa do arredondamento. O app ainda usa esta regra para BLOQUEAR o que não
+ * fecha (`isBalancedKnockoutQualifierCount`); o portal web já publica os dois.
+ */
 export function isBalancedQualifierTotal(totalQualifiers: number): boolean {
   return totalQualifiers >= 2 && (totalQualifiers & (totalQualifiers - 1)) === 0;
 }
@@ -174,6 +252,24 @@ export function buildGroupsKnockoutMatches(
   }
 
   const groupIds = safeGroups.map((g) => g.id);
+  const safeQualifiers = Math.max(1, qualifiersPerGroup);
+  // Total fora de potência de 2 (3 grupos × 2 = 6…): não existe cruzamento
+  // fixo que feche a chave. O mata-mata vira uma eliminatória semeada pela
+  // classificação geral, com folga para os melhores — mesma planta e mesma
+  // convenção de bye da eliminatória simples.
+  if (!isBalancedQualifierTotal(groupIds.length * safeQualifiers)) {
+    return [
+      ...groupMatches,
+      ...buildSingleEliminationKnockoutMatches(
+        [],
+        1,
+        undefined,
+        groupMatches.length + 1,
+        rankedQualifierEntrants(groupIds, safeQualifiers),
+      ),
+    ];
+  }
+
   const pairings = crossoverFirstRoundPairings(groupIds, qualifiersPerGroup);
   // matchNumberStart = total de jogos da fase de grupos + 1 → o mata-mata
   // continua a numeração sequencialmente (ex.: grupos terminam em #24, QF1 = #25).
@@ -294,6 +390,44 @@ export function standardSeedSlots(size: number): number[] {
   return slots;
 }
 
+/**
+ * Quem ocupa uma posição da chave na largada: uma equipe já conhecida ou uma
+ * vaga que a fase de grupos ainda vai decidir (aí `teamId` fica vazio).
+ */
+interface KnockoutEntrant {
+  teamId: string;
+  qualifier?: KnockoutQualifierSlot;
+  description?: string;
+}
+
+type MatchSide = "A" | "B";
+
+function entrantOnSide(match: MatchDraft, side: MatchSide): KnockoutEntrant | null {
+  const teamId = (side === "A" ? match.teamAId : match.teamBId).trim();
+  const qualifier = side === "A" ? match.teamAQualifier : match.teamBQualifier;
+  if (!teamId && !qualifier) return null;
+  const description =
+    side === "A" ? match.teamADescription : match.teamBDescription;
+  return {teamId, qualifier, description};
+}
+
+function placeEntrant(
+  match: MatchDraft,
+  side: MatchSide,
+  entrant: KnockoutEntrant | undefined,
+): void {
+  if (!entrant) return;
+  if (side === "A") {
+    match.teamAId = entrant.teamId;
+    if (entrant.qualifier) match.teamAQualifier = entrant.qualifier;
+    if (entrant.description) match.teamADescription = entrant.description;
+    return;
+  }
+  match.teamBId = entrant.teamId;
+  if (entrant.qualifier) match.teamBQualifier = entrant.qualifier;
+  if (entrant.description) match.teamBDescription = entrant.description;
+}
+
 interface FirstRoundOverride {
   teamAId?: string;
   teamBId?: string;
@@ -308,19 +442,24 @@ function buildSingleEliminationKnockoutMatches(
   roundStart: number,
   firstRoundOverrides?: FirstRoundOverride[],
   matchNumberStart = 1,
+  /** Entrantes já em ordem de seed (vagas de grupo por ranking). Sem isto, os
+   *  entrantes são as próprias `teamIds`. */
+  seededEntrants?: KnockoutEntrant[],
 ): MatchDraft[] {
+  const entrants: KnockoutEntrant[] =
+    seededEntrants ?? teamIds.map((teamId) => ({teamId}));
   const n = firstRoundOverrides?.length
     ? firstRoundOverrides.length * 2
-    : teamIds.length;
+    : entrants.length;
   if (n < 2) return [];
 
   const bracketSize = 1 << Math.ceil(Math.log2(n));
   // Posiciona as equipes nos slots pela ordem de seeding padrão: byes (slots
   // sem equipe) ficam distribuídos contra os melhores seeds, um por partida —
   // nunca agrupados numa partida "vazia × vazia" injogável.
-  const padded = firstRoundOverrides
-    ? Array.from({length: bracketSize}, () => "")
-    : standardSeedSlots(bracketSize).map((seed) => teamIds[seed - 1] ?? "");
+  const padded: Array<KnockoutEntrant | undefined> = firstRoundOverrides
+    ? []
+    : standardSeedSlots(bracketSize).map((seed) => entrants[seed - 1]);
 
   const totalRounds = Math.log2(bracketSize);
   const rounds: MatchDraft[][] = [];
@@ -333,23 +472,22 @@ function buildSingleEliminationKnockoutMatches(
     for (let m = 0; m < matchesInRound; m++) {
       const isFirstRound = r === 0;
       const override = firstRoundOverrides?.[m];
-      const teamAId = isFirstRound
-        ? (override?.teamAId ?? padded[m * 2] ?? "")
-        : "";
-      const teamBId = isFirstRound
-        ? (override?.teamBId ?? padded[m * 2 + 1] ?? "")
-        : "";
 
       const draft: MatchDraft = {
         round: roundStart + r,
         matchType: isFinal ? "Final" : "knockout",
         poolId: "",
-        teamAId,
-        teamBId,
+        teamAId: isFirstRound ? (override?.teamAId ?? "") : "",
+        teamBId: isFirstRound ? (override?.teamBId ?? "") : "",
         isGroupMatch: false,
         // matchNumber definitivo é atribuído depois (numeração GLOBAL).
         matchNumber: 0,
       };
+
+      if (isFirstRound && !override) {
+        placeEntrant(draft, "A", padded[m * 2]);
+        placeEntrant(draft, "B", padded[m * 2 + 1]);
+      }
 
       if (isFirstRound && override) {
         if (override.teamAQualifier) {
@@ -377,16 +515,19 @@ function buildSingleEliminationKnockoutMatches(
   // futuro — não é um bye — e empurrar o time adiante "pularia" essa partida.
   if (totalRounds > 1) {
     for (let i = 0; i < rounds[0]!.length; i++) {
-      const match = rounds[0]![i];
-      const a = match.teamAId.trim();
-      const b = match.teamBId.trim();
-      const solo = a && !b ? a : !a && b ? b : "";
+      const match = rounds[0]![i]!;
+      const a = entrantOnSide(match, "A");
+      const b = entrantOnSide(match, "B");
+      // Folga = exatamente um lado ocupado. Vale tanto para a equipe conhecida
+      // quanto para a vaga de grupo: quem folga leva a vaga INTEIRA (regra e
+      // descrição) para a rodada seguinte, e o preenchimento resolve os dois
+      // lugares de uma vez quando os grupos terminam.
+      const solo = a && !b ? a : !a && b ? b : null;
       if (!solo) continue;
       const nextIdx = Math.floor(i / 2);
       const next = rounds[1]?.[nextIdx];
       if (!next) continue;
-      const slot = slotForIndex(i);
-      next[slot] = solo;
+      placeEntrant(next, slotForIndex(i) === "teamAId" ? "A" : "B", solo);
     }
   }
 

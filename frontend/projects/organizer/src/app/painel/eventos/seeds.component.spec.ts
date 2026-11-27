@@ -122,6 +122,12 @@ interface Internals {
   onDragStart(index: number, event: DragEvent): void;
   onDragEnd(): void;
   shuffleTeams(): void;
+  bumpGroupCount(delta: number): void;
+  applyGroupFormat(choice: { groupCount: number; qualifiersPerGroup: number }): void;
+  groupCount(): number;
+  qualifiersPerGroup: WritableSignal<number>;
+  canPublish(): boolean;
+  groups(): Array<{ id: string; teamIds: string[] }>;
 }
 
 describe('SeedsComponent — avatares dos atletas', () => {
@@ -359,6 +365,88 @@ describe('SeedsComponent — embaralhar a lista de duplas', () => {
   it('fica travado com uma dupla só', async () => {
     await mount(teams(1));
     expect(shuffleButton().disabled).toBeTrue();
+  });
+});
+
+describe('SeedsComponent — grupos + mata-mata: grupos, classificados e contas', () => {
+  let fixture: ComponentFixture<SeedsComponent>;
+
+  async function mount(teamCount: number): Promise<Internals> {
+    await TestBed.configureTestingModule({
+      imports: [SeedsComponent],
+      providers: [provideZonelessChangeDetection(), provideRouter([])],
+    }).compileComponents();
+    fixture = TestBed.createComponent(SeedsComponent);
+    fixture.componentRef.setInput('catId', 'femB');
+    await fixture.whenStable();
+    const internals = fixture.componentInstance as unknown as Internals;
+    internals.tournament.set(tournament());
+    internals.eligible.set(
+      Array.from({ length: teamCount }, (_, i) =>
+        inscription({ id: `i${i + 1}`, teamId: `team-${i + 1}`, teamName: `Dupla ${i + 1} / X` }),
+      ),
+    );
+    internals.loading.set(false);
+    internals.redraw();
+    await fixture.whenStable();
+    return internals;
+  }
+
+  function stepperValue(label: string): string {
+    const el = fixture.nativeElement as HTMLElement;
+    const stepper = Array.from(el.querySelectorAll('.og-seeds-stepper')).find((s) => s.querySelector('.lbl')?.textContent?.trim() === label);
+    return stepper?.querySelector('.ctrl span')?.textContent?.trim() ?? '';
+  }
+
+  it('controla o número de grupos direto, e mostra o tamanho que resulta', async () => {
+    const internals = await mount(10);
+    expect(stepperValue('Grupos')).toBe('2');
+    internals.bumpGroupCount(1);
+    await fixture.whenStable();
+    expect(stepperValue('Grupos')).toBe('3');
+    expect((fixture.nativeElement as HTMLElement).querySelector('.og-seeds-stepper-note')?.textContent).toContain('1 grupo de 4 e 2 de 3');
+    expect(internals.groups().map((g) => g.teamIds.length).sort()).toEqual([3, 3, 4]);
+  });
+
+  it('3 grupos × 2 classificados publica — o mata-mata sai com folgas', async () => {
+    const internals = await mount(10);
+    internals.applyGroupFormat({ groupCount: 3, qualifiersPerGroup: 2 });
+    await fixture.whenStable();
+    expect(internals.canPublish()).toBeTrue();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.og-seeds-error')).toBeNull();
+    expect(el.querySelector('og-groups-knockout-summary')?.textContent).toContain('2 folgas');
+  });
+
+  it('não deixa passar do que as duplas comportam', async () => {
+    const internals = await mount(6);
+    internals.applyGroupFormat({ groupCount: 99, qualifiersPerGroup: 99 });
+    // 6 duplas: no máximo 3 grupos de 2, e grupo de 2 classifica no máximo 2.
+    expect(internals.groupCount()).toBe(3);
+    expect(internals.qualifiersPerGroup()).toBe(2);
+  });
+
+  it('um grupo com um classificado não publica, e a tela oferece o formato mais próximo', async () => {
+    const internals = await mount(6);
+    internals.applyGroupFormat({ groupCount: 1, qualifiersPerGroup: 1 });
+    await fixture.whenStable();
+    expect(internals.canPublish()).toBeFalse();
+    const fix = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.og-gk-fix')!;
+    fix.click();
+    await fixture.whenStable();
+    expect(internals.qualifiersPerGroup()).toBe(2);
+    expect(internals.canPublish()).toBeTrue();
+  });
+
+  it('clicar numa sugestão aplica grupos e classificados', async () => {
+    const internals = await mount(16);
+    const el = fixture.nativeElement as HTMLElement;
+    const option = Array.from(el.querySelectorAll<HTMLButtonElement>('.og-gk-option')).find((o) => !o.classList.contains('active'))!;
+    const before = `${internals.groupCount()}x${internals.qualifiersPerGroup()}`;
+    option.click();
+    await fixture.whenStable();
+    expect(`${internals.groupCount()}x${internals.qualifiersPerGroup()}`).not.toBe(before);
+    expect(internals.canPublish()).toBeTrue();
   });
 });
 

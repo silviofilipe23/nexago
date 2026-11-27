@@ -1439,6 +1439,35 @@ export function shouldPropagateMatchAdvance(
   return String(before.winnerId ?? "").trim() !== winnerId;
 }
 
+/** O placar como a classificação do grupo o lê: sets, `resultA`/`resultB`. */
+function groupScoreSignature(match: Record<string, unknown>): string {
+  return JSON.stringify([match.sets ?? null, match.resultA ?? null, match.resultB ?? null]);
+}
+
+/**
+ * Um jogo de GRUPO já encerrado teve só o placar corrigido (mesmo vencedor)?
+ *
+ * `shouldPropagateMatchAdvance` não dispara nesse caso — não há vencedor novo
+ * para avançar. Mas o saldo mudou, e ele decide a classificação do grupo e,
+ * na chave por campanha, a ordem entre grupos (quem folga, quem pega quem).
+ * Sem reagir aqui, o mata-mata ficaria com a ordem antiga em silêncio. Vencedor
+ * trocado já passa pelo avanço normal, que refaz o preenchimento do mesmo jeito.
+ */
+export function shouldRefillKnockoutAfterGroupCorrection(
+  before: Record<string, unknown> | undefined,
+  after: Record<string, unknown> | undefined,
+): boolean {
+  if (!before || !after) return false;
+  if (!isDuelMatch(after.matchType)) return false;
+  const matchType = String(after.matchType ?? "").trim().toLowerCase();
+  const isGroup = after.isGroupMatch === true || matchType === "group" || matchType === "groups";
+  if (!isGroup) return false;
+  if (!isMatchCompleted(before.status) || !isMatchCompleted(after.status)) return false;
+  const winnerId = String(after.winnerId ?? "").trim();
+  if (!winnerId || String(before.winnerId ?? "").trim() !== winnerId) return false;
+  return groupScoreSignature(before) !== groupScoreSignature(after);
+}
+
 /**
  * Partida elegível para o auto-agendamento (H3). Quando `respectBracketDeps`
  * é true, pula partidas cujo lado ainda é um placeholder de chave (ex.:
@@ -1581,6 +1610,18 @@ export const onTournamentMatchCompletedAdvance = onDocumentUpdated(
         await tryCompleteTournamentAfterFinal(db, projectId, after);
       } catch (e) {
         logger.error("onTournamentMatchCompletedAdvance: conclusão KOTC falhou", {matchId, e});
+      }
+      return;
+    }
+
+    // Correção só de placar num jogo de grupo: não há avanço nem ranking a
+    // propagar, mas a classificação mudou — refaz (ou marca) as vagas do
+    // mata-mata. Para jogo de grupo, `advanceBracketWinnerInternal` é só isso.
+    if (shouldRefillKnockoutAfterGroupCorrection(before, after) && after) {
+      try {
+        await advanceBracketWinnerInternal(db, projectId, after);
+      } catch (e) {
+        logger.error("onTournamentMatchCompletedAdvance: reclassificação falhou", {matchId, e});
       }
       return;
     }

@@ -1,5 +1,6 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
+import {rankedQualifierDescription} from "./category-bracket-builders";
 import {
   NEXT_MATCH_DAY_OVER_DISMISS_MS,
   NEXT_MATCH_SCORE_STALE_MS,
@@ -318,6 +319,15 @@ describe("buildNextMatchState", () => {
       const state = buildNextMatchState({...input([groupWin]), categoryMatches: [groupWin, slot]});
       assert.equal(state?.phase, "waiting");
       assert.equal(state?.summary, "1 vitória");
+    });
+
+    it("vaga por campanha entre grupos pode ser de qualquer um que jogou a fase de grupos", () => {
+      const slot = quartas({
+        teamADescription: rankedQualifierDescription({place: 2, rank: 1}),
+        teamBDescription: rankedQualifierDescription({place: 2, rank: 2}),
+      });
+      const state = buildNextMatchState({...input([groupWin]), categoryMatches: [groupWin, slot]});
+      assert.equal(state?.phase, "waiting");
     });
 
     it("vaga de outro grupo não segura o card de quem já acabou", () => {

@@ -248,7 +248,7 @@ export const ORGANIZADORES: DocAudience = {
           icon: 'network',
           summary: 'Grupos + mata-mata, eliminatória simples ou dupla eliminatória — com cabeças de chave, sorteio em snake e prévia antes de publicar.',
           body: [
-            'Quando a categoria fecha, o botão "Gerar chave" abre a tela de sorteio. Só entram duplas confirmadas — pagas, fora da lista de espera e com o elenco completo (mínimo de 2). Você escolhe o formato, ajusta duplas por grupo (2–8) e quantas classificam (1–4), e o painel valida o desenho: o total de classificados precisa formar um mata-mata equilibrado (4, 8, 16…), e a dupla eliminatória aceita de 4 a 32 duplas.',
+            'Quando a categoria fecha, o botão "Gerar chave" abre a tela de sorteio. Só entram duplas confirmadas — pagas, fora da lista de espera e com o elenco completo (mínimo de 2). Você escolhe o formato, ajusta quantos grupos e quantas classificam por grupo (1–4), e o painel mostra as contas do desenho: tamanho dos grupos, jogos de cada fase, total da categoria e os confrontos da primeira fase do mata-mata. A dupla eliminatória aceita de 4 a 32 duplas.',
             'Com "Respeitar ordem de seeds" ligado, as cabeças de chave são distribuídas primeiro (uma por grupo, em snake) — a lista de duplas é ordenável por pontuação de nível ou manualmente com as setas. Desligado, o sorteio é 100% aleatório. A prévia mostra os grupos montados e o botão "Sortear de novo" embaralha antes de publicar.',
             'Na fase de grupos, cada grupo tem a classificação ao vivo (vitórias, saldo de sets, pontos — 2 por vitória, com desempate por confronto direto no fechamento) e a lista de jogos. O Chaveamento desenha a árvore completa da categoria — na dupla eliminatória, com a chave dos vencedores em cima e a dos perdedores embaixo — e cada card de partida leva ao lançamento de placar.',
           ],
@@ -269,7 +269,8 @@ export const ORGANIZADORES: DocAudience = {
             'Elegíveis: duplas pagas + fora da espera + elenco completo. Mínimo de 2.',
             'Regerar uma chave com partidas em andamento ou concluídas APAGA os resultados — o painel exige confirmação explícita.',
             'Depois da chave gerada, o botão "Gerar chave" desaparece das telas.',
-            'Total de classificados precisa ser potência de 2 (4, 8, 16…).',
+            'Quando o total de classificados não fecha em 2, 4, 8 ou 16 (3 grupos × 2, por exemplo), o mata-mata sai com folgas na primeira fase para os melhores da classificação entre grupos. Se um confronto fosse repetir um jogo da fase de grupos, duplas da mesma colocação trocam de vaga.',
+            'Na chave com folgas, corrigir o placar de um jogo de grupo refaz a ordem das vagas enquanto nenhum jogo do mata-mata começou. Depois disso a chave é mantida, e o chaveamento avisa quais jogos ficaram diferentes da classificação atual.',
           ],
           keywords: ['chave', 'chaveamento', 'sorteio', 'grupos', 'cabeça de chave', 'seed', 'snake', 'eliminatória', 'dupla eliminatória', 'gerar chave'],
           screen: {

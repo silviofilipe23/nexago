@@ -44,6 +44,7 @@ import {
   wheelBracketZoom,
 } from './chaveamento-zoom';
 import { kocDriftDetail } from './koc-drift';
+import { seedingDriftNotes } from './seeding-drift';
 
 const STATUS_TONE: Record<MatchDisplayStatus, PillTone> = {
   scheduled: 'orange',
@@ -241,6 +242,28 @@ export function bracketSetsWonOf(m: TournamentMatch): [number, number] | null {
         </div>
       </ng-template>
 
+      @if (seedingDrift(); as notes) {
+        <!-- Placar de grupo corrigido depois que o mata-mata começou: o servidor
+             não move dupla de jogo já iniciado, só marca. Sem este aviso a chave
+             seguiria com a ordem antiga e nada na tela diria que ela mudou. -->
+        <div class="og-card og-koc-drift" role="status" data-warning="seeding-drift">
+          <og-icon name="alert" [size]="16" />
+          <div>
+            <strong>A classificação dos grupos mudou depois que o mata-mata começou.</strong>
+            <ul class="og-seeding-drift-list">
+              @for (note of notes; track note) {
+                <li>{{ note }}</li>
+              }
+            </ul>
+            <p class="og-koc-drift-hint">
+              Um placar da fase de grupos foi corrigido. A ordem das vagas só é refeita sozinha
+              enquanto nenhum jogo do mata-mata começou — como já começou, a chave foi mantida.
+              Confira se os confrontos acima ainda valem.
+            </p>
+          </div>
+        </div>
+      }
+
       @if (kocDrift(); as drift) {
         <!-- Mexer no wizard NÃO refaz chave publicada, e o caminho de gerar
              some assim que a categoria tem jogos. Sem este aviso o organizador
@@ -376,6 +399,11 @@ export function bracketSetsWonOf(m: TournamentMatch): [number, number] | null {
     }
     .og-koc-drift-hint {
       font-size: 12.5px;
+    }
+    .og-seeding-drift-list {
+      margin: 6px 0 0;
+      padding-left: 18px;
+      color: var(--nx-text);
     }
     .og-koc-drift a {
       flex: none;
@@ -613,6 +641,14 @@ export class ChaveamentoComponent {
     if (!round) return null;
     const detail = kocDriftDetail(round, category);
     return detail ? {detail} : null;
+  });
+
+  /** Vagas do mata-mata que a classificação atual dos grupos preencheria com
+   *  outra dupla — só existe na chave por campanha, e só quando o servidor não
+   *  pôde refazer a ordem. `null` quando não há nada a avisar. */
+  protected readonly seedingDrift = computed<string[] | null>(() => {
+    const notes = seedingDriftNotes(this.knockoutMatches(), this.ctx.matchesFiltered());
+    return notes.length > 0 ? notes : null;
   });
 
   protected readonly headerSubtitle = computed(() => {

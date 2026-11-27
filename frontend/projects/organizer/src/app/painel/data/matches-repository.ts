@@ -38,6 +38,20 @@ export interface MatchLiveScore {
   currentGamesB: number;
 }
 
+/** Id da dupla que deveria ocupar cada lado; `null` no lado que está certo. */
+export interface SeedingDrift {
+  teamAId: string | null;
+  teamBId: string | null;
+}
+
+function seedingDriftFrom(raw: unknown): SeedingDrift | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as Record<string, unknown>;
+  const teamAId = optionalStr(data['teamAId']);
+  const teamBId = optionalStr(data['teamBId']);
+  return teamAId || teamBId ? { teamAId, teamBId } : null;
+}
+
 export interface TournamentMatch {
   id: string;
   tournamentId: string;
@@ -103,6 +117,11 @@ export interface TournamentMatch {
    *  Ausente em toda partida de duelo — opcional de propósito, para que nenhuma
    *  fixture de duelo precise conhecer o formato. Ver `koc.ts`. */
   koc?: KocRoundState | null;
+  /** Vaga desatualizada: quem a classificação ATUAL dos grupos poria em cada
+   *  lado, quando não é quem está lá. O servidor grava (`qualifierDrift`) quando
+   *  um placar de grupo é corrigido depois que o mata-mata começou — ver
+   *  `seeding-drift.ts`. Ausente em toda partida sem divergência. */
+  seedingDrift?: SeedingDrift | null;
   matchStartedAt: Date | null;
   /** Fim real da partida (mesa/lançamento gravam ao completar) — o telão usa pra celebrar
    *  partidas recém-encerradas mesmo quando a TV recarregou no ponto do jogo. */
@@ -277,6 +296,7 @@ export interface RawMatch {
    *  telão de LED espelha a troca de lado do árbitro. Ausente quando nenhuma mesa publicou. */
   courtSides?: CourtSides | null;
   koc?: KocRoundState | null;
+  seedingDrift?: SeedingDrift | null;
   matchStartedAt: Date | null;
   matchEndedAt: Date | null;
   scoringProfile: ScoringProfile | null;
@@ -332,6 +352,7 @@ export function rawMatchFromDoc(id: string, data: Record<string, unknown>): RawM
     technicalTimeout: technicalTimeoutFromRaw(data['technicalTimeout']),
     courtSides: courtSidesFromRaw(data['courtSides']),
     koc,
+    seedingDrift: seedingDriftFrom(data['qualifierDrift']),
     matchStartedAt: toDate(data['matchStartedAt']),
     matchEndedAt: toDate(data['matchEndedAt']),
     scoringProfile: scoringProfileFromRaw(data['scoringProfile']),
@@ -630,6 +651,7 @@ function rawToMatch(r: RawMatch, labelOf: (description: string | null, teamId: s
     technicalTimeout: r.technicalTimeout ?? null,
     courtSides: r.courtSides ?? null,
     koc: r.koc,
+    seedingDrift: r.seedingDrift ?? null,
     matchStartedAt: r.matchStartedAt,
     matchEndedAt: r.matchEndedAt,
     scoringProfile: r.scoringProfile,

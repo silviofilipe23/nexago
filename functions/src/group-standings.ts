@@ -4,7 +4,7 @@ import {
   type KnockoutQualifierSlot,
   type RankedQualifierSlot,
 } from "./category-bracket-builders";
-import {isMatchCompleted} from "./match-status";
+import {isMatchCompleted, isMatchInProgress} from "./match-status";
 import {effectiveScoringProfile} from "./sports/scoring";
 
 export interface GroupPreview {
@@ -491,6 +491,102 @@ export function teamIdForQualifier(
   return ranked[slot.place - 1]?.trim() || null;
 }
 
+/** Para cada lado desatualizado, a dupla que a classificação ATUAL poria ali. */
+export interface QualifierDrift {
+  teamAId?: string;
+  teamBId?: string;
+}
+
+/** O que o preenchimento precisa saber de uma partida do mata-mata. */
+export interface KnockoutSlotState {
+  teamAId: string;
+  teamBId: string;
+  a: KnockoutQualifierSlot | null;
+  b: KnockoutQualifierSlot | null;
+  /** Já foi para a quadra, está em andamento ou terminou. */
+  started: boolean;
+  /** Aviso de vaga desatualizada já gravado na partida, se houver. */
+  drift: QualifierDrift | null;
+}
+
+/** O que gravar na partida. `qualifierDrift: null` apaga o aviso. */
+export interface KnockoutSlotPatch {
+  teamAId?: string;
+  teamBId?: string;
+  qualifierDrift?: QualifierDrift | null;
+}
+
+function sameDrift(a: QualifierDrift | null, b: QualifierDrift): boolean {
+  return (a?.teamAId ?? "") === (b.teamAId ?? "") &&
+    (a?.teamBId ?? "") === (b.teamBId ?? "");
+}
+
+/**
+ * Decide o que gravar em cada partida do mata-mata, dada a classificação atual
+ * dos grupos. Devolve um patch por partida, na mesma ordem (`null` = nada).
+ *
+ * Vaga VAZIA é sempre preenchida — é o primeiro preenchimento, igual em todo
+ * formato.
+ *
+ * Vaga já preenchida com OUTRA dupla só existe depois de uma correção de placar
+ * num jogo de grupo. O que acontece depende da chave:
+ *
+ * - Chave por campanha (alguma vaga `{place, rank}`): a ordem das vagas vem da
+ *   classificação ENTRE grupos, e corrigir só o saldo de um jogo já pode trocar
+ *   quem folga. Enquanto NENHUMA partida do mata-mata começou, a chave inteira é
+ *   refeita — é seguro, porque toda dupla ali veio deste mesmo preenchimento.
+ *   Depois que começou não dá: tirar uma dupla de um jogo já jogado deixaria a
+ *   chave incoerente. Aí ninguém é movido, e cada partida desatualizada ganha
+ *   `qualifierDrift` com a dupla que a classificação atual poria ali, para o
+ *   painel avisar o organizador. O aviso some sozinho se uma nova correção
+ *   devolver a ordem.
+ * - Chave de vagas fixas (formatos antigos): nada muda — vaga preenchida não é
+ *   refeita nem marcada, como sempre foi.
+ */
+export function planKnockoutSlotFill(
+  states: KnockoutSlotState[],
+  resolve: (slot: KnockoutQualifierSlot) => string | null,
+): Array<KnockoutSlotPatch | null> {
+  const byCampaign = states.some((state) =>
+    [state.a, state.b].some((slot) => slot !== null && isRankedQualifierSlot(slot)));
+  const canReseed = byCampaign && !states.some((state) => state.started);
+
+  return states.map((state) => {
+    const patch: KnockoutSlotPatch = {};
+    const drift: QualifierDrift = {};
+    const sides = [
+      {field: "teamAId" as const, slot: state.a, current: state.teamAId.trim()},
+      {field: "teamBId" as const, slot: state.b, current: state.teamBId.trim()},
+    ];
+    for (const {field, slot, current} of sides) {
+      const expected = slot ? resolve(slot) : null;
+      if (!expected || expected === current) continue;
+      if (!current || canReseed) patch[field] = expected;
+      else if (byCampaign) drift[field] = expected;
+    }
+    if (byCampaign && !sameDrift(state.drift, drift)) {
+      patch.qualifierDrift = Object.keys(drift).length > 0 ? drift : null;
+    }
+    return Object.keys(patch).length > 0 ? patch : null;
+  });
+}
+
+function parseQualifierDrift(raw: unknown): QualifierDrift | null {
+  if (!raw || typeof raw !== "object") return null;
+  const data = raw as Record<string, unknown>;
+  const teamAId = typeof data.teamAId === "string" ? data.teamAId.trim() : "";
+  const teamBId = typeof data.teamBId === "string" ? data.teamBId.trim() : "";
+  if (!teamAId && !teamBId) return null;
+  return {...(teamAId ? {teamAId} : {}), ...(teamBId ? {teamBId} : {})};
+}
+
+/** Na quadra, em andamento ou encerrada — a partir daqui a dupla não sai mais. */
+function hasKnockoutMatchStarted(data: Record<string, unknown>): boolean {
+  return isMatchInProgress(data.status) ||
+    isMatchCompleted(data.status) ||
+    data.queueStatus === "on_court";
+}
+
 export interface FillKnockoutResult {
   filled: boolean;
   slotsFilled: number;
@@ -531,50 +627,45 @@ export async function tryFillKnockoutFromGroupStandings(
     );
   }
 
-  // A classificação entre grupos decide as vagas por campanha; antes de
-  // preencher, desfaz os confrontos que repetiriam um jogo da fase de grupos.
-  const knockoutPairs: KnockoutSlotPair[] = snap.docs
-    .map((doc) => doc.data())
-    .filter((data) => data.isGroupMatch !== true)
-    .map((data) => ({
+  // O mata-mata como está gravado: toda partida fora da fase de grupos.
+  const knockoutDocs = snap.docs.filter((doc) => {
+    const data = doc.data();
+    return data.isGroupMatch !== true && (data.round as number) >= 1;
+  });
+  const states: KnockoutSlotState[] = knockoutDocs.map((doc) => {
+    const data = doc.data();
+    return {
+      teamAId: String(data.teamAId ?? ""),
+      teamBId: String(data.teamBId ?? ""),
       a: parseQualifierSlot(data.teamAQualifier),
       b: parseQualifierSlot(data.teamBQualifier),
-    }));
+      started: hasKnockoutMatchStarted(data),
+      drift: parseQualifierDrift(data.qualifierDrift),
+    };
+  });
+
+  // A classificação entre grupos decide as vagas por campanha; antes de
+  // preencher, desfaz os confrontos que repetiriam um jogo da fase de grupos.
   const rankedByPlace = avoidGroupRematches(
     rankQualifiersAcrossGroups(groups, groupMatches),
-    knockoutPairs,
+    states,
     groups,
   );
+  const patches = planKnockoutSlotFill(states, (slot) =>
+    teamIdForQualifier(slot, standingsByPool, rankedByPlace));
 
   let slotsFilled = 0;
-  for (const doc of snap.docs) {
-    const data = doc.data();
-    if (data.isGroupMatch === true) continue;
-    if ((data.round as number) < 1) continue;
-
-    const patch: Record<string, unknown> = {};
-    const teamAQualifier = parseQualifierSlot(data.teamAQualifier);
-    const teamBQualifier = parseQualifierSlot(data.teamBQualifier);
-
-    if (teamAQualifier && !(data.teamAId as string | undefined)?.trim()) {
-      const teamId = teamIdForQualifier(teamAQualifier, standingsByPool, rankedByPlace);
-      if (teamId) {
-        patch.teamAId = teamId;
-        slotsFilled++;
-      }
-    }
-    if (teamBQualifier && !(data.teamBId as string | undefined)?.trim()) {
-      const teamId = teamIdForQualifier(teamBQualifier, standingsByPool, rankedByPlace);
-      if (teamId) {
-        patch.teamBId = teamId;
-        slotsFilled++;
-      }
-    }
-
-    if (Object.keys(patch).length > 0) {
-      patch.updatedAt = FieldValue.serverTimestamp();
-      await doc.ref.update(patch);
-    }
+  for (const [index, patch] of patches.entries()) {
+    if (!patch) continue;
+    const {qualifierDrift, ...teams} = patch;
+    slotsFilled += Object.keys(teams).length;
+    await knockoutDocs[index]!.ref.update({
+      ...teams,
+      ...(qualifierDrift === undefined ?
+        {} :
+        {qualifierDrift: qualifierDrift ?? FieldValue.delete()}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
   }
 
   return {filled: slotsFilled > 0, slotsFilled};

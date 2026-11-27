@@ -270,6 +270,7 @@ export const ORGANIZADORES: DocAudience = {
             'Regerar uma chave com partidas em andamento ou concluídas APAGA os resultados — o painel exige confirmação explícita.',
             'Depois da chave gerada, o botão "Gerar chave" desaparece das telas.',
             'Quando o total de classificados não fecha em 2, 4, 8 ou 16 (3 grupos × 2, por exemplo), o mata-mata sai com folgas na primeira fase para os melhores da classificação entre grupos. Se um confronto fosse repetir um jogo da fase de grupos, duplas da mesma colocação trocam de vaga.',
+            'Na chave com folgas, corrigir o placar de um jogo de grupo refaz a ordem das vagas enquanto nenhum jogo do mata-mata começou. Depois disso a chave é mantida, e o chaveamento avisa quais jogos ficaram diferentes da classificação atual.',
           ],
           keywords: ['chave', 'chaveamento', 'sorteio', 'grupos', 'cabeça de chave', 'seed', 'snake', 'eliminatória', 'dupla eliminatória', 'gerar chave'],
           screen: {

@@ -51,7 +51,7 @@ admin.initializeApp({projectId});
 const auth = admin.auth();
 const db = admin.firestore();
 
-const ALLOWED_ROLES = ["admin", "organizer", "athlete", "arena", "coach"];
+const ALLOWED_ROLES = ["admin", "organizer", "athlete", "arena", "coach", "professor", "center"];
 
 function normalizeRoles(raw) {
   if (!Array.isArray(raw)) return [];

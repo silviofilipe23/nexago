@@ -57,7 +57,7 @@ const removeArg = argValue("--remove");
 const setArg = argValue("--set");
 
 // Alinhado a ALLOWED_APP_ROLES em functions/src/auth-roles.ts
-const ALLOWED_ROLES = ["admin", "organizer", "athlete", "arena", "coach"];
+const ALLOWED_ROLES = ["admin", "organizer", "athlete", "arena", "coach", "professor", "center"];
 
 function fail(msg) {
   console.error(msg);

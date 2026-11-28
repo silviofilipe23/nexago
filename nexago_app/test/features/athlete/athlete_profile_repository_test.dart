@@ -50,7 +50,8 @@ void main() {
       phoneNumber: '(62) 99123-4567',
     );
 
-    test('grava o número declarado quando a conta não tem selo de SMS', () async {
+    test('grava o número declarado quando a conta não tem selo de SMS',
+        () async {
       final firestore = _FakeFirestore(
         existingUsers: {
           'u1': {'fullName': 'Ana Souza', 'city': 'Goiânia'},
@@ -211,6 +212,54 @@ void main() {
         expect(functions.calledFunctionNames, isEmpty);
       },
     );
+
+    test(
+      'doc tem athlete mas o token não: chama grantAthleteRole para '
+      'religar a claim (o seletor de papéis lê o token)',
+      () async {
+        final firestore = _FakeFirestore(
+          existingUsers: {
+            'u1': {
+              'roles': ['admin', 'arena', 'athlete', 'organizer'],
+            },
+          },
+        );
+        final functions = _FakeFirebaseFunctions();
+        final repo = AthleteProfileRepository(
+          firestore,
+          functions: functions,
+          tokenRoles: () async => {'admin', 'arena', 'organizer'},
+        );
+
+        await repo.saveProfile(profile);
+
+        expect(functions.calledFunctionNames, ['grantAthleteRole']);
+        expect(firestore.lastRawPayload('u1')!.containsKey('roles'), isFalse);
+      },
+    );
+
+    test(
+      'doc e token com athlete: não chama grantAthleteRole',
+      () async {
+        final firestore = _FakeFirestore(
+          existingUsers: {
+            'u1': {
+              'roles': ['athlete'],
+            },
+          },
+        );
+        final functions = _FakeFirebaseFunctions();
+        final repo = AthleteProfileRepository(
+          firestore,
+          functions: functions,
+          tokenRoles: () async => {'athlete'},
+        );
+
+        await repo.saveProfile(profile);
+
+        expect(functions.calledFunctionNames, isEmpty);
+      },
+    );
   });
 
   group(
@@ -342,13 +391,11 @@ void main() {
   // formulário ainda é rascunho (nome/cidade/bio em edição) e `roles` é
   // proibido pelas rules de update em `users`.
   group('AthleteProfileRepository — salvamento separado das imagens', () {
-    final cases = <
-      String,
-      ({
-        String field,
-        Future<void> Function(AthleteProfileRepository repo, String url) save,
-      })
-    >{
+    final cases = <String,
+        ({
+      String field,
+      Future<void> Function(AthleteProfileRepository repo, String url) save,
+    })>{
       'foto de perfil': (
         field: 'profilePhotoUrl',
         save: (repo, url) => repo.saveAvatarPhotoUrl(uid: 'u1', photoUrl: url),
@@ -360,14 +407,14 @@ void main() {
     };
 
     _FakeFirestore existingAthlete() => _FakeFirestore(
-      existingUsers: {
-        'u1': {
-          'fullName': 'Ana Souza',
-          'roles': ['athlete'],
-          'city': 'Goiânia',
-        },
-      },
-    );
+          existingUsers: {
+            'u1': {
+              'fullName': 'Ana Souza',
+              'roles': ['athlete'],
+              'city': 'Goiânia',
+            },
+          },
+        );
 
     for (final entry in cases.entries) {
       final label = entry.key;
@@ -388,7 +435,8 @@ void main() {
         expect(payload[field], 'https://x/img.jpg');
       });
 
-      test('$label: merge preserva o resto do doc (rascunho não vaza)', () async {
+      test('$label: merge preserva o resto do doc (rascunho não vaza)',
+          () async {
         final firestore = existingAthlete();
         final repo = AthleteProfileRepository(
           firestore,
@@ -514,7 +562,8 @@ class _FakeFirestore implements FirebaseFirestore {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _FakeUsersCollection implements CollectionReference<Map<String, dynamic>> {
+class _FakeUsersCollection
+    implements CollectionReference<Map<String, dynamic>> {
   _FakeUsersCollection(this._firestore);
 
   final _FakeFirestore _firestore;
@@ -538,7 +587,8 @@ class _FakeUserDocRef implements DocumentReference<Map<String, dynamic>> {
   final String id;
 
   @override
-  Future<DocumentSnapshot<Map<String, dynamic>>> get([GetOptions? options]) async {
+  Future<DocumentSnapshot<Map<String, dynamic>>> get(
+      [GetOptions? options]) async {
     return _FakeDocSnapshot(id: id, fields: _firestore._users[id]);
   }
 

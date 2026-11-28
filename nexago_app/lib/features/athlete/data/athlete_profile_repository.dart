@@ -6,6 +6,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import '../../../core/auth/user_roles.dart';
 import '../../../core/search/search_keywords.dart';
 import '../domain/athlete_notification_preferences.dart';
 import '../domain/athlete_privacy_preferences.dart';
@@ -32,12 +33,33 @@ const Duration kAthleteRoleGrantTimeout = Duration(seconds: 25);
 
 const Duration kProfileSaveTimeout = Duration(seconds: 20);
 
+/// Papéis da claim `roles` do token da sessão; `null` quando não dá pra saber
+/// (sem sessão, rede) — aí vale só o espelho `users/{uid}.roles`.
+typedef TokenRolesReader = Future<Set<String>?> Function();
+
 class AthleteProfileRepository {
-  AthleteProfileRepository(this._firestore, {FirebaseFunctions? functions})
-      : _functions = functions ?? nexagoFunctions;
+  AthleteProfileRepository(
+    this._firestore, {
+    FirebaseFunctions? functions,
+    TokenRolesReader? tokenRoles,
+  })  : _functions = functions ?? nexagoFunctions,
+        _tokenRoles = tokenRoles ?? _currentSessionTokenRoles;
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
+  final TokenRolesReader _tokenRoles;
+
+  static Future<Set<String>?> _currentSessionTokenRoles() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+    try {
+      final token =
+          await user.getIdTokenResult(false).timeout(kProfileSaveTimeout);
+      return appRolesFromIdToken(token).toSet();
+    } on Exception {
+      return null;
+    }
+  }
 
   CollectionReference<Map<String, dynamic>> get _users =>
       _firestore.collection('users');
@@ -54,7 +76,8 @@ class AthleteProfileRepository {
     final snap = await docRef.get().timeout(kProfileSaveTimeout);
     final exists = snap.exists;
 
-    final stepsComplete = ProfileCompletionState.fromProfile(profile).allComplete;
+    final stepsComplete =
+        ProfileCompletionState.fromProfile(profile).allComplete;
     final tournamentReady = isTournamentProfileReady(profile);
     final data = <String, dynamic>{
       ...profile.toFirestore(),
@@ -115,7 +138,13 @@ class AthleteProfileRepository {
     final existingRoles = existingRolesRaw is List
         ? existingRolesRaw.whereType<String>().toSet()
         : <String>{};
-    if (!existingRoles.contains('athlete')) {
+    // O espelho pode ter `athlete` e a claim não (contas antigas, cujo papel
+    // entrou no doc antes de a callable existir). Quem decide o seletor de
+    // papéis e as rules é a claim — então ela também conta.
+    final tokenRoles = await _tokenRoles();
+    final tokenLacksAthlete =
+        tokenRoles != null && !tokenRoles.contains(kAthleteAppRole);
+    if (!existingRoles.contains('athlete') || tokenLacksAthlete) {
       await grantAthleteRole();
     }
     final effectiveRoles = <String>{...existingRoles, 'athlete'};
@@ -130,7 +159,8 @@ class AthleteProfileRepository {
 
     data['discoverSportIds'] = discoverSportIdsForProfile(profile);
     data['lookingForPartner'] = profile.lookingForPartner;
-    if (profile.gameObjective != null && profile.gameObjective!.trim().isNotEmpty) {
+    if (profile.gameObjective != null &&
+        profile.gameObjective!.trim().isNotEmpty) {
       data['gameObjective'] = profile.gameObjective!.trim();
     } else if (exists) {
       data['gameObjective'] = FieldValue.delete();
@@ -156,7 +186,9 @@ class AthleteProfileRepository {
       );
     }
 
-    await docRef.set(data, SetOptions(merge: true)).timeout(kProfileSaveTimeout);
+    await docRef
+        .set(data, SetOptions(merge: true))
+        .timeout(kProfileSaveTimeout);
   }
 
   /// Grava SOMENTE a foto de perfil em `users/{uid}`.
@@ -180,16 +212,13 @@ class AthleteProfileRepository {
   }) async {
     final url = photoUrl.trim();
     if (url.isEmpty) return;
-    await _users
-        .doc(uid)
-        .set(
-          <String, dynamic>{
-            'profilePhotoUrl': url,
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        )
-        .timeout(kProfileSaveTimeout);
+    await _users.doc(uid).set(
+      <String, dynamic>{
+        'profilePhotoUrl': url,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    ).timeout(kProfileSaveTimeout);
   }
 
   /// Grava SOMENTE a foto de capa em `users/{uid}`.
@@ -206,16 +235,13 @@ class AthleteProfileRepository {
   }) async {
     final url = photoUrl.trim();
     if (url.isEmpty) return;
-    await _users
-        .doc(uid)
-        .set(
-          <String, dynamic>{
-            'coverPhotoUrl': url,
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        )
-        .timeout(kProfileSaveTimeout);
+    await _users.doc(uid).set(
+      <String, dynamic>{
+        'coverPhotoUrl': url,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    ).timeout(kProfileSaveTimeout);
   }
 
   Future<void> saveNotificationPreferences({
@@ -271,11 +297,8 @@ class AthleteProfileRepository {
   }
 
   Stream<List<Map<String, dynamic>>> watchUserTokens(String uid) {
-    return _users
-        .doc(uid)
-        .collection('tokens')
-        .snapshots()
-        .map((snap) => snap.docs.map((d) => {...d.data(), 'id': d.id}).toList());
+    return _users.doc(uid).collection('tokens').snapshots().map(
+        (snap) => snap.docs.map((d) => {...d.data(), 'id': d.id}).toList());
   }
 
   Future<void> deleteUserToken({
